@@ -16,7 +16,7 @@ class CloudLLMManager: ObservableObject {
     
     // Gemini 1.5 Flash endpoint (generateContent REST API)
     private var endpoint: String {
-        "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=\(apiKey)"
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=\(apiKey)"
     }
     
     func analyzeText(text: String) async throws -> ParsedTask {
