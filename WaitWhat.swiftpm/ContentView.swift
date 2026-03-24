@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 // MARK: - Design System Tokens
 struct DesignSystem {
@@ -34,6 +35,11 @@ struct HomeVoiceInterfaceView: View {
     @State private var isBreathing = false
     @State private var isPressed = false
     
+    // Injected Dependencies
+    @Environment(\\.modelContext) private var modelContext
+    @State private var speechManager = SpeechManager()
+    @State private var aiManager = AIManager()
+    
     var body: some View {
         ZStack {
             // 1. Off-white background covering the whole screen
@@ -66,22 +72,44 @@ struct HomeVoiceInterfaceView: View {
                         Circle()
                             .fill(DesignSystem.Colors.primaryFixedDim.opacity(0.3))
                             .frame(width: 180, height: 180)
-                            .scaleEffect(isBreathing ? 1.1 : 1.0)
+                            .scaleEffect((isBreathing || speechManager.isRecording) ? 1.1 : 1.0)
                             .animation(
                                 Animation.easeInOut(duration: 2.0).repeatForever(autoreverses: true),
                                 value: isBreathing
                             )
+                            .animation(.spring(), value: speechManager.isRecording)
                         
                         // Inner Button with Gradient and soft depth
                         Button(action: {
                             // Voice recording action
+                            if speechManager.isRecording {
+                                speechManager.stopRecording()
+                                
+                                // Process the final recognized text using our locally-run Phi-3 model
+                                Task {
+                                    if let parsed = await aiManager.processInstruction(text: speechManager.recognizedText) {
+                                        DataManager.shared.insert(parsedResult: parsed, context: modelContext)
+                                        // Optional: add some toast or haptic feedback
+                                    }
+                                }
+                            } else {
+                                do {
+                                    try speechManager.startRecording()
+                                } catch {
+                                    print("Failed to start recording: \\(error)")
+                                }
+                            }
                         }) {
                             ZStack {
                                 Circle()
                                     .fill(DesignSystem.Gradients.primaryCTA)
                                     .frame(width: 120, height: 120)
+                                    .overlay(
+                                        Circle()
+                                            .stroke(Color.white.opacity(0.5), lineWidth: speechManager.isRecording ? 4 : 0)
+                                    )
                                 
-                                Image(systemName: "mic.fill")
+                                Image(systemName: speechManager.isRecording ? "stop.fill" : "mic.fill")
                                     .font(.system(size: 40, weight: .medium))
                                     .foregroundColor(.white)
                             }
@@ -90,10 +118,11 @@ struct HomeVoiceInterfaceView: View {
                     }
                     .onAppear {
                         isBreathing = true
+                        speechManager.requestAuthorization()
                     }
                     
                     // Prompt Text
-                    Text("What should I remember for you?")
+                    Text(speechManager.isRecording ? speechManager.recognizedText : (aiManager.isThinking ? "Thinking carefully..." : "What should I remember for you?"))
                         .font(DesignSystem.Typography.titleSm)
                         .foregroundColor(DesignSystem.Colors.primary) // Anchor focus point
                         .tracking(-0.5) // -2% letter spacing rule for headlines
