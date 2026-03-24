@@ -1,8 +1,10 @@
 import Foundation
 import MLX
 import MLXNN
+import MLXLLM
+import MLXLMCommon
+import Hub
 
-// 향후 Phi-3 등 다른 모델로 교체하거나 목업 모델을 사용할 때를 대비한 프로토콜
 public protocol Predictable {
     func loadModel(modelID: String) async throws
     func generate(prompt: String) async throws -> String
@@ -13,93 +15,87 @@ class LLMManager: ObservableObject, Predictable {
     @Published var isModelLoaded = false
     @Published var isGenerating = false
     
-    // SLM 시스템 프롬프트: JSON 포맷 강제 및 카테고리 분류 
+    // SLM 시스템 프롬프트: JSON 포맷 강제
     private let systemPrompt = """
     너는 사용자의 음성 기록을 분석하여 일정과 루틴으로 분류하는 비서야.
     사용자의 입력을 분석하여 task, time, category 세 가지 키를 가진 JSON 배열로만 응답해.
-    category는 딱 두 가지만 존재해: 'Routine'(매일 하는 일) 또는 'Appointment'(특정 시간/장소 약속).
-    만약 시간이 명시되지 않았다면 null로 표시해.
-    불필요한 설명은 절대 하지 말고 오직 JSON 포맷만 출력해.
+    category는 꼭 "Routine"(매일 하는 일) 또는 "Appointment"(특정 시간/장소 약속) 둘 중 하나여야 해.
+    시간이 없으면 time은 null로 표시해. 설명은 일절 생략하고 반드시 순수한 JSON 배열 포맷만 출력해.
     """
     
-    // 추후 MLX Model과 Tokenizer 인스턴스가 저장될 위치
-    // private var model: LlamaModel?
-    // private var tokenizer: Tokenizer?
+    // MLXLLM 추론 엔진 속성
+    private var modelContainer: ModelContainer?
     
-    /// Hugging Face에서 4-bit 양자화된 모델을 비동기로 로드합니다.
-    func loadModel(modelID: String = "mlx-community/Meta-Llama-3-8B-Instruct-4bit") async throws {
-        DispatchQueue.main.async {
-            self.isModelLoaded = false
+    /// Hugging Face에서 양자화된 Llama 3.2 1B 모델 가중치를 로드합니다.
+    func loadModel(modelID: String = "mlx-community/Llama-3.2-1B-Instruct-4bit") async throws {
+        DispatchQueue.main.async { self.isModelLoaded = false }
+        print("[\(modelID)] 모델의 가중치를 다운로드 및 로드하는 중입니다...")
+        
+        let hub = HubApi()
+        let configuration = ModelConfiguration(id: modelID)
+        
+        // 메모리 제한 완화 (모바일 환경에 따라 조율)
+        MLX.GPU.set(cacheLimit: 20 * 1024 * 1024)
+        
+        // LLMModelFactory를 이용해 Hub에서 다운로드하고 ModelContainer 생성
+        let container = try await LLMModelFactory.shared.loadContainer(hub: hub, configuration: configuration) { progress in
+            print("Downloading... \(Int(progress.fractionCompleted * 100))%")
         }
         
-        print("[\(modelID)] 모델의 가중치(4-bit Quantized)를 다운로드 및 로드하는 중입니다...")
-        
-        // 시뮬레이션 지연
-        try await Task.sleep(nanoseconds: 2_000_000_000)
+        self.modelContainer = container
         
         DispatchQueue.main.async {
             self.isModelLoaded = true
-            print("🚀 모델 로드가 완료되었습니다.")
+            print("🚀 모델 로드가 완료되었습니다. (MLX On-Device)")
         }
     }
     
-    /// 주어진 프롬프트를 시스템 프롬프트와 묶어 Llama 3 챗 포맷으로 변환합니다.
-    private func buildPrompt(userText: String) -> String {
-        return """
-        <|begin_of_text|><|start_header_id|>system<|end_header_id|>
-        \(systemPrompt)<|eot_id|><|start_header_id|>user<|end_header_id|>
-        \(userText)<|eot_id|><|start_header_id|>assistant<|end_header_id|>
-        """
-    }
-    
-    /// 주어진 프롬프트를 바탕으로 추론을 수행합니다.
     func generate(prompt: String) async throws -> String {
-        guard isModelLoaded else {
+        guard let container = modelContainer else {
             throw NSError(domain: "LLMManager", code: 1, userInfo: [NSLocalizedDescriptionKey: "모델이 아직 로드되지 않았습니다."])
         }
         
-        DispatchQueue.main.async {
-            self.isGenerating = true
-        }
+        DispatchQueue.main.async { self.isGenerating = true }
         
         defer {
-            // iOS 기기의 RAM 한계로 인해, 추론이 끝나면 항상 메모리 정리 및 상태 복구를 보장
-            DispatchQueue.main.async {
-                self.isGenerating = false
-            }
+            DispatchQueue.main.async { self.isGenerating = false }
             clearMemory()
         }
         
-        let formattedPrompt = buildPrompt(userText: prompt)
-        print("추론 시작 (포맷팅된 프롬프트):\n\(formattedPrompt)")
-        
-        // 🚀 추론 지연 및 완벽히 규격화된 JSON 응답 시뮬레이션
-        try await Task.sleep(nanoseconds: 1_500_000_000)
-        
-        // ex: "아 맞다, 내일 9시에 약속 있는데... 아 그전에 비타민도 먹어야지"
-        let simulatedJSONResponse = """
-        [
-          {
-            "task": "약속",
-            "time": "내일 9시",
-            "category": "Appointment"
-          },
-          {
-            "task": "비타민 먹기",
-            "time": null,
-            "category": "Routine"
-          }
+        // MLXLMCommon의 기능인 UserInput 메세징 활용
+        let chat: [Chat.Message] = [
+            .system(systemPrompt),
+            .user(prompt)
         ]
-        """
         
-        return simulatedJSONResponse
+        let userInput = UserInput(chat: chat)
+        let lmInput = try await container.prepare(input: userInput)
+        let parameters = GenerateParameters(temperature: 0.1)
+        
+        print("추론 시작. Input 토큰 수: \(lmInput.text.tokens.size)")
+        
+        let stream = try await container.generate(input: lmInput, parameters: parameters)
+        var iterator = stream.makeAsyncIterator()
+        
+        var generatedText = ""
+        while let next = await iterator.next() {
+            if let chunk = next.chunk, !chunk.isEmpty {
+                generatedText += chunk
+            }
+        }
+        
+        // 불필요한 마크다운 백틱(`) 제거나 텍스트 다듬기
+        let cleanedJSON = generatedText
+            .replacingOccurrences(of: "```json", with: "")
+            .replacingOccurrences(of: "```", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            
+        print("추론 완료: \(cleanedJSON)")
+        return cleanedJSON
     }
     
-    /// iOS 기기의 RAM 제한을 방어하기 위해 GPU 캐시를 적절히 비워줍니다.
     func clearMemory() {
         print("🧹 MLX GPU 메모리 캐시를 정리합니다...")
-        
-        // MLX.GPU.clearCache() 기능 호출 (MLX-Swift 환경)
         MLX.GPU.clearCache()
     }
 }
