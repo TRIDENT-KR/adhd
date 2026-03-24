@@ -38,22 +38,9 @@ let package = Package(
             ]
         )
     ],
-    dependencies: [
-        .package(url: "https://github.com/ml-explore/mlx-swift.git", .branch("main")),
-        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", .branch("main")),
-        .package(url: "https://github.com/huggingface/swift-transformers.git", "1.1.0"..<"2.0.0")
-    ],
     targets: [
         .executableTarget(
             name: "AppModule",
-            dependencies: [
-                .product(name: "MLX", package: "mlx-swift"),
-                .product(name: "MLXRandom", package: "mlx-swift"),
-                .product(name: "MLXNN", package: "mlx-swift"),
-                .product(name: "MLXLLM", package: "mlx-swift-lm"),
-                .product(name: "MLXLMCommon", package: "mlx-swift-lm"),
-                .product(name: "Hub", package: "swift-transformers")
-            ],
             path: "."
         )
     ]

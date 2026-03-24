@@ -31,7 +31,7 @@ struct DesignSystem {
 
 // MARK: - Main View
 struct HomeVoiceInterfaceView: View {
-    @EnvironmentObject var llmManager: LLMManager
+    @EnvironmentObject var cloudLLM: CloudLLMManager
     @EnvironmentObject var taskManager: TaskManager
     @StateObject private var voiceManager = VoiceInputManager()
     @State private var isBreathing = false
@@ -99,9 +99,9 @@ struct HomeVoiceInterfaceView: View {
                             guard !text.isEmpty else { return }
                             Task {
                                 do {
-                                    let jsonResponse = try await llmManager.generate(prompt: text)
-                                    print("🤖 SLM 응답 결과:\n\(jsonResponse)")
-                                    taskManager.ingest(jsonString: jsonResponse)
+                                    let parsedTask = try await cloudLLM.analyzeText(text: text)
+                                    print("🤖 GPT-4o-mini 파싱 결과: \\(parsedTask)")
+                                    taskManager.add(task: parsedTask)
                                     
                                     // Reset UI states after inference and show temporary success message
                                     await MainActor.run {
@@ -116,7 +116,7 @@ struct HomeVoiceInterfaceView: View {
                                         }
                                     }
                                 } catch {
-                                    print("LLM Error: \(error)")
+                                    print("Cloud API Error: \\(error)")
                                     await MainActor.run { voiceManager.isProcessing = false }
                                 }
                             }
@@ -125,7 +125,7 @@ struct HomeVoiceInterfaceView: View {
                     
                     // Prompt Text / Real-time Transcribed Text
                     Group {
-                        if llmManager.isGenerating || voiceManager.isProcessing {
+                        if cloudLLM.isProcessing || voiceManager.isProcessing {
                             Text("분석 중...")
                                 .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
                         } else if !voiceManager.recognizedText.isEmpty {
@@ -137,6 +137,8 @@ struct HomeVoiceInterfaceView: View {
                         } else {
                             Text("What should I remember for you?")
                                 .foregroundColor(DesignSystem.Colors.primary) // Anchor focus point
+                        }
+                    }) // Anchor focus point
                         }
                     }
                     .font(DesignSystem.Typography.titleSm)
