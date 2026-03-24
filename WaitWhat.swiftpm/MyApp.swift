@@ -10,6 +10,9 @@ struct WaitWhatApp: App {
             MainTabView()
                 .environmentObject(taskManager)
                 .environmentObject(llmManager)
+                .task {
+                    try? await llmManager.loadModel(modelID: "mlx-community/Meta-Llama-3-8B-Instruct-4bit")
+                }
         }
     }
 }
