@@ -138,8 +138,6 @@ struct HomeVoiceInterfaceView: View {
                             Text("What should I remember for you?")
                                 .foregroundColor(DesignSystem.Colors.primary) // Anchor focus point
                         }
-                    }) // Anchor focus point
-                        }
                     }
                     .font(DesignSystem.Typography.titleSm)
                     .tracking(-0.5) // -2% letter spacing rule for headlines
