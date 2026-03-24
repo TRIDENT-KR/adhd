@@ -10,13 +10,14 @@ import AppleProductTypes
 let package = Package(
     name: "WaitWhat",
     platforms: [
-        .iOS("16.0")
+        .iOS("17.0")
     ],
     products: [
         .iOSApplication(
             name: "WaitWhat",
             targets: ["AppModule"],
             bundleIdentifier: "com.eyeonze.WaitWhat",
+            teamIdentifier: "5S3Y6973X6",
             displayVersion: "1.0",
             bundleVersion: "1",
             appIcon: .placeholder(icon: .mic),
