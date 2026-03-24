@@ -31,6 +31,8 @@ struct DesignSystem {
 
 // MARK: - Main View
 struct HomeVoiceInterfaceView: View {
+    @EnvironmentObject var llmManager: LLMManager
+    @EnvironmentObject var taskManager: TaskManager
     @StateObject private var voiceManager = VoiceInputManager()
     @State private var isBreathing = false
     
@@ -93,12 +95,29 @@ struct HomeVoiceInterfaceView: View {
                     }
                     .onAppear {
                         isBreathing = true
+                        voiceManager.onSpeechFinalized = { text in
+                            guard !text.isEmpty else { return }
+                            Task {
+                                do {
+                                    let jsonResponse = try await llmManager.generate(prompt: text)
+                                    taskManager.ingest(jsonString: jsonResponse)
+                                    // Reset UI states after inference
+                                    await MainActor.run {
+                                        voiceManager.recognizedText = ""
+                                        voiceManager.isProcessing = false
+                                    }
+                                } catch {
+                                    print("LLM Error: \(error)")
+                                    await MainActor.run { voiceManager.isProcessing = false }
+                                }
+                            }
+                        }
                     }
                     
                     // Prompt Text / Real-time Transcribed Text
                     Group {
-                        if voiceManager.isProcessing {
-                            Text("처리 중...")
+                        if llmManager.isGenerating || voiceManager.isProcessing {
+                            Text("분석 중...")
                                 .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
                         } else if !voiceManager.recognizedText.isEmpty {
                             Text(voiceManager.recognizedText)

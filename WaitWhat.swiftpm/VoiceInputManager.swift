@@ -12,6 +12,9 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
     // For Vibe Check logic (transitioning to inference)
     @Published var isProcessing: Bool = false
     
+    // Completion handler for when recording successfully finishes
+    var onSpeechFinalized: ((String) -> Void)?
+    
     private let speechRecognizer = SFSpeechRecognizer(locale: Locale(identifier: "ko-KR")) // Adjust for user language preference
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var recognitionTask: SFSpeechRecognitionTask?
@@ -166,8 +169,8 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
     }
     
     private func finalizeAndProceed() {
-        // Here we would pass `recognizedText` to the Llama 3 8b (MLX) model
-        print("Finalizing text for Llama 3 inference: \(recognizedText)")
-        // Typically, this could be captured by a delegate or observed by another ViewModel
+        // Pass the recognized text over to the closure for SLM processing
+        print("Finalizing text for pipeline: \(recognizedText)")
+        onSpeechFinalized?(recognizedText)
     }
 }
