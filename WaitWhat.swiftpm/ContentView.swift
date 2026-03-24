@@ -100,11 +100,20 @@ struct HomeVoiceInterfaceView: View {
                             Task {
                                 do {
                                     let jsonResponse = try await llmManager.generate(prompt: text)
+                                    print("🤖 SLM 응답 결과:\n\(jsonResponse)")
                                     taskManager.ingest(jsonString: jsonResponse)
-                                    // Reset UI states after inference
+                                    
+                                    // Reset UI states after inference and show temporary success message
                                     await MainActor.run {
-                                        voiceManager.recognizedText = ""
+                                        voiceManager.recognizedText = "✅ 저장 완료! Planner와 Routine 탭을 확인하세요."
                                         voiceManager.isProcessing = false
+                                        
+                                        // 3초 뒤에 원래 문구로 복귀
+                                        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                                            if voiceManager.recognizedText.starts(with: "✅") {
+                                                voiceManager.recognizedText = ""
+                                            }
+                                        }
                                     }
                                 } catch {
                                     print("LLM Error: \(error)")

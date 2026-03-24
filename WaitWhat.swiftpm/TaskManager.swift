@@ -31,7 +31,9 @@ class TaskManager: ObservableObject {
         do {
             let items = try JSONDecoder().decode([ParsedTask].self, from: data)
             DispatchQueue.main.async {
+                print("🎯 파싱 완료! 총 \(items.count)개의 일정이 추출되었습니다.")
                 for item in items {
+                    print("  ✅ [\(item.category)] \(item.task) (시간: \(item.time ?? "미지정"))")
                     if item.category == "Routine" {
                         self.routines.append(item)
                     } else if item.category == "Appointment" {
