@@ -13,6 +13,15 @@ class LLMManager: ObservableObject, Predictable {
     @Published var isModelLoaded = false
     @Published var isGenerating = false
     
+    // SLM 시스템 프롬프트: JSON 포맷 강제 및 카테고리 분류 
+    private let systemPrompt = """
+    너는 사용자의 음성 기록을 분석하여 일정과 루틴으로 분류하는 비서야.
+    사용자의 입력을 분석하여 task, time, category 세 가지 키를 가진 JSON 배열로만 응답해.
+    category는 딱 두 가지만 존재해: 'Routine'(매일 하는 일) 또는 'Appointment'(특정 시간/장소 약속).
+    만약 시간이 명시되지 않았다면 null로 표시해.
+    불필요한 설명은 절대 하지 말고 오직 JSON 포맷만 출력해.
+    """
+    
     // 추후 MLX Model과 Tokenizer 인스턴스가 저장될 위치
     // private var model: LlamaModel?
     // private var tokenizer: Tokenizer?
@@ -25,17 +34,22 @@ class LLMManager: ObservableObject, Predictable {
         
         print("[\(modelID)] 모델의 가중치(4-bit Quantized)를 다운로드 및 로드하는 중입니다...")
         
-        // TODO: MLX Swift의 HuggingFace Hub 다운로더 또는 커스텀 로직 연동
-        // let modelURL = try await Hub.download(repo: modelID)
-        // self.model = try MLXLLM.load(url: modelURL)
-        
-        // 🚀 모델 로딩 시뮬레이션
+        // 시뮬레이션 지연
         try await Task.sleep(nanoseconds: 2_000_000_000)
         
         DispatchQueue.main.async {
             self.isModelLoaded = true
             print("🚀 모델 로드가 완료되었습니다.")
         }
+    }
+    
+    /// 주어진 프롬프트를 시스템 프롬프트와 묶어 Llama 3 챗 포맷으로 변환합니다.
+    private func buildPrompt(userText: String) -> String {
+        return """
+        <|begin_of_text|><|start_header_id|>system<|end_header_id|>
+        \(systemPrompt)<|eot_id|><|start_header_id|>user<|end_header_id|>
+        \(userText)<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+        """
     }
     
     /// 주어진 프롬프트를 바탕으로 추론을 수행합니다.
@@ -56,18 +70,29 @@ class LLMManager: ObservableObject, Predictable {
             clearMemory()
         }
         
-        print("추론 시작 (프롬프트: \(prompt))...")
+        let formattedPrompt = buildPrompt(userText: prompt)
+        print("추론 시작 (포맷팅된 프롬프트):\n\(formattedPrompt)")
         
-        // TODO: 실제 MLX 기반 추론 로직 (Tokenization -> MLX Generate -> Decode)
-        // let tokens = tokenizer.encode(prompt)
-        // let output = model.generate(tokens)
-        // let resultText = tokenizer.decode(output)
-        
-        // 🚀 추론 지연 시뮬레이션
+        // 🚀 추론 지연 및 완벽히 규격화된 JSON 응답 시뮬레이션
         try await Task.sleep(nanoseconds: 1_500_000_000)
-        let simulatedResponse = "온디바이스 Llama 3(8b) 기반으로 처리된 결과입니다. 기록할 내용을 성공적으로 추출했습니다.\n\n요청:\n\"\(prompt)\""
         
-        return simulatedResponse
+        // ex: "아 맞다, 내일 9시에 약속 있는데... 아 그전에 비타민도 먹어야지"
+        let simulatedJSONResponse = """
+        [
+          {
+            "task": "약속",
+            "time": "내일 9시",
+            "category": "Appointment"
+          },
+          {
+            "task": "비타민 먹기",
+            "time": null,
+            "category": "Routine"
+          }
+        ]
+        """
+        
+        return simulatedJSONResponse
     }
     
     /// iOS 기기의 RAM 제한을 방어하기 위해 GPU 캐시를 적절히 비워줍니다.
