@@ -27,29 +27,15 @@ class TaskManager: ObservableObject {
     ]
     
     func ingest(jsonString: String) {
-        guard let data = jsonString.data(using: .utf8) else { return }
+        let cleaned = jsonString.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let data = cleaned.data(using: .utf8) else { return }
+        
+        var parsedItems: [ParsedTask] = []
+        
         do {
-            let items = try JSONDecoder().decode([ParsedTask].self, from: data)
-            DispatchQueue.main.async {
-                print("🎯 파싱 완료! 총 \(items.count)개의 일정이 추출되었습니다.")
-                for item in items {
-                    print("  ✅ [\(item.category)] \(item.task) (시간: \(item.time ?? "미지정"))")
-                    if item.category == "Routine" {
-                        self.routines.append(item)
-                    } else if item.category == "Appointment" {
-                        self.appointments.append(item)
-                    }
-                }
-            }
+            // 1. 시도: 배열로 파싱 (Prompt가 요구했던 정상 형태)
+            parsedItems = try JSONDecoder().decode([ParsedTask].self, from: data)
         } catch {
-            print("Failed to decode SLM JSON: \(error)")
-            // Fallback for missing array brackets or simple single object
-            if let singleItem = try? JSONDecoder().decode(ParsedTask.self, from: data) {
-                DispatchQueue.main.async {
-                    if singleItem.category == "Routine" {
-                        self.routines.append(singleItem)
-                    } else if singleItem.category == "Appointment" {
-                        self.appointments.append(singleItem)
                     }
                 }
             }
