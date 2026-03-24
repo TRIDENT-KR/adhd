@@ -36,7 +36,7 @@ struct HomeVoiceInterfaceView: View {
     @State private var isPressed = false
     
     // Injected Dependencies
-    @Environment(\\.modelContext) private var modelContext
+    @Environment(\.modelContext) private var modelContext
     @State private var speechManager = SpeechManager()
     @State private var aiManager = AIManager()
     
