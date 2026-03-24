@@ -30,6 +30,10 @@ let package = Package(
                 .landscapeRight,
                 .landscapeLeft,
                 .portraitUpsideDown(.when(deviceFamilies: [.pad]))
+            ],
+            capabilities: [
+                .speechRecognition(purposeString: "음성을 텍스트로 변환하기 위해 음성 인식 권한이 필요합니다."),
+                .microphone(purposeString: "음성 명령을 기록하기 위해 마이크 접근 권한이 필요합니다.")
             ]
         )
     ],
