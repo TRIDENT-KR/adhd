@@ -3,7 +3,9 @@ import SwiftUI
 struct PlannerView: View {
     @EnvironmentObject var taskManager: TaskManager
     @State private var editingTaskId: UUID?
-
+    @State private var selectedDate: Date = Calendar.current.startOfDay(for: Date())
+    
+    private let calendar = Calendar.current
     var body: some View {
         ZStack(alignment: .bottom) {
             // Off-white background
@@ -23,7 +25,6 @@ struct PlannerView: View {
                     // Date Selector (7 days)
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 20) {
-                            let calendar = Calendar.current
                             let today = calendar.startOfDay(for: Date())
                             let days = (-3...3).compactMap { offset in
                                 calendar.date(byAdding: .day, value: offset, to: today)
@@ -42,27 +43,54 @@ struct PlannerView: View {
                             }()
                             
                             ForEach(days, id: \.self) { date in
-                                let isToday = calendar.isDateInToday(date)
-                                VStack(spacing: 6) {
-                                    Text(weekdayFormatter.string(from: date).prefix(1)) // M, T, W
-                                        .font(DesignSystem.Typography.bodyMd)
-                                        .foregroundColor(isToday ? .white : DesignSystem.Colors.onSurfaceVariant)
-                                    Text(dayFormatter.string(from: date)) // 12, 13
-                                        .font(DesignSystem.Typography.titleSm)
-                                        .foregroundColor(isToday ? .white : DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
+                                let isSelected = calendar.isDate(date, inSameDayAs: selectedDate)
+                                Button(action: {
+                                    withAnimation(.spring()) {
+                                        selectedDate = date
+                                    }
+                                }) {
+                                    VStack(spacing: 6) {
+                                        Text(weekdayFormatter.string(from: date).prefix(1)) // M, T, W
+                                            .font(DesignSystem.Typography.bodyMd)
+                                            .foregroundColor(isSelected ? .white : DesignSystem.Colors.onSurfaceVariant)
+                                        Text(dayFormatter.string(from: date)) // 12, 13
+                                            .font(DesignSystem.Typography.titleSm)
+                                            .foregroundColor(isSelected ? .white : DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
+                                    }
+                                    .padding(.vertical, 16)
+                                    .padding(.horizontal, 16)
+                                    .background(isSelected ? Capsule().fill(DesignSystem.Colors.primaryContainer) : Capsule().fill(Color.clear))
                                 }
-                                .padding(.vertical, 16)
-                                .padding(.horizontal, 16)
-                                .background(isToday ? Capsule().fill(DesignSystem.Colors.primaryContainer) : Capsule().fill(Color.clear))
+                                .buttonStyle(PlainButtonStyle())
                             }
                         }
                         .padding(.horizontal, 32)
                     }
                     
                     // Timeline View
-                    LazyVStack(spacing: 24) {
-                        ForEach($taskManager.appointments) { $appointment in
-                            EventCard(appointment: $appointment, editingTaskId: $editingTaskId)
+                    let filteredIndices = taskManager.appointments.indices.filter { index in
+                        if let taskDate = taskManager.appointments[index].date {
+                            return calendar.isDate(taskDate, inSameDayAs: selectedDate)
+                        }
+                        return false
+                    }
+                    
+                    if filteredIndices.isEmpty {
+                        VStack(spacing: 12) {
+                            Image(systemName: "circle.dotted")
+                                .font(.system(size: 40))
+                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.2))
+                            Text("No plans for this date.")
+                                .font(DesignSystem.Typography.bodyMd)
+                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, 40)
+                    } else {
+                        LazyVStack(spacing: 24) {
+                            ForEach(filteredIndices, id: \.self) { index in
+                                EventCard(appointment: $taskManager.appointments[index], editingTaskId: $editingTaskId)
+                            }
                         }
                     }
                     
