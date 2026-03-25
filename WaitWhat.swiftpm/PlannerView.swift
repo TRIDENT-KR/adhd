@@ -32,7 +32,9 @@ struct PlannerView: View {
                                 .foregroundColor(DesignSystem.Colors.primary)
                                 .padding(12)
                                 .background(Circle().fill(DesignSystem.Colors.primaryContainer))
+                                .contentShape(Circle())
                         }
+                        .buttonStyle(NoEffectButtonStyle())
                     }
                     .padding(.top, 16)
                     .padding(.horizontal, 32)
@@ -78,7 +80,7 @@ struct PlannerView: View {
                                     .background(isSelected ? Capsule().fill(DesignSystem.Colors.primaryContainer) : Capsule().fill(Color.clear))
                                     .contentShape(Capsule())
                                 }
-                                .buttonStyle(PlainButtonStyle())
+                                .buttonStyle(NoEffectButtonStyle())
                             }
                         }
                         .padding(.horizontal, 32)
@@ -118,17 +120,19 @@ struct PlannerView: View {
         .sheet(isPresented: $isCalendarPresented) {
             NavigationView {
                 VStack {
-                    DatePicker(
-                        "Select Date",
-                        selection: $selectedDate,
-                        displayedComponents: [.date]
-                    )
-                    .datePickerStyle(.graphical)
+                    VStack {
+                        DatePicker(
+                            "Select Date",
+                            selection: $selectedDate,
+                            displayedComponents: [.date]
+                        )
+                        .datePickerStyle(.graphical)
+                        .tint(DesignSystem.Colors.primary)
+                    }
                     .padding()
                     .background(DesignSystem.Colors.surfaceContainerLow)
                     .cornerRadius(24)
                     .padding()
-                    .tint(DesignSystem.Colors.primary)
                     
                     Spacer()
                 }
@@ -265,6 +269,12 @@ struct EventCard: View {
     private func startEditing() {
         editingTaskId = appointment.id
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+    }
+}
+
+struct NoEffectButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
     }
 }
 
