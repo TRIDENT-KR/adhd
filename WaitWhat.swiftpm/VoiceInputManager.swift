@@ -15,7 +15,7 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
     // Completion handler for when recording successfully finishes
     var onSpeechFinalized: ((String) -> Void)?
     
-    private let speechRecognizer = SFSpeechRecognizer(locale: Locale(identifier: "ko-KR")) // Adjust for user language preference
+    private let speechRecognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US")) // Adjust for user language preference
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var recognitionTask: SFSpeechRecognitionTask?
     private let audioEngine = AVAudioEngine()
