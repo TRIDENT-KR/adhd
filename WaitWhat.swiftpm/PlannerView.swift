@@ -4,6 +4,7 @@ struct PlannerView: View {
     @EnvironmentObject var taskManager: TaskManager
     @State private var editingTaskId: UUID?
     @State private var selectedDate: Date = Calendar.current.startOfDay(for: Date())
+    @State private var isCalendarPresented: Bool = false
     
     private let calendar = Calendar.current
     var body: some View {
@@ -15,19 +16,33 @@ struct PlannerView: View {
                 VStack(alignment: .leading, spacing: 40) {
                     
                     // Header
-                    Text("My Planner")
-                        .font(DesignSystem.Typography.displayLg)
-                        .foregroundColor(DesignSystem.Colors.primary)
-                        .tracking(-0.5)
-                        .padding(.top, 16)
-                        .padding(.horizontal, 32)
+                    HStack {
+                        Text("My Planner")
+                            .font(DesignSystem.Typography.displayLg)
+                            .foregroundColor(DesignSystem.Colors.primary)
+                            .tracking(-0.5)
+                        
+                        Spacer()
+                        
+                        Button(action: {
+                            isCalendarPresented.toggle()
+                        }) {
+                            Image(systemName: "calendar")
+                                .font(.system(size: 24, weight: .light))
+                                .foregroundColor(DesignSystem.Colors.primary)
+                                .padding(12)
+                                .background(Circle().fill(DesignSystem.Colors.primaryContainer))
+                        }
+                    }
+                    .padding(.top, 16)
+                    .padding(.horizontal, 32)
                     
                     // Date Selector (7 days)
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 20) {
-                            let today = calendar.startOfDay(for: Date())
-                            let days = (-3...3).compactMap { offset in
-                                calendar.date(byAdding: .day, value: offset, to: today)
+                            let startOfWeek = calendar.dateInterval(of: .weekOfYear, for: selectedDate)?.start ?? selectedDate
+                            let days = (0...6).compactMap { offset in
+                                calendar.date(byAdding: .day, value: offset, to: startOfWeek)
                             }
                             
                             let weekdayFormatter: DateFormatter = {
@@ -59,7 +74,9 @@ struct PlannerView: View {
                                     }
                                     .padding(.vertical, 16)
                                     .padding(.horizontal, 16)
+                                    .frame(minWidth: 60)
                                     .background(isSelected ? Capsule().fill(DesignSystem.Colors.primaryContainer) : Capsule().fill(Color.clear))
+                                    .contentShape(Capsule())
                                 }
                                 .buttonStyle(PlainButtonStyle())
                             }
@@ -97,6 +114,47 @@ struct PlannerView: View {
                     Spacer(minLength: 140) // Space for bottom bar
                 }
             }
+        }
+        .sheet(isPresented: $isCalendarPresented) {
+            NavigationView {
+                VStack {
+                    DatePicker(
+                        "Select Date",
+                        selection: $selectedDate,
+                        displayedComponents: [.date]
+                    )
+                    .datePickerStyle(.graphical)
+                    .padding()
+                    .background(DesignSystem.Colors.surfaceContainerLow)
+                    .cornerRadius(24)
+                    .padding()
+                    .tint(DesignSystem.Colors.primary)
+                    
+                    Spacer()
+                }
+                .navigationTitle("Calendar")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        Button("Today") {
+                            withAnimation(.spring()) {
+                                selectedDate = Calendar.current.startOfDay(for: Date())
+                            }
+                        }
+                        .foregroundColor(DesignSystem.Colors.primary)
+                    }
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button("Done") {
+                            isCalendarPresented = false
+                        }
+                        .foregroundColor(DesignSystem.Colors.primary)
+                    }
+                }
+                .background(DesignSystem.Colors.background.ignoresSafeArea())
+            }
+            .environment(\.colorScheme, .light)
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
         }
     }
 }
