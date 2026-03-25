@@ -10,13 +10,14 @@ import AppleProductTypes
 let package = Package(
     name: "WaitWhat",
     platforms: [
-        .iOS("16.0")
+        .iOS("17.0")
     ],
     products: [
         .iOSApplication(
             name: "WaitWhat",
             targets: ["AppModule"],
             bundleIdentifier: "com.eyeonze.WaitWhat",
+            teamIdentifier: "5S3Y6973X6",
             displayVersion: "1.0",
             bundleVersion: "1",
             appIcon: .placeholder(icon: .mic),
@@ -30,13 +31,20 @@ let package = Package(
                 .landscapeRight,
                 .landscapeLeft,
                 .portraitUpsideDown(.when(deviceFamilies: [.pad]))
+            ],
+            capabilities: [
+                .speechRecognition(purposeString: "음성을 텍스트로 변환하기 위해 음성 인식 권한이 필요합니다."),
+                .microphone(purposeString: "음성 명령을 기록하기 위해 마이크 접근 권한이 필요합니다.")
             ]
         )
     ],
     targets: [
         .executableTarget(
             name: "AppModule",
-            path: "."
+            path: ".",
+            resources: [
+                .process("Config.plist")
+            ]
         )
     ]
 )

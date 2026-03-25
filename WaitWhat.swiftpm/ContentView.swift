@@ -31,8 +31,10 @@ struct DesignSystem {
 
 // MARK: - Main View
 struct HomeVoiceInterfaceView: View {
+    @EnvironmentObject var cloudLLM: CloudLLMManager
+    @EnvironmentObject var taskManager: TaskManager
+    @StateObject private var voiceManager = VoiceInputManager()
     @State private var isBreathing = false
-    @State private var isPressed = false
     
     var body: some View {
         ZStack {
@@ -62,43 +64,88 @@ struct HomeVoiceInterfaceView: View {
                     
                     // Voice Pulse Component (Large Circular Microphone Button)
                     ZStack {
-                        // Outer breathing pulse
+                        // Outer breathing pulse / Audio level ripple
+                        let pulseScale = voiceManager.isListening ? 1.0 + (voiceManager.audioPower * 0.5) : (isBreathing ? 1.05 : 0.95)
+                        
                         Circle()
-                            .fill(DesignSystem.Colors.primaryFixedDim.opacity(0.3))
+                            .fill(DesignSystem.Colors.primaryFixedDim.opacity(voiceManager.isListening ? 0.6 : 0.3))
                             .frame(width: 180, height: 180)
-                            .scaleEffect(isBreathing ? 1.1 : 1.0)
+                            .scaleEffect(pulseScale)
                             .animation(
-                                Animation.easeInOut(duration: 2.0).repeatForever(autoreverses: true),
-                                value: isBreathing
+                                voiceManager.isListening ? .easeOut(duration: 0.1) : .easeInOut(duration: 2.0).repeatForever(autoreverses: true),
+                                value: pulseScale
                             )
                         
                         // Inner Button with Gradient and soft depth
                         Button(action: {
-                            // Voice recording action
+                            voiceManager.toggleListening()
                         }) {
                             ZStack {
                                 Circle()
                                     .fill(DesignSystem.Gradients.primaryCTA)
                                     .frame(width: 120, height: 120)
                                 
-                                Image(systemName: "mic.fill")
+                                Image(systemName: voiceManager.isListening ? "stop.fill" : "mic.fill")
                                     .font(.system(size: 40, weight: .medium))
                                     .foregroundColor(.white)
+                                    .contentTransition(.symbolEffect(.replace))
                             }
                         }
                         .buttonStyle(SquishyButtonStyle()) // Custom tactile feedback
                     }
                     .onAppear {
                         isBreathing = true
+                        voiceManager.onSpeechFinalized = { text in
+                            guard !text.isEmpty else { return }
+                            Task {
+                                do {
+                                    let parsedTask = try await cloudLLM.analyzeText(text: text)
+                                    print("🤖 GPT-4o-mini 파싱 결과: \\(parsedTask)")
+                                    taskManager.add(task: parsedTask)
+                                    
+                                    // Reset UI states after inference and show temporary success message
+                                    await MainActor.run {
+                                        voiceManager.recognizedText = "✅ 저장 완료! Planner와 Routine 탭을 확인하세요."
+                                        voiceManager.isProcessing = false
+                                        
+                                        // 3초 뒤에 원래 문구로 복귀
+                                        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                                            if voiceManager.recognizedText.starts(with: "✅") {
+                                                voiceManager.recognizedText = ""
+                                            }
+                                        }
+                                    }
+                                } catch {
+                                    print("Cloud API Error: \\(error)")
+                                    await MainActor.run { voiceManager.isProcessing = false }
+                                }
+                            }
+                        }
                     }
                     
-                    // Prompt Text
-                    Text("What should I remember for you?")
-                        .font(DesignSystem.Typography.titleSm)
-                        .foregroundColor(DesignSystem.Colors.primary) // Anchor focus point
-                        .tracking(-0.5) // -2% letter spacing rule for headlines
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 32)
+                    // Prompt Text / Real-time Transcribed Text
+                    Group {
+                        if cloudLLM.isProcessing || voiceManager.isProcessing {
+                            Text("분석 중...")
+                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
+                        } else if !voiceManager.recognizedText.isEmpty {
+                            Text(voiceManager.recognizedText)
+                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
+                        } else if voiceManager.isListening {
+                            Text("듣는 중...")
+                                .foregroundColor(DesignSystem.Colors.primary)
+                        } else {
+                            Text("What should I remember for you?")
+                                .foregroundColor(DesignSystem.Colors.primary) // Anchor focus point
+                        }
+                    }
+                    .font(DesignSystem.Typography.titleSm)
+                    .tracking(-0.5) // -2% letter spacing rule for headlines
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 32)
+                    .animation(.easeInOut, value: voiceManager.recognizedText)
+                    .animation(.easeInOut, value: voiceManager.isListening)
+                    .animation(.easeInOut, value: voiceManager.isProcessing)
                 }
                 
                 Spacer()

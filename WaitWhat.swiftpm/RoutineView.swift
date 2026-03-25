@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct RoutineView: View {
+    @EnvironmentObject var taskManager: TaskManager
     var body: some View {
         ZStack(alignment: .bottom) {
             // 1. Off-white background
@@ -26,9 +27,9 @@ struct RoutineView: View {
                             .padding(.horizontal, 32)
                         
                         LazyVStack(spacing: 32) { // 항목 간 여백 넓게
-                            TaskRow(title: "Morning Meditation", time: "07:00 AM", isCompleted: true)
-                            TaskRow(title: "Check Email", time: "08:30 AM", isCompleted: false)
-                            TaskRow(title: "Water Plants", time: "09:00 AM", isCompleted: false)
+                            ForEach(taskManager.routines) { routine in
+                                TaskRow(title: routine.task, time: routine.time ?? "", isCompleted: false)
+                            }
                         }
                     }
                     
