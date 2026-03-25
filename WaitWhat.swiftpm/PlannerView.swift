@@ -2,6 +2,8 @@ import SwiftUI
 
 struct PlannerView: View {
     @EnvironmentObject var taskManager: TaskManager
+    @State private var editingTaskId: UUID?
+
     var body: some View {
         ZStack(alignment: .bottom) {
             // Off-white background
@@ -44,8 +46,8 @@ struct PlannerView: View {
                     
                     // Timeline View
                     LazyVStack(spacing: 24) {
-                        ForEach(taskManager.appointments) { appointment in
-                            EventCard(time: appointment.time ?? "", title: appointment.task)
+                        ForEach($taskManager.appointments) { $appointment in
+                            EventCard(appointment: $appointment, editingTaskId: $editingTaskId)
                         }
                     }
                     
@@ -58,33 +60,116 @@ struct PlannerView: View {
 
 // MARK: - Event Card Component
 struct EventCard: View {
-    let time: String
-    let title: String
+    @Binding var appointment: ParsedTask
+    @Binding var editingTaskId: UUID?
+    @FocusState private var isTitleFocused: Bool
+    @State private var showingTimePicker = false
+    
+    var isEditing: Bool {
+        editingTaskId == appointment.id
+    }
+    
+    var isDimmed: Bool {
+        editingTaskId != nil && editingTaskId != appointment.id
+    }
     
     var body: some View {
         HStack(spacing: 20) {
-            Text(time)
-                .font(DesignSystem.Typography.labelSm)
-                .tracking(0.3)
-                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
-                .frame(width: 64, alignment: .leading)
-            
-            Text(title)
-                .font(DesignSystem.Typography.bodyMd)
-                .foregroundColor(DesignSystem.Colors.onSurfaceVariant) // soft, non-alarming
+            if isEditing {
+                Text(appointment.time?.isEmpty == false ? appointment.time! : "Set Time")
+                    .font(DesignSystem.Typography.labelSm)
+                    .padding(.vertical, 4)
+                    .padding(.horizontal, 8)
+                    .background(DesignSystem.Colors.onSurfaceVariant.opacity(0.1))
+                    .cornerRadius(6)
+                    .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
+                    .onTapGesture {
+                        showingTimePicker = true
+                    }
+                    .sheet(isPresented: $showingTimePicker) {
+                        TimePickerModal(timeString: $appointment.time, isPresented: $showingTimePicker)
+                    }
+                
+                TextField("Title", text: $appointment.task)
+                    .focused($isTitleFocused)
+                    .font(DesignSystem.Typography.bodyMd)
+                    .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
+                    .submitLabel(.done)
+                    .onSubmit { finishEditing() }
+            } else {
+                Text(appointment.time ?? "")
+                    .font(DesignSystem.Typography.labelSm)
+                    .tracking(0.3)
+                    .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
+                    .frame(width: 64, alignment: .leading)
+                
+                Text(appointment.task)
+                    .font(DesignSystem.Typography.bodyMd)
+                    .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
+            }
             
             Spacer()
+            
+            // Edit Button inside the card
+            Button(action: {
+                withAnimation {
+                    if isEditing {
+                        finishEditing()
+                    } else {
+                        startEditing()
+                    }
+                }
+            }) {
+                Image(systemName: isEditing ? "checkmark" : "pencil")
+                    .font(.system(size: 16))
+            }
+            .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.3))
         }
         .padding(24)
         // Very faint pastel tint
         .background(DesignSystem.Colors.primary.opacity(0.05))
         .cornerRadius(24) // Soft rounded corners
         .padding(.horizontal, 32)
+        .opacity(isDimmed ? 0.3 : 1.0)
+        .onChange(of: editingTaskId) { newValue in
+            if newValue == appointment.id {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    isTitleFocused = true
+                }
+            } else {
+                isTitleFocused = false
+            }
+        }
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                if isEditing {
+                    Spacer()
+                    Button("Done") {
+                        withAnimation {
+                            finishEditing()
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    private func finishEditing() {
+        if editingTaskId == appointment.id {
+            editingTaskId = nil
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        }
+    }
+    
+    private func startEditing() {
+        editingTaskId = appointment.id
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
     }
 }
 
 struct PlannerView_Previews: PreviewProvider {
     static var previews: some View {
         PlannerView()
+            .environmentObject(TaskManager())
     }
 }

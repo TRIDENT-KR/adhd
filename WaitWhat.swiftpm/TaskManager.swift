@@ -2,9 +2,10 @@ import Foundation
 
 struct ParsedTask: Codable, Identifiable {
     var id = UUID()
-    let task: String
-    let time: String?
+    var task: String
+    var time: String?
     let category: String // "Routine" or "Appointment"
+    var isCompleted: Bool = false
     
     enum CodingKeys: String, CodingKey {
         case task
