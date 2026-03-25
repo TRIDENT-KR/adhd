@@ -17,7 +17,6 @@ let package = Package(
             name: "WaitWhat",
             targets: ["AppModule"],
             bundleIdentifier: "com.eyeonze.WaitWhat",
-            teamIdentifier: "C99CRKG3VV",
             displayVersion: "1.0",
             bundleVersion: "1",
             appIcon: .placeholder(icon: .mic),
