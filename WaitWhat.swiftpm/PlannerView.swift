@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct PlannerView: View {
+    @EnvironmentObject var taskManager: TaskManager
     var body: some View {
         ZStack(alignment: .bottom) {
             // Off-white background
@@ -43,9 +44,9 @@ struct PlannerView: View {
                     
                     // Timeline View
                     LazyVStack(spacing: 24) {
-                        EventCard(time: "10:00 AM", title: "Design Sync")
-                        EventCard(time: " 2:00 PM", title: "Doctor Appointment")
-                        EventCard(time: " 4:30 PM", title: "Read Chapter 4")
+                        ForEach(taskManager.appointments) { appointment in
+                            EventCard(time: appointment.time ?? "", title: appointment.task)
+                        }
                     }
                     
                     Spacer(minLength: 140) // Space for bottom bar
