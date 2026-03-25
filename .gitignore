@@ -3,3 +3,5 @@ Build/
 .swiftpm/
 .build/
 DerivedData/
+Config.plist
+WaitWhat.swiftpm/Config.plist
