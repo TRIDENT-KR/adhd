@@ -12,6 +12,9 @@ let package = Package(
     platforms: [
         .iOS("17.0")
     ],
+    dependencies: [
+        .package(url: "https://github.com/supabase/supabase-swift.git", from: "2.0.0")
+    ],
     products: [
         .iOSApplication(
             name: "WaitWhat",
@@ -41,6 +44,9 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "AppModule",
+            dependencies: [
+                .product(name: "Supabase", package: "supabase-swift")
+            ],
             path: ".",
             resources: [
                 .process("Config.plist")
