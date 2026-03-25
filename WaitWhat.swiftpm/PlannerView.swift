@@ -23,16 +23,31 @@ struct PlannerView: View {
                     // Date Selector (7 days)
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 20) {
-                            // Dummy data representing M 12 to S 18
-                            let days = ["M 12", "T 13", "W 14", "T 15", "F 16", "S 17", "S 18"]
+                            let calendar = Calendar.current
+                            let today = calendar.startOfDay(for: Date())
+                            let days = (-3...3).compactMap { offset in
+                                calendar.date(byAdding: .day, value: offset, to: today)
+                            }
                             
-                            ForEach(0..<days.count, id: \.self) { index in
-                                let isToday = index == 3 // Simulate 'Thursday 15' as today
+                            let weekdayFormatter: DateFormatter = {
+                                let f = DateFormatter()
+                                f.dateFormat = "E"
+                                return f
+                            }()
+                            
+                            let dayFormatter: DateFormatter = {
+                                let f = DateFormatter()
+                                f.dateFormat = "d"
+                                return f
+                            }()
+                            
+                            ForEach(days, id: \.self) { date in
+                                let isToday = calendar.isDateInToday(date)
                                 VStack(spacing: 6) {
-                                    Text(days[index].prefix(1)) // M, T, W
+                                    Text(weekdayFormatter.string(from: date).prefix(1)) // M, T, W
                                         .font(DesignSystem.Typography.bodyMd)
                                         .foregroundColor(isToday ? .white : DesignSystem.Colors.onSurfaceVariant)
-                                    Text(days[index].dropFirst(2)) // 12, 13
+                                    Text(dayFormatter.string(from: date)) // 12, 13
                                         .font(DesignSystem.Typography.titleSm)
                                         .foregroundColor(isToday ? .white : DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
                                 }
