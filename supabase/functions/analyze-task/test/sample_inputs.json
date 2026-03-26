@@ -1,0 +1,266 @@
+{
+  "test_cases": [
+    {
+      "id": "TC001",
+      "description": "ADHD Clinical - Tangential Speech & Oversharing (사고의 비약 및 과다 공유)",
+      "input": "So you know my neighbor Emily? She went to this mindfulness retreat last month — full silent, no phones — and she keeps raving about how her morning routine changed her life. Anyway, that whole conversation made me realize I should probably add a 10-minute silent meditation to my mornings every single day.",
+      "expected": {
+        "action": "add",
+        "category": "Routine",
+        "time_not_null": false
+      }
+    },
+    {
+      "id": "TC002",
+      "description": "ADHD Clinical - Time Blindness & 'Now vs Not Now' (시간맹 및 극단적 시간 인지)",
+      "input": "My car's way overdue for an oil change. I'll get to it... I don't know, sometime this week I guess. Just add it to my list. But the actual scheduled service appointment at the garage is tomorrow at 10 AM — that one is definitely happening.",
+      "expected_count": 2,
+      "expected": [
+        {
+          "action": "add",
+          "category": "Appointment",
+          "time_not_null": false
+        },
+        {
+          "action": "add",
+          "category": "Appointment",
+          "time_not_null": true
+        }
+      ]
+    },
+    {
+      "id": "TC003",
+      "description": "ADHD Clinical - Working Memory Decay & Self-Correction (작업기억 소실과 자기 교정)",
+      "input": "I need to add something important... what was it... the pharmacy? No... the email? No, wait, that's not it. Oh! My gym membership renewal! That's the one. Add 'renew gym membership' as an appointment for this week. Ignore the pharmacy and email — just the gym membership.",
+      "expected": {
+        "action": "add",
+        "category": "Appointment",
+        "time_not_null": false
+      }
+    },
+    {
+      "id": "TC004",
+      "description": "ADHD Clinical - Executive Dysfunction & Word Retrieval Difficulty (실행기능 장애로 인한 단어 찾기 곤란)",
+      "input": "I need to finish the... the financial... the money number thing. The report. The quarterly one — yeah, the quarterly earnings report! Add 'prepare quarterly earnings report' for next Monday.",
+      "expected": {
+        "action": "add",
+        "category": "Appointment",
+        "time_not_null": false
+      }
+    },
+    {
+      "id": "TC005",
+      "description": "ADHD Clinical - Verbal Impulsivity & Rapid Reversal (언어적 충동성과 즉각적 번복)",
+      "input": "Add a daily 5:30 AM cold shower to my routine. Actually no, that's insane. Cancel that. Make it a 7 AM warm shower every morning instead.",
+      "expected_count": 1,
+      "expected": {
+        "action": "add",
+        "category": "Routine",
+        "time_contains": "07:00 AM"
+      }
+    },
+    {
+      "id": "TC006",
+      "description": "ADHD Clinical - Task Paralysis & Brain Dump (작업 마비와 브레인 덤프)",
+      "input": "My brain is completely overloaded right now. Things I need added: pay the internet bill, call my landlord about the leaky faucet, start a daily habit of reading 20 minutes every morning, and Jake's birthday party is this Saturday at 7 PM. Just dump all of these in.",
+      "expected_count": 4,
+      "expected": [
+        {
+          "action": "add",
+          "category": "Appointment",
+          "time_not_null": false
+        },
+        {
+          "action": "add",
+          "category": "Appointment",
+          "time_not_null": false
+        },
+        {
+          "action": "add",
+          "category": "Routine",
+          "time_not_null": false
+        },
+        {
+          "action": "add",
+          "category": "Appointment",
+          "time_not_null": true
+        }
+      ]
+    },
+    {
+      "id": "TC007",
+      "description": "ADHD Clinical - Hyperfocus & Time Optimism (과몰입과 시간 낙관주의)",
+      "input": "Today I'm going to be an absolute machine. Block out 'build entire app MVP' from 6 AM all the way through to 10 PM, non-stop. Oh and also add a 15-minute wind-down breathing routine every night at 9:30 PM.",
+      "expected_count": 2,
+      "expected": [
+        {
+          "action": "add",
+          "category": "Appointment",
+          "time_contains": "06:00 AM"
+        },
+        {
+          "action": "add",
+          "category": "Routine",
+          "time_contains": "09:30 PM"
+        }
+      ]
+    },
+    {
+      "id": "TC008",
+      "description": "ADHD Clinical - Sensory Distractibility (외부 감각 자극에 의한 주의 산만)",
+      "input": "I wanted to add my... wait, is that music from outside? So distracting. Okay focus. Add a 45-minute guitar practice routine every evening at 8 PM. And actually — since I'm thinking about it — add 'buy noise-canceling headphones' as an appointment too.",
+      "expected_count": 2,
+      "expected": [
+        {
+          "action": "add",
+          "category": "Routine",
+          "time_contains": "08:00 PM"
+        },
+        {
+          "action": "add",
+          "category": "Appointment",
+          "time_not_null": false
+        }
+      ]
+    },
+    {
+      "id": "TC009",
+      "description": "ADHD Clinical - Lack of Object Permanence & Anxiety-driven Tasking (대상 영속성 부족과 불안 기반 할 일)",
+      "input": "I keep panicking every morning about forgetting my meds. Please add 'take blood pressure medication' as a daily routine at 8 AM. Just once is enough — one reminder at 8 AM every morning. Please just the one. 8 AM. That's all.",
+      "expected_count": 1,
+      "expected": {
+        "action": "add",
+        "category": "Routine",
+        "time_contains": "08:00 AM"
+      }
+    },
+    {
+      "id": "TC010",
+      "description": "ADHD Clinical - All-or-Nothing Thinking & ADHD Tax (흑백논리와 루틴 전면 폐기)",
+      "input": "I'm done with my old schedule, it's trash. Delete my 6 AM yoga and delete my evening walk. Both gone. Starting tomorrow I'm replacing everything with a 4:30 AM ice bath every single day. That's my new life.",
+      "expected_count": 3,
+      "expected": [
+        {
+          "action": "delete",
+          "category": "Routine"
+        },
+        {
+          "action": "delete",
+          "category": "Routine"
+        },
+        {
+          "action": "add",
+          "category": "Routine",
+          "time_contains": "04:30 AM"
+        }
+      ]
+    },
+    {
+      "id": "TC011",
+      "description": "General App - Simple Routine Addition (단순 루틴 추가)",
+      "input": "Add a daily 20-minute walk every morning at 7 AM.",
+      "expected": {
+        "action": "add",
+        "category": "Routine",
+        "time_contains": "07:00 AM"
+      }
+    },
+    {
+      "id": "TC012",
+      "description": "General App - Precise One-time Appointment (정확한 일회성 일정 추가)",
+      "input": "Add a product demo with the client team this Thursday at 2 PM.",
+      "expected": {
+        "action": "add",
+        "category": "Appointment",
+        "time_contains": "02:00 PM"
+      }
+    },
+    {
+      "id": "TC013",
+      "description": "General App - Existing Schedule Modification (기존 일정 수정)",
+      "input": "Shift my 7 AM morning journaling session to 7:30 AM.",
+      "expected": {
+        "action": "update",
+        "category": "Routine",
+        "time_contains": "07:30 AM"
+      }
+    },
+    {
+      "id": "TC014",
+      "description": "General App - Simple Cancel/Delete (단순 취소 및 삭제)",
+      "input": "The 4 PM coffee chat I had scheduled today got canceled. Take it off my schedule.",
+      "expected": {
+        "action": "delete",
+        "category": "Appointment"
+      }
+    },
+    {
+      "id": "TC015",
+      "description": "General App - Multiple Independent Schedules: Routine + Appointment (독립된 복수 일정 추가)",
+      "input": "Add a nightly reading habit every night at 9 PM, and also add a team brunch this Sunday at 11 AM.",
+      "expected_count": 2,
+      "expected": [
+        {
+          "action": "add",
+          "category": "Routine",
+          "time_contains": "09:00 PM"
+        },
+        {
+          "action": "add",
+          "category": "Appointment",
+          "time_contains": "11:00 AM"
+        }
+      ]
+    },
+    {
+      "id": "TC016",
+      "description": "General App - Relative Time Expression (상대적 시간 표현)",
+      "input": "Add 'foam rolling' right after every morning gym session.",
+      "expected": {
+        "action": "add",
+        "category": "Routine",
+        "time_not_null": false
+      }
+    },
+    {
+      "id": "TC017",
+      "description": "General App - Explicitly Mentioned Category (카테고리 명시적 언급)",
+      "input": "Add 'floss teeth' as a new daily routine before bed. And add 'pick up sister from airport' as an appointment for tomorrow evening.",
+      "expected_count": 2,
+      "expected": [
+        {
+          "action": "add",
+          "category": "Routine",
+          "time_not_null": false
+        },
+        {
+          "action": "add",
+          "category": "Appointment",
+          "time_not_null": false
+        }
+      ]
+    },
+    {
+      "id": "TC018",
+      "description": "General App - Action-oriented Clear Command (행동 중심의 명확한 지시)",
+      "input": "Add task: 'Sunday Weekly Review', time: 8:00 PM, every Sunday, category: Routine.",
+      "expected": {
+        "action": "add",
+        "category": "Routine",
+        "time_contains": "08:00 PM"
+      }
+    },
+    {
+      "id": "TC019",
+      "description": "General App - Bulk Time Shift Edge Case (시간대 이동 요청 - 엣지 케이스)",
+      "input": "Actually, just push all my morning routines to the late afternoon.",
+      "expected_count": 0
+    },
+    {
+      "id": "TC020",
+      "description": "General App - Status Update / Check-off Confusion (상태 업데이트와 할 일 추가 혼동)",
+      "input": "Just letting you know I finished my evening run today! Crushed it, feeling awesome.",
+      "expected_count": 0
+    }
+  ]
+}

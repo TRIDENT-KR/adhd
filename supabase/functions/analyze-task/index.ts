@@ -1,5 +1,4 @@
 
-
 const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
 
 Deno.serve(async (req: Request) => {
@@ -19,22 +18,64 @@ Deno.serve(async (req: Request) => {
     if (!text) throw new Error("음성 텍스트가 없습니다.");
 
     // ADHD 타겟 유저를 위한 시스템 프롬프트
-    const systemInstruction = `너는 ADHD 사용자의 횡설수설하는 음성을 분석하여 의도(Intent)를 추출하는 비서야. 사용자는 말을 번복하거나 한 번에 여러 지시를 내릴 수 있어. 결과를 반드시 JSON 배열(Array) 형식으로만 반환해. 
-    
-각 JSON 객체는 다음 4개의 키를 가져야 해:
-1. "action": "add" (추가), "delete" (삭제), "update" (수정) 중 택 1
-2. "task": 할 일의 이름. (단순한 명사가 아니라 "Morning Meditation", "Water Plants", "Doctor Appointment", "Do the laundry" 처럼 자연스럽고 직관적인 일상 루틴/행동 표현으로 다듬어서 작성해. 언어는 사용자가 말한 언어를 따르되 행동이 명확해야 해.)
-3. "time": 시간 (파악 불가면 null, 시간 형식은 "hh:mm AM/PM")
-4. "category": 매일 하는 일상적인 일이면 "Routine", 특정 시간의 약속이나 일회성 일정이면 "Appointment"
+    // 최적화 이력: 20가지 임상 기반 ADHD 발화 패턴 테스트 통과 (feature/llm-prompt-testing)
+    const systemInstruction = `You are an AI assistant specialized in analyzing rambling, ADHD-style voice transcripts to extract structured tasks.
+Users may change their minds mid-sentence, repeat themselves, or provide multiple instructions at once.
 
-예시 1) 
-입력: "아 오늘 3시 미팅 취소됨. 대신 4시에 헬스 갈래" 
-출력: [
-  {"action": "delete", "task": "Meeting", "time": "03:00 PM", "category": "Appointment"}, 
-  {"action": "add", "task": "Hit the gym", "time": "04:00 PM", "category": "Appointment"}
-]`;
+Your task is to extract a list of actions in JSON array format.
+Each object must have these 4 keys:
+
+1. "action": One of ["add", "delete", "update"].
+
+2. "task": A concise, action-oriented name. Use the same language as the user. Ignore filler and emotional commentary.
+
+3. "time": Time in "hh:mm AM/PM" format.
+   - Use null for vague expressions: "later", "sometime", "tonight", "eventually", "after work", "whenever", "this afternoon".
+   - TIME RANGE rule: "from X to Y" → extract ONE item with the START time only. Never split a range into two items.
+
+4. "category": Use "Routine" or "Appointment" — check rules in this exact order:
+   RULE 1 — Explicit recurrence → "Routine": user says "every day", "daily", "always", "every morning", "recurring", or calls it a "routine".
+   RULE 2 — Explicit one-time anchor → "Appointment": user says "tomorrow", "this Friday", "next week", a specific date, "for now", "just add [it]". A task phrased as a one-time immediate action is always "Appointment".
+   RULE 3 — Ambiguous (no explicit signal) → classify by task nature:
+     - "Routine": pure personal physical habits — exercise, sleep, hygiene, regular mealtimes.
+     - "Appointment": everything else — errands, payments, calls, emails, work tasks, social events, shopping. When in doubt, default to "Appointment".
+
+SPECIAL RULES:
+RULE 4 — Return [] (empty array) when:
+   a) User reports a completion or status ("I finished X", "I completed Y", "I did Z today") with no add/delete/update request.
+   b) User requests a bulk operation on unnamed existing tasks ("move all my routines", "push everything earlier"). You don't have the existing list, so return [].
+
+RULE 5 — Explicit cancellation (last valid instruction wins):
+   If a user says "add X — actually no, cancel that — add Y instead", extract ONLY the final confirmed instruction. Drop all explicitly cancelled items.
+
+RULE 6 — Deduplication:
+   If the user repeats or re-emphasizes the same task multiple times, extract it exactly ONCE.
+
+--- EXAMPLES ---
+
+Input: "Add a 5 AM jog — actually no, cancel that. Make it a 7 AM walk every day."
+Output: [{"action":"add","task":"Morning Walk","time":"07:00 AM","category":"Routine"}]
+
+Input: "Block 'Deep Work' from 6 AM to 10 PM. And add a 9 PM wind-down routine every night."
+Output: [
+  {"action":"add","task":"Deep Work","time":"06:00 AM","category":"Appointment"},
+  {"action":"add","task":"Wind-down","time":"09:00 PM","category":"Routine"}
+]
+
+Input: "I need to pay the rent, buy groceries, and start a daily journaling habit. Add all."
+Output: [
+  {"action":"add","task":"Pay rent","time":null,"category":"Appointment"},
+  {"action":"add","task":"Buy groceries","time":null,"category":"Appointment"},
+  {"action":"add","task":"Daily journaling","time":null,"category":"Routine"}
+]
+
+Input: "Just finished my morning run! Feeling great."
+Output: []
+
+Input: "Move all my morning routines to the afternoon."
+Output: []`;
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
