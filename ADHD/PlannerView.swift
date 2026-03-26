@@ -128,13 +128,10 @@ struct PlannerView: View {
 
     // MARK: - Week Date Selector
     private var weekDateSelector: some View {
-        // selectedDate가 속한 주의 일~토 계산
-        let startOfWeek = calendar.dateInterval(of: .weekOfYear, for: selectedDate)?.start ?? selectedDate
-        let weekDays = (0...6).compactMap { calendar.date(byAdding: .day, value: $0, to: startOfWeek) }
-        // 오늘이 이번 주에 있으면 오늘, 없으면 selectedDate를 좌측에 표시
-        let isCurrentWeek = weekDays.contains(where: { calendar.isDateInToday($0) })
-        let pinnedDate = isCurrentWeek ? calendar.startOfDay(for: Date()) : calendar.startOfDay(for: selectedDate)
-        let restDays = weekDays.filter { !calendar.isDate($0, inSameDayAs: pinnedDate) }
+        let today = calendar.startOfDay(for: Date())
+        let isToday = calendar.isDate(selectedDate, inSameDayAs: today)
+        // 오늘 기준 다음 6일
+        let nextDays = (1...6).compactMap { calendar.date(byAdding: .day, value: $0, to: today) }
 
         let weekdayFormatter: DateFormatter = {
             let f = DateFormatter(); f.dateFormat = "E"; return f
@@ -144,60 +141,83 @@ struct PlannerView: View {
         }()
 
         return HStack(spacing: 0) {
-            // 좌측 고정 (이번 주면 오늘, 다른 주면 selectedDate)
-            let isPinnedSelected = calendar.isDate(pinnedDate, inSameDayAs: selectedDate)
-
+            // 좌측: 오늘
             Button(action: {
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.6)) { selectedDate = pinnedDate }
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                    selectedDate = today
+                }
             }) {
                 VStack(spacing: 4) {
-                    Text(weekdayFormatter.string(from: pinnedDate))
+                    Text(weekdayFormatter.string(from: today))
                         .font(DesignSystem.Typography.labelSm)
                         .fontWeight(.bold)
-                        .foregroundColor(isPinnedSelected ? .white : DesignSystem.Colors.primary)
-                    Text(dayFormatter.string(from: pinnedDate))
+                        .foregroundColor(isToday ? .white : DesignSystem.Colors.primary)
+                    Text(dayFormatter.string(from: today))
                         .font(Font.system(size: 20, weight: .bold))
-                        .foregroundColor(isPinnedSelected ? .white : DesignSystem.Colors.primary)
+                        .foregroundColor(isToday ? .white : DesignSystem.Colors.primary)
                 }
-                .frame(width: 52, height: 64)
+                .frame(width: 50, height: 60)
                 .background(
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(isPinnedSelected ? DesignSystem.Colors.primary : DesignSystem.Colors.primary.opacity(0.08))
+                    RoundedRectangle(cornerRadius: 14)
+                        .fill(isToday ? DesignSystem.Colors.primary : DesignSystem.Colors.primary.opacity(0.08))
                 )
             }
             .buttonStyle(NoEffectButtonStyle())
 
             // 구분선
             Rectangle()
-                .fill(DesignSystem.Colors.onSurfaceVariant.opacity(0.15))
-                .frame(width: 1, height: 40)
-                .padding(.horizontal, 12)
+                .fill(DesignSystem.Colors.onSurfaceVariant.opacity(0.12))
+                .frame(width: 1, height: 32)
+                .padding(.horizontal, 10)
 
-            // 나머지 요일
-            HStack(spacing: 8) {
-                ForEach(restDays, id: \.self) { date in
+            // 우측: 내일부터 6일
+            HStack(spacing: 6) {
+                ForEach(nextDays, id: \.self) { date in
                     let isSelected = calendar.isDate(date, inSameDayAs: selectedDate)
 
                     Button(action: {
-                        withAnimation(.spring(response: 0.35, dampingFraction: 0.6)) { selectedDate = date }
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                            selectedDate = date
+                        }
                     }) {
-                        VStack(spacing: 4) {
+                        VStack(spacing: 3) {
                             Text(weekdayFormatter.string(from: date).prefix(1))
-                                .font(DesignSystem.Typography.labelSm)
-                                .foregroundColor(isSelected ? .white : DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundColor(isSelected ? .white : DesignSystem.Colors.onSurfaceVariant.opacity(0.5))
                             Text(dayFormatter.string(from: date))
-                                .font(DesignSystem.Typography.bodyMd)
-                                .fontWeight(isSelected ? .semibold : .regular)
+                                .font(.system(size: 14, weight: isSelected ? .semibold : .regular))
                                 .foregroundColor(isSelected ? .white : DesignSystem.Colors.onSurfaceVariant)
                         }
-                        .frame(width: 40, height: 56)
+                        .frame(width: 36, height: 48)
                         .background(
-                            RoundedRectangle(cornerRadius: 12)
+                            RoundedRectangle(cornerRadius: 10)
                                 .fill(isSelected ? DesignSystem.Colors.primaryContainer : Color.clear)
                         )
                     }
                     .buttonStyle(NoEffectButtonStyle())
                 }
+            }
+
+            Spacer()
+
+            // Today 버튼 (오늘이 아닐 때만 표시)
+            if !isToday {
+                Button(action: {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                        selectedDate = today
+                    }
+                }) {
+                    Text("Today")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(DesignSystem.Colors.primary)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(
+                            Capsule()
+                                .stroke(DesignSystem.Colors.primary.opacity(0.3), lineWidth: 1)
+                        )
+                }
+                .transition(.opacity.combined(with: .scale(scale: 0.8)))
             }
         }
         .padding(.horizontal, 24)
