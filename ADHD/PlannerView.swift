@@ -58,20 +58,21 @@ struct PlannerView: View {
 
                     // 타임라인
                     if filteredAppointments.isEmpty {
-                        VStack(spacing: 20) {
-                            Spacer(minLength: 60)
-                            Image(systemName: "mic.fill")
-                                .font(.system(size: 48))
-                                .foregroundColor(DesignSystem.Colors.primary.opacity(0.3))
-                            Text(L.plannerEmpty)
-                                .font(DesignSystem.Typography.bodyMd)
-                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
-                            Spacer(minLength: 60)
+                        GeometryReader { geo in
+                            VStack(spacing: 20) {
+                                Image(systemName: "mic.fill")
+                                    .font(.system(size: 48))
+                                    .foregroundColor(DesignSystem.Colors.primary.opacity(0.3))
+                                Text(L.plannerEmpty)
+                                    .font(DesignSystem.Typography.bodyMd)
+                                    .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
+                            }
+                            .frame(width: geo.size.width, height: geo.size.height)
+                            .onTapGesture {
+                                withAnimation(.spring()) { activeTab = .voice }
+                            }
                         }
-                        .frame(maxWidth: .infinity, minHeight: 250)
-                        .onTapGesture {
-                            withAnimation(.spring()) { activeTab = .voice }
-                        }
+                        .frame(minHeight: UIScreen.main.bounds.height * 0.4)
                     } else {
                         LazyVStack(spacing: 32) {
                             ForEach(filteredAppointments) { task in
@@ -132,10 +133,11 @@ struct PlannerView: View {
         let today = calendar.startOfDay(for: Date())
         let isToday = calendar.isDate(selectedDate, inSameDayAs: today)
         let selectedStart = calendar.startOfDay(for: selectedDate)
-        // 오늘 기준 내일부터 6일 + 범위 밖 selectedDate
+        // 오늘 기준 내일부터 6일
         let baseDays = (1...6).compactMap { calendar.date(byAdding: .day, value: $0, to: today) }
-        let needsExtra = !isToday && !baseDays.contains(where: { calendar.isDate($0, inSameDayAs: selectedStart) })
-        let nextDays = needsExtra ? baseDays + [selectedStart] : baseDays
+        // 캘린더에서 범위 밖 날짜 선택 시 맨 앞에 삽입 (바로 보이도록)
+        let isInRange = isToday || baseDays.contains(where: { calendar.isDate($0, inSameDayAs: selectedStart) })
+        let nextDays = isInRange ? baseDays : [selectedStart] + baseDays
 
         let weekdayFormatter: DateFormatter = {
             let f = DateFormatter(); f.dateFormat = "EEE"; return f

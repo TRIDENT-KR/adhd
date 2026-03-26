@@ -79,24 +79,25 @@ struct RoutineView: View {
                     let currentTasks = selectedSection == .routines ? routines : appointments
 
                     if currentTasks.isEmpty {
-                        // Empty State: 중앙 정렬, 음성 입력 유도
-                        VStack(spacing: 20) {
-                            Spacer(minLength: 80)
-                            Image(systemName: "mic.fill")
-                                .font(.system(size: 48))
-                                .foregroundColor(DesignSystem.Colors.primary.opacity(0.3))
+                        // Empty State: 화면 중앙 정렬
+                        GeometryReader { geo in
+                            VStack(spacing: 20) {
+                                Image(systemName: "mic.fill")
+                                    .font(.system(size: 48))
+                                    .foregroundColor(DesignSystem.Colors.primary.opacity(0.3))
 
-                            Text(selectedSection == .routines
-                                 ? L.routineEmptyRoutine
-                                 : L.routineEmptyTask)
-                                .font(DesignSystem.Typography.bodyMd)
-                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
-                            Spacer(minLength: 80)
+                                Text(selectedSection == .routines
+                                     ? L.routineEmptyRoutine
+                                     : L.routineEmptyTask)
+                                    .font(DesignSystem.Typography.bodyMd)
+                                    .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
+                            }
+                            .frame(width: geo.size.width, height: geo.size.height)
+                            .onTapGesture {
+                                withAnimation(.spring()) { activeTab = .voice }
+                            }
                         }
-                        .frame(maxWidth: .infinity, minHeight: 300)
-                        .onTapGesture {
-                            withAnimation(.spring()) { activeTab = .voice }
-                        }
+                        .frame(minHeight: UIScreen.main.bounds.height * 0.45)
                     } else {
                         LazyVStack(spacing: 32) {
                             ForEach(currentTasks.filter { !$0.isCompleted }) { task in
