@@ -279,7 +279,6 @@ struct CustomBottomBar: View {
             TabBarItem(iconName: "calendar", label: L.tabPlanner, isActive: activeTab == .planner) {
                 withAnimation(.spring()) { activeTab = .planner }
             }
-            Spacer()
         }
         .padding(.vertical, 12)
         .background(Color.clear)
