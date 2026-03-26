@@ -67,8 +67,9 @@ struct DesignSystem {
 
 // MARK: - Home Voice Interface View
 struct HomeVoiceInterfaceView: View {
-    @EnvironmentObject var cloudLLM:       CloudLLMManager
-    @EnvironmentObject var taskManager:    TaskManager
+    @EnvironmentObject var cloudLLM: CloudLLMManager
+    @EnvironmentObject var taskManager: TaskManager
+    @EnvironmentObject var authManager: AuthManager
     @EnvironmentObject var networkMonitor: NetworkMonitor
     @StateObject private var voiceManager = VoiceInputManager()
     @State private var isBreathing = false
@@ -82,9 +83,13 @@ struct HomeVoiceInterfaceView: View {
                 // Top Bar
                 HStack {
                     Spacer()
-                    Button(action: { /* Settings */ }) {
-                        Image(systemName: "gearshape")
-                            .font(.system(size: 24, weight: .light))
+                    Button(action: {
+                        Task {
+                            await authManager.signOut()
+                        }
+                    }) {
+                        Image(systemName: "rectangle.portrait.and.arrow.right") // 로그아웃 아이콘으로 변경
+                            .font(.system(size: 20, weight: .medium))
                             .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
                     }
                 }
@@ -196,9 +201,9 @@ struct HomeVoiceInterfaceView: View {
 
             Task {
                 do {
-                    let parsedTask = try await cloudLLM.analyzeText(text: text)
-                    print("🤖 Gemini 파싱 결과: \(parsedTask)")
-                    taskManager.add(task: parsedTask)
+                    let parsedTasks = try await cloudLLM.analyzeText(text: text)
+                    print("🤖 Gemini 파싱 결과: \(parsedTasks)")
+                    taskManager.process(intents: parsedTasks)
 
                     // ✅ 성공 Exit Path: 2초간 성공 메시지 → Placeholder 복구
                     await MainActor.run {
@@ -329,6 +334,7 @@ struct HomeVoiceInterfaceView_Previews: PreviewProvider {
         HomeVoiceInterfaceView()
             .environmentObject(CloudLLMManager())
             .environmentObject(TaskManager())
+            .environmentObject(AuthManager())
             .environmentObject(NetworkMonitor.shared)
     }
 }
