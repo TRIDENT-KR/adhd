@@ -156,7 +156,7 @@ struct PlannerView: View {
                 }
                 .background(DesignSystem.Colors.background.ignoresSafeArea())
             }
-            .environment(\.colorScheme, .light)
+            // colorScheme follows system setting for dark mode support
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
         }

@@ -19,7 +19,8 @@ let package = Package(
         .iOSApplication(
             name: "WaitWhat",
             targets: ["AppModule"],
-            bundleIdentifier: "com.eyeonze.WaitWhat",
+            bundleIdentifier: "com.garden.WaitWhat",
+            teamIdentifier: "G7B9S5Y6YZ",
             displayVersion: "1.0",
             bundleVersion: "1",
             appIcon: .placeholder(icon: .mic),
