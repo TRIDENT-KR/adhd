@@ -9,14 +9,16 @@ struct ParsedTask: Codable, Identifiable {
     var task: String
     var time: String?
     var date: Date?
-    let category: String // "Routine" or "Appointment"
+    let category: String           // "Routine" or "Appointment"
     var isCompleted: Bool = false
+    var action: String? = "add"    // main 브랜치 추가: add, delete, update
 
     enum CodingKeys: String, CodingKey {
         case task
         case time
         case date
         case category
+        case action
     }
 }
 
@@ -34,12 +36,30 @@ class TaskManager: ObservableObject {
         self.modelContext = context
     }
 
-    // MARK: - Add Task
+    // MARK: - Add (single)
     /// ParsedTask(DTO)를 받아 AppTask로 변환 후 SwiftData에 저장합니다.
     func add(task dto: ParsedTask) {
-        let appTask = AppTask(from: dto)
-        insertAndSave(appTask)
-        NotificationManager.shared.scheduleNotification(for: appTask)
+        process(intents: [dto])
+    }
+
+    // MARK: - Process (batch)
+    /// main 브랜치의 action 기반 배치 처리 로직을 SwiftData에 통합합니다.
+    /// - "delete": 이름이 포함된 AppTask를 SwiftData에서 삭제
+    /// - "add" 또는 기타: AppTask로 변환 후 insert
+    func process(intents: [ParsedTask]) {
+        for intent in intents {
+            let action = intent.action ?? "add"
+
+            if action == "delete" {
+                print("🗑️ 삭제 요청: \(intent.task)")
+                deleteByName(containing: intent.task)
+            } else {
+                // add or update
+                let appTask = AppTask(from: intent)
+                insertAndSave(appTask)
+                NotificationManager.shared.scheduleNotification(for: appTask)
+            }
+        }
     }
 
     // MARK: - Toggle Completion
@@ -56,7 +76,7 @@ class TaskManager: ObservableObject {
         NotificationManager.shared.scheduleNotification(for: task)
     }
 
-    // MARK: - Delete Task
+    // MARK: - Delete (by reference)
     func delete(task: AppTask) {
         guard let context = modelContext else { return }
         context.delete(task)
@@ -64,6 +84,21 @@ class TaskManager: ObservableObject {
     }
 
     // MARK: - Private Helpers
+
+    /// 이름이 포함된 AppTask를 SwiftData에서 모두 삭제합니다. (action == "delete" 전용)
+    private func deleteByName(containing name: String) {
+        guard let context = modelContext else { return }
+        let descriptor = FetchDescriptor<AppTask>()
+        do {
+            let all = try context.fetch(descriptor)
+            for item in all where item.task.contains(name) || name.contains(item.task) {
+                context.delete(item)
+            }
+            safeSave()
+        } catch {
+            print("❌ deleteByName 실패: \(error.localizedDescription)")
+        }
+    }
 
     private func insertAndSave(_ task: AppTask) {
         guard let context = modelContext else {

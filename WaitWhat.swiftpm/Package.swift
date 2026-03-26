@@ -12,11 +12,15 @@ let package = Package(
     platforms: [
         .iOS("17.0")
     ],
+    dependencies: [
+        .package(url: "https://github.com/supabase/supabase-swift.git", from: "2.0.0")
+    ],
     products: [
         .iOSApplication(
             name: "WaitWhat",
             targets: ["AppModule"],
-            bundleIdentifier: "com.eyeonze.WaitWhat",
+            bundleIdentifier: "com.garden.WaitWhat",
+            teamIdentifier: "G7B9S5Y6YZ",
             displayVersion: "1.0",
             bundleVersion: "1",
             appIcon: .placeholder(icon: .mic),
@@ -40,6 +44,9 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "AppModule",
+            dependencies: [
+                .product(name: "Supabase", package: "supabase-swift")
+            ],
             path: ".",
             resources: [
                 .process("Config.plist")
