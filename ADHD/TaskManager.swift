@@ -1,16 +1,20 @@
 import Foundation
 import SwiftUI
 import Combine
+import SwiftData
 
+// MARK: - ParsedTask (DTO)
+/// Gemini API 응답을 디코딩하기 위한 데이터 전송 객체(DTO).
+/// SwiftData @Model과 분리하여 Codable 충돌을 방지합니다.
 struct ParsedTask: Codable, Identifiable {
     var id = UUID()
     var task: String
     var time: String?
-    var date: Date? // 실제 날짜 정보 추가
-    let category: String // "Routine" or "Appointment"
+    var date: Date?
+    let category: String           // "Routine" or "Appointment"
     var isCompleted: Bool = false
-    var action: String? = "add" // add, delete, update
-    
+    var action: String? = "add"    // main 브랜치 추가: add, delete, update
+
     enum CodingKeys: String, CodingKey {
         case task
         case time
@@ -20,42 +24,101 @@ struct ParsedTask: Codable, Identifiable {
     }
 }
 
+// MARK: - TaskManager
+/// SwiftData ModelContext를 주입받아 AppTask의 CRUD를 담당합니다.
+/// @Published 임시 배열은 완전히 제거되었으며, 모든 상태는 SwiftData가 관리합니다.
+@MainActor
 class TaskManager: ObservableObject {
-    @Published var routines: [ParsedTask] = [
-        ParsedTask(task: "Morning Meditation", time: "07:00 AM", date: Date(), category: "Routine"),
-        ParsedTask(task: "Check Email", time: "08:30 AM", date: Date(), category: "Routine"),
-        ParsedTask(task: "Water Plants", time: "09:00 AM", date: Date(), category: "Routine")
-    ]
-    
-    @Published var appointments: [ParsedTask] = [
-        ParsedTask(task: "Design Sync", time: "10:00 AM", date: Date(), category: "Appointment"),
-        ParsedTask(task: "Doctor Appointment", time: "2:00 PM", date: Date(), category: "Appointment"),
-        ParsedTask(task: "Read Chapter 4", time: "4:30 PM", date: Date(), category: "Appointment")
-    ]
-    
+
+    // 외부에서 ModelContext를 주입하기 위한 저장소
+    private var modelContext: ModelContext?
+
+    /// App.swift에서 modelContext를 주입합니다.
+    func configure(context: ModelContext) {
+        self.modelContext = context
+    }
+
+    // MARK: - Add (single)
+    /// ParsedTask(DTO)를 받아 AppTask로 변환 후 SwiftData에 저장합니다.
+    func add(task dto: ParsedTask) {
+        process(intents: [dto])
+    }
+
+    // MARK: - Process (batch)
+    /// main 브랜치의 action 기반 배치 처리 로직을 SwiftData에 통합합니다.
+    /// - "delete": 이름이 포함된 AppTask를 SwiftData에서 삭제
+    /// - "add" 또는 기타: AppTask로 변환 후 insert
     func process(intents: [ParsedTask]) {
-        DispatchQueue.main.async {
-            for intent in intents {
-                let action = intent.action ?? "add"
-                
-                if action == "delete" {
-                    print("🗑️ 삭제 요청: \(intent.task)")
-                    self.routines.removeAll { $0.task.contains(intent.task) || intent.task.contains($0.task) }
-                    self.appointments.removeAll { $0.task.contains(intent.task) || intent.task.contains($0.task) }
-                } else {
-                    // add 또는 기본값
-                    print("🎯 추가 완료! [\(intent.category)] \(intent.task) (시간: \(intent.time ?? "미지정"))")
-                    if intent.category == "Routine" {
-                        self.routines.append(intent)
-                    } else {
-                        self.appointments.append(intent)
-                    }
-                }
+        for intent in intents {
+            let action = intent.action ?? "add"
+
+            if action == "delete" {
+                print("🗑️ 삭제 요청: \(intent.task)")
+                deleteByName(containing: intent.task)
+            } else {
+                // add or update
+                let appTask = AppTask(from: intent)
+                insertAndSave(appTask)
+                NotificationManager.shared.scheduleNotification(for: appTask)
             }
         }
     }
-    
-    func add(task: ParsedTask) {
-        process(intents: [task])
+
+    // MARK: - Toggle Completion
+    /// 오프라인 상태에서도 isCompleted 토글이 SwiftData에 안전하게 반영됩니다.
+    func toggleCompletion(of task: AppTask) {
+        task.isCompleted.toggle()
+        safeSave()
+    }
+
+    // MARK: - Update Task
+    /// 텍스트/시간 수정 후 호출합니다. 저장과 함께 알림을 재등록합니다.
+    func update(task: AppTask) {
+        safeSave()
+        NotificationManager.shared.scheduleNotification(for: task)
+    }
+
+    // MARK: - Delete (by reference)
+    func delete(task: AppTask) {
+        guard let context = modelContext else { return }
+        context.delete(task)
+        safeSave()
+    }
+
+    // MARK: - Private Helpers
+
+    /// 이름이 포함된 AppTask를 SwiftData에서 모두 삭제합니다. (action == "delete" 전용)
+    private func deleteByName(containing name: String) {
+        guard let context = modelContext else { return }
+        let descriptor = FetchDescriptor<AppTask>()
+        do {
+            let all = try context.fetch(descriptor)
+            for item in all where item.task.contains(name) || name.contains(item.task) {
+                context.delete(item)
+            }
+            safeSave()
+        } catch {
+            print("❌ deleteByName 실패: \(error.localizedDescription)")
+        }
+    }
+
+    private func insertAndSave(_ task: AppTask) {
+        guard let context = modelContext else {
+            print("⚠️ TaskManager: ModelContext가 주입되지 않았습니다.")
+            return
+        }
+        context.insert(task)
+        safeSave()
+        print("🎯 저장 완료! [\(task.category)] \(task.task) (시간: \(task.time ?? "미지정"))")
+    }
+
+    /// do-catch 기반 안전한 저장 — 오프라인/엣지 케이스 방어용
+    private func safeSave() {
+        guard let context = modelContext else { return }
+        do {
+            try context.save()
+        } catch {
+            print("❌ TaskManager 저장 실패: \(error.localizedDescription)")
+        }
     }
 }
