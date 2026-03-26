@@ -131,13 +131,17 @@ struct PlannerView: View {
     // MARK: - Week Date Selector
     private var weekDateSelector: some View {
         let today = calendar.startOfDay(for: Date())
-        let isToday = calendar.isDate(selectedDate, inSameDayAs: today)
-        let selectedStart = calendar.startOfDay(for: selectedDate)
-        // 오늘 기준 내일부터 6일
-        let baseDays = (1...6).compactMap { calendar.date(byAdding: .day, value: $0, to: today) }
-        // 캘린더에서 범위 밖 날짜 선택 시 맨 앞에 삽입 (바로 보이도록)
-        let isInRange = isToday || baseDays.contains(where: { calendar.isDate($0, inSameDayAs: selectedStart) })
-        let nextDays = isInRange ? baseDays : [selectedStart] + baseDays
+        let selected = calendar.startOfDay(for: selectedDate)
+        let isTodaySelected = calendar.isDate(selected, inSameDayAs: today)
+
+        // 우측: 오늘 선택 시 → 내일부터 6일, 다른 날짜 선택 시 → 선택일 + 다음 5일
+        let rightDays: [Date] = {
+            if isTodaySelected {
+                return (1...6).compactMap { calendar.date(byAdding: .day, value: $0, to: today) }
+            } else {
+                return (0...5).compactMap { calendar.date(byAdding: .day, value: $0, to: selected) }
+            }
+        }()
 
         let weekdayFormatter: DateFormatter = {
             let f = DateFormatter(); f.dateFormat = "EEE"; return f
@@ -156,15 +160,15 @@ struct PlannerView: View {
                 VStack(spacing: 4) {
                     Text(weekdayFormatter.string(from: today))
                         .font(.system(size: 13, weight: .bold))
-                        .foregroundColor(isToday ? .white : DesignSystem.Colors.primary)
+                        .foregroundColor(isTodaySelected ? .white : DesignSystem.Colors.primary)
                     Text(dayFormatter.string(from: today))
                         .font(.system(size: 24, weight: .bold))
-                        .foregroundColor(isToday ? .white : DesignSystem.Colors.primary)
+                        .foregroundColor(isTodaySelected ? .white : DesignSystem.Colors.primary)
                 }
                 .frame(width: 56, height: 68)
                 .background(
                     RoundedRectangle(cornerRadius: 16)
-                        .fill(isToday ? DesignSystem.Colors.primary : DesignSystem.Colors.primary.opacity(0.08))
+                        .fill(isTodaySelected ? DesignSystem.Colors.primary : DesignSystem.Colors.primary.opacity(0.08))
                 )
             }
             .buttonStyle(NoEffectButtonStyle())
@@ -175,11 +179,11 @@ struct PlannerView: View {
                 .frame(width: 1, height: 36)
                 .padding(.horizontal, 12)
 
-            // 우측: 내일부터 6일 (스크롤)
+            // 우측: 스크롤 가능한 날짜들
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 10) {
-                    ForEach(nextDays, id: \.self) { date in
-                        let isSelected = calendar.isDate(date, inSameDayAs: selectedDate)
+                    ForEach(rightDays, id: \.self) { date in
+                        let isSelected = calendar.isDate(date, inSameDayAs: selected)
 
                         Button(action: {
                             withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
