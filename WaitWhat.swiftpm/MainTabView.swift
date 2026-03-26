@@ -25,14 +25,17 @@ struct MainTabView: View {
             // 3. 글로벌 바텀 바
             CustomBottomBar(activeTab: $activeTab)
         }
-        // 4. 오프라인 배너 (최상단, ZStack과 별개 오버레이)
+        // 4. 오프라인 배너 — isOfflineBannerVisible 이 true일 때만 3초간 노출
         .overlay(alignment: .top) {
-            if !networkMonitor.isConnected {
+            if networkMonitor.isOfflineBannerVisible {
                 OfflineBanner()
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
-        .animation(.spring(response: 0.4, dampingFraction: 0.7), value: networkMonitor.isConnected)
+        .animation(
+            .spring(response: 0.4, dampingFraction: 0.75),
+            value: networkMonitor.isOfflineBannerVisible
+        )
     }
 }
 
@@ -42,7 +45,8 @@ private struct OfflineBanner: View {
         HStack(spacing: 10) {
             Image(systemName: "wifi.slash")
                 .font(.system(size: 14, weight: .semibold))
-            Text("오프라인 상태입니다. 음성 인식은 제한되지만 로컬 데이터는 안전합니다.")
+            // Task 2: 영어 문구로 교체 (DesignSystem.Strings.offlineAlertText)
+            Text(DesignSystem.Strings.offlineAlertText)
                 .font(DesignSystem.Typography.labelSm)
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
