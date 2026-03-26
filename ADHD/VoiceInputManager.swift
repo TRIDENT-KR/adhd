@@ -17,15 +17,53 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
     // Completion handler for when recording successfully finishes
     var onSpeechFinalized: ((String) -> Void)?
     
-    private let speechRecognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US")) // Adjust for user language preference
+    @Published var currentLocaleId: String = "en-US"
+
+    private var speechRecognizer: SFSpeechRecognizer?
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var recognitionTask: SFSpeechRecognitionTask?
     private let audioEngine = AVAudioEngine()
-    
+
+    /// UserDefaults Keys
+    static let speechLocaleKey = "speechLocale"
+    static let enabledLocalesKey = "enabledLocales"
+
+    /// 설정에서 활성화한 언어 목록
+    static var enabledLocales: [String] {
+        get {
+            let saved = UserDefaults.standard.stringArray(forKey: enabledLocalesKey)
+            return (saved?.isEmpty == false) ? saved! : ["en-US"]
+        }
+        set {
+            UserDefaults.standard.set(newValue, forKey: enabledLocalesKey)
+        }
+    }
+
     override init() {
         super.init()
+        let localeId = UserDefaults.standard.string(forKey: Self.speechLocaleKey) ?? "en-US"
+        currentLocaleId = localeId
+        speechRecognizer = SFSpeechRecognizer(locale: Locale(identifier: localeId))
         speechRecognizer?.delegate = self
         requestPermissions()
+    }
+
+    /// 활성화된 언어 목록 내에서 다음 언어로 순환 전환
+    func cycleLanguage() {
+        let locales = Self.enabledLocales
+        guard locales.count > 1 else { return }
+        let currentIndex = locales.firstIndex(of: currentLocaleId) ?? 0
+        let nextIndex = (currentIndex + 1) % locales.count
+        let nextLocale = locales[nextIndex]
+        setLocale(nextLocale)
+    }
+
+    /// 특정 locale로 전환
+    func setLocale(_ localeId: String) {
+        currentLocaleId = localeId
+        UserDefaults.standard.set(localeId, forKey: Self.speechLocaleKey)
+        speechRecognizer = SFSpeechRecognizer(locale: Locale(identifier: localeId))
+        speechRecognizer?.delegate = self
     }
     
     func requestPermissions() {

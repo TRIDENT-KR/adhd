@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find /Users/garden/Desktop/adhd/adhd -type f -name \"*.swift\" -exec wc -l {} +)",
+      "Bash(xcodebuild -project ADHD/ADHD.xcodeproj -scheme ADHD -destination 'platform=iOS Simulator,name=iPhone 16' build)",
+      "Bash(xcodebuild -project ADHD/ADHD.xcodeproj -scheme ADHD -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git checkout:*)",
+      "Bash(git push:*)"
+    ]
+  }
+}

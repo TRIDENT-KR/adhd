@@ -18,11 +18,21 @@ struct WaitWhatApp: App {
     @StateObject private var cloudLLM = CloudLLMManager()
     @StateObject private var authManager = AuthManager()
     @StateObject private var networkMonitor = NetworkMonitor.shared
-    
+    @AppStorage("appTheme") private var appTheme: String = "system"
+
+    private var colorScheme: ColorScheme? {
+        switch appTheme {
+        case "light": return .light
+        case "dark": return .dark
+        default: return nil
+        }
+    }
+
     var body: some Scene {
         WindowGroup {
             if authManager.session != nil {
                 MainTabView()
+                    .preferredColorScheme(colorScheme)
                     .environmentObject(taskManager)
                     .environmentObject(cloudLLM)
                     .environmentObject(authManager)
@@ -37,6 +47,7 @@ struct WaitWhatApp: App {
             } else {
                 LoginView()
                     .environmentObject(authManager)
+                    .preferredColorScheme(colorScheme)
             }
         }
     }

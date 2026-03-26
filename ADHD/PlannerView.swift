@@ -34,7 +34,7 @@ struct PlannerView: View {
 
                     // Header
                     HStack {
-                        Text("My Planner")
+                        Text(L.plannerTitle)
                             .font(DesignSystem.Typography.displayLg)
                             .foregroundColor(DesignSystem.Colors.primary)
                             .tracking(-0.5)
@@ -113,7 +113,7 @@ struct PlannerView: View {
                             Image(systemName: "mic.fill")
                                 .font(.system(size: 48))
                                 .foregroundColor(DesignSystem.Colors.primary.opacity(0.3))
-                            Text("Tap to add a plan")
+                            Text(L.plannerEmpty)
                                 .font(DesignSystem.Typography.bodyMd)
                                 .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
                         }
