@@ -128,11 +128,13 @@ struct PlannerView: View {
 
     // MARK: - Week Date Selector
     private var weekDateSelector: some View {
-        let startOfWeek = calendar.dateInterval(of: .weekOfYear, for: Date())?.start ?? Date()
+        // selectedDate가 속한 주의 일~토 계산
+        let startOfWeek = calendar.dateInterval(of: .weekOfYear, for: selectedDate)?.start ?? selectedDate
         let weekDays = (0...6).compactMap { calendar.date(byAdding: .day, value: $0, to: startOfWeek) }
-        let today = weekDays.first(where: { calendar.isDateInToday($0) }) ?? Date()
-        // 우측: 일~토 순서에서 오늘만 제외
-        let restDays = weekDays.filter { !calendar.isDateInToday($0) }
+        // 오늘이 이번 주에 있으면 오늘, 없으면 selectedDate를 좌측에 표시
+        let isCurrentWeek = weekDays.contains(where: { calendar.isDateInToday($0) })
+        let pinnedDate = isCurrentWeek ? calendar.startOfDay(for: Date()) : calendar.startOfDay(for: selectedDate)
+        let restDays = weekDays.filter { !calendar.isDate($0, inSameDayAs: pinnedDate) }
 
         let weekdayFormatter: DateFormatter = {
             let f = DateFormatter(); f.dateFormat = "E"; return f
@@ -142,25 +144,25 @@ struct PlannerView: View {
         }()
 
         return HStack(spacing: 0) {
-            // 오늘 (좌측 고정)
-            let isTodaySelected = calendar.isDate(today, inSameDayAs: selectedDate)
+            // 좌측 고정 (이번 주면 오늘, 다른 주면 selectedDate)
+            let isPinnedSelected = calendar.isDate(pinnedDate, inSameDayAs: selectedDate)
 
             Button(action: {
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.6)) { selectedDate = today }
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.6)) { selectedDate = pinnedDate }
             }) {
                 VStack(spacing: 4) {
-                    Text(weekdayFormatter.string(from: today))
+                    Text(weekdayFormatter.string(from: pinnedDate))
                         .font(DesignSystem.Typography.labelSm)
                         .fontWeight(.bold)
-                        .foregroundColor(isTodaySelected ? .white : DesignSystem.Colors.primary)
-                    Text(dayFormatter.string(from: today))
+                        .foregroundColor(isPinnedSelected ? .white : DesignSystem.Colors.primary)
+                    Text(dayFormatter.string(from: pinnedDate))
                         .font(Font.system(size: 20, weight: .bold))
-                        .foregroundColor(isTodaySelected ? .white : DesignSystem.Colors.primary)
+                        .foregroundColor(isPinnedSelected ? .white : DesignSystem.Colors.primary)
                 }
                 .frame(width: 52, height: 64)
                 .background(
                     RoundedRectangle(cornerRadius: 16)
-                        .fill(isTodaySelected ? DesignSystem.Colors.primary : DesignSystem.Colors.primary.opacity(0.08))
+                        .fill(isPinnedSelected ? DesignSystem.Colors.primary : DesignSystem.Colors.primary.opacity(0.08))
                 )
             }
             .buttonStyle(NoEffectButtonStyle())
