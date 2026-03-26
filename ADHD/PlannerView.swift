@@ -130,8 +130,9 @@ struct PlannerView: View {
     private var weekDateSelector: some View {
         let startOfWeek = calendar.dateInterval(of: .weekOfYear, for: Date())?.start ?? Date()
         let weekDays = (0...6).compactMap { calendar.date(byAdding: .day, value: $0, to: startOfWeek) }
-        let todayIndex = weekDays.firstIndex(where: { calendar.isDateInToday($0) }) ?? 0
-        let rotated = Array(weekDays[todayIndex...]) + Array(weekDays[..<todayIndex])
+        let today = weekDays.first(where: { calendar.isDateInToday($0) }) ?? Date()
+        // 우측: 일~토 순서에서 오늘만 제외
+        let restDays = weekDays.filter { !calendar.isDateInToday($0) }
 
         let weekdayFormatter: DateFormatter = {
             let f = DateFormatter(); f.dateFormat = "E"; return f
@@ -142,7 +143,6 @@ struct PlannerView: View {
 
         return HStack(spacing: 0) {
             // 오늘 (좌측 고정)
-            let today = rotated[0]
             let isTodaySelected = calendar.isDate(today, inSameDayAs: selectedDate)
 
             Button(action: {
@@ -173,7 +173,7 @@ struct PlannerView: View {
 
             // 나머지 요일
             HStack(spacing: 8) {
-                ForEach(rotated.dropFirst(), id: \.self) { date in
+                ForEach(restDays, id: \.self) { date in
                     let isSelected = calendar.isDate(date, inSameDayAs: selectedDate)
 
                     Button(action: {
