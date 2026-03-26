@@ -53,59 +53,8 @@ struct PlannerView: View {
                     .padding(.top, 16)
                     .padding(.horizontal, 32)
 
-                    // 7일 날짜 선택 스크롤
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 20) {
-                            // 이번 주 7일을 오늘부터 시작하도록 회전
-                            let startOfWeek = calendar.dateInterval(of: .weekOfYear, for: Date())?.start ?? Date()
-                            let weekDays = (0...6).compactMap { calendar.date(byAdding: .day, value: $0, to: startOfWeek) }
-                            let todayIndex = weekDays.firstIndex(where: { calendar.isDateInToday($0) }) ?? 0
-                            let days = Array(weekDays[todayIndex...]) + Array(weekDays[..<todayIndex])
-
-                            let weekdayFormatter: DateFormatter = {
-                                let f = DateFormatter(); f.dateFormat = "E"; return f
-                            }()
-                            let dayFormatter: DateFormatter = {
-                                let f = DateFormatter(); f.dateFormat = "d"; return f
-                            }()
-
-                            ForEach(days, id: \.self) { date in
-                                let isSelected = calendar.isDate(date, inSameDayAs: selectedDate)
-                                let isToday = calendar.isDateInToday(date)
-                                Button(action: {
-                                    withAnimation(.spring(response: 0.35, dampingFraction: 0.6)) { selectedDate = date }
-                                }) {
-                                    VStack(spacing: 6) {
-                                        Text(weekdayFormatter.string(from: date).prefix(1))
-                                            .font(DesignSystem.Typography.bodyMd)
-                                            .fontWeight(isToday ? .bold : .regular)
-                                            .foregroundColor(isSelected ? .white : DesignSystem.Colors.onSurfaceVariant)
-                                        Text(dayFormatter.string(from: date))
-                                            .font(isToday ? Font.system(size: 22, weight: .bold) : DesignSystem.Typography.titleSm)
-                                            .foregroundColor(isSelected ? .white : (isToday ? DesignSystem.Colors.primary : DesignSystem.Colors.onSurfaceVariant.opacity(0.6)))
-                                    }
-                                    .padding(.vertical, 16)
-                                    .padding(.horizontal, 16)
-                                    .frame(minWidth: 60)
-                                    .background(isSelected ? Capsule().fill(DesignSystem.Colors.primaryContainer) : Capsule().fill(Color.clear))
-                                    .overlay(
-                                        // 오늘 날짜 점 표시 (선택되지 않았을 때)
-                                        Group {
-                                            if isToday && !isSelected {
-                                                Circle()
-                                                    .fill(DesignSystem.Colors.primary)
-                                                    .frame(width: 5, height: 5)
-                                                    .offset(y: 28)
-                                            }
-                                        }
-                                    )
-                                    .contentShape(Capsule())
-                                }
-                                .buttonStyle(NoEffectButtonStyle())
-                            }
-                        }
-                        .padding(.horizontal, 32)
-                    }
+                    // 요일 선택 바: 오늘 | 나머지 요일
+                    weekDateSelector
 
                     // 타임라인
                     if filteredAppointments.isEmpty {
@@ -175,6 +124,81 @@ struct PlannerView: View {
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
         }
+    }
+
+    // MARK: - Week Date Selector
+    private var weekDateSelector: some View {
+        let startOfWeek = calendar.dateInterval(of: .weekOfYear, for: Date())?.start ?? Date()
+        let weekDays = (0...6).compactMap { calendar.date(byAdding: .day, value: $0, to: startOfWeek) }
+        let todayIndex = weekDays.firstIndex(where: { calendar.isDateInToday($0) }) ?? 0
+        let rotated = Array(weekDays[todayIndex...]) + Array(weekDays[..<todayIndex])
+
+        let weekdayFormatter: DateFormatter = {
+            let f = DateFormatter(); f.dateFormat = "E"; return f
+        }()
+        let dayFormatter: DateFormatter = {
+            let f = DateFormatter(); f.dateFormat = "d"; return f
+        }()
+
+        return HStack(spacing: 0) {
+            // 오늘 (좌측 고정)
+            let today = rotated[0]
+            let isTodaySelected = calendar.isDate(today, inSameDayAs: selectedDate)
+
+            Button(action: {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.6)) { selectedDate = today }
+            }) {
+                VStack(spacing: 4) {
+                    Text(weekdayFormatter.string(from: today))
+                        .font(DesignSystem.Typography.labelSm)
+                        .fontWeight(.bold)
+                        .foregroundColor(isTodaySelected ? .white : DesignSystem.Colors.primary)
+                    Text(dayFormatter.string(from: today))
+                        .font(Font.system(size: 20, weight: .bold))
+                        .foregroundColor(isTodaySelected ? .white : DesignSystem.Colors.primary)
+                }
+                .frame(width: 52, height: 64)
+                .background(
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(isTodaySelected ? DesignSystem.Colors.primary : DesignSystem.Colors.primary.opacity(0.08))
+                )
+            }
+            .buttonStyle(NoEffectButtonStyle())
+
+            // 구분선
+            Rectangle()
+                .fill(DesignSystem.Colors.onSurfaceVariant.opacity(0.15))
+                .frame(width: 1, height: 40)
+                .padding(.horizontal, 12)
+
+            // 나머지 요일
+            HStack(spacing: 8) {
+                ForEach(rotated.dropFirst(), id: \.self) { date in
+                    let isSelected = calendar.isDate(date, inSameDayAs: selectedDate)
+
+                    Button(action: {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.6)) { selectedDate = date }
+                    }) {
+                        VStack(spacing: 4) {
+                            Text(weekdayFormatter.string(from: date).prefix(1))
+                                .font(DesignSystem.Typography.labelSm)
+                                .foregroundColor(isSelected ? .white : DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
+                            Text(dayFormatter.string(from: date))
+                                .font(DesignSystem.Typography.bodyMd)
+                                .fontWeight(isSelected ? .semibold : .regular)
+                                .foregroundColor(isSelected ? .white : DesignSystem.Colors.onSurfaceVariant)
+                        }
+                        .frame(width: 40, height: 56)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(isSelected ? DesignSystem.Colors.primaryContainer : Color.clear)
+                        )
+                    }
+                    .buttonStyle(NoEffectButtonStyle())
+                }
+            }
+        }
+        .padding(.horizontal, 24)
     }
 }
 

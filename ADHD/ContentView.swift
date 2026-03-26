@@ -268,6 +268,7 @@ struct CustomBottomBar: View {
 
     var body: some View {
         HStack(spacing: 0) {
+            Spacer()
             TabBarItem(iconName: "square.grid.2x2", label: L.tabRoutine, isActive: activeTab == .routine) {
                 withAnimation(.spring()) { activeTab = .routine }
             }
@@ -279,11 +280,12 @@ struct CustomBottomBar: View {
             TabBarItem(iconName: "calendar", label: L.tabPlanner, isActive: activeTab == .planner) {
                 withAnimation(.spring()) { activeTab = .planner }
             }
+            Spacer()
         }
         .padding(.vertical, 12)
         .background(Color.clear)
         .padding(.bottom, 20)
-        .padding(.horizontal, 24)
+        .padding(.horizontal, 16)
     }
 }
 
