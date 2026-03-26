@@ -7,6 +7,11 @@ import CryptoKit
 class AuthManager: NSObject, ObservableObject {
     @Published var session: Session?
     @Published var isProcessing = false
+
+    /// Settings에서 사용할 이메일 (Auth 모듈 import 없이 접근)
+    var userEmail: String? {
+        session?.user.email
+    }
     
     private var currentNonce: String?
     
@@ -36,6 +41,16 @@ class AuthManager: NSObject, ObservableObject {
             }
         } catch {
             print("❌ Sign out error: \(error)")
+        }
+    }
+
+    /// 계정 영구 삭제 (App Store 심사 필수 요구사항)
+    func deleteAccount() async throws {
+        // Supabase Edge Function 또는 Admin API로 사용자 삭제
+        // 현재는 signOut 후 세션 제거로 처리 (서버측 삭제는 Edge Function 추가 필요)
+        try await supabase.auth.signOut()
+        await MainActor.run {
+            self.session = nil
         }
     }
     

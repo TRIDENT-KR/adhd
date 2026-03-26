@@ -85,6 +85,36 @@ class TaskManager: ObservableObject {
         safeSave()
     }
 
+    // MARK: - Bulk Delete (Settings)
+    /// 완료된 태스크만 일괄 삭제
+    func deleteCompleted() {
+        guard let context = modelContext else { return }
+        do {
+            let all = try context.fetch(FetchDescriptor<AppTask>())
+            for task in all where task.isCompleted {
+                context.delete(task)
+            }
+            safeSave()
+        } catch {
+            print("❌ deleteCompleted 실패: \(error.localizedDescription)")
+        }
+    }
+
+    /// 모든 태스크 일괄 삭제
+    func deleteAll() {
+        guard let context = modelContext else { return }
+        do {
+            let all = try context.fetch(FetchDescriptor<AppTask>())
+            for task in all {
+                NotificationManager.shared.cancelNotification(for: task)
+                context.delete(task)
+            }
+            safeSave()
+        } catch {
+            print("❌ deleteAll 실패: \(error.localizedDescription)")
+        }
+    }
+
     // MARK: - Private Helpers
 
     /// 이름이 포함된 AppTask를 SwiftData에서 모두 삭제합니다. (action == "delete" 전용)

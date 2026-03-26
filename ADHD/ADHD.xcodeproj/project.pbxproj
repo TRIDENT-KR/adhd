@@ -23,6 +23,7 @@
 		F3D9E4C42F74DA1800DA9A5A /* NetworkMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3D9E4C22F74DA1800DA9A5A /* NetworkMonitor.swift */; };
 		F3D9E4C52F74DA1800DA9A5A /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3D9E4C32F74DA1800DA9A5A /* NotificationManager.swift */; };
 		F3D9E4C62F74DA1800DA9A5A /* AppTask.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3D9E4C12F74DA1800DA9A5A /* AppTask.swift */; };
+		09A02A8B9E43463FABAA10AD /* Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF1CC5EA265049FBB8EE3A58 /* Localization.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -62,6 +63,7 @@
 		F3D9E4C12F74DA1800DA9A5A /* AppTask.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTask.swift; sourceTree = "<group>"; };
 		F3D9E4C22F74DA1800DA9A5A /* NetworkMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkMonitor.swift; sourceTree = "<group>"; };
 		F3D9E4C32F74DA1800DA9A5A /* NotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManager.swift; sourceTree = "<group>"; };
+		BF1CC5EA265049FBB8EE3A58 /* Localization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Localization.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -99,6 +101,7 @@
 				F3D9E4A32F74CF5C00DA9A5A /* CloudLLMManager.swift */,
 				F3D9E4A42F74CF5C00DA9A5A /* Config.plist */,
 				F3D9E4A52F74CF5C00DA9A5A /* ContentView.swift */,
+				BF1CC5EA265049FBB8EE3A58 /* Localization.swift */,
 				F3D9E4A62F74CF5C00DA9A5A /* LoginView.swift */,
 				F3D9E4A72F74CF5C00DA9A5A /* MainTabView.swift */,
 				F3D9E4A82F74CF5C00DA9A5A /* MyApp.swift */,
@@ -270,6 +273,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				09A02A8B9E43463FABAA10AD /* Localization.swift in Sources */,
 				F3D9E4B02F74D07100DA9A5A /* AuthManager.swift in Sources */,
 				F3D9E4B12F74D07100DA9A5A /* CloudLLMManager.swift in Sources */,
 				F3D9E4C42F74DA1800DA9A5A /* NetworkMonitor.swift in Sources */,

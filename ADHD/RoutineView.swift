@@ -20,9 +20,15 @@ struct RoutineView: View {
     @State private var editingTaskId: UUID?
     @State private var selectedSection: RoutineSection = .routines
 
-    enum RoutineSection: String, CaseIterable {
-        case routines = "Daily Routines"
-        case tasks = "Today's Tasks"
+    enum RoutineSection: CaseIterable {
+        case routines, tasks
+
+        var label: String {
+            switch self {
+            case .routines: return L.routineDailySection
+            case .tasks: return L.routineTodaySection
+            }
+        }
     }
     @StateObject private var voiceManager = VoiceInputManager()
     @State private var voiceEditingTaskId: UUID?
@@ -36,7 +42,7 @@ struct RoutineView: View {
                 VStack(alignment: .leading, spacing: 48) {
 
                     // 제목
-                    Text("My Routines")
+                    Text(L.routineTitle)
                         .onAppear { setupVoiceEditCallback() }
                         .font(DesignSystem.Typography.displayLg)
                         .foregroundColor(DesignSystem.Colors.primary)
@@ -53,7 +59,7 @@ struct RoutineView: View {
                                     selectedSection = section
                                 }
                             }) {
-                                Text(section.rawValue)
+                                Text(section.label)
                                     .font(DesignSystem.Typography.labelSm)
                                     .tracking(0.3)
                                     .foregroundColor(isSelected ? .white : DesignSystem.Colors.onSurfaceVariant)
@@ -80,8 +86,8 @@ struct RoutineView: View {
                                 .foregroundColor(DesignSystem.Colors.primary.opacity(0.3))
 
                             Text(selectedSection == .routines
-                                 ? "Tap to add your first routine"
-                                 : "Tap to add today's task")
+                                 ? L.routineEmptyRoutine
+                                 : L.routineEmptyTask)
                                 .font(DesignSystem.Typography.bodyMd)
                                 .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
                         }
