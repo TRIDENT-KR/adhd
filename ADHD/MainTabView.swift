@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct MainTabView: View {
-    @State private var activeTab: TabSelection = .planner
+    @State var activeTab: TabSelection = .planner
     @EnvironmentObject private var networkMonitor: NetworkMonitor
 
     var body: some View {
@@ -13,11 +13,11 @@ struct MainTabView: View {
             Group {
                 switch activeTab {
                 case .routine:
-                    RoutineView()
+                    RoutineView(activeTab: $activeTab)
                 case .voice:
                     HomeVoiceInterfaceView()
                 case .planner:
-                    PlannerView()
+                    PlannerView(activeTab: $activeTab)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)

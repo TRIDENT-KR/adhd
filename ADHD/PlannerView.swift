@@ -10,6 +10,7 @@ struct PlannerView: View {
 
     @EnvironmentObject private var taskManager: TaskManager
 
+    @Binding var activeTab: TabSelection
     @State private var editingTaskId: UUID?
     @State private var selectedDate: Date = Calendar.current.startOfDay(for: Date())
     @State private var isCalendarPresented: Bool = false
@@ -43,9 +44,8 @@ struct PlannerView: View {
                         Button(action: { isCalendarPresented.toggle() }) {
                             Image(systemName: "calendar")
                                 .font(.system(size: 24, weight: .light))
-                                .foregroundColor(DesignSystem.Colors.primary)
+                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.4))
                                 .padding(12)
-                                .background(Circle().fill(DesignSystem.Colors.primaryContainer))
                                 .contentShape(Circle())
                         }
                         .buttonStyle(NoEffectButtonStyle())
@@ -56,8 +56,11 @@ struct PlannerView: View {
                     // 7일 날짜 선택 스크롤
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 20) {
-                            let startOfWeek = calendar.dateInterval(of: .weekOfYear, for: selectedDate)?.start ?? selectedDate
-                            let days = (0...6).compactMap { calendar.date(byAdding: .day, value: $0, to: startOfWeek) }
+                            // 이번 주 7일을 오늘부터 시작하도록 회전
+                            let startOfWeek = calendar.dateInterval(of: .weekOfYear, for: Date())?.start ?? Date()
+                            let weekDays = (0...6).compactMap { calendar.date(byAdding: .day, value: $0, to: startOfWeek) }
+                            let todayIndex = weekDays.firstIndex(where: { calendar.isDateInToday($0) }) ?? 0
+                            let days = Array(weekDays[todayIndex...]) + Array(weekDays[..<todayIndex])
 
                             let weekdayFormatter: DateFormatter = {
                                 let f = DateFormatter(); f.dateFormat = "E"; return f
@@ -68,21 +71,34 @@ struct PlannerView: View {
 
                             ForEach(days, id: \.self) { date in
                                 let isSelected = calendar.isDate(date, inSameDayAs: selectedDate)
+                                let isToday = calendar.isDateInToday(date)
                                 Button(action: {
-                                    withAnimation(.spring()) { selectedDate = date }
+                                    withAnimation(.spring(response: 0.35, dampingFraction: 0.6)) { selectedDate = date }
                                 }) {
                                     VStack(spacing: 6) {
                                         Text(weekdayFormatter.string(from: date).prefix(1))
                                             .font(DesignSystem.Typography.bodyMd)
+                                            .fontWeight(isToday ? .bold : .regular)
                                             .foregroundColor(isSelected ? .white : DesignSystem.Colors.onSurfaceVariant)
                                         Text(dayFormatter.string(from: date))
-                                            .font(DesignSystem.Typography.titleSm)
-                                            .foregroundColor(isSelected ? .white : DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
+                                            .font(isToday ? Font.system(size: 22, weight: .bold) : DesignSystem.Typography.titleSm)
+                                            .foregroundColor(isSelected ? .white : (isToday ? DesignSystem.Colors.primary : DesignSystem.Colors.onSurfaceVariant.opacity(0.6)))
                                     }
                                     .padding(.vertical, 16)
                                     .padding(.horizontal, 16)
                                     .frame(minWidth: 60)
                                     .background(isSelected ? Capsule().fill(DesignSystem.Colors.primaryContainer) : Capsule().fill(Color.clear))
+                                    .overlay(
+                                        // 오늘 날짜 점 표시 (선택되지 않았을 때)
+                                        Group {
+                                            if isToday && !isSelected {
+                                                Circle()
+                                                    .fill(DesignSystem.Colors.primary)
+                                                    .frame(width: 5, height: 5)
+                                                    .offset(y: 28)
+                                            }
+                                        }
+                                    )
                                     .contentShape(Capsule())
                                 }
                                 .buttonStyle(NoEffectButtonStyle())
@@ -93,18 +109,21 @@ struct PlannerView: View {
 
                     // 타임라인
                     if filteredAppointments.isEmpty {
-                        VStack(spacing: 12) {
-                            Image(systemName: "circle.dotted")
-                                .font(.system(size: 40))
-                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.2))
-                            Text("No plans for this date.")
+                        VStack(spacing: 20) {
+                            Image(systemName: "mic.fill")
+                                .font(.system(size: 48))
+                                .foregroundColor(DesignSystem.Colors.primary.opacity(0.3))
+                            Text("Tap to add a plan")
                                 .font(DesignSystem.Typography.bodyMd)
                                 .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.top, 40)
+                        .onTapGesture {
+                            withAnimation(.spring()) { activeTab = .voice }
+                        }
                     } else {
-                        LazyVStack(spacing: 24) {
+                        LazyVStack(spacing: 32) {
                             ForEach(filteredAppointments) { task in
                                 EventCard(task: task, editingTaskId: $editingTaskId)
                             }
@@ -208,15 +227,31 @@ struct EventCard: View {
 
             Spacer()
 
-            Button(action: {
-                withAnimation {
-                    if isEditing { finishEditing() } else { startEditing() }
+            HStack(spacing: 14) {
+                if isEditing {
+                    Button(action: {
+                        withAnimation {
+                            taskManager.delete(task: task)
+                            editingTaskId = nil
+                        }
+                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                    }) {
+                        Image(systemName: "trash")
+                            .font(.system(size: 14))
+                            .foregroundColor(.red.opacity(0.6))
+                    }
                 }
-            }) {
-                Image(systemName: isEditing ? "checkmark" : "pencil")
-                    .font(.system(size: 16))
+
+                Button(action: {
+                    withAnimation {
+                        if isEditing { finishEditing() } else { startEditing() }
+                    }
+                }) {
+                    Image(systemName: isEditing ? "checkmark" : "pencil")
+                        .font(.system(size: 16))
+                }
+                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.3))
             }
-            .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.3))
         }
         .padding(24)
         .background(DesignSystem.Colors.primary.opacity(0.05))
@@ -275,7 +310,7 @@ struct NoEffectButtonStyle: ButtonStyle {
 // MARK: - Preview
 struct PlannerView_Previews: PreviewProvider {
     static var previews: some View {
-        PlannerView()
+        PlannerView(activeTab: .constant(.planner))
             .environmentObject(TaskManager())
     }
 }
