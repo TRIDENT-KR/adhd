@@ -1,69 +1,75 @@
 import SwiftUI
+import SwiftData
 
 struct RoutineView: View {
-    @EnvironmentObject var taskManager: TaskManager
+    // MARK: - SwiftData Queries
+    /// category == "Routine" 데이터만 필터링
+    @Query(filter: #Predicate<AppTask> { $0.category == "Routine" },
+           sort: \.time)
+    private var routines: [AppTask]
+
+    /// category == "Appointment" 데이터만 필터링
+    @Query(filter: #Predicate<AppTask> { $0.category == "Appointment" },
+           sort: \.time)
+    private var appointments: [AppTask]
+
+    @EnvironmentObject private var taskManager: TaskManager
+    @Environment(\.modelContext) private var modelContext
+
     @State private var editingTaskId: UUID?
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            // 1. Off-white background
             DesignSystem.Colors.background
                 .ignoresSafeArea()
-            
+
             ScrollView {
-                VStack(alignment: .leading, spacing: 48) { // 부드럽고 시원한 여백 유지
-                    
-                    // 영역: My Routines Title
+                VStack(alignment: .leading, spacing: 48) {
+
+                    // 제목
                     Text("My Routines")
                         .font(DesignSystem.Typography.displayLg)
-                        .foregroundColor(DesignSystem.Colors.primary) // 시각적 위계 높은 제목
+                        .foregroundColor(DesignSystem.Colors.primary)
                         .tracking(-0.5)
-                        .padding(.top, 16) // 위쪽 여백 축소 (시각적 밸런스 조정)
+                        .padding(.top, 16)
                         .padding(.horizontal, 32)
-                    
-                    // 영역: Daily Routines
+
+                    // Daily Routines 섹션
                     VStack(alignment: .leading, spacing: 32) {
                         Text("Daily Routines")
                             .font(DesignSystem.Typography.titleSm)
                             .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
                             .padding(.horizontal, 32)
-                        
-                        LazyVStack(spacing: 32) { // 항목 간 여백 넓게
-                            ForEach($taskManager.routines) { $routine in
-                                if !routine.isCompleted {
-                                    TaskRow(routine: $routine, editingTaskId: $editingTaskId)
-                                }
+
+                        LazyVStack(spacing: 32) {
+                            // 미완료 먼저
+                            ForEach(routines.filter { !$0.isCompleted }) { task in
+                                TaskRow(task: task, editingTaskId: $editingTaskId)
                             }
-                            ForEach($taskManager.routines) { $routine in
-                                if routine.isCompleted {
-                                    TaskRow(routine: $routine, editingTaskId: $editingTaskId)
-                                }
+                            // 완료 항목
+                            ForEach(routines.filter { $0.isCompleted }) { task in
+                                TaskRow(task: task, editingTaskId: $editingTaskId)
                             }
                         }
                     }
-                    
-                    // 영역: Today's Tasks
+
+                    // Today's Tasks 섹션
                     VStack(alignment: .leading, spacing: 32) {
                         Text("Today's Tasks")
                             .font(DesignSystem.Typography.titleSm)
                             .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
                             .padding(.horizontal, 32)
-                        
+
                         LazyVStack(spacing: 32) {
-                            ForEach($taskManager.appointments) { $appointment in
-                                if !appointment.isCompleted {
-                                    TaskRow(routine: $appointment, editingTaskId: $editingTaskId)
-                                }
+                            ForEach(appointments.filter { !$0.isCompleted }) { task in
+                                TaskRow(task: task, editingTaskId: $editingTaskId)
                             }
-                            ForEach($taskManager.appointments) { $appointment in
-                                if appointment.isCompleted {
-                                    TaskRow(routine: $appointment, editingTaskId: $editingTaskId)
-                                }
+                            ForEach(appointments.filter { $0.isCompleted }) { task in
+                                TaskRow(task: task, editingTaskId: $editingTaskId)
                             }
                         }
                     }
-                    
-                    // 바텀 플로팅 바가 텍스트를 가리지 않도록 공간 확보
+
                     Spacer(minLength: 140)
                 }
             }
@@ -72,38 +78,38 @@ struct RoutineView: View {
     }
 }
 
-// MARK: - Task Row Component (할 일 항복 컴포넌트)
+// MARK: - Task Row Component
 struct TaskRow: View {
-    @Binding var routine: ParsedTask
+    /// AppTask는 @Model 참조 타입이므로 직접 참조하여 수정합니다.
+    var task: AppTask
     @Binding var editingTaskId: UUID?
+
+    @EnvironmentObject private var taskManager: TaskManager
+    @Environment(\.modelContext) private var modelContext
+
     @FocusState private var isTitleFocused: Bool
     @State private var showingTimePicker = false
-    
-    var isEditing: Bool {
-        editingTaskId == routine.id
-    }
-    
-    var isDimmed: Bool {
-        editingTaskId != nil && editingTaskId != routine.id
-    }
-    
+    @State private var localTaskName: String = ""
+    @State private var localTime: String     = ""
+
+    var isEditing: Bool { editingTaskId == task.id }
+    var isDimmed:  Bool { editingTaskId != nil && editingTaskId != task.id }
+
     var body: some View {
         HStack(spacing: 20) {
-            // 1. 좌측: 크고 명확한 원형 체크박스
+            // 체크박스
             Button(action: {
-                // 부드러운 상태 전환 곡선 적용 (DESIGN.md 규칙: soft transitions)
                 withAnimation(.timingCurve(0.4, 0, 0.2, 1, duration: 0.3)) {
-                    routine.isCompleted.toggle()
+                    taskManager.toggleCompletion(of: task)
                 }
             }) {
                 ZStack {
                     Circle()
                         .stroke(DesignSystem.Colors.onSurfaceVariant.opacity(0.3), lineWidth: 1.5)
                         .frame(width: 32, height: 32)
-                    
-                    if routine.isCompleted {
+
+                    if task.isCompleted {
                         Circle()
-                            // 체크 시엔 성공 피드백, Tertiary(#006A63) 컬러 사용
                             .fill(Color(hex: "#006A63"))
                             .frame(width: 32, height: 32)
                         Image(systemName: "checkmark")
@@ -113,77 +119,78 @@ struct TaskRow: View {
                 }
             }
             .disabled(isEditing)
-            
-            // 2. 중앙: 할 일 제목과 흐릿한(Muted) 시간 텍스트
+
+            // 텍스트 / 편집 영역
             VStack(alignment: .leading, spacing: 6) {
                 if isEditing {
-                    TextField("Task", text: $routine.task)
+                    TextField("Task", text: $localTaskName)
                         .focused($isTitleFocused)
                         .font(DesignSystem.Typography.bodyMd)
                         .submitLabel(.done)
                         .onSubmit { finishEditing() }
-                    
-                    Text(routine.time?.isEmpty == false ? routine.time! : "Set Time")
+
+                    Text(localTime.isEmpty ? "Set Time" : localTime)
                         .font(DesignSystem.Typography.labelSm)
                         .padding(.vertical, 4)
                         .padding(.horizontal, 8)
                         .background(DesignSystem.Colors.onSurfaceVariant.opacity(0.1))
                         .cornerRadius(6)
                         .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
-                        .onTapGesture {
-                            showingTimePicker = true
-                        }
+                        .onTapGesture { showingTimePicker = true }
                         .sheet(isPresented: $showingTimePicker) {
-                            TimePickerModal(timeString: $routine.time, isPresented: $showingTimePicker)
+                            TimePickerModal(timeString: $localTime, isPresented: $showingTimePicker)
                         }
                 } else {
-                    Text(routine.task)
+                    Text(task.task)
                         .font(DesignSystem.Typography.bodyMd)
-                        .strikethrough(routine.isCompleted, color: DesignSystem.Colors.onSurfaceVariant)
-                        // 완료되면 본문 색상도 대비를 낮춰서 뒤로 물리게 함
-                        .foregroundColor(routine.isCompleted ? DesignSystem.Colors.onSurfaceVariant.opacity(0.4) : DesignSystem.Colors.onSurfaceVariant)
-                    
-                    if let time = routine.time, !time.isEmpty {
+                        .strikethrough(task.isCompleted, color: DesignSystem.Colors.onSurfaceVariant)
+                        .foregroundColor(
+                            task.isCompleted
+                                ? DesignSystem.Colors.onSurfaceVariant.opacity(0.4)
+                                : DesignSystem.Colors.onSurfaceVariant
+                        )
+
+                    if let time = task.time, !time.isEmpty {
                         Text(time)
                             .font(DesignSystem.Typography.labelSm)
-                            // 시각적 노이즈를 줄이기 위한 매우 연한 톤 (Muted gray)
                             .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.4))
                     }
                 }
             }
-            
+
             Spacer()
-            
-            // 3. 우측: 극단적으로 대비를 낮춘 수정 및 음성(마이크) 툴 아이콘
+
+            // 우측 액션 버튼
             HStack(spacing: 16) {
-                Button(action: { 
-                    // TODO: 나중에 마이크 음성 수정 기능 구현 (Routine P3)
+                Button(action: {
+                    // 향후 음성 수정 기능 (P3)
                 }) {
                     Image(systemName: "mic.fill")
                         .font(.system(size: 18))
                 }
                 .disabled(isEditing)
-                
-                Button(action: { 
+
+                Button(action: {
                     withAnimation {
-                        if isEditing {
-                            finishEditing()
-                        } else {
-                            startEditing()
-                        }
+                        if isEditing { finishEditing() } else { startEditing() }
                     }
                 }) {
                     Image(systemName: isEditing ? "checkmark" : "pencil")
                         .font(.system(size: 18))
                 }
             }
-            // 낮춤 대비(Low-contrast)로 주의력 뺏지 않음
             .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.2))
         }
         .padding(.horizontal, 32)
         .opacity(isDimmed ? 0.3 : 1.0)
+        .onAppear {
+            localTaskName = task.task
+            localTime     = task.time ?? ""
+        }
         .onChange(of: editingTaskId) { newValue in
-            if newValue == routine.id {
+            if newValue == task.id {
+                localTaskName = task.task
+                localTime     = task.time ?? ""
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                     isTitleFocused = true
                 }
@@ -196,24 +203,25 @@ struct TaskRow: View {
                 if isEditing {
                     Spacer()
                     Button("Done") {
-                        withAnimation {
-                            finishEditing()
-                        }
+                        withAnimation { finishEditing() }
                     }
                 }
             }
         }
     }
-    
+
     private func finishEditing() {
-        if editingTaskId == routine.id {
-            editingTaskId = nil
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
-        }
+        guard editingTaskId == task.id else { return }
+        // 변경 내용 AppTask에 반영 후 저장
+        task.task = localTaskName
+        task.time = localTime.isEmpty ? nil : localTime
+        taskManager.update(task: task)
+        editingTaskId = nil
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
     }
-    
+
     private func startEditing() {
-        editingTaskId = routine.id
+        editingTaskId = task.id
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
     }
 }
@@ -226,39 +234,41 @@ struct RoutineView_Previews: PreviewProvider {
     }
 }
 
-// MARK: - Time Picker Modal Component
+// MARK: - Time Picker Modal
 struct TimePickerModal: View {
-    @Binding var timeString: String?
+    @Binding var timeString: String
     @Binding var isPresented: Bool
     @State private var selectedDate: Date
-    
-    init(timeString: Binding<String?>, isPresented: Binding<Bool>) {
-        self._timeString = timeString
-        self._isPresented = isPresented
-        
+
+    init(timeString: Binding<String>, isPresented: Binding<Bool>) {
+        self._timeString   = timeString
+        self._isPresented  = isPresented
+
         let formatter = DateFormatter()
+        formatter.locale     = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "hh:mm a"
-        if let ts = timeString.wrappedValue, let date = formatter.date(from: ts) {
+        if let date = formatter.date(from: timeString.wrappedValue) {
             self._selectedDate = State(initialValue: date)
         } else {
             self._selectedDate = State(initialValue: Date())
         }
     }
-    
+
     var body: some View {
         VStack(spacing: 20) {
             Text("Select Time")
                 .font(DesignSystem.Typography.titleSm)
                 .padding(.top, 32)
-            
+
             DatePicker("", selection: $selectedDate, displayedComponents: .hourAndMinute)
                 .datePickerStyle(.wheel)
                 .labelsHidden()
-            
+
             Button("Done") {
                 let formatter = DateFormatter()
+                formatter.locale     = Locale(identifier: "en_US_POSIX")
                 formatter.dateFormat = "hh:mm a"
-                timeString = formatter.string(from: selectedDate)
+                timeString  = formatter.string(from: selectedDate)
                 isPresented = false
             }
             .font(.system(size: 16, weight: .semibold))
