@@ -201,9 +201,9 @@ struct HomeVoiceInterfaceView: View {
 
             Task {
                 do {
-                    let parsedTask = try await cloudLLM.analyzeText(text: text)
-                    print("🤖 Gemini 파싱 결과: \(parsedTask)")
-                    taskManager.add(task: parsedTask)
+                    let parsedTasks = try await cloudLLM.analyzeText(text: text)
+                    print("🤖 Gemini 파싱 결과: \(parsedTasks)")
+                    taskManager.process(intents: parsedTasks)
 
                     // ✅ 성공 Exit Path: 2초간 성공 메시지 → Placeholder 복구
                     await MainActor.run {
