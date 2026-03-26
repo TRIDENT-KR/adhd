@@ -15,40 +15,20 @@ test/
 
 ## 사전 준비
 
-1. [Deno 설치](https://deno.land/#installation)
+1. [Node.js v24 이상 설치](https://nodejs.org/) (네이티브 fetch 사용)
 2. Gemini API 키 발급 (Google AI Studio)
 
 ## 사용법
 
 ### 전체 테스트 케이스 실행
 ```bash
-GEMINI_API_KEY=<your_key> deno run --allow-net --allow-read --allow-env --allow-write test/run_test.ts
+GEMINI_API_KEY=<your_key> node supabase/functions/analyze-task/test/run_test.mjs
 ```
 
-### 특정 케이스만 실행
-```bash
-GEMINI_API_KEY=<your_key> deno run --allow-net --allow-read --allow-env --allow-write test/run_test.ts --id TC003
-```
+## 테스트 케이스 설명 (English Version)
 
-### 직접 텍스트 입력 테스트
-```bash
-GEMINI_API_KEY=<your_key> deno run --allow-net --allow-read --allow-env --allow-write test/run_test.ts --single "매일 아침 6시에 달리기 추가해줘"
-```
-
-## 테스트 케이스 설명
-
-| ID    | 설명                                      |
-|-------|-------------------------------------------|
-| TC001 | 기본 루틴 추가 (한국어)                   |
-| TC002 | 일회성 약속 추가 (시간 포함)              |
-| TC003 | ADHD 특화 - 말 번복 / 여러 의도 혼재     |
-| TC004 | ADHD 특화 - 중간에 생각 바꿈 + 두서없음  |
-| TC005 | 영어 입력 처리                            |
-| TC006 | 삭제 요청                                 |
-| TC007 | 수정 요청                                 |
-| TC008 | 애매한 입력 (시간 없음)                   |
-| TC009 | ADHD 특화 - 잡음 속 핵심 의도 추출       |
-| TC010 | 복합 - 루틴 + 약속 동시 요청             |
+현재 테스트 케이스는 영어 시나리오로 업데이트되었습니다 (`sample_inputs.json` 참고).
+ADHD 사용자의 특성(말 번복, 여러 의도 혼합 등)을 반영한 10개의 케이스를 검증합니다.
 
 ## 검증 항목
 

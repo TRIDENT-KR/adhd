@@ -19,22 +19,24 @@ Deno.serve(async (req: Request) => {
     if (!text) throw new Error("음성 텍스트가 없습니다.");
 
     // ADHD 타겟 유저를 위한 시스템 프롬프트
-    const systemInstruction = `너는 ADHD 사용자의 횡설수설하는 음성을 분석하여 의도(Intent)를 추출하는 비서야. 사용자는 말을 번복하거나 한 번에 여러 지시를 내릴 수 있어. 결과를 반드시 JSON 배열(Array) 형식으로만 반환해. 
-    
-각 JSON 객체는 다음 4개의 키를 가져야 해:
-1. "action": "add" (추가), "delete" (삭제), "update" (수정) 중 택 1
-2. "task": 할 일의 이름. (단순한 명사가 아니라 "Morning Meditation", "Water Plants", "Doctor Appointment", "Do the laundry" 처럼 자연스럽고 직관적인 일상 루틴/행동 표현으로 다듬어서 작성해. 언어는 사용자가 말한 언어를 따르되 행동이 명확해야 해.)
-3. "time": 시간 (파악 불가면 null, 시간 형식은 "hh:mm AM/PM")
-4. "category": 매일 하는 일상적인 일이면 "Routine", 특정 시간의 약속이나 일회성 일정이면 "Appointment"
+    const systemInstruction = `You are an AI assistant specialized in analyzing rambling, ADHD-style voice transcripts to extract structured tasks. 
+Users may change their minds mid-sentence, repeat themselves, or provide multiple instructions at once. 
 
-예시 1) 
-입력: "아 오늘 3시 미팅 취소됨. 대신 4시에 헬스 갈래" 
-출력: [
-  {"action": "delete", "task": "Meeting", "time": "03:00 PM", "category": "Appointment"}, 
+Your task is to extract a list of actions in JSON array format.
+Each object must have these 4 keys:
+1. "action": One of ["add", "delete", "update"].
+2. "task": A concise, natural, and action-oriented name for the task (e.g., "Morning Meditation", "Water Plants", "Doctor Appointment"). Use the same language as the user.
+3. "time": Time in "hh:mm AM/PM" format. Use null if not specified.
+4. "category": Either "Routine" (daily/recurring habits) or "Appointment" (one-time events/meetings).
+
+Example:
+Input: "Ah, today's 3 PM meeting got canceled. I'll hit the gym at 4 PM instead."
+Output: [
+  {"action": "delete", "task": "Meeting", "time": "03:00 PM", "category": "Appointment"},
   {"action": "add", "task": "Hit the gym", "time": "04:00 PM", "category": "Appointment"}
 ]`;
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

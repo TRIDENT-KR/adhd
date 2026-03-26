@@ -2,8 +2,8 @@
   "test_cases": [
     {
       "id": "TC001",
-      "description": "기본 루틴 추가 - 한국어 단순 입력",
-      "input": "아침에 일어나서 명상 10분 하는 거 추가해줘",
+      "description": "Add basic routine - Simple input",
+      "input": "Add a 10-minute meditation after waking up in the morning.",
       "expected": {
         "action": "add",
         "category": "Routine",
@@ -12,8 +12,8 @@
     },
     {
       "id": "TC002",
-      "description": "일회성 약속 추가 - 시간 포함",
-      "input": "내일 오후 3시에 치과 예약 있어",
+      "description": "Add one-time appointment - Includes time",
+      "input": "I have a dentist appointment tomorrow at 3 PM.",
       "expected": {
         "action": "add",
         "category": "Appointment",
@@ -22,27 +22,40 @@
     },
     {
       "id": "TC003",
-      "description": "ADHD 특화 - 말 번복 / 여러 의도 혼재",
-      "input": "아 오늘 3시 미팅 취소됨. 대신 4시에 헬스 갈래",
+      "description": "ADHD specific - Changing mind / Mixed intents",
+      "input": "Ah, today's 3 PM meeting got canceled. I'll hit the gym at 4 PM instead.",
       "expected_count": 2,
       "expected": [
-        { "action": "delete", "category": "Appointment" },
-        { "action": "add", "category": "Appointment" }
+        {
+          "action": "delete",
+          "category": "Appointment"
+        },
+        {
+          "action": "add",
+          "category": "Appointment"
+        }
       ]
     },
     {
       "id": "TC004",
-      "description": "ADHD 특화 - 중간에 생각 바꿈 + 두서없는 말",
-      "input": "아 맞다 저녁에 약 먹어야 하는데... 아니 근데 운동도 해야 하고... 일단 저녁 7시에 약 먹는 거 넣어줘. 그리고 매일 아침 스트레칭도 추가해",
+      "description": "ADHD specific - Changing thought mid-sentence + Rambling",
+      "input": "Oh right, I need to take my meds in the evening... wait but I also need to work out... for now just add taking meds at 7 PM. And also add stretching every morning.",
       "expected_count": 2,
       "expected": [
-        { "action": "add", "category": "Appointment", "time_contains": "07:00 PM" },
-        { "action": "add", "category": "Routine" }
+        {
+          "action": "add",
+          "category": "Appointment",
+          "time_contains": "07:00 PM"
+        },
+        {
+          "action": "add",
+          "category": "Routine"
+        }
       ]
     },
     {
       "id": "TC005",
-      "description": "영어 입력 처리",
+      "description": "English input processing",
       "input": "Add a daily morning journal at 8am",
       "expected": {
         "action": "add",
@@ -52,8 +65,8 @@
     },
     {
       "id": "TC006",
-      "description": "삭제 요청",
-      "input": "운동 루틴 지워줘",
+      "description": "Delete request",
+      "input": "Delete my workout routine.",
       "expected": {
         "action": "delete",
         "category": "Routine"
@@ -61,8 +74,8 @@
     },
     {
       "id": "TC007",
-      "description": "수정 요청",
-      "input": "아침 명상 시간을 7시에서 6시 반으로 바꿔줘",
+      "description": "Update request",
+      "input": "Change my morning meditation time from 7 AM to 6:30 AM.",
       "expected": {
         "action": "update",
         "category": "Routine",
@@ -71,8 +84,8 @@
     },
     {
       "id": "TC008",
-      "description": "애매한 입력 - 시간 없음",
-      "input": "나중에 친구한테 전화해야 해",
+      "description": "Vague input - No time specified",
+      "input": "I need to call my friend later.",
       "expected": {
         "action": "add",
         "category": "Appointment",
@@ -81,8 +94,8 @@
     },
     {
       "id": "TC009",
-      "description": "ADHD 특화 - 잡음 + 핵심 의도 추출",
-      "input": "음... 뭐였더라... 아 맞다 매일 물 2리터 마시기 루틴 추가해야 하는데 계속 까먹었어. 추가해줘",
+      "description": "ADHD specific - Noise + Core intent extraction",
+      "input": "Umm... what was it... oh right, I need to add a routine to drink 2 liters of water every day but kept forgetting. Please add it.",
       "expected": {
         "action": "add",
         "category": "Routine"
@@ -90,12 +103,18 @@
     },
     {
       "id": "TC010",
-      "description": "복합 - 루틴 + 약속 동시 요청",
-      "input": "매일 아침 6시에 달리기 추가하고 이번주 금요일 오전 10시에 팀 미팅도 넣어줘",
+      "description": "Complex - Simultaneous routine + appointment request",
+      "input": "Add a daily run at 6 AM every morning, and also put in a team meeting at 10 AM this Friday.",
       "expected_count": 2,
       "expected": [
-        { "action": "add", "category": "Routine" },
-        { "action": "add", "category": "Appointment" }
+        {
+          "action": "add",
+          "category": "Routine"
+        },
+        {
+          "action": "add",
+          "category": "Appointment"
+        }
       ]
     }
   ]
