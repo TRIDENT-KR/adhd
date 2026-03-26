@@ -130,8 +130,16 @@ struct PlannerView: View {
     private var weekDateSelector: some View {
         let today = calendar.startOfDay(for: Date())
         let isToday = calendar.isDate(selectedDate, inSameDayAs: today)
-        // 오늘 기준 다음 6일
-        let nextDays = (1...6).compactMap { calendar.date(byAdding: .day, value: $0, to: today) }
+        // selectedDate 기준: 오늘이면 다음 6일, 아니면 selectedDate 전후 3일
+        let nextDays: [Date] = {
+            if isToday {
+                return (1...6).compactMap { calendar.date(byAdding: .day, value: $0, to: today) }
+            } else {
+                return (-3...3)
+                    .compactMap { calendar.date(byAdding: .day, value: $0, to: selectedDate) }
+                    .filter { !calendar.isDate($0, inSameDayAs: today) && !calendar.isDate($0, inSameDayAs: selectedDate) }
+            }
+        }()
 
         let weekdayFormatter: DateFormatter = {
             let f = DateFormatter(); f.dateFormat = "E"; return f
@@ -140,26 +148,29 @@ struct PlannerView: View {
             let f = DateFormatter(); f.dateFormat = "d"; return f
         }()
 
+        // 좌측에 표시할 날짜: 오늘이면 오늘, 아니면 selectedDate
+        let pinnedDate = isToday ? today : selectedDate
+
         return HStack(spacing: 0) {
-            // 좌측: 오늘
+            // 좌측: 고정 날짜
             Button(action: {
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                     selectedDate = today
                 }
             }) {
                 VStack(spacing: 4) {
-                    Text(weekdayFormatter.string(from: today))
+                    Text(weekdayFormatter.string(from: pinnedDate))
                         .font(DesignSystem.Typography.labelSm)
                         .fontWeight(.bold)
-                        .foregroundColor(isToday ? .white : DesignSystem.Colors.primary)
-                    Text(dayFormatter.string(from: today))
+                        .foregroundColor(.white)
+                    Text(dayFormatter.string(from: pinnedDate))
                         .font(Font.system(size: 20, weight: .bold))
-                        .foregroundColor(isToday ? .white : DesignSystem.Colors.primary)
+                        .foregroundColor(.white)
                 }
                 .frame(width: 50, height: 60)
                 .background(
                     RoundedRectangle(cornerRadius: 14)
-                        .fill(isToday ? DesignSystem.Colors.primary : DesignSystem.Colors.primary.opacity(0.08))
+                        .fill(DesignSystem.Colors.primary)
                 )
             }
             .buttonStyle(NoEffectButtonStyle())
