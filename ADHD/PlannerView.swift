@@ -170,54 +170,34 @@ struct PlannerView: View {
                 .frame(width: 1, height: 32)
                 .padding(.horizontal, 10)
 
-            // 우측: 내일부터 6일
-            HStack(spacing: 6) {
-                ForEach(nextDays, id: \.self) { date in
-                    let isSelected = calendar.isDate(date, inSameDayAs: selectedDate)
+            // 우측: 내일부터 6일 (스크롤 가능)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(nextDays, id: \.self) { date in
+                        let isSelected = calendar.isDate(date, inSameDayAs: selectedDate)
 
-                    Button(action: {
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                            selectedDate = date
+                        Button(action: {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                selectedDate = date
+                            }
+                        }) {
+                            VStack(spacing: 4) {
+                                Text(weekdayFormatter.string(from: date).prefix(1))
+                                    .font(DesignSystem.Typography.labelSm)
+                                    .foregroundColor(isSelected ? .white : DesignSystem.Colors.onSurfaceVariant.opacity(0.5))
+                                Text(dayFormatter.string(from: date))
+                                    .font(.system(size: 18, weight: isSelected ? .bold : .medium))
+                                    .foregroundColor(isSelected ? .white : DesignSystem.Colors.onSurfaceVariant)
+                            }
+                            .frame(width: 44, height: 58)
+                            .background(
+                                RoundedRectangle(cornerRadius: 14)
+                                    .fill(isSelected ? DesignSystem.Colors.primaryContainer : Color.clear)
+                            )
                         }
-                    }) {
-                        VStack(spacing: 3) {
-                            Text(weekdayFormatter.string(from: date).prefix(1))
-                                .font(.system(size: 10, weight: .medium))
-                                .foregroundColor(isSelected ? .white : DesignSystem.Colors.onSurfaceVariant.opacity(0.5))
-                            Text(dayFormatter.string(from: date))
-                                .font(.system(size: 14, weight: isSelected ? .semibold : .regular))
-                                .foregroundColor(isSelected ? .white : DesignSystem.Colors.onSurfaceVariant)
-                        }
-                        .frame(width: 36, height: 48)
-                        .background(
-                            RoundedRectangle(cornerRadius: 10)
-                                .fill(isSelected ? DesignSystem.Colors.primaryContainer : Color.clear)
-                        )
+                        .buttonStyle(NoEffectButtonStyle())
                     }
-                    .buttonStyle(NoEffectButtonStyle())
                 }
-            }
-
-            Spacer()
-
-            // Today 버튼 (오늘이 아닐 때만 표시)
-            if !isToday {
-                Button(action: {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                        selectedDate = today
-                    }
-                }) {
-                    Text("Today")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(DesignSystem.Colors.primary)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .background(
-                            Capsule()
-                                .stroke(DesignSystem.Colors.primary.opacity(0.3), lineWidth: 1)
-                        )
-                }
-                .transition(.opacity.combined(with: .scale(scale: 0.8)))
             }
         }
         .padding(.horizontal, 24)
