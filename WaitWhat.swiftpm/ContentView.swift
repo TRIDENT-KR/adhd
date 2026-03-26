@@ -3,13 +3,44 @@ import SwiftUI
 // MARK: - Design System Tokens
 struct DesignSystem {
     struct Colors {
-        // Core Palette
-        static let background = Color(hex: "#F9F9F7") // warm paper
-        static let primary = Color(hex: "#934A2E") // sophisticated terracotta
-        static let primaryContainer = Color(hex: "#D27C5C")
-        static let primaryFixedDim = Color(hex: "#FFB59B") // Used for voice pulse
-        static let onSurfaceVariant = Color(hex: "#54433D") // Used for unselected icons/labels
-        static let surfaceContainerLow = Color(hex: "#F4F4F2")
+        // Adaptive colors: automatically switch between light/dark mode
+        static let background = Color(UIColor { traits in
+            traits.userInterfaceStyle == .dark
+                ? UIColor(r: 0x1A, g: 0x1A, b: 0x1A)
+                : UIColor(r: 0xF9, g: 0xF9, b: 0xF7)
+        })
+
+        static let primary = Color(UIColor { traits in
+            traits.userInterfaceStyle == .dark
+                ? UIColor(r: 0xFF, g: 0xB5, b: 0x9B)  // lighter terracotta for dark
+                : UIColor(r: 0x93, g: 0x4A, b: 0x2E)
+        })
+
+        static let primaryContainer = Color(UIColor { traits in
+            traits.userInterfaceStyle == .dark
+                ? UIColor(r: 0x7C, g: 0x3F, b: 0x24)
+                : UIColor(r: 0xD2, g: 0x7C, b: 0x5C)
+        })
+
+        static let primaryFixedDim = Color(hex: "#FFB59B") // Used for voice pulse (same in both)
+
+        static let onSurfaceVariant = Color(UIColor { traits in
+            traits.userInterfaceStyle == .dark
+                ? UIColor(r: 0xCF, g: 0xC0, b: 0xB8)  // warm light for dark bg
+                : UIColor(r: 0x54, g: 0x43, b: 0x3D)
+        })
+
+        static let surfaceContainerLow = Color(UIColor { traits in
+            traits.userInterfaceStyle == .dark
+                ? UIColor(r: 0x25, g: 0x25, b: 0x25)
+                : UIColor(r: 0xF4, g: 0xF4, b: 0xF2)
+        })
+
+        static let tertiary = Color(UIColor { traits in
+            traits.userInterfaceStyle == .dark
+                ? UIColor(r: 0x4F, g: 0xDB, b: 0xD1)  // brighter teal for dark
+                : UIColor(r: 0x00, g: 0x6A, b: 0x63)
+        })
     }
     
     struct Gradients {
@@ -256,6 +287,13 @@ extension Color {
             blue:  Double(b) / 255,
             opacity: Double(a) / 255
         )
+    }
+}
+
+// MARK: - UIColor convenience for RGB bytes
+extension UIColor {
+    convenience init(r: UInt8, g: UInt8, b: UInt8) {
+        self.init(red: CGFloat(r) / 255, green: CGFloat(g) / 255, blue: CGFloat(b) / 255, alpha: 1)
     }
 }
 

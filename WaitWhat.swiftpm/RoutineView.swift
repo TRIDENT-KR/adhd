@@ -103,8 +103,8 @@ struct TaskRow: View {
                     
                     if routine.isCompleted {
                         Circle()
-                            // 체크 시엔 성공 피드백, Tertiary(#006A63) 컬러 사용
-                            .fill(Color(hex: "#006A63"))
+                            // 체크 시엔 성공 피드백, Tertiary 컬러 사용
+                            .fill(DesignSystem.Colors.tertiary)
                             .frame(width: 32, height: 32)
                         Image(systemName: "checkmark")
                             .font(.system(size: 14, weight: .bold))
@@ -120,6 +120,7 @@ struct TaskRow: View {
                     TextField("Task", text: $routine.task)
                         .focused($isTitleFocused)
                         .font(DesignSystem.Typography.bodyMd)
+                        .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
                         .submitLabel(.done)
                         .onSubmit { finishEditing() }
                     
