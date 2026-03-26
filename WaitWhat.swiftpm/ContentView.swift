@@ -99,9 +99,9 @@ struct HomeVoiceInterfaceView: View {
                             guard !text.isEmpty else { return }
                             Task {
                                 do {
-                                    let parsedTask = try await cloudLLM.analyzeText(text: text)
-                                    print("🤖 GPT-4o-mini 파싱 결과: \\(parsedTask)")
-                                    taskManager.add(task: parsedTask)
+                                    let intents = try await cloudLLM.analyzeText(text: text)
+                                    print("🤖 GPT-4o-mini 파싱 결과: \(intents)")
+                                    taskManager.process(intents: intents)
                                     
                                     // Reset UI states after inference and show temporary success message
                                     await MainActor.run {
