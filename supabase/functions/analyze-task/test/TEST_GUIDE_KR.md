@@ -66,22 +66,36 @@ ADHD 사용자의 음성 데이터는 일반적인 명령어와 달리 다음과
 
 ---
 
-## 5. 테스트 환경 vs 실제 작동 환경 차이점
+## 5. 데이터 처리 및 파싱 로직의 기술적 분석
 
-테스트 환경(로컬)과 실제 서비스 환경(Supabase Edge Functions)은 다음과 같은 기술적 차이가 있으므로, 프롬프트 검증 후 서비스 적용 시 참고하시기 바랍니다.
+테스트 환경과 실제 구동 환경은 단순히 실행 위치만 다른 것이 아니라, **데이터의 정제(Sanitization) 및 예외 처리(Defense Logic)** 단계에서 결정적인 기술적 차이가 존재합니다.
 
-| 구분 | 테스트 환경 (로컬) | 실제 작동 환경 (Supabase Edge Function) |
+### 5.1 데이터 흐름 분석 (System Flow)
+
+1.  **테스트 환경 (Dry Run)**:
+    - `Local JSON` (Source) → `Test Runner` → `Gemini API` → `Simple JSON.parse` → `Console Output`
+    - 목적: 프롬프트의 **순수 추출 성능** 검증
+
+2.  **실제 구동 환경 (Production)**:
+    - `iOS App (HTTP POST)` → `Supabase Edge Runtime` → `index.ts` → `Gemini API` → **`Production Defense Logic`** → `Response (HTTP 200)`
+    - 목적: 모바일 앱의 **안정적 구동 및 Swift 데이터 모델 호환성** 보장
+
+### 5.2 기술적 처리 차이 (Technical Handling)
+
+| 기술 요소 | 테스트 환경 (`run_test.mjs/ts`) | 실제 구동 환경 (`index.ts`) |
 | :--- | :--- | :--- |
-| **실행 엔진** | Node.js (V8) 또는 Deno | Deno (Edge Runtime) |
-| **API 호출** | `run_test.mjs/ts`가 직접 Gemini 호출 | `index.ts`가 HTTP 요청을 받아 Gemini 호출 |
-| **인증/보안** | 환경변수 (`GEMINI_API_KEY`) 직접 입력 | Supabase Secrets에 암호화되어 저장된 키 사용 |
-| **입력 데이터** | `sample_inputs.json`의 고정된 데이터 | 실제 iOS 클라이언트에서 전송된 실시간 음성 정보 |
-| **오류 처리** | 터미널에 에러 메시지 출력 및 중단 | JSON 형태의 400 응답 반환 및 CORS 헤더 적용 |
-| **CORS 설정** | 필요 없음 (CLI 실행) | iOS 앱과의 통신을 위해 `OPTIONS` 메서드 및 헤더 필수 |
-| **데이터 보정** | 기본 검증만 수행 | **방어 로직 포함**: AI 응답이 배열이 아닐 경우 배열화, 필수 값(`task`) 누락 시 원문 텍스트로 보정 등 |
+| **JSON 추출** | `rawText`를 단순히 파싱하여 리스트 출력 | AI 응답에서 Markdown(```json) 제거 및 엄격한 트림(Trim) 적용 |
+| **배열 강제화** | 배열이 아니면 오류로 간주 (FAIL) | **방어 코드**: AI가 단일 객체 `{...}` 반환 시 `[parsedData]`로 자동 래핑 |
+| **Task 필드 보정** | 비어있으면 이슈 보고 (FAIL) | **데이터 복구**: AI가 할 일 이름을 놓칠 경우, **입력 문장의 앞부분 20자**를 활용해 할 일 자동 생성 |
+| **Category 무결성** | 값 불일치 시 이슈 보고 (FAIL) | **런타임 교정**: 스키마 외의 값이 들어오면 강제로 `"Routine"`으로 수정하여 앱 크래시 방지 |
+| **Action 기본값** | 값 누락 시 이슈 보고 (FAIL) | **누락 방지**: `action` 값이 없을 경우 기본값 `"add"`를 자동 할당 |
+| **통신 프로토콜** | 직접 Fetch (No Headers) | **CORS/Swift 최적화**: iOS 앱과의 연동을 위해 `authorization`, `x-client-info` 등 복합 헤더 허용 |
 
-> [!IMPORTANT]
-> 로컬 테스트에서 성공하더라도 실제 서비스 환경에서는 **네트워크 지연**, **Gemini API 할당량(Rate Limit)**, **클라이언트의 잘못된 요청 형식** 등으로 인해 결과가 다를 수 있습니다. 특히 서비스 코드(`index.ts`)에는 AI 응답의 불확실성을 보완하기 위한 **데이터 정제 로직**이 추가로 포함되어 있습니다.
+### 5.3 왜 실제 환경에만 추가 로직이 있는가?
+
+iOS 앱(Swift)은 서버 응답을 받을 때 강력한 타입 체크를 수행합니다. 만약 AI가 실수로 `task`를 `null`로 보냈을 경우, 테스트 환경에서는 단순히 "실패"로 기록되지만, **실제 앱에서는 파싱 실패로 인해 서비스 전체가 멈출 수 있습니다.**
+
+따라서 실제 작동 환경인 `index.ts`에는 **"AI가 완벽하지 않을 수 있다"**는 전제하에, 데이터의 형태를 강제로 교정하여 앱에 전달하는 **런타임 보정 레이어**가 포함되어 있습니다.
 
 ---
 
