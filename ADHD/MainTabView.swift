@@ -9,17 +9,18 @@ struct MainTabView: View {
             // 1. 배경
             DesignSystem.Colors.background.ignoresSafeArea()
 
-            // 2. 현재 탭 뷰
-            Group {
-                switch activeTab {
-                case .routine:
-                    RoutineView(activeTab: $activeTab)
-                case .voice:
-                    HomeVoiceInterfaceView()
-                case .planner:
-                    PlannerView(activeTab: $activeTab)
-                }
+            // 2. 현재 탭 뷰 (스와이프 가능하도록 TabView 사용)
+            TabView(selection: $activeTab) {
+                RoutineView(activeTab: $activeTab)
+                    .tag(TabSelection.routine)
+                
+                HomeVoiceInterfaceView()
+                    .tag(TabSelection.voice)
+                
+                PlannerView(activeTab: $activeTab)
+                    .tag(TabSelection.planner)
             }
+            .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             // 3. 글로벌 바텀 바

@@ -279,12 +279,11 @@ struct CustomBottomBar: View {
             TabBarItem(iconName: "calendar", label: L.tabPlanner, isActive: activeTab == .planner) {
                 withAnimation(.spring()) { activeTab = .planner }
             }
+            Spacer()
         }
-        .padding(.horizontal, 32)
-        .padding(.vertical, 16)
-        .background(DesignSystem.Colors.surfaceContainerLow)
-        .clipShape(Capsule())
-        .padding(.bottom, 24)
+        .padding(.vertical, 12)
+        .background(Color.clear)
+        .padding(.bottom, 20)
         .padding(.horizontal, 24)
     }
 }
@@ -297,20 +296,31 @@ struct TabBarItem: View {
 
     var body: some View {
         Button(action: {
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
             action()
         }) {
-            VStack(spacing: 8) {
+            VStack(spacing: 6) {
                 Image(systemName: iconName)
-                    .font(.system(size: 24, weight: isActive ? .semibold : .regular))
+                    .font(.system(size: 26, weight: isActive ? .bold : .medium))
+                    .scaleEffect(isActive ? 1.15 : 1.0)
+                
                 Text(label)
                     .font(DesignSystem.Typography.labelSm)
-                    .tracking(0.3)
+                    .fontWeight(isActive ? .semibold : .regular)
+                    .opacity(isActive ? 1 : 0.6)
+                
+                // Active Dot Indicator
+                Circle()
+                    .fill(DesignSystem.Colors.primary)
+                    .frame(width: 4, height: 4)
+                    .opacity(isActive ? 1 : 0)
+                    .offset(y: 2)
             }
             .foregroundColor(
-                isActive ? DesignSystem.Colors.primary : DesignSystem.Colors.onSurfaceVariant.opacity(0.4)
+                isActive ? DesignSystem.Colors.primary : DesignSystem.Colors.onSurfaceVariant.opacity(0.3)
             )
-            .frame(width: 60)
+            .frame(width: 80)
+            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isActive)
         }
         .buttonStyle(PlainButtonStyle())
     }
