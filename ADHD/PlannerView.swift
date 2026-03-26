@@ -130,47 +130,35 @@ struct PlannerView: View {
     private var weekDateSelector: some View {
         let today = calendar.startOfDay(for: Date())
         let isToday = calendar.isDate(selectedDate, inSameDayAs: today)
-        // selectedDate 기준: 오늘이면 다음 6일, 아니면 selectedDate 전후 3일
-        let nextDays: [Date] = {
-            if isToday {
-                return (1...6).compactMap { calendar.date(byAdding: .day, value: $0, to: today) }
-            } else {
-                return (-3...3)
-                    .compactMap { calendar.date(byAdding: .day, value: $0, to: selectedDate) }
-                    .filter { !calendar.isDate($0, inSameDayAs: today) && !calendar.isDate($0, inSameDayAs: selectedDate) }
-            }
-        }()
+        // 오늘 기준 내일부터 6일 고정
+        let nextDays = (1...6).compactMap { calendar.date(byAdding: .day, value: $0, to: today) }
 
         let weekdayFormatter: DateFormatter = {
-            let f = DateFormatter(); f.dateFormat = "E"; return f
+            let f = DateFormatter(); f.dateFormat = "EEE"; return f
         }()
         let dayFormatter: DateFormatter = {
             let f = DateFormatter(); f.dateFormat = "d"; return f
         }()
 
-        // 좌측에 표시할 날짜: 오늘이면 오늘, 아니면 selectedDate
-        let pinnedDate = isToday ? today : selectedDate
-
         return HStack(spacing: 0) {
-            // 좌측: 고정 날짜
+            // 좌측: 오늘 고정
             Button(action: {
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                     selectedDate = today
                 }
             }) {
                 VStack(spacing: 4) {
-                    Text(weekdayFormatter.string(from: pinnedDate))
-                        .font(DesignSystem.Typography.labelSm)
-                        .fontWeight(.bold)
-                        .foregroundColor(.white)
-                    Text(dayFormatter.string(from: pinnedDate))
-                        .font(Font.system(size: 20, weight: .bold))
-                        .foregroundColor(.white)
+                    Text(weekdayFormatter.string(from: today))
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(isToday ? .white : DesignSystem.Colors.primary)
+                    Text(dayFormatter.string(from: today))
+                        .font(.system(size: 24, weight: .bold))
+                        .foregroundColor(isToday ? .white : DesignSystem.Colors.primary)
                 }
-                .frame(width: 50, height: 60)
+                .frame(width: 56, height: 68)
                 .background(
-                    RoundedRectangle(cornerRadius: 14)
-                        .fill(DesignSystem.Colors.primary)
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(isToday ? DesignSystem.Colors.primary : DesignSystem.Colors.primary.opacity(0.08))
                 )
             }
             .buttonStyle(NoEffectButtonStyle())
@@ -178,12 +166,12 @@ struct PlannerView: View {
             // 구분선
             Rectangle()
                 .fill(DesignSystem.Colors.onSurfaceVariant.opacity(0.12))
-                .frame(width: 1, height: 32)
-                .padding(.horizontal, 10)
+                .frame(width: 1, height: 36)
+                .padding(.horizontal, 12)
 
-            // 우측: 내일부터 6일 (스크롤 가능)
+            // 우측: 내일부터 6일 (스크롤)
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
+                HStack(spacing: 10) {
                     ForEach(nextDays, id: \.self) { date in
                         let isSelected = calendar.isDate(date, inSameDayAs: selectedDate)
 
@@ -193,14 +181,14 @@ struct PlannerView: View {
                             }
                         }) {
                             VStack(spacing: 4) {
-                                Text(weekdayFormatter.string(from: date).prefix(1))
-                                    .font(DesignSystem.Typography.labelSm)
+                                Text(weekdayFormatter.string(from: date))
+                                    .font(.system(size: 11, weight: .medium))
                                     .foregroundColor(isSelected ? .white : DesignSystem.Colors.onSurfaceVariant.opacity(0.5))
                                 Text(dayFormatter.string(from: date))
-                                    .font(.system(size: 18, weight: isSelected ? .bold : .medium))
+                                    .font(.system(size: 22, weight: isSelected ? .bold : .semibold))
                                     .foregroundColor(isSelected ? .white : DesignSystem.Colors.onSurfaceVariant)
                             }
-                            .frame(width: 44, height: 58)
+                            .frame(width: 50, height: 64)
                             .background(
                                 RoundedRectangle(cornerRadius: 14)
                                     .fill(isSelected ? DesignSystem.Colors.primaryContainer : Color.clear)
@@ -209,9 +197,10 @@ struct PlannerView: View {
                         .buttonStyle(NoEffectButtonStyle())
                     }
                 }
+                .padding(.trailing, 24)
             }
         }
-        .padding(.horizontal, 24)
+        .padding(.leading, 24)
     }
 }
 
