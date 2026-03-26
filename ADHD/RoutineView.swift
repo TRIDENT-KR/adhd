@@ -189,7 +189,7 @@ struct TaskRow: View {
             localTaskName = task.task
             localTime     = task.time ?? ""
         }
-        .onChange(of: editingTaskId) { newValue in
+        .onChange(of: editingTaskId) { oldValue, newValue in
             if newValue == task.id {
                 localTaskName = task.task
                 localTime     = task.time ?? ""
