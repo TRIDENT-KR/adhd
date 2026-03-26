@@ -16,7 +16,16 @@ struct RoutineView: View {
     @EnvironmentObject private var taskManager: TaskManager
     @Environment(\.modelContext) private var modelContext
 
+    @Binding var activeTab: TabSelection
     @State private var editingTaskId: UUID?
+    @State private var selectedSection: RoutineSection = .routines
+
+    enum RoutineSection: String, CaseIterable {
+        case routines = "Daily Routines"
+        case tasks = "Today's Tasks"
+    }
+    @StateObject private var voiceManager = VoiceInputManager()
+    @State private var voiceEditingTaskId: UUID?
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -28,44 +37,66 @@ struct RoutineView: View {
 
                     // 제목
                     Text("My Routines")
+                        .onAppear { setupVoiceEditCallback() }
                         .font(DesignSystem.Typography.displayLg)
                         .foregroundColor(DesignSystem.Colors.primary)
                         .tracking(-0.5)
                         .padding(.top, 16)
                         .padding(.horizontal, 32)
 
-                    // Daily Routines 섹션
-                    VStack(alignment: .leading, spacing: 32) {
-                        Text("Daily Routines")
-                            .font(DesignSystem.Typography.titleSm)
-                            .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
-                            .padding(.horizontal, 32)
-
-                        LazyVStack(spacing: 32) {
-                            // 미완료 먼저
-                            ForEach(routines.filter { !$0.isCompleted }) { task in
-                                TaskRow(task: task, editingTaskId: $editingTaskId)
+                    // 섹션 토글 (Zero Clutter: 한 번에 하나의 섹션만 표시)
+                    HStack(spacing: 12) {
+                        ForEach(RoutineSection.allCases, id: \.self) { section in
+                            let isSelected = selectedSection == section
+                            Button(action: {
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                    selectedSection = section
+                                }
+                            }) {
+                                Text(section.rawValue)
+                                    .font(DesignSystem.Typography.labelSm)
+                                    .tracking(0.3)
+                                    .foregroundColor(isSelected ? .white : DesignSystem.Colors.onSurfaceVariant)
+                                    .padding(.vertical, 10)
+                                    .padding(.horizontal, 16)
+                                    .background(
+                                        Capsule().fill(isSelected ? DesignSystem.Colors.primary : DesignSystem.Colors.onSurfaceVariant.opacity(0.08))
+                                    )
                             }
-                            // 완료 항목
-                            ForEach(routines.filter { $0.isCompleted }) { task in
-                                TaskRow(task: task, editingTaskId: $editingTaskId)
-                            }
+                            .buttonStyle(PlainButtonStyle())
                         }
+                        Spacer()
                     }
+                    .padding(.horizontal, 32)
 
-                    // Today's Tasks 섹션
-                    VStack(alignment: .leading, spacing: 32) {
-                        Text("Today's Tasks")
-                            .font(DesignSystem.Typography.titleSm)
-                            .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
-                            .padding(.horizontal, 32)
+                    // 선택된 섹션의 태스크 목록
+                    let currentTasks = selectedSection == .routines ? routines : appointments
 
+                    if currentTasks.isEmpty {
+                        // Empty State: 현재 섹션이 비었을 때 음성 입력 유도
+                        VStack(spacing: 20) {
+                            Image(systemName: "mic.fill")
+                                .font(.system(size: 48))
+                                .foregroundColor(DesignSystem.Colors.primary.opacity(0.3))
+
+                            Text(selectedSection == .routines
+                                 ? "Tap to add your first routine"
+                                 : "Tap to add today's task")
+                                .font(DesignSystem.Typography.bodyMd)
+                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, 60)
+                        .onTapGesture {
+                            withAnimation(.spring()) { activeTab = .voice }
+                        }
+                    } else {
                         LazyVStack(spacing: 32) {
-                            ForEach(appointments.filter { !$0.isCompleted }) { task in
-                                TaskRow(task: task, editingTaskId: $editingTaskId)
+                            ForEach(currentTasks.filter { !$0.isCompleted }) { task in
+                                TaskRow(task: task, editingTaskId: $editingTaskId, voiceManager: voiceManager, voiceEditingTaskId: $voiceEditingTaskId)
                             }
-                            ForEach(appointments.filter { $0.isCompleted }) { task in
-                                TaskRow(task: task, editingTaskId: $editingTaskId)
+                            ForEach(currentTasks.filter { $0.isCompleted }) { task in
+                                TaskRow(task: task, editingTaskId: $editingTaskId, voiceManager: voiceManager, voiceEditingTaskId: $voiceEditingTaskId)
                             }
                         }
                     }
@@ -76,6 +107,28 @@ struct RoutineView: View {
             .ignoresSafeArea(edges: .bottom)
         }
     }
+
+    // MARK: - Voice Edit Callback
+    private func setupVoiceEditCallback() {
+        voiceManager.onSpeechFinalized = { [weak voiceManager] text in
+            Task { @MainActor in
+                defer {
+                    voiceEditingTaskId = nil
+                    voiceManager?.isProcessing = false
+                }
+
+                guard !text.isEmpty, let targetId = voiceEditingTaskId else { return }
+
+                // 모든 태스크에서 편집 대상 찾기
+                let allTasks = routines + appointments
+                guard let target = allTasks.first(where: { $0.id == targetId }) else { return }
+
+                target.task = text
+                taskManager.update(task: target)
+                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            }
+        }
+    }
 }
 
 // MARK: - Task Row Component
@@ -83,6 +136,8 @@ struct TaskRow: View {
     /// AppTask는 @Model 참조 타입이므로 직접 참조하여 수정합니다.
     var task: AppTask
     @Binding var editingTaskId: UUID?
+    @ObservedObject var voiceManager: VoiceInputManager
+    @Binding var voiceEditingTaskId: UUID?
 
     @EnvironmentObject private var taskManager: TaskManager
     @Environment(\.modelContext) private var modelContext
@@ -94,14 +149,50 @@ struct TaskRow: View {
 
     var isEditing: Bool { editingTaskId == task.id }
     var isDimmed:  Bool { editingTaskId != nil && editingTaskId != task.id }
+    var isVoiceEditing: Bool { voiceEditingTaskId == task.id && voiceManager.isListening }
+
+    /// 태스크명에서 키워드 매칭으로 카테고리 아이콘 결정 (Visual Anchor)
+    private var categoryIcon: String {
+        let name = task.task.lowercased()
+        if name.contains("exercise") || name.contains("workout") || name.contains("run") || name.contains("gym") {
+            return "figure.run"
+        } else if name.contains("medicine") || name.contains("pill") || name.contains("drug") || name.contains("vitamin") {
+            return "pill.fill"
+        } else if name.contains("meal") || name.contains("eat") || name.contains("breakfast") || name.contains("lunch") || name.contains("dinner") || name.contains("cook") {
+            return "fork.knife"
+        } else if name.contains("sleep") || name.contains("bed") || name.contains("wake") || name.contains("alarm") {
+            return "alarm.fill"
+        } else if name.contains("study") || name.contains("read") || name.contains("book") || name.contains("learn") {
+            return "book.fill"
+        } else if name.contains("meeting") || name.contains("call") || name.contains("zoom") {
+            return "phone.fill"
+        } else if name.contains("clean") || name.contains("laundry") || name.contains("wash") {
+            return "bubbles.and.sparkles.fill"
+        } else if name.contains("walk") || name.contains("dog") || name.contains("pet") {
+            return "pawprint.fill"
+        } else if name.contains("water") || name.contains("drink") || name.contains("hydrat") {
+            return "drop.fill"
+        } else if task.category == "Appointment" {
+            return "calendar"
+        } else {
+            return "circle.fill"
+        }
+    }
 
     var body: some View {
         HStack(spacing: 20) {
+            // 카테고리 아이콘 앵커 (Visual Anchor)
+            Image(systemName: categoryIcon)
+                .font(.system(size: 14))
+                .foregroundColor(DesignSystem.Colors.primary.opacity(task.isCompleted ? 0.2 : 0.5))
+                .frame(width: 20)
+
             // 체크박스
             Button(action: {
                 withAnimation(.timingCurve(0.4, 0, 0.2, 1, duration: 0.3)) {
                     taskManager.toggleCompletion(of: task)
                 }
+                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
             }) {
                 ZStack {
                     Circle()
@@ -142,6 +233,12 @@ struct TaskRow: View {
                         .sheet(isPresented: $showingTimePicker) {
                             TimePickerModal(timeString: $localTime, isPresented: $showingTimePicker)
                         }
+                } else if isVoiceEditing {
+                    // 음성 편집 중: 실시간 인식 텍스트 표시
+                    Text(voiceManager.recognizedText.isEmpty ? "Listening..." : voiceManager.recognizedText)
+                        .font(DesignSystem.Typography.bodyMd)
+                        .foregroundColor(DesignSystem.Colors.primary)
+                        .animation(.easeInOut, value: voiceManager.recognizedText)
                 } else {
                     Text(task.task)
                         .font(DesignSystem.Typography.bodyMd)
@@ -164,24 +261,48 @@ struct TaskRow: View {
 
             // 우측 액션 버튼
             HStack(spacing: 16) {
-                Button(action: {
-                    // 향후 음성 수정 기능 (P3)
-                }) {
-                    Image(systemName: "mic.fill")
-                        .font(.system(size: 18))
-                }
-                .disabled(isEditing)
-
-                Button(action: {
-                    withAnimation {
-                        if isEditing { finishEditing() } else { startEditing() }
+                if isEditing {
+                    // 편집 모드: 삭제 + 완료
+                    Button(action: {
+                        withAnimation {
+                            taskManager.delete(task: task)
+                            editingTaskId = nil
+                        }
+                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                    }) {
+                        Image(systemName: "trash")
+                            .font(.system(size: 16))
+                            .foregroundColor(.red.opacity(0.6))
                     }
-                }) {
-                    Image(systemName: isEditing ? "checkmark" : "pencil")
-                        .font(.system(size: 18))
+
+                    Button(action: {
+                        withAnimation { finishEditing() }
+                    }) {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 18))
+                            .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.2))
+                    }
+                } else {
+                    // 기본 모드: 마이크 + 편집
+                    Button(action: {
+                        handleVoiceEdit()
+                    }) {
+                        Image(systemName: isVoiceEditing ? "stop.fill" : "mic.fill")
+                            .font(.system(size: 18))
+                            .foregroundColor(isVoiceEditing ? DesignSystem.Colors.primary : DesignSystem.Colors.onSurfaceVariant.opacity(0.2))
+                            .contentTransition(.symbolEffect(.replace))
+                    }
+                    .disabled(voiceEditingTaskId != nil && voiceEditingTaskId != task.id)
+
+                    Button(action: {
+                        withAnimation { startEditing() }
+                    }) {
+                        Image(systemName: "pencil")
+                            .font(.system(size: 18))
+                            .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.2))
+                    }
                 }
             }
-            .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.2))
         }
         .padding(.horizontal, 32)
         .opacity(isDimmed ? 0.3 : 1.0)
@@ -226,12 +347,24 @@ struct TaskRow: View {
         editingTaskId = task.id
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
     }
+
+    private func handleVoiceEdit() {
+        if voiceManager.isListening && voiceEditingTaskId == task.id {
+            // 녹음 중지 → onSpeechFinalized에서 태스크 업데이트
+            voiceManager.stopListening()
+        } else {
+            // 녹음 시작
+            voiceEditingTaskId = task.id
+            voiceManager.startListening()
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        }
+    }
 }
 
 // MARK: - Preview
 struct RoutineView_Previews: PreviewProvider {
     static var previews: some View {
-        RoutineView()
+        RoutineView(activeTab: .constant(.routine))
             .environmentObject(TaskManager())
     }
 }

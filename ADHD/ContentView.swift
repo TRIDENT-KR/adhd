@@ -61,7 +61,7 @@ struct DesignSystem {
     // MARK: - Strings
     struct Strings {
         /// 오프라인 배너에 표시되는 영어 문구 (Task 2)
-        static let offlineAlertText = "Internet offline. Manual entries will save. Voice entry paused."
+        static let offlineAlertText = "Offline — voice paused"
     }
 }
 
@@ -73,6 +73,8 @@ struct HomeVoiceInterfaceView: View {
     @EnvironmentObject var networkMonitor: NetworkMonitor
     @StateObject private var voiceManager = VoiceInputManager()
     @State private var isBreathing = false
+    @State private var showPlaceholder = true
+    @State private var showSuccessCheck = false
 
     var body: some View {
         ZStack {
@@ -104,12 +106,14 @@ struct HomeVoiceInterfaceView: View {
                     ZStack {
                         let pulseScale = voiceManager.isListening
                             ? 1.0 + (voiceManager.audioPower * 0.5)
-                            : (isBreathing ? 1.05 : 0.95)
+                            : (isBreathing ? 1.08 : 0.92)
+
+                        let pulseOpacity = voiceManager.isListening
+                            ? 0.6
+                            : (isBreathing ? 0.4 : 0.15)
 
                         Circle()
-                            .fill(DesignSystem.Colors.primaryFixedDim.opacity(
-                                voiceManager.isListening ? 0.6 : 0.3
-                            ))
+                            .fill(DesignSystem.Colors.primaryFixedDim.opacity(pulseOpacity))
                             .frame(width: 180, height: 180)
                             .scaleEffect(pulseScale)
                             .animation(
@@ -139,25 +143,36 @@ struct HomeVoiceInterfaceView: View {
                         isBreathing = true
                         // setupSpeechCallback()은 process(intents:) 배치 처리 + 오프라인 방어 + Placeholder 복귀를 모두 포함합니다.
                         setupSpeechCallback()
+                        // 1.5초 후 플레이스홀더 페이드 아웃 → 마이크 버튼만 남김 (Zero Clutter)
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                            withAnimation(.easeOut(duration: 0.8)) {
+                                showPlaceholder = false
+                            }
+                        }
                     }
 
-                    // ── 상태 텍스트 ──
+                    // ── 상태 텍스트 / 성공 체크 ──
                     Group {
-                        if cloudLLM.isProcessing || voiceManager.isProcessing {
-                            // 분석 진행 중
+                        if showSuccessCheck {
+                            // 성공: 체크마크 애니메이션 (텍스트 없이 시각+햅틱 피드백만)
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.system(size: 48))
+                                .foregroundColor(DesignSystem.Colors.tertiary)
+                                .transition(.scale.combined(with: .opacity))
+                        } else if cloudLLM.isProcessing || voiceManager.isProcessing {
                             Text("Analyzing...")
                                 .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
                         } else if !voiceManager.recognizedText.isEmpty {
-                            // 인식된 텍스트 또는 결과 메시지 표시
                             Text(voiceManager.recognizedText)
                                 .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
                         } else if voiceManager.isListening {
                             Text("Listening...")
-                                .foregroundColor(DesignSystem.Colors.primary)
+                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
                         } else {
-                            // Placeholder — 모든 완료 Exit Path에서 recognizedText = ""로 초기화하면 복귀
+                            // Placeholder — 1.5초 후 페이드 아웃하여 Zero Clutter 극대화
                             Text("What should I remember for you?")
                                 .foregroundColor(DesignSystem.Colors.primary)
+                                .opacity(showPlaceholder ? 1.0 : 0.0)
                         }
                     }
                     .font(DesignSystem.Typography.titleSm)
@@ -168,6 +183,7 @@ struct HomeVoiceInterfaceView: View {
                     .animation(.easeInOut, value: voiceManager.isListening)
                     .animation(.easeInOut, value: voiceManager.isProcessing)
                     .animation(.easeInOut, value: cloudLLM.isProcessing)
+                    .animation(.spring(response: 0.4, dampingFraction: 0.6), value: showSuccessCheck)
                 }
 
                 Spacer()
@@ -183,6 +199,9 @@ struct HomeVoiceInterfaceView: View {
             networkMonitor.showOfflineBannerTemporarily()
             return
         }
+        // 인터랙션 시 플레이스홀더 복귀 (다음 idle 때 다시 페이드 아웃)
+        showPlaceholder = true
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         voiceManager.toggleListening()
     }
 
@@ -205,15 +224,22 @@ struct HomeVoiceInterfaceView: View {
                     print("🤖 Gemini 파싱 결과: \(parsedTasks)")
                     taskManager.process(intents: parsedTasks)
 
-                    // ✅ 성공 Exit Path: 2초간 성공 메시지 → Placeholder 복구
+                    // ✅ 성공 Exit Path: 체크마크 애니메이션 + 햅틱 → Placeholder 복구
                     await MainActor.run {
-                        voiceManager.recognizedText = "✅ Saved! Check Routine or Planner tab."
+                        voiceManager.recognizedText = ""
                         voiceManager.isProcessing   = false
+                        showSuccessCheck = true
+                        UINotificationFeedbackGenerator().notificationOccurred(.success)
                     }
-                    try? await Task.sleep(nanoseconds: 2_000_000_000)
+                    try? await Task.sleep(nanoseconds: 1_500_000_000)
                     await MainActor.run {
-                        if voiceManager.recognizedText.starts(with: "✅") {
-                            voiceManager.recognizedText = ""
+                        showSuccessCheck = false
+                        // 복귀 후 1.5초 뒤 다시 페이드 아웃
+                        showPlaceholder = true
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                            withAnimation(.easeOut(duration: 0.8)) {
+                                showPlaceholder = false
+                            }
                         }
                     }
                 } catch {
@@ -268,7 +294,10 @@ struct TabBarItem: View {
     let action:   () -> Void
 
     var body: some View {
-        Button(action: action) {
+        Button(action: {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            action()
+        }) {
             VStack(spacing: 8) {
                 Image(systemName: iconName)
                     .font(.system(size: 24, weight: isActive ? .semibold : .regular))
@@ -277,7 +306,7 @@ struct TabBarItem: View {
                     .tracking(0.3)
             }
             .foregroundColor(
-                isActive ? DesignSystem.Colors.primary : DesignSystem.Colors.onSurfaceVariant
+                isActive ? DesignSystem.Colors.primary : DesignSystem.Colors.onSurfaceVariant.opacity(0.4)
             )
             .frame(width: 60)
         }
@@ -289,8 +318,8 @@ struct TabBarItem: View {
 struct SquishyButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
-            .animation(.easeOut(duration: 0.3), value: configuration.isPressed)
+            .scaleEffect(configuration.isPressed ? 0.93 : 1.0)
+            .animation(.easeOut(duration: 0.2), value: configuration.isPressed)
     }
 }
 
