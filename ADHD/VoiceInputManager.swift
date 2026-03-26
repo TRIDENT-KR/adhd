@@ -33,7 +33,7 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
             DispatchQueue.main.async {
                 switch authStatus {
                 case .authorized:
-                    AVAudioSession.sharedInstance().requestRecordPermission { granted in
+                    AVAudioApplication.requestRecordPermission { granted in
                         if !granted {
                             self.errorMessage = "마이크 사용 권한이 필요합니다."
                         }
