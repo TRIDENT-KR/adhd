@@ -131,7 +131,12 @@ struct PlannerView: View {
         let today = calendar.startOfDay(for: Date())
         let isToday = calendar.isDate(selectedDate, inSameDayAs: today)
         // 오늘 기준 내일부터 6일 고정
-        let nextDays = (1...6).compactMap { calendar.date(byAdding: .day, value: $0, to: today) }
+        var nextDays = (1...6).compactMap { calendar.date(byAdding: .day, value: $0, to: today) }
+        // 캘린더에서 선택한 날짜가 범위 밖이면 끝에 추가
+        let selectedStart = calendar.startOfDay(for: selectedDate)
+        if !isToday && !nextDays.contains(where: { calendar.isDate($0, inSameDayAs: selectedStart) }) {
+            nextDays.append(selectedStart)
+        }
 
         let weekdayFormatter: DateFormatter = {
             let f = DateFormatter(); f.dateFormat = "EEE"; return f
