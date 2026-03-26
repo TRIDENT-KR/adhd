@@ -1,0 +1,102 @@
+{
+  "test_cases": [
+    {
+      "id": "TC001",
+      "description": "기본 루틴 추가 - 한국어 단순 입력",
+      "input": "아침에 일어나서 명상 10분 하는 거 추가해줘",
+      "expected": {
+        "action": "add",
+        "category": "Routine",
+        "time_not_null": false
+      }
+    },
+    {
+      "id": "TC002",
+      "description": "일회성 약속 추가 - 시간 포함",
+      "input": "내일 오후 3시에 치과 예약 있어",
+      "expected": {
+        "action": "add",
+        "category": "Appointment",
+        "time_not_null": true
+      }
+    },
+    {
+      "id": "TC003",
+      "description": "ADHD 특화 - 말 번복 / 여러 의도 혼재",
+      "input": "아 오늘 3시 미팅 취소됨. 대신 4시에 헬스 갈래",
+      "expected_count": 2,
+      "expected": [
+        { "action": "delete", "category": "Appointment" },
+        { "action": "add", "category": "Appointment" }
+      ]
+    },
+    {
+      "id": "TC004",
+      "description": "ADHD 특화 - 중간에 생각 바꿈 + 두서없는 말",
+      "input": "아 맞다 저녁에 약 먹어야 하는데... 아니 근데 운동도 해야 하고... 일단 저녁 7시에 약 먹는 거 넣어줘. 그리고 매일 아침 스트레칭도 추가해",
+      "expected_count": 2,
+      "expected": [
+        { "action": "add", "category": "Appointment", "time_contains": "07:00 PM" },
+        { "action": "add", "category": "Routine" }
+      ]
+    },
+    {
+      "id": "TC005",
+      "description": "영어 입력 처리",
+      "input": "Add a daily morning journal at 8am",
+      "expected": {
+        "action": "add",
+        "category": "Routine",
+        "time_not_null": true
+      }
+    },
+    {
+      "id": "TC006",
+      "description": "삭제 요청",
+      "input": "운동 루틴 지워줘",
+      "expected": {
+        "action": "delete",
+        "category": "Routine"
+      }
+    },
+    {
+      "id": "TC007",
+      "description": "수정 요청",
+      "input": "아침 명상 시간을 7시에서 6시 반으로 바꿔줘",
+      "expected": {
+        "action": "update",
+        "category": "Routine",
+        "time_not_null": true
+      }
+    },
+    {
+      "id": "TC008",
+      "description": "애매한 입력 - 시간 없음",
+      "input": "나중에 친구한테 전화해야 해",
+      "expected": {
+        "action": "add",
+        "category": "Appointment",
+        "time_not_null": false
+      }
+    },
+    {
+      "id": "TC009",
+      "description": "ADHD 특화 - 잡음 + 핵심 의도 추출",
+      "input": "음... 뭐였더라... 아 맞다 매일 물 2리터 마시기 루틴 추가해야 하는데 계속 까먹었어. 추가해줘",
+      "expected": {
+        "action": "add",
+        "category": "Routine"
+      }
+    },
+    {
+      "id": "TC010",
+      "description": "복합 - 루틴 + 약속 동시 요청",
+      "input": "매일 아침 6시에 달리기 추가하고 이번주 금요일 오전 10시에 팀 미팅도 넣어줘",
+      "expected_count": 2,
+      "expected": [
+        { "action": "add", "category": "Routine" },
+        { "action": "add", "category": "Appointment" }
+      ]
+    }
+  ]
+}
