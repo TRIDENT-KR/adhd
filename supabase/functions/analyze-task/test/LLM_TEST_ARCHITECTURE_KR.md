@@ -8,30 +8,41 @@
 
 본 테스트 시스템은 **데이터 중심(Data-Driven)** 설계 방식을 따르며, 테스트 케이스와 실행 엔진이 완전히 분리된 구조를 가집니다.
 
-```mermaid
-graph TD
-    subgraph "Input Layer"
-        A[sample_inputs.json] --> B[Test Runner]
-    end
-
-    subgraph "Execution Layer (Runner)"
-        B --> C{API Request}
-        C -->|Gemini 2.0 Flash| D[LLM Analysis]
-        D --> E[JSON Data Extraction]
-    end
-
-    subgraph "Validation & Logic"
-        E --> F[Sanitization/Cleaning]
-        F --> G[Validation Logic]
-        G --> H{Criterion Match?}
-    end
-
-    subgraph "Reporting Layer"
-        H -->|PASS| I[Green CLI Output]
-        H -->|FAIL| J[Red Error Detail]
-        I --> K[latest_run.json Storage]
-        J --> K
-    end
+```text
+[ Input Layer ]
+      |
+      v
+[ sample_inputs.json ] ----> [ Test Runner ]
+                                     |
+                                     v
+                        [ Execution Layer (Runner) ]
+                                     |
+                                     v
+                        { API Request: Gemini 2.0 Flash }
+                                     |
+                                     v
+                        [ LLM Analysis & JSON Extraction ]
+                                     |
+                                     v
+                        [ Validation & Logic Layer ]
+                                     |
+                                     v
+                        [ Sanitization & Cleaning ]
+                                     |
+                                     v
+                        [ Validation Logic (3-Step Check) ]
+                                     |
+          -------------------------------------------------------
+          |                                                     |
+  { PASS Criteria }                                     { FAIL Criteria }
+          |                                                     |
+          v                                                     v
+[ Green CLI Output ]                                  [ Red Error Details ]
+          |                                                     |
+          --------------------------+----------------------------
+                                    |
+                                    v
+                        [ latest_run.json Storage ]
 ```
 
 ---
