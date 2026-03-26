@@ -79,8 +79,9 @@ struct RoutineView: View {
                     let currentTasks = selectedSection == .routines ? routines : appointments
 
                     if currentTasks.isEmpty {
-                        // Empty State: 현재 섹션이 비었을 때 음성 입력 유도
+                        // Empty State: 중앙 정렬, 음성 입력 유도
                         VStack(spacing: 20) {
+                            Spacer(minLength: 80)
                             Image(systemName: "mic.fill")
                                 .font(.system(size: 48))
                                 .foregroundColor(DesignSystem.Colors.primary.opacity(0.3))
@@ -90,9 +91,9 @@ struct RoutineView: View {
                                  : L.routineEmptyTask)
                                 .font(DesignSystem.Typography.bodyMd)
                                 .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
+                            Spacer(minLength: 80)
                         }
-                        .frame(maxWidth: .infinity)
-                        .padding(.top, 60)
+                        .frame(maxWidth: .infinity, minHeight: 300)
                         .onTapGesture {
                             withAnimation(.spring()) { activeTab = .voice }
                         }

@@ -59,15 +59,16 @@ struct PlannerView: View {
                     // 타임라인
                     if filteredAppointments.isEmpty {
                         VStack(spacing: 20) {
+                            Spacer(minLength: 60)
                             Image(systemName: "mic.fill")
                                 .font(.system(size: 48))
                                 .foregroundColor(DesignSystem.Colors.primary.opacity(0.3))
                             Text(L.plannerEmpty)
                                 .font(DesignSystem.Typography.bodyMd)
                                 .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
+                            Spacer(minLength: 60)
                         }
-                        .frame(maxWidth: .infinity)
-                        .padding(.top, 40)
+                        .frame(maxWidth: .infinity, minHeight: 250)
                         .onTapGesture {
                             withAnimation(.spring()) { activeTab = .voice }
                         }
@@ -130,13 +131,11 @@ struct PlannerView: View {
     private var weekDateSelector: some View {
         let today = calendar.startOfDay(for: Date())
         let isToday = calendar.isDate(selectedDate, inSameDayAs: today)
-        // 오늘 기준 내일부터 6일 고정
-        var nextDays = (1...6).compactMap { calendar.date(byAdding: .day, value: $0, to: today) }
-        // 캘린더에서 선택한 날짜가 범위 밖이면 끝에 추가
         let selectedStart = calendar.startOfDay(for: selectedDate)
-        if !isToday && !nextDays.contains(where: { calendar.isDate($0, inSameDayAs: selectedStart) }) {
-            nextDays.append(selectedStart)
-        }
+        // 오늘 기준 내일부터 6일 + 범위 밖 selectedDate
+        let baseDays = (1...6).compactMap { calendar.date(byAdding: .day, value: $0, to: today) }
+        let needsExtra = !isToday && !baseDays.contains(where: { calendar.isDate($0, inSameDayAs: selectedStart) })
+        let nextDays = needsExtra ? baseDays + [selectedStart] : baseDays
 
         let weekdayFormatter: DateFormatter = {
             let f = DateFormatter(); f.dateFormat = "EEE"; return f
