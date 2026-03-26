@@ -33,6 +33,7 @@ struct DesignSystem {
 struct HomeVoiceInterfaceView: View {
     @EnvironmentObject var cloudLLM: CloudLLMManager
     @EnvironmentObject var taskManager: TaskManager
+    @EnvironmentObject var authManager: AuthManager
     @StateObject private var voiceManager = VoiceInputManager()
     @State private var isBreathing = false
     
@@ -47,10 +48,12 @@ struct HomeVoiceInterfaceView: View {
                 HStack {
                     Spacer()
                     Button(action: {
-                        // Settings Action
+                        Task {
+                            await authManager.signOut()
+                        }
                     }) {
-                        Image(systemName: "gearshape")
-                            .font(.system(size: 24, weight: .light))
+                        Image(systemName: "rectangle.portrait.and.arrow.right") // 로그아웃 아이콘으로 변경
+                            .font(.system(size: 20, weight: .light))
                             .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
                     }
                 }
@@ -263,5 +266,8 @@ extension Color {
 struct HomeVoiceInterfaceView_Previews: PreviewProvider {
     static var previews: some View {
         HomeVoiceInterfaceView()
+            .environmentObject(CloudLLMManager())
+            .environmentObject(TaskManager())
+            .environmentObject(AuthManager())
     }
 }

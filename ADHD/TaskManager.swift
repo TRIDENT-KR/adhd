@@ -1,4 +1,6 @@
 import Foundation
+import SwiftUI
+import Combine
 
 struct ParsedTask: Codable, Identifiable {
     var id = UUID()
