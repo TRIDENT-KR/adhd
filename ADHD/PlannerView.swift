@@ -32,6 +32,14 @@ struct PlannerView: View {
         }
     }
 
+    /// 특정 날짜에 이벤트가 있는지 확인 (배지 표시용)
+    private func hasEvents(on date: Date) -> Bool {
+        appointments.contains { task in
+            guard let taskDate = task.date else { return false }
+            return calendar.isDate(taskDate, inSameDayAs: date)
+        }
+    }
+
     var body: some View {
         ZStack(alignment: .bottom) {
             DesignSystem.Colors.background.ignoresSafeArea()
@@ -84,6 +92,10 @@ struct PlannerView: View {
                         LazyVStack(spacing: 32) {
                             ForEach(filteredAppointments) { task in
                                 EventCard(task: task, editingTaskId: $editingTaskId)
+                                    .swipeToDelete {
+                                        withAnimation { taskManager.delete(task: task) }
+                                        Haptic.impact(.medium)
+                                    }
                             }
                         }
                     }
@@ -169,6 +181,14 @@ struct PlannerView: View {
                         .foregroundColor(isTodaySelected ? .white : DesignSystem.Colors.primary)
                 }
                 .frame(width: 56, height: 68)
+                .overlay(alignment: .bottom) {
+                    if hasEvents(on: today) {
+                        Circle()
+                            .fill(isTodaySelected ? .white : DesignSystem.Colors.primary)
+                            .frame(width: 5, height: 5)
+                            .offset(y: -6)
+                    }
+                }
                 .background(
                     RoundedRectangle(cornerRadius: 16)
                         .fill(isTodaySelected ? DesignSystem.Colors.primary : DesignSystem.Colors.primary.opacity(0.08))
@@ -202,6 +222,14 @@ struct PlannerView: View {
                                     .foregroundColor(isSelected ? .white : DesignSystem.Colors.onSurfaceVariant)
                             }
                             .frame(width: 50, height: 64)
+                            .overlay(alignment: .bottom) {
+                                if hasEvents(on: date) {
+                                    Circle()
+                                        .fill(isSelected ? .white : DesignSystem.Colors.primaryContainer)
+                                        .frame(width: 5, height: 5)
+                                        .offset(y: -6)
+                                }
+                            }
                             .background(
                                 RoundedRectangle(cornerRadius: 14)
                                     .fill(isSelected ? DesignSystem.Colors.primaryContainer : Color.clear)
@@ -233,6 +261,30 @@ struct EventCard: View {
 
     var body: some View {
         HStack(spacing: 20) {
+            // Completion checkbox (#25)
+            if !isEditing {
+                Button(action: {
+                    withAnimation(.timingCurve(0.4, 0, 0.2, 1, duration: 0.3)) {
+                        taskManager.toggleCompletion(of: task)
+                    }
+                    Haptic.impact(.medium)
+                }) {
+                    ZStack {
+                        Circle()
+                            .stroke(DesignSystem.Colors.onSurfaceVariant.opacity(0.3), lineWidth: 1.5)
+                            .frame(width: 28, height: 28)
+                        if task.isCompleted {
+                            Circle()
+                                .fill(DesignSystem.Colors.tertiary)
+                                .frame(width: 28, height: 28)
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(.white)
+                        }
+                    }
+                }
+            }
+
             if isEditing {
                 Text(localTime.isEmpty ? "Set Time" : localTime)
                     .font(DesignSystem.Typography.labelSm)
@@ -256,12 +308,15 @@ struct EventCard: View {
                 Text(task.time ?? "")
                     .font(DesignSystem.Typography.labelSm)
                     .tracking(0.3)
-                    .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
+                    .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(task.isCompleted ? 0.3 : 0.6))
                     .frame(width: 64, alignment: .leading)
 
                 Text(task.task)
                     .font(DesignSystem.Typography.bodyMd)
-                    .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
+                    .strikethrough(task.isCompleted, color: DesignSystem.Colors.onSurfaceVariant)
+                    .foregroundColor(task.isCompleted
+                        ? DesignSystem.Colors.onSurfaceVariant.opacity(0.4)
+                        : DesignSystem.Colors.onSurfaceVariant)
             }
 
             Spacer()

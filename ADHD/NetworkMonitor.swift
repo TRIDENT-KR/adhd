@@ -14,6 +14,7 @@ final class NetworkMonitor: ObservableObject {
     // MARK: - Published State
     @Published private(set) var isConnected: Bool = true
     @Published private(set) var isOfflineBannerVisible: Bool = false
+    @Published private(set) var isBackOnlineBannerVisible: Bool = false
 
     // MARK: - Private
     private let monitor = NWPathMonitor()
@@ -33,14 +34,22 @@ final class NetworkMonitor: ObservableObject {
                 if wasConnected && !connected {
                     self.showOfflineBannerTemporarily()
                 }
+                // ── Trigger 2: 네트워크 복구 시 "Back online" 배너 표시 ──
+                if !wasConnected && connected {
+                    self.showBackOnlineBannerTemporarily()
+                }
             }
         }
         monitor.start(queue: queue)
     }
 
+    /// "Back online" 배너를 숨기는 타이머 작업
+    private var backOnlineWorkItem: DispatchWorkItem?
+
     deinit {
         monitor.cancel()
         bannerWorkItem?.cancel()
+        backOnlineWorkItem?.cancel()
     }
 
     // MARK: - Public API
@@ -57,5 +66,18 @@ final class NetworkMonitor: ObservableObject {
         }
         bannerWorkItem = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 3.0, execute: work)
+    }
+
+    /// "Back online" 배너를 2초간 표시 후 자동으로 숨깁니다.
+    func showBackOnlineBannerTemporarily() {
+        backOnlineWorkItem?.cancel()
+
+        isBackOnlineBannerVisible = true
+
+        let work = DispatchWorkItem { [weak self] in
+            self?.isBackOnlineBannerVisible = false
+        }
+        backOnlineWorkItem = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0, execute: work)
     }
 }

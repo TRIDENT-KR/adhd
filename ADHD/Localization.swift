@@ -50,6 +50,12 @@ struct Strings {
 
     // Settings
     var settings: SettingsStrings { SettingsStrings() }
+
+    // Login
+    var login: LoginStrings { LoginStrings() }
+
+    // Network
+    var network: NetworkStrings { NetworkStrings() }
 }
 
 struct SettingsStrings {
@@ -148,4 +154,17 @@ struct VoiceStrings {
     var a11yHoldHint: String { t("Press and hold to record, release to send", "길게 눌러 녹음하고, 떼면 전송됩니다", "長押しで録音、離すと送信") }
     var a11yTabBar: String { t("Tab navigation", "탭 내비게이션", "タブナビゲーション") }
     var a11yUndo: String { t("Undo last action", "마지막 작업 되돌리기", "最後の操作を元に戻す") }
+}
+
+// MARK: - Login Strings
+struct LoginStrings {
+    var subtitle: String { t("Your AI thoughts companion.", "당신의 AI 생각 도우미.", "あなたのAI思考パートナー。") }
+    var tosPrefix: String { t("By signing in, you agree to our ", "로그인하면 ", "サインインすると") }
+    var tosLink: String { t("Terms of Service", "이용약관", "利用規約") }
+    var tosSuffix: String { t(".", "에 동의합니다.", "に同意したことになります。") }
+}
+
+// MARK: - Network Strings
+struct NetworkStrings {
+    var backOnline: String { t("Back online ✓", "온라인 복구 ✓", "オンライン復帰 ✓") }
 }
