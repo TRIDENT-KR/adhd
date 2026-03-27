@@ -32,6 +32,7 @@ struct Strings {
     var voicePlaceholder: String { t("What should I remember for you?", "무엇을 기억해 드릴까요?", "何を覚えておきましょうか？") }
     var voiceListening: String { t("Listening...", "듣고 있어요...", "聞いています...") }
     var voiceAnalyzing: String { t("Analyzing...", "분석 중...", "分析中...") }
+    var voice: VoiceStrings { VoiceStrings() }
 
     // Routine Tab
     var routineTitle: String { t("My Routines", "나의 루틴", "マイルーティン") }
@@ -85,4 +86,57 @@ struct SettingsStrings {
     var done: String { t("Done", "완료", "完了") }
     var cancel: String { t("Cancel", "취소", "キャンセル") }
     var delete: String { t("Delete", "삭제", "削除") }
+}
+
+struct VoiceStrings {
+    // Error messages
+    var errorNotHeard: String { t("Couldn't hear you. Try again?", "잘 못 들었어요. 다시 말해주세요", "聞き取れませんでした。もう一度お願いします") }
+    var errorRecognitionFailed: String { t("Speech recognition failed. Try again", "음성 인식에 실패했어요. 다시 시도해주세요", "音声認識に失敗しました。再試行してください") }
+    var errorNetwork: String { t("No connection. Try again later", "연결이 없어요. 나중에 다시 시도해주세요", "接続がありません。後で再試行してください") }
+    var errorApi: String { t("Something went wrong. Try again", "문제가 생겼어요. 다시 시도해주세요", "問題が発生しました。再試行してください") }
+    var errorPermission: String { t("Microphone permission needed", "마이크 권한이 필요합니다", "マイクの許可が必要です") }
+    var tryAgain: String { t("Try Again", "다시 시도", "再試行") }
+
+    // Voice guide / onboarding hints
+    var guideTitle: String { t("Try saying...", "이렇게 말해보세요...", "こう言ってみてください...") }
+    var guideHint: String { t("Long press mic for examples", "마이크를 길게 눌러 예시를 확인", "マイクを長押しで例を表示") }
+
+    // Example commands
+    var exampleAdd: String { t("\"Take medicine at 9 AM\"", "\"오전 9시에 약 먹기\"", "\"午前9時に薬を飲む\"") }
+    var exampleAppointment: String { t("\"Meeting tomorrow at 3 PM\"", "\"내일 오후 3시에 회의\"", "\"明日午後3時に会議\"") }
+    var exampleDelete: String { t("\"Delete exercise\"", "\"운동 삭제\"", "\"運動を削除\"") }
+
+    // Confirmation card
+    var confirmAdd: String { t("Add to", "에 추가", "に追加") }
+    var confirmDelete: String { t("Delete", "삭제", "削除") }
+    var confirmRoutine: String { t("Routine", "루틴", "ルーティン") }
+    var confirmAppointment: String { t("Planner", "플래너", "プランナー") }
+    var confirmButton: String { t("Confirm", "확인", "確認") }
+    var confirmCancel: String { t("Cancel", "취소", "キャンセル") }
+    var confirmSending: String { t("Sending...", "전송 중...", "送信中...") }
+
+    // Silence countdown
+    var silenceCountdown: String { t("Sending in", "전송까지", "送信まで") }
+
+    // Mic mode
+    var micModeTap: String { t("Tap to Toggle", "탭하여 전환", "タップで切替") }
+    var micModeHold: String { t("Hold to Talk", "길게 눌러 말하기", "押し続けて話す") }
+    var micModeTitle: String { t("Mic Mode", "마이크 모드", "マイクモード") }
+    var confirmBeforeSave: String { t("Confirm Before Save", "저장 전 확인", "保存前に確認") }
+
+    // Undo
+    var undoButton: String { t("Undo", "되돌리기", "元に戻す") }
+    func undoAdded(_ count: Int) -> String { t("\(count) task(s) added", "\(count)개 추가됨", "\(count)件追加") }
+    func undoDeleted(_ count: Int) -> String { t("\(count) task(s) deleted", "\(count)개 삭제됨", "\(count)件削除") }
+    func undoDeletedSingle(_ name: String) -> String { t("\"\(name)\" deleted", "\"\(name)\" 삭제됨", "\"\(name)\"を削除") }
+    var undoCompleted: String { t("Marked as done", "완료 처리됨", "完了にしました") }
+    var undoUncompleted: String { t("Marked as not done", "미완료 처리됨", "未完了にしました") }
+
+    // Accessibility
+    var a11yStartRecording: String { t("Start recording", "녹음 시작", "録音開始") }
+    var a11yStopRecording: String { t("Stop recording", "녹음 중지", "録音停止") }
+    var a11yTapHint: String { t("Tap to start or stop voice input", "탭하여 음성 입력을 시작하거나 중지합니다", "タップして音声入力の開始・停止") }
+    var a11yHoldHint: String { t("Press and hold to record, release to send", "길게 눌러 녹음하고, 떼면 전송됩니다", "長押しで録音、離すと送信") }
+    var a11yTabBar: String { t("Tab navigation", "탭 내비게이션", "タブナビゲーション") }
+    var a11yUndo: String { t("Undo last action", "마지막 작업 되돌리기", "最後の操作を元に戻す") }
 }
