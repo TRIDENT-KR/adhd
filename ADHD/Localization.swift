@@ -69,6 +69,8 @@ struct SettingsStrings {
     var dataManagement: String { t("Data Management", "데이터 관리", "データ管理") }
     var clearCompleted: String { t("Clear Completed Tasks", "완료된 태스크 삭제", "完了タスクを削除") }
     var clearAll: String { t("Clear All Data", "전체 데이터 삭제", "全データ削除") }
+    var routineNotifTitle: String { t("🔔 Routine Reminder", "🔔 루틴 알림", "🔔 ルーティン通知") }
+    var appointmentNotifTitle: String { t("📅 Appointment Reminder", "📅 일정 알림", "📅 予定通知") }
     var about: String { t("About", "앱 정보", "アプリ情報") }
     var version: String { t("Version", "버전", "バージョン") }
     var privacyPolicy: String { t("Privacy Policy", "개인정보 처리방침", "プライバシーポリシー") }

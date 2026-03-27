@@ -26,8 +26,7 @@ struct SettingsView: View {
     @AppStorage("confirmBeforeSave") private var confirmBeforeSave: Bool = true
 
     private let supportedLocales: [(id: String, label: String)] = [
-        ("en-US", "English (US)"),
-        ("en-GB", "English (UK)"),
+        ("en-US", "English"),
         ("ko-KR", "한국어"),
         ("ja-JP", "日本語"),
     ]

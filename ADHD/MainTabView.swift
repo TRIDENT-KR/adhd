@@ -4,7 +4,6 @@ struct MainTabView: View {
     @State var activeTab: TabSelection = .voice
     @EnvironmentObject private var networkMonitor: NetworkMonitor
     @EnvironmentObject private var taskManager: TaskManager
-    @AppStorage("appLanguage") private var appLanguage: String = "en"
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -31,7 +30,6 @@ struct MainTabView: View {
                 .accessibilityElement(children: .contain)
                 .accessibilityLabel(L.voice.a11yTabBar)
         }
-        .id(appLanguage)
         // 4. 오프라인 배너
         .overlay(alignment: .top) {
             if networkMonitor.isOfflineBannerVisible {

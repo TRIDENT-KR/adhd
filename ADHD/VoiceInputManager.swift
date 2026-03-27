@@ -126,13 +126,15 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
                 case .authorized:
                     AVAudioApplication.requestRecordPermission { granted in
                         if !granted {
-                            self.errorMessage = "마이크 사용 권한이 필요합니다."
+                            self.errorMessage = L.voice.errorPermission
+                            self.lastError = .permissionDenied
                         }
                     }
                 case .denied, .restricted, .notDetermined:
-                    self.errorMessage = "음성 인식 권한이 필요합니다."
+                    self.errorMessage = L.voice.errorPermission
+                    self.lastError = .permissionDenied
                 @unknown default:
-                    self.errorMessage = "알 수 없는 권한 오류가 발생했습니다."
+                    self.errorMessage = L.voice.errorRecognitionFailed
                 }
             }
         }
@@ -177,7 +179,8 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
             try audioSession.setCategory(.record, mode: .measurement, options: .duckOthers)
             try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
         } catch {
-            self.errorMessage = "오디오 세션을 설정할 수 없습니다."
+            self.errorMessage = L.voice.errorRecognitionFailed
+            self.lastError = .recognitionFailed
             self.isListening = false
             return
         }
@@ -185,7 +188,8 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
         recognitionRequest = SFSpeechAudioBufferRecognitionRequest()
         
         guard let recognitionRequest = recognitionRequest else {
-            self.errorMessage = "음성 인식을 초기화할 수 없습니다."
+            self.errorMessage = L.voice.errorRecognitionFailed
+            self.lastError = .recognitionFailed
             self.isListening = false
             return
         }
@@ -229,7 +233,8 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
         do {
             try audioEngine.start()
         } catch {
-            self.errorMessage = "오디오 엔진을 시작할 수 없습니다."
+            self.errorMessage = L.voice.errorRecognitionFailed
+            self.lastError = .recognitionFailed
             self.stopListening()
         }
     }

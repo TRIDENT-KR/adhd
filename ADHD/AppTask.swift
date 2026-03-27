@@ -27,6 +27,30 @@ final class AppTask {
         self.isCompleted = isCompleted
     }
 
+    // MARK: - 정렬용 시간 키 (24시간 형식)
+    /// "02:00 PM" → "14:00", "09:00 AM" → "09:00", nil → "99:99" (맨 뒤)
+    var sortableTime: String {
+        guard let time, !time.isEmpty else { return "99:99" }
+        let trimmed = time.trimmingCharacters(in: .whitespaces)
+        for formatter in Self.sortTimeFormatters {
+            if let parsed = formatter.date(from: trimmed) {
+                let h = Calendar.current.component(.hour, from: parsed)
+                let m = Calendar.current.component(.minute, from: parsed)
+                return String(format: "%02d:%02d", h, m)
+            }
+        }
+        return time // 파싱 실패 시 원본 반환
+    }
+
+    private static let sortTimeFormatters: [DateFormatter] = {
+        ["hh:mm a", "h:mm a", "HH:mm"].map { format in
+            let f = DateFormatter()
+            f.locale = Locale(identifier: "en_US_POSIX")
+            f.dateFormat = format
+            return f
+        }
+    }()
+
     // MARK: - DTO 변환 헬퍼
     /// ParsedTask(DTO) → AppTask 변환 이니셜라이저
     /// Routine은 date=nil (매일 반복), Appointment는 날짜 필수 (없으면 오늘)

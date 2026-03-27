@@ -80,7 +80,7 @@ final class NotificationManager {
         guard fireDate > Date() else { return }
 
         let content = UNMutableNotificationContent()
-        content.title  = task.category == "Routine" ? "🔔 루틴 알림" : "📅 일정 알림"
+        content.title  = task.category == "Routine" ? L.settings.routineNotifTitle : L.settings.appointmentNotifTitle
         content.body   = task.task
         content.sound  = soundEnabled ? .default : nil
 

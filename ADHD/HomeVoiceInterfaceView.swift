@@ -155,9 +155,12 @@ struct HomeVoiceInterfaceView: View {
                         isBreathing = true
                         setupSpeechCallback()
                     }
-                    .task {
-                        // 1.5초 후 플레이스홀더 페이드 아웃 → 마이크 버튼만 남김 (Zero Clutter)
+                    .task(id: showPlaceholder) {
+                        // showPlaceholder가 true일 때만 1.5초 후 페이드 아웃
+                        guard showPlaceholder else { return }
                         try? await Task.sleep(nanoseconds: 1_500_000_000)
+                        // sleep 중 showPlaceholder가 false로 바뀌면 Task가 취소됨
+                        guard !Task.isCancelled else { return }
                         withAnimation(.easeOut(duration: 0.8)) {
                             showPlaceholder = false
                         }

@@ -66,6 +66,7 @@ struct UndoableAction {
         case toggled(AppTask, Bool) // task, previousState
     }
     let type: ActionType
+    let message: String
     let timestamp: Date = Date()
 }
 
@@ -77,10 +78,12 @@ class TaskManager: ObservableObject {
     // 외부에서 ModelContext를 주입하기 위한 저장소
     private var modelContext: ModelContext?
 
-    // Undo 지원
-    @Published var lastUndoableAction: UndoableAction?
+    // Undo 지원 (스택 기반 — 최대 10단계)
+    private var undoStack: [UndoableAction] = []
+    private static let maxUndoDepth = 10
     @Published var showUndoSnackbar = false
     @Published var undoSnackbarMessage = ""
+    private var undoDismissWorkItem: DispatchWorkItem?
 
     /// App.swift에서 modelContext를 주입합니다.
     func configure(context: ModelContext) {
@@ -148,13 +151,12 @@ class TaskManager: ObservableObject {
         setUndoAction(.deleted([snapshot]), message: L.voice.undoDeletedSingle(task.task))
     }
 
-    // MARK: - Undo
+    // MARK: - Undo (스택 기반)
     func undo() {
-        guard let action = lastUndoableAction else { return }
+        guard let action = undoStack.popLast() else { return }
 
         switch action.type {
         case .added(let tasks):
-            // 추가된 태스크들 삭제
             guard let context = modelContext else { return }
             for task in tasks {
                 NotificationManager.shared.cancelNotification(for: task)
@@ -163,7 +165,6 @@ class TaskManager: ObservableObject {
             safeSave()
 
         case .deleted(let snapshots):
-            // 삭제된 태스크들 복원
             for snapshot in snapshots {
                 let restored = AppTask(
                     task: snapshot.task,
@@ -181,9 +182,13 @@ class TaskManager: ObservableObject {
             safeSave()
         }
 
-        lastUndoableAction = nil
-        withAnimation(.easeOut(duration: 0.2)) {
-            showUndoSnackbar = false
+        // 스택에 남은 항목이 있으면 이전 메시지 표시, 없으면 숨김
+        if let prev = undoStack.last {
+            undoSnackbarMessage = prev.message
+        } else {
+            withAnimation(.easeOut(duration: 0.2)) {
+                showUndoSnackbar = false
+            }
         }
     }
 
@@ -218,22 +223,28 @@ class TaskManager: ObservableObject {
     // MARK: - Private Helpers
 
     private func setUndoAction(_ type: UndoableAction.ActionType, message: String) {
-        lastUndoableAction = UndoableAction(type: type)
+        let action = UndoableAction(type: type, message: message)
+        undoStack.append(action)
+        // 스택 크기 제한
+        if undoStack.count > Self.maxUndoDepth {
+            undoStack.removeFirst()
+        }
+
         undoSnackbarMessage = message
         withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
             showUndoSnackbar = true
         }
-        // 5초 후 자동 숨김
-        DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in
+
+        // 이전 타이머 취소 후 새 타이머 (경쟁 방지)
+        undoDismissWorkItem?.cancel()
+        let workItem = DispatchWorkItem { [weak self] in
             guard let self else { return }
             withAnimation(.easeOut(duration: 0.3)) {
                 self.showUndoSnackbar = false
             }
-            // 한 박자 뒤에 액션 삭제 (애니메이션 완료 후)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                self.lastUndoableAction = nil
-            }
         }
+        undoDismissWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5, execute: workItem)
     }
 
     /// 이름 기반 AppTask 삭제 (배치, save 호출 안함)
