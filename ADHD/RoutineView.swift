@@ -97,13 +97,14 @@ struct RoutineView: View {
                                 withAnimation(.spring()) { activeTab = .voice }
                             }
                         }
-                        .frame(minHeight: UIScreen.main.bounds.height * 0.45)
+                        .frame(minHeight: ((UIApplication.shared.connectedScenes.first as? UIWindowScene)?.screen.bounds.height ?? 800) * 0.45)
                     } else {
+                        let (incomplete, completed) = currentTasks.partitioned { !$0.isCompleted }
                         LazyVStack(spacing: 32) {
-                            ForEach(currentTasks.filter { !$0.isCompleted }) { task in
+                            ForEach(incomplete) { task in
                                 TaskRow(task: task, editingTaskId: $editingTaskId, voiceManager: voiceManager, voiceEditingTaskId: $voiceEditingTaskId)
                             }
-                            ForEach(currentTasks.filter { $0.isCompleted }) { task in
+                            ForEach(completed) { task in
                                 TaskRow(task: task, editingTaskId: $editingTaskId, voiceManager: voiceManager, voiceEditingTaskId: $voiceEditingTaskId)
                             }
                         }
@@ -154,14 +155,15 @@ struct TaskRow: View {
     @State private var showingTimePicker = false
     @State private var localTaskName: String = ""
     @State private var localTime: String     = ""
+    @State private var cachedCategoryIcon: String = "circle.fill"
 
     var isEditing: Bool { editingTaskId == task.id }
     var isDimmed:  Bool { editingTaskId != nil && editingTaskId != task.id }
     var isVoiceEditing: Bool { voiceEditingTaskId == task.id && voiceManager.isListening }
 
     /// 태스크명에서 키워드 매칭으로 카테고리 아이콘 결정 (Visual Anchor)
-    private var categoryIcon: String {
-        let name = task.task.lowercased()
+    private static func resolveIcon(for taskName: String, category: String?) -> String {
+        let name = taskName.lowercased()
         if name.contains("exercise") || name.contains("workout") || name.contains("run") || name.contains("gym") {
             return "figure.run"
         } else if name.contains("medicine") || name.contains("pill") || name.contains("drug") || name.contains("vitamin") {
@@ -180,7 +182,7 @@ struct TaskRow: View {
             return "pawprint.fill"
         } else if name.contains("water") || name.contains("drink") || name.contains("hydrat") {
             return "drop.fill"
-        } else if task.category == "Appointment" {
+        } else if category == "Appointment" {
             return "calendar"
         } else {
             return "circle.fill"
@@ -190,7 +192,7 @@ struct TaskRow: View {
     var body: some View {
         HStack(spacing: 20) {
             // 카테고리 아이콘 앵커 (Visual Anchor)
-            Image(systemName: categoryIcon)
+            Image(systemName: cachedCategoryIcon)
                 .font(.system(size: 14))
                 .foregroundColor(DesignSystem.Colors.primary.opacity(task.isCompleted ? 0.2 : 0.5))
                 .frame(width: 20)
@@ -317,17 +319,20 @@ struct TaskRow: View {
         .onAppear {
             localTaskName = task.task
             localTime     = task.time ?? ""
+            cachedCategoryIcon = Self.resolveIcon(for: task.task, category: task.category)
         }
         .onChange(of: editingTaskId) { oldValue, newValue in
             if newValue == task.id {
                 localTaskName = task.task
                 localTime     = task.time ?? ""
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                    isTitleFocused = true
-                }
             } else {
                 isTitleFocused = false
             }
+        }
+        .task(id: editingTaskId) {
+            guard editingTaskId == task.id else { return }
+            try? await Task.sleep(nanoseconds: 100_000_000)
+            isTitleFocused = true
         }
         .toolbar {
             ToolbarItemGroup(placement: .keyboard) {
@@ -347,6 +352,7 @@ struct TaskRow: View {
         task.task = localTaskName
         task.time = localTime.isEmpty ? nil : localTime
         taskManager.update(task: task)
+        cachedCategoryIcon = Self.resolveIcon(for: localTaskName, category: task.category)
         editingTaskId = nil
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
     }
@@ -383,14 +389,18 @@ struct TimePickerModal: View {
     @Binding var isPresented: Bool
     @State private var selectedDate: Date
 
+    private static let timeFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.locale     = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "hh:mm a"
+        return f
+    }()
+
     init(timeString: Binding<String>, isPresented: Binding<Bool>) {
         self._timeString   = timeString
         self._isPresented  = isPresented
 
-        let formatter = DateFormatter()
-        formatter.locale     = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "hh:mm a"
-        if let date = formatter.date(from: timeString.wrappedValue) {
+        if let date = Self.timeFormatter.date(from: timeString.wrappedValue) {
             self._selectedDate = State(initialValue: date)
         } else {
             self._selectedDate = State(initialValue: Date())
@@ -408,10 +418,7 @@ struct TimePickerModal: View {
                 .labelsHidden()
 
             Button("Done") {
-                let formatter = DateFormatter()
-                formatter.locale     = Locale(identifier: "en_US_POSIX")
-                formatter.dateFormat = "hh:mm a"
-                timeString  = formatter.string(from: selectedDate)
+                timeString  = Self.timeFormatter.string(from: selectedDate)
                 isPresented = false
             }
             .font(.system(size: 16, weight: .semibold))
@@ -424,5 +431,22 @@ struct TimePickerModal: View {
         }
         .presentationDetents([.height(350)])
         .presentationDragIndicator(.visible)
+    }
+}
+
+// MARK: - Array Partition Helper
+private extension Array {
+    /// Single-pass partition into (matching, non-matching) — avoids two separate .filter() calls.
+    func partitioned(by predicate: (Element) -> Bool) -> ([Element], [Element]) {
+        var matching: [Element] = []
+        var rest: [Element] = []
+        for element in self {
+            if predicate(element) {
+                matching.append(element)
+            } else {
+                rest.append(element)
+            }
+        }
+        return (matching, rest)
     }
 }

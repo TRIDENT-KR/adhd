@@ -17,6 +17,13 @@ struct PlannerView: View {
 
     private let calendar = Calendar.current
 
+    private static let weekdayFormatter: DateFormatter = {
+        let f = DateFormatter(); f.dateFormat = "EEE"; return f
+    }()
+    private static let dayFormatter: DateFormatter = {
+        let f = DateFormatter(); f.dateFormat = "d"; return f
+    }()
+
     /// 선택된 날짜와 같은 날의 약속만 반환
     private var filteredAppointments: [AppTask] {
         appointments.filter { task in
@@ -72,7 +79,7 @@ struct PlannerView: View {
                                 withAnimation(.spring()) { activeTab = .voice }
                             }
                         }
-                        .frame(minHeight: UIScreen.main.bounds.height * 0.4)
+                        .frame(minHeight: ((UIApplication.shared.connectedScenes.first as? UIWindowScene)?.screen.bounds.height ?? 800) * 0.4)
                     } else {
                         LazyVStack(spacing: 32) {
                             ForEach(filteredAppointments) { task in
@@ -143,12 +150,8 @@ struct PlannerView: View {
             }
         }()
 
-        let weekdayFormatter: DateFormatter = {
-            let f = DateFormatter(); f.dateFormat = "EEE"; return f
-        }()
-        let dayFormatter: DateFormatter = {
-            let f = DateFormatter(); f.dateFormat = "d"; return f
-        }()
+        let weekdayFormatter = Self.weekdayFormatter
+        let dayFormatter = Self.dayFormatter
 
         return HStack(spacing: 0) {
             // 좌측: 오늘 고정
@@ -302,12 +305,14 @@ struct EventCard: View {
             if newValue == task.id {
                 localTaskName = task.task
                 localTime     = task.time ?? ""
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                    isTitleFocused = true
-                }
             } else {
                 isTitleFocused = false
             }
+        }
+        .task(id: editingTaskId) {
+            guard editingTaskId == task.id else { return }
+            try? await Task.sleep(nanoseconds: 100_000_000)
+            isTitleFocused = true
         }
         .toolbar {
             ToolbarItemGroup(placement: .keyboard) {

@@ -138,13 +138,13 @@ struct HomeVoiceInterfaceView: View {
                     }
                     .onAppear {
                         isBreathing = true
-                        // setupSpeechCallback()은 process(intents:) 배치 처리 + 오프라인 방어 + Placeholder 복귀를 모두 포함합니다.
                         setupSpeechCallback()
+                    }
+                    .task {
                         // 1.5초 후 플레이스홀더 페이드 아웃 → 마이크 버튼만 남김 (Zero Clutter)
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                            withAnimation(.easeOut(duration: 0.8)) {
-                                showPlaceholder = false
-                            }
+                        try? await Task.sleep(nanoseconds: 1_500_000_000)
+                        withAnimation(.easeOut(duration: 0.8)) {
+                            showPlaceholder = false
                         }
                     }
 
@@ -178,8 +178,7 @@ struct HomeVoiceInterfaceView: View {
                     .padding(.horizontal, 32)
                     .animation(.easeInOut, value: voiceManager.recognizedText)
                     .animation(.easeInOut, value: voiceManager.isListening)
-                    .animation(.easeInOut, value: voiceManager.isProcessing)
-                    .animation(.easeInOut, value: cloudLLM.isProcessing)
+                    .animation(.easeInOut, value: voiceManager.isProcessing || cloudLLM.isProcessing)
                     .animation(.spring(response: 0.4, dampingFraction: 0.6), value: showSuccessCheck)
                 }
 
@@ -236,12 +235,12 @@ struct HomeVoiceInterfaceView: View {
                     try? await Task.sleep(nanoseconds: 1_500_000_000)
                     await MainActor.run {
                         showSuccessCheck = false
-                        // 복귀 후 1.5초 뒤 다시 페이드 아웃
                         showPlaceholder = true
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                            withAnimation(.easeOut(duration: 0.8)) {
-                                showPlaceholder = false
-                            }
+                    }
+                    try? await Task.sleep(nanoseconds: 1_500_000_000)
+                    await MainActor.run {
+                        withAnimation(.easeOut(duration: 0.8)) {
+                            showPlaceholder = false
                         }
                     }
                 } catch {
