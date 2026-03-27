@@ -28,6 +28,12 @@ enum VoiceError: Equatable {
     }
 }
 
+// MARK: - Mic Input Mode
+enum MicInputMode: String {
+    case tapToggle = "tap"    // 탭해서 시작/종료
+    case holdToTalk = "hold"  // 누르고 있는 동안만 녹음
+}
+
 class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate {
     @Published var isListening: Bool = false
     @Published var recognizedText: String = ""
@@ -42,6 +48,13 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
     private var recordingTimer: Timer?
     static let maxRecordingDuration: TimeInterval = 30 // 최대 30초
 
+    // Silence countdown
+    @Published var silenceCountdown: Int = 0  // 0이면 비활성, 3→2→1→전송
+    private var silenceTimer: Timer?
+    private var lastSpeechTime: Date = Date()
+    private static let silenceThreshold: TimeInterval = 2.0  // 2초 침묵 후 카운트다운 시작
+    private static let countdownSeconds: Int = 3
+
     // Error feedback
     @Published var lastError: VoiceError?
 
@@ -49,6 +62,11 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
     var onSpeechFinalized: ((String) -> Void)?
 
     @Published var currentLocaleId: String = "en-US"
+
+    // Mic input mode
+    @Published var micMode: MicInputMode = {
+        MicInputMode(rawValue: UserDefaults.standard.string(forKey: "micInputMode") ?? "tap") ?? .tapToggle
+    }()
 
     private var speechRecognizer: SFSpeechRecognizer?
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
@@ -124,6 +142,11 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
         }
     }
     
+    func setMicMode(_ mode: MicInputMode) {
+        micMode = mode
+        UserDefaults.standard.set(mode.rawValue, forKey: "micInputMode")
+    }
+
     func startListening() {
         // Reset state
         recognizedText = ""
@@ -133,7 +156,10 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
         isProcessing = false
         audioPower = 0.0
         recordingDuration = 0
+        silenceCountdown = 0
+        lastSpeechTime = Date()
         startRecordingTimer()
+        startSilenceDetection()
         
         // Cancel any previous task
         if recognitionTask != nil {
@@ -166,14 +192,17 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
         // Start recognition task
         recognitionTask = speechRecognizer?.recognitionTask(with: recognitionRequest) { [weak self] result, error in
             var isFinal = false
-            
+
             if let result = result {
                 DispatchQueue.main.async {
                     self?.recognizedText = result.bestTranscription.formattedString
+                    // 텍스트가 변경될 때마다 침묵 타이머 리셋
+                    self?.lastSpeechTime = Date()
+                    self?.silenceCountdown = 0
                 }
                 isFinal = result.isFinal
             }
-            
+
             if error != nil || isFinal {
                 self?.stopHandling()
             }
@@ -226,7 +255,9 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
             recognitionRequest?.endAudio()
             isListening = false
             audioPower = 0.0
+            silenceCountdown = 0
             stopRecordingTimer()
+            stopSilenceDetection()
 
             // Vibe Check: Finish quickly when stopped, finalizing text to prepare for Llama 3 8b inference
             isProcessing = true
@@ -241,7 +272,9 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
         recognitionTask = nil
         isListening = false
         audioPower = 0.0
+        silenceCountdown = 0
         stopRecordingTimer()
+        stopSilenceDetection()
     }
 
     private func finalizeAndProceed() {
@@ -274,5 +307,41 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
     private func stopRecordingTimer() {
         recordingTimer?.invalidate()
         recordingTimer = nil
+    }
+
+    // MARK: - Silence Detection & Countdown
+    private func startSilenceDetection() {
+        // tap 모드에서만 침묵 감지 (hold 모드는 손 떼면 바로 종료)
+        guard micMode == .tapToggle else { return }
+
+        silenceTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            guard let self, self.isListening else { return }
+            DispatchQueue.main.async {
+                // 텍스트가 비어있으면 침묵 카운트다운 하지 않음
+                guard !self.recognizedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+
+                let silenceDuration = Date().timeIntervalSince(self.lastSpeechTime)
+
+                if silenceDuration >= Self.silenceThreshold {
+                    let elapsed = Int(silenceDuration - Self.silenceThreshold)
+                    let remaining = Self.countdownSeconds - elapsed
+
+                    if remaining > 0 {
+                        self.silenceCountdown = remaining
+                    } else {
+                        // 카운트다운 완료 → 자동 전송
+                        self.silenceCountdown = 0
+                        self.stopListening()
+                    }
+                } else {
+                    self.silenceCountdown = 0
+                }
+            }
+        }
+    }
+
+    private func stopSilenceDetection() {
+        silenceTimer?.invalidate()
+        silenceTimer = nil
     }
 }

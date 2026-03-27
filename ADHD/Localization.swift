@@ -105,4 +105,22 @@ struct VoiceStrings {
     var exampleAdd: String { t("\"Take medicine at 9 AM\"", "\"오전 9시에 약 먹기\"", "\"午前9時に薬を飲む\"") }
     var exampleAppointment: String { t("\"Meeting tomorrow at 3 PM\"", "\"내일 오후 3시에 회의\"", "\"明日午後3時に会議\"") }
     var exampleDelete: String { t("\"Delete exercise\"", "\"운동 삭제\"", "\"運動を削除\"") }
+
+    // Confirmation card
+    var confirmAdd: String { t("Add to", "에 추가", "に追加") }
+    var confirmDelete: String { t("Delete", "삭제", "削除") }
+    var confirmRoutine: String { t("Routine", "루틴", "ルーティン") }
+    var confirmAppointment: String { t("Planner", "플래너", "プランナー") }
+    var confirmButton: String { t("Confirm", "확인", "確認") }
+    var confirmCancel: String { t("Cancel", "취소", "キャンセル") }
+    var confirmSending: String { t("Sending...", "전송 중...", "送信中...") }
+
+    // Silence countdown
+    var silenceCountdown: String { t("Sending in", "전송까지", "送信まで") }
+
+    // Mic mode
+    var micModeTap: String { t("Tap to Toggle", "탭하여 전환", "タップで切替") }
+    var micModeHold: String { t("Hold to Talk", "길게 눌러 말하기", "押し続けて話す") }
+    var micModeTitle: String { t("Mic Mode", "마이크 모드", "マイクモード") }
+    var confirmBeforeSave: String { t("Confirm Before Save", "저장 전 확인", "保存前に確認") }
 }

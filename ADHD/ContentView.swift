@@ -80,7 +80,13 @@ struct HomeVoiceInterfaceView: View {
     @State private var shakeOffset: CGFloat = 0
     @State private var showErrorToast = false
     @State private var errorToastMessage = ""
+    @State private var cursorVisible = true
     @AppStorage("hasSeenVoiceOnboarding") private var hasSeenVoiceOnboarding = false
+    @AppStorage("confirmBeforeSave") private var confirmBeforeSave = true
+
+    // Confirmation card state
+    @State private var pendingTasks: [ParsedTask] = []
+    @State private var showConfirmation = false
 
     var body: some View {
         ZStack {
@@ -138,29 +144,9 @@ struct HomeVoiceInterfaceView: View {
                                 .animation(.linear(duration: 0.1), value: voiceManager.recordingDuration)
                         }
 
-                        Button(action: { handleMicTap() }) {
-                            ZStack {
-                                Circle()
-                                    .fill(DesignSystem.Gradients.primaryCTA)
-                                    .frame(width: 120, height: 120)
-
-                                Image(systemName: voiceManager.isListening ? "stop.fill" : "mic.fill")
-                                    .font(.system(size: 40, weight: .medium))
-                                    .foregroundColor(.white)
-                                    .contentTransition(.symbolEffect(.replace))
-                            }
-                        }
-                        .buttonStyle(SquishyButtonStyle())
-                        // 분석 중에는 버튼 비활성화
-                        .disabled(cloudLLM.isProcessing || voiceManager.isProcessing)
-                        .simultaneousGesture(
-                            LongPressGesture(minimumDuration: 0.5)
-                                .onEnded { _ in
-                                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                                    showVoiceGuide = true
-                                }
-                        )
-                        .offset(x: shakeOffset)
+                        // Mic button with Hold-to-Talk or Tap gesture
+                        micButton
+                            .offset(x: shakeOffset)
                     }
                     .onAppear {
                         isBreathing = true
@@ -174,18 +160,30 @@ struct HomeVoiceInterfaceView: View {
                         }
                     }
 
-                    // ── 녹음 타이머 표시 ──
+                    // ── 녹음 타이머 + 침묵 카운트다운 ──
                     if voiceManager.isListening {
-                        Text(formatDuration(voiceManager.recordingDuration))
-                            .font(.system(size: 16, weight: .medium, design: .monospaced))
-                            .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
-                            .transition(.opacity.combined(with: .scale(scale: 0.8)))
+                        VStack(spacing: 6) {
+                            Text(formatDuration(voiceManager.recordingDuration))
+                                .font(.system(size: 16, weight: .medium, design: .monospaced))
+                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
+
+                            // 침묵 카운트다운 표시
+                            if voiceManager.silenceCountdown > 0 {
+                                Text("\(L.voice.silenceCountdown) \(voiceManager.silenceCountdown)...")
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundColor(DesignSystem.Colors.primary)
+                                    .transition(.scale.combined(with: .opacity))
+                            }
+                        }
+                        .transition(.opacity.combined(with: .scale(scale: 0.8)))
                     }
 
                     // ── 상태 텍스트 / 성공 체크 ──
                     Group {
-                        if showSuccessCheck {
-                            // 성공: 체크마크 애니메이션 (텍스트 없이 시각+햅틱 피드백만)
+                        if showConfirmation {
+                            // 확인 카드가 표시될 때는 비움
+                            EmptyView()
+                        } else if showSuccessCheck {
                             Image(systemName: "checkmark.circle.fill")
                                 .font(.system(size: 48))
                                 .foregroundColor(DesignSystem.Colors.tertiary)
@@ -193,6 +191,17 @@ struct HomeVoiceInterfaceView: View {
                         } else if cloudLLM.isProcessing || voiceManager.isProcessing {
                             Text(L.voiceAnalyzing)
                                 .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
+                        } else if voiceManager.isListening && !voiceManager.recognizedText.isEmpty {
+                            // 실시간 텍스트 + 블링킹 커서
+                            HStack(spacing: 0) {
+                                Text(voiceManager.recognizedText)
+                                    .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
+                                Text("|")
+                                    .foregroundColor(DesignSystem.Colors.primary)
+                                    .opacity(cursorVisible ? 1.0 : 0.0)
+                                    .animation(.easeInOut(duration: 0.5).repeatForever(autoreverses: true), value: cursorVisible)
+                                    .onAppear { cursorVisible.toggle() }
+                            }
                         } else if !voiceManager.recognizedText.isEmpty {
                             Text(voiceManager.recognizedText)
                                 .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
@@ -200,13 +209,11 @@ struct HomeVoiceInterfaceView: View {
                             Text(L.voiceListening)
                                 .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
                         } else {
-                            // Placeholder — 1.5초 후 페이드 아웃하여 Zero Clutter 극대화
                             VStack(spacing: 8) {
                                 Text(L.voicePlaceholder)
                                     .foregroundColor(DesignSystem.Colors.primary)
                                     .opacity(showPlaceholder ? 1.0 : 0.0)
 
-                                // 힌트: 길게 눌러 예시 보기
                                 if !hasSeenVoiceOnboarding {
                                     Text(L.voice.guideHint)
                                         .font(DesignSystem.Typography.labelSm)
@@ -227,7 +234,17 @@ struct HomeVoiceInterfaceView: View {
                 }
 
                 Spacer()
-                Spacer(minLength: 120) // 바텀 바 공간 확보
+                Spacer(minLength: 120)
+            }
+
+            // ── 확인 카드 오버레이 ──
+            if showConfirmation {
+                ConfirmationCardOverlay(
+                    tasks: pendingTasks,
+                    onConfirm: { confirmPendingTasks() },
+                    onCancel: { cancelPendingTasks() }
+                )
+                .transition(.move(edge: .bottom).combined(with: .opacity))
             }
 
             // ── 에러 토스트 ──
@@ -293,21 +310,108 @@ struct HomeVoiceInterfaceView: View {
         }
     }
 
+    // MARK: - Mic Button (Tap vs Hold mode)
+    @ViewBuilder
+    private var micButton: some View {
+        let buttonContent = ZStack {
+            Circle()
+                .fill(DesignSystem.Gradients.primaryCTA)
+                .frame(width: 120, height: 120)
+
+            Image(systemName: voiceManager.isListening ? "stop.fill" : "mic.fill")
+                .font(.system(size: 40, weight: .medium))
+                .foregroundColor(.white)
+                .contentTransition(.symbolEffect(.replace))
+        }
+
+        if voiceManager.micMode == .holdToTalk {
+            // Hold-to-Talk: 누르면 시작, 떼면 종료
+            buttonContent
+                .scaleEffect(voiceManager.isListening ? 0.93 : 1.0)
+                .animation(.easeOut(duration: 0.2), value: voiceManager.isListening)
+                .gesture(
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { _ in
+                            if !voiceManager.isListening && !cloudLLM.isProcessing && !voiceManager.isProcessing {
+                                handleMicTap()
+                            }
+                        }
+                        .onEnded { _ in
+                            if voiceManager.isListening {
+                                voiceManager.stopListening()
+                            }
+                        }
+                )
+                .simultaneousGesture(
+                    LongPressGesture(minimumDuration: 1.5)
+                        .onEnded { _ in
+                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                            showVoiceGuide = true
+                        }
+                )
+        } else {
+            // Tap-to-Toggle (기본)
+            Button(action: { handleMicTap() }) {
+                buttonContent
+            }
+            .buttonStyle(SquishyButtonStyle())
+            .disabled(cloudLLM.isProcessing || voiceManager.isProcessing)
+            .simultaneousGesture(
+                LongPressGesture(minimumDuration: 0.5)
+                    .onEnded { _ in
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        showVoiceGuide = true
+                    }
+            )
+        }
+    }
+
     // MARK: - Mic Button Handler
     private func handleMicTap() {
         if !networkMonitor.isConnected && !voiceManager.isListening {
             networkMonitor.showOfflineBannerTemporarily()
             return
         }
-        // 인터랙션 시 플레이스홀더 복귀 (다음 idle 때 다시 페이드 아웃)
         showPlaceholder = true
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         voiceManager.toggleListening()
     }
 
+    // MARK: - Confirmation Actions
+    private func confirmPendingTasks() {
+        taskManager.process(intents: pendingTasks)
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+            showConfirmation = false
+            pendingTasks = []
+            showSuccessCheck = true
+        }
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+
+        Task {
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            await MainActor.run {
+                showSuccessCheck = false
+                showPlaceholder = true
+            }
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            await MainActor.run {
+                withAnimation(.easeOut(duration: 0.8)) {
+                    showPlaceholder = false
+                }
+            }
+        }
+    }
+
+    private func cancelPendingTasks() {
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+            showConfirmation = false
+            pendingTasks = []
+            showPlaceholder = true
+        }
+    }
+
     // MARK: - Error Feedback
     private func triggerErrorFeedback(message: String) {
-        // Shake 애니메이션
         withAnimation(.spring(response: 0.1, dampingFraction: 0.2)) {
             shakeOffset = 12
         }
@@ -327,15 +431,12 @@ struct HomeVoiceInterfaceView: View {
             }
         }
 
-        // 햅틱 에러 피드백
         UINotificationFeedbackGenerator().notificationOccurred(.error)
 
-        // 토스트 표시
         errorToastMessage = message
         withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
             showErrorToast = true
         }
-        // 4초 후 자동 숨김
         DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
             withAnimation(.easeOut(duration: 0.3)) {
                 showErrorToast = false
@@ -359,29 +460,40 @@ struct HomeVoiceInterfaceView: View {
                 do {
                     let parsedTasks = try await cloudLLM.analyzeText(text: text)
                     print("🤖 Gemini 파싱 결과: \(parsedTasks)")
-                    taskManager.process(intents: parsedTasks)
 
-                    // ✅ 성공 Exit Path: 체크마크 애니메이션 + 햅틱 → Placeholder 복구
                     await MainActor.run {
                         voiceManager.recognizedText = ""
                         voiceManager.isProcessing   = false
-                        showSuccessCheck = true
-                        UINotificationFeedbackGenerator().notificationOccurred(.success)
+
+                        if confirmBeforeSave {
+                            // 확인 카드 표시
+                            pendingTasks = parsedTasks
+                            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                                showConfirmation = true
+                            }
+                        } else {
+                            // 바로 저장 (기존 동작)
+                            taskManager.process(intents: parsedTasks)
+                            showSuccessCheck = true
+                            UINotificationFeedbackGenerator().notificationOccurred(.success)
+                        }
                     }
-                    try? await Task.sleep(nanoseconds: 1_500_000_000)
-                    await MainActor.run {
-                        showSuccessCheck = false
-                        showPlaceholder = true
-                    }
-                    try? await Task.sleep(nanoseconds: 1_500_000_000)
-                    await MainActor.run {
-                        withAnimation(.easeOut(duration: 0.8)) {
-                            showPlaceholder = false
+
+                    if !confirmBeforeSave {
+                        try? await Task.sleep(nanoseconds: 1_500_000_000)
+                        await MainActor.run {
+                            showSuccessCheck = false
+                            showPlaceholder = true
+                        }
+                        try? await Task.sleep(nanoseconds: 1_500_000_000)
+                        await MainActor.run {
+                            withAnimation(.easeOut(duration: 0.8)) {
+                                showPlaceholder = false
+                            }
                         }
                     }
                 } catch {
                     print("❌ Cloud API Error: \(error.localizedDescription)")
-                    // ❌ 에러 Exit Path: 에러 피드백 + Placeholder 복구
                     await MainActor.run {
                         voiceManager.recognizedText = ""
                         voiceManager.isProcessing   = false
@@ -389,6 +501,103 @@ struct HomeVoiceInterfaceView: View {
                     }
                 }
             }
+        }
+    }
+}
+
+// MARK: - Confirmation Card Overlay
+struct ConfirmationCardOverlay: View {
+    let tasks: [ParsedTask]
+    let onConfirm: () -> Void
+    let onCancel: () -> Void
+
+    var body: some View {
+        VStack {
+            Spacer()
+
+            VStack(spacing: 16) {
+                // 태스크 미리보기 카드
+                ForEach(tasks) { task in
+                    HStack(spacing: 14) {
+                        // 액션 아이콘
+                        Image(systemName: task.action == "delete" ? "trash.circle.fill" : "plus.circle.fill")
+                            .font(.system(size: 28))
+                            .foregroundColor(task.action == "delete" ? .red.opacity(0.8) : DesignSystem.Colors.tertiary)
+
+                        VStack(alignment: .leading, spacing: 3) {
+                            // 액션 라벨
+                            Text(task.action == "delete" ? L.voice.confirmDelete : L.voice.confirmAdd)
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.5))
+
+                            // 태스크 이름
+                            Text(task.task)
+                                .font(.system(size: 17, weight: .semibold))
+                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
+
+                            // 시간 + 카테고리
+                            HStack(spacing: 8) {
+                                if let time = task.time, !time.isEmpty {
+                                    HStack(spacing: 3) {
+                                        Image(systemName: "clock")
+                                            .font(.system(size: 11))
+                                        Text(time)
+                                    }
+                                    .font(.system(size: 12, weight: .medium))
+                                    .foregroundColor(DesignSystem.Colors.primary)
+                                }
+
+                                Text(task.category == "Appointment" ? L.voice.confirmAppointment : L.voice.confirmRoutine)
+                                    .font(.system(size: 12, weight: .medium))
+                                    .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.4))
+                            }
+                        }
+
+                        Spacer()
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 14)
+                    .background(
+                        RoundedRectangle(cornerRadius: 14)
+                            .fill(DesignSystem.Colors.surfaceContainerLow)
+                    )
+                }
+
+                // 확인/취소 버튼
+                HStack(spacing: 12) {
+                    Button(action: onCancel) {
+                        Text(L.voice.confirmCancel)
+                            .font(.system(size: 15, weight: .medium))
+                            .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(DesignSystem.Colors.onSurfaceVariant.opacity(0.2), lineWidth: 1)
+                            )
+                    }
+
+                    Button(action: onConfirm) {
+                        Text(L.voice.confirmButton)
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .fill(DesignSystem.Gradients.primaryCTA)
+                            )
+                    }
+                }
+            }
+            .padding(20)
+            .background(
+                RoundedRectangle(cornerRadius: 24)
+                    .fill(DesignSystem.Colors.background)
+                    .shadow(color: .black.opacity(0.15), radius: 20, y: -5)
+            )
+            .padding(.horizontal, 16)
+            .padding(.bottom, 140)
         }
     }
 }
@@ -405,7 +614,6 @@ struct VoiceGuideSheet: View {
 
     var body: some View {
         VStack(spacing: 28) {
-            // 헤더
             VStack(spacing: 8) {
                 Image(systemName: "mic.circle.fill")
                     .font(.system(size: 48))
@@ -417,7 +625,6 @@ struct VoiceGuideSheet: View {
             }
             .padding(.top, 24)
 
-            // 예시 명령어 카드들
             VStack(spacing: 16) {
                 ForEach(Array(examples.enumerated()), id: \.offset) { _, example in
                     HStack(spacing: 16) {
@@ -592,6 +799,10 @@ struct SettingsView: View {
     @AppStorage("appTheme") private var appTheme: String = "system"
     @AppStorage("hapticEnabled") private var hapticEnabled: Bool = true
 
+    // Voice
+    @AppStorage("micInputMode") private var micInputMode: String = "tap"
+    @AppStorage("confirmBeforeSave") private var confirmBeforeSave: Bool = true
+
     private let supportedLocales: [(id: String, label: String)] = [
         ("en-US", "English (US)"),
         ("en-GB", "English (UK)"),
@@ -667,6 +878,30 @@ struct SettingsView: View {
                     }
                 } header: {
                     Text(L.settings.language)
+                }
+
+                // ── Voice ──
+                Section {
+                    Picker(selection: $micInputMode) {
+                        Text(L.voice.micModeTap).tag("tap")
+                        Text(L.voice.micModeHold).tag("hold")
+                    } label: {
+                        HStack {
+                            Image(systemName: "mic.circle")
+                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.5))
+                            Text(L.voice.micModeTitle)
+                        }
+                    }
+
+                    Toggle(isOn: $confirmBeforeSave) {
+                        HStack {
+                            Image(systemName: "checkmark.shield")
+                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.5))
+                            Text(L.voice.confirmBeforeSave)
+                        }
+                    }
+                } header: {
+                    Text(L.tabVoice)
                 }
 
                 // ── Notifications ──
