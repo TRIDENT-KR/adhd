@@ -3,6 +3,7 @@ import SwiftUI
 struct MainTabView: View {
     @State var activeTab: TabSelection = .planner
     @EnvironmentObject private var networkMonitor: NetworkMonitor
+    @EnvironmentObject private var taskManager: TaskManager
     @AppStorage("appLanguage") private var appLanguage: String = "en"
 
     var body: some View {
@@ -27,9 +28,11 @@ struct MainTabView: View {
 
             // 3. 글로벌 바텀 바
             CustomBottomBar(activeTab: $activeTab)
+                .accessibilityElement(children: .contain)
+                .accessibilityLabel(L.voice.a11yTabBar)
         }
         .id(appLanguage)
-        // 4. 오프라인 배너 — isOfflineBannerVisible 이 true일 때만 3초간 노출
+        // 4. 오프라인 배너
         .overlay(alignment: .top) {
             if networkMonitor.isOfflineBannerVisible {
                 OfflineBanner()
@@ -39,6 +42,56 @@ struct MainTabView: View {
         .animation(
             .spring(response: 0.4, dampingFraction: 0.75),
             value: networkMonitor.isOfflineBannerVisible
+        )
+        // 5. Undo 스낵바
+        .overlay(alignment: .bottom) {
+            if taskManager.showUndoSnackbar {
+                UndoSnackbar(
+                    message: taskManager.undoSnackbarMessage,
+                    onUndo: { taskManager.undo() }
+                )
+                .padding(.bottom, 100)
+                .padding(.horizontal, 24)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .animation(
+            .spring(response: 0.4, dampingFraction: 0.7),
+            value: taskManager.showUndoSnackbar
+        )
+    }
+}
+
+// MARK: - Undo Snackbar
+struct UndoSnackbar: View {
+    let message: String
+    let onUndo: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Text(message)
+                .font(.system(size: 14, weight: .medium))
+                .foregroundColor(.white)
+                .lineLimit(1)
+
+            Spacer()
+
+            Button(action: onUndo) {
+                Text(L.voice.undoButton)
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(DesignSystem.Colors.primaryFixedDim)
+            }
+            .accessibilityLabel(L.voice.a11yUndo)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .background(
+            RoundedRectangle(cornerRadius: 14)
+                .fill(Color(UIColor { traits in
+                    traits.userInterfaceStyle == .dark
+                        ? UIColor(r: 0x30, g: 0x30, b: 0x30)
+                        : UIColor(r: 0x3A, g: 0x3A, b: 0x3A)
+                }))
         )
     }
 }

@@ -68,6 +68,10 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
         MicInputMode(rawValue: UserDefaults.standard.string(forKey: "micInputMode") ?? "tap") ?? .tapToggle
     }()
 
+    // Audio power downsampling: 4프레임당 1회만 계산
+    private var audioFrameCount: Int = 0
+    private static let audioPowerSampleRate = 4
+
     private var speechRecognizer: SFSpeechRecognizer?
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var recognitionTask: SFSpeechRecognitionTask?
@@ -158,6 +162,7 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
         recordingDuration = 0
         silenceCountdown = 0
         lastSpeechTime = Date()
+        audioFrameCount = 0
         startRecordingTimer()
         startSilenceDetection()
         
@@ -211,7 +216,12 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
         let recordingFormat = inputNode.outputFormat(forBus: 0)
         inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { [weak self] (buffer, when) in
             self?.recognitionRequest?.append(buffer)
-            self?.updateAudioPower(buffer: buffer)
+            // 다운샘플링: 4프레임당 1회만 오디오 파워 계산
+            guard let self else { return }
+            self.audioFrameCount += 1
+            if self.audioFrameCount % Self.audioPowerSampleRate == 0 {
+                self.updateAudioPower(buffer: buffer)
+            }
         }
         
         audioEngine.prepare()

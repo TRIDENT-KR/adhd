@@ -24,14 +24,30 @@ struct ParsedTask: Codable, Identifiable {
     }
 }
 
+// MARK: - Undo Action
+/// 되돌리기를 위한 최근 액션 저장
+struct UndoableAction {
+    enum ActionType {
+        case added([AppTask])
+        case deleted([(task: String, time: String?, date: Date?, category: String)])
+        case toggled(AppTask, Bool) // task, previousState
+    }
+    let type: ActionType
+    let timestamp: Date = Date()
+}
+
 // MARK: - TaskManager
 /// SwiftData ModelContext를 주입받아 AppTask의 CRUD를 담당합니다.
-/// @Published 임시 배열은 완전히 제거되었으며, 모든 상태는 SwiftData가 관리합니다.
 @MainActor
 class TaskManager: ObservableObject {
 
     // 외부에서 ModelContext를 주입하기 위한 저장소
     private var modelContext: ModelContext?
+
+    // Undo 지원
+    @Published var lastUndoableAction: UndoableAction?
+    @Published var showUndoSnackbar = false
+    @Published var undoSnackbarMessage = ""
 
     /// App.swift에서 modelContext를 주입합니다.
     func configure(context: ModelContext) {
@@ -39,40 +55,51 @@ class TaskManager: ObservableObject {
     }
 
     // MARK: - Add (single)
-    /// ParsedTask(DTO)를 받아 AppTask로 변환 후 SwiftData에 저장합니다.
     func add(task dto: ParsedTask) {
         process(intents: [dto])
     }
 
     // MARK: - Process (batch)
-    /// main 브랜치의 action 기반 배치 처리 로직을 SwiftData에 통합합니다.
-    /// - "delete": 이름이 포함된 AppTask를 SwiftData에서 삭제
-    /// - "add" 또는 기타: AppTask로 변환 후 insert
+    /// 배치 처리: 모든 intent를 처리한 뒤 단일 save 호출
     func process(intents: [ParsedTask]) {
+        var addedTasks: [AppTask] = []
+        var deletedSnapshots: [(task: String, time: String?, date: Date?, category: String)] = []
+
         for intent in intents {
             let action = intent.action ?? "add"
 
             if action == "delete" {
                 print("🗑️ 삭제 요청: \(intent.task)")
-                deleteByName(containing: intent.task)
+                let deleted = deleteByNameBatch(containing: intent.task)
+                deletedSnapshots.append(contentsOf: deleted)
             } else {
-                // add or update
                 let appTask = AppTask(from: intent)
-                insertAndSave(appTask)
+                insertBatch(appTask)
                 NotificationManager.shared.scheduleNotification(for: appTask)
+                addedTasks.append(appTask)
             }
+        }
+
+        // 단일 트랜잭션으로 저장
+        safeSave()
+
+        // Undo 액션 기록
+        if !addedTasks.isEmpty {
+            setUndoAction(.added(addedTasks), message: L.voice.undoAdded(addedTasks.count))
+        } else if !deletedSnapshots.isEmpty {
+            setUndoAction(.deleted(deletedSnapshots), message: L.voice.undoDeleted(deletedSnapshots.count))
         }
     }
 
     // MARK: - Toggle Completion
-    /// 오프라인 상태에서도 isCompleted 토글이 SwiftData에 안전하게 반영됩니다.
     func toggleCompletion(of task: AppTask) {
+        let previousState = task.isCompleted
         task.isCompleted.toggle()
         safeSave()
+        setUndoAction(.toggled(task, previousState), message: task.isCompleted ? L.voice.undoCompleted : L.voice.undoUncompleted)
     }
 
     // MARK: - Update Task
-    /// 텍스트/시간 수정 후 호출합니다. 저장과 함께 알림을 재등록합니다.
     func update(task: AppTask) {
         safeSave()
         NotificationManager.shared.scheduleNotification(for: task)
@@ -81,12 +108,53 @@ class TaskManager: ObservableObject {
     // MARK: - Delete (by reference)
     func delete(task: AppTask) {
         guard let context = modelContext else { return }
+        let snapshot = (task: task.task, time: task.time, date: task.date, category: task.category)
+        NotificationManager.shared.cancelNotification(for: task)
         context.delete(task)
         safeSave()
+        setUndoAction(.deleted([snapshot]), message: L.voice.undoDeletedSingle(task.task))
+    }
+
+    // MARK: - Undo
+    func undo() {
+        guard let action = lastUndoableAction else { return }
+
+        switch action.type {
+        case .added(let tasks):
+            // 추가된 태스크들 삭제
+            guard let context = modelContext else { return }
+            for task in tasks {
+                NotificationManager.shared.cancelNotification(for: task)
+                context.delete(task)
+            }
+            safeSave()
+
+        case .deleted(let snapshots):
+            // 삭제된 태스크들 복원
+            for snapshot in snapshots {
+                let restored = AppTask(
+                    task: snapshot.task,
+                    time: snapshot.time,
+                    date: snapshot.date,
+                    category: snapshot.category
+                )
+                insertBatch(restored)
+                NotificationManager.shared.scheduleNotification(for: restored)
+            }
+            safeSave()
+
+        case .toggled(let task, let previousState):
+            task.isCompleted = previousState
+            safeSave()
+        }
+
+        lastUndoableAction = nil
+        withAnimation(.easeOut(duration: 0.2)) {
+            showUndoSnackbar = false
+        }
     }
 
     // MARK: - Bulk Delete (Settings)
-    /// 완료된 태스크만 일괄 삭제
     func deleteCompleted() {
         guard let context = modelContext else { return }
         do {
@@ -100,7 +168,6 @@ class TaskManager: ObservableObject {
         }
     }
 
-    /// 모든 태스크 일괄 삭제
     func deleteAll() {
         guard let context = modelContext else { return }
         do {
@@ -117,32 +184,54 @@ class TaskManager: ObservableObject {
 
     // MARK: - Private Helpers
 
-    /// 이름이 포함된 AppTask를 SwiftData에서 모두 삭제합니다. (action == "delete" 전용)
-    private func deleteByName(containing name: String) {
-        guard let context = modelContext else { return }
-        let descriptor = FetchDescriptor<AppTask>()
-        do {
-            let all = try context.fetch(descriptor)
-            for item in all where item.task.contains(name) || name.contains(item.task) {
-                context.delete(item)
+    private func setUndoAction(_ type: UndoableAction.ActionType, message: String) {
+        lastUndoableAction = UndoableAction(type: type)
+        undoSnackbarMessage = message
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+            showUndoSnackbar = true
+        }
+        // 5초 후 자동 숨김
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in
+            guard let self else { return }
+            withAnimation(.easeOut(duration: 0.3)) {
+                self.showUndoSnackbar = false
             }
-            safeSave()
-        } catch {
-            print("❌ deleteByName 실패: \(error.localizedDescription)")
+            // 한 박자 뒤에 액션 삭제 (애니메이션 완료 후)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                self.lastUndoableAction = nil
+            }
         }
     }
 
-    private func insertAndSave(_ task: AppTask) {
+    /// 이름이 포함된 AppTask를 SwiftData에서 모두 삭제 (배치, save 호출 안함)
+    private func deleteByNameBatch(containing name: String) -> [(task: String, time: String?, date: Date?, category: String)] {
+        guard let context = modelContext else { return [] }
+        let descriptor = FetchDescriptor<AppTask>()
+        var deleted: [(task: String, time: String?, date: Date?, category: String)] = []
+        do {
+            let all = try context.fetch(descriptor)
+            for item in all where item.task.contains(name) || name.contains(item.task) {
+                deleted.append((task: item.task, time: item.time, date: item.date, category: item.category))
+                NotificationManager.shared.cancelNotification(for: item)
+                context.delete(item)
+            }
+        } catch {
+            print("❌ deleteByName 실패: \(error.localizedDescription)")
+        }
+        return deleted
+    }
+
+    /// insert만 수행 (save는 호출하지 않음)
+    private func insertBatch(_ task: AppTask) {
         guard let context = modelContext else {
             print("⚠️ TaskManager: ModelContext가 주입되지 않았습니다.")
             return
         }
         context.insert(task)
-        safeSave()
-        print("🎯 저장 완료! [\(task.category)] \(task.task) (시간: \(task.time ?? "미지정"))")
+        print("🎯 삽입 완료! [\(task.category)] \(task.task) (시간: \(task.time ?? "미지정"))")
     }
 
-    /// do-catch 기반 안전한 저장 — 오프라인/엣지 케이스 방어용
+    /// do-catch 기반 안전한 저장
     private func safeSave() {
         guard let context = modelContext else { return }
         do {

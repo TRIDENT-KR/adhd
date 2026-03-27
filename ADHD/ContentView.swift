@@ -102,6 +102,7 @@ struct HomeVoiceInterfaceView: View {
                             .font(.system(size: 20, weight: .medium))
                             .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
                     }
+                    .accessibilityLabel(L.settings.title)
                 }
                 .padding(.horizontal, 24)
                 .padding(.top, 16)
@@ -147,6 +148,8 @@ struct HomeVoiceInterfaceView: View {
                         // Mic button with Hold-to-Talk or Tap gesture
                         micButton
                             .offset(x: shakeOffset)
+                            .accessibilityLabel(voiceManager.isListening ? L.voice.a11yStopRecording : L.voice.a11yStartRecording)
+                            .accessibilityHint(voiceManager.micMode == .holdToTalk ? L.voice.a11yHoldHint : L.voice.a11yTapHint)
                     }
                     .onAppear {
                         isBreathing = true

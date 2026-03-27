@@ -123,4 +123,20 @@ struct VoiceStrings {
     var micModeHold: String { t("Hold to Talk", "길게 눌러 말하기", "押し続けて話す") }
     var micModeTitle: String { t("Mic Mode", "마이크 모드", "マイクモード") }
     var confirmBeforeSave: String { t("Confirm Before Save", "저장 전 확인", "保存前に確認") }
+
+    // Undo
+    var undoButton: String { t("Undo", "되돌리기", "元に戻す") }
+    func undoAdded(_ count: Int) -> String { t("\(count) task(s) added", "\(count)개 추가됨", "\(count)件追加") }
+    func undoDeleted(_ count: Int) -> String { t("\(count) task(s) deleted", "\(count)개 삭제됨", "\(count)件削除") }
+    func undoDeletedSingle(_ name: String) -> String { t("\"\(name)\" deleted", "\"\(name)\" 삭제됨", "\"\(name)\"を削除") }
+    var undoCompleted: String { t("Marked as done", "완료 처리됨", "完了にしました") }
+    var undoUncompleted: String { t("Marked as not done", "미완료 처리됨", "未完了にしました") }
+
+    // Accessibility
+    var a11yStartRecording: String { t("Start recording", "녹음 시작", "録音開始") }
+    var a11yStopRecording: String { t("Stop recording", "녹음 중지", "録音停止") }
+    var a11yTapHint: String { t("Tap to start or stop voice input", "탭하여 음성 입력을 시작하거나 중지합니다", "タップして音声入力の開始・停止") }
+    var a11yHoldHint: String { t("Press and hold to record, release to send", "길게 눌러 녹음하고, 떼면 전송됩니다", "長押しで録音、離すと送信") }
+    var a11yTabBar: String { t("Tab navigation", "탭 내비게이션", "タブナビゲーション") }
+    var a11yUndo: String { t("Undo last action", "마지막 작업 되돌리기", "最後の操作を元に戻す") }
 }
