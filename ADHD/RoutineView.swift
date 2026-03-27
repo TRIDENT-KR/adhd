@@ -38,7 +38,7 @@ struct RoutineView: View {
             DesignSystem.Colors.background
                 .ignoresSafeArea()
 
-            ScrollView {
+            ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 48) {
 
                     // 제목
