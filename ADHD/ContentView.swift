@@ -76,6 +76,11 @@ struct HomeVoiceInterfaceView: View {
     @State private var showPlaceholder = true
     @State private var showSuccessCheck = false
     @State private var showSettings = false
+    @State private var showVoiceGuide = false
+    @State private var shakeOffset: CGFloat = 0
+    @State private var showErrorToast = false
+    @State private var errorToastMessage = ""
+    @AppStorage("hasSeenVoiceOnboarding") private var hasSeenVoiceOnboarding = false
 
     var body: some View {
         ZStack {
@@ -99,7 +104,7 @@ struct HomeVoiceInterfaceView: View {
 
                 VStack(spacing: 32) {
 
-                    // ── Voice Pulse + Mic Button ──
+                    // ── Voice Pulse + Mic Button + Timer ──
                     ZStack {
                         let pulseScale = voiceManager.isListening
                             ? 1.0 + (voiceManager.audioPower * 0.5)
@@ -120,6 +125,19 @@ struct HomeVoiceInterfaceView: View {
                                 value: pulseScale
                             )
 
+                        // ── 녹음 진행률 원형 프로그레스 ──
+                        if voiceManager.isListening {
+                            Circle()
+                                .trim(from: 0, to: min(voiceManager.recordingDuration / VoiceInputManager.maxRecordingDuration, 1.0))
+                                .stroke(
+                                    DesignSystem.Colors.primary.opacity(0.6),
+                                    style: StrokeStyle(lineWidth: 3, lineCap: .round)
+                                )
+                                .frame(width: 140, height: 140)
+                                .rotationEffect(.degrees(-90))
+                                .animation(.linear(duration: 0.1), value: voiceManager.recordingDuration)
+                        }
+
                         Button(action: { handleMicTap() }) {
                             ZStack {
                                 Circle()
@@ -135,6 +153,14 @@ struct HomeVoiceInterfaceView: View {
                         .buttonStyle(SquishyButtonStyle())
                         // 분석 중에는 버튼 비활성화
                         .disabled(cloudLLM.isProcessing || voiceManager.isProcessing)
+                        .simultaneousGesture(
+                            LongPressGesture(minimumDuration: 0.5)
+                                .onEnded { _ in
+                                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                    showVoiceGuide = true
+                                }
+                        )
+                        .offset(x: shakeOffset)
                     }
                     .onAppear {
                         isBreathing = true
@@ -146,6 +172,14 @@ struct HomeVoiceInterfaceView: View {
                         withAnimation(.easeOut(duration: 0.8)) {
                             showPlaceholder = false
                         }
+                    }
+
+                    // ── 녹음 타이머 표시 ──
+                    if voiceManager.isListening {
+                        Text(formatDuration(voiceManager.recordingDuration))
+                            .font(.system(size: 16, weight: .medium, design: .monospaced))
+                            .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
+                            .transition(.opacity.combined(with: .scale(scale: 0.8)))
                     }
 
                     // ── 상태 텍스트 / 성공 체크 ──
@@ -167,9 +201,19 @@ struct HomeVoiceInterfaceView: View {
                                 .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
                         } else {
                             // Placeholder — 1.5초 후 페이드 아웃하여 Zero Clutter 극대화
-                            Text(L.voicePlaceholder)
-                                .foregroundColor(DesignSystem.Colors.primary)
-                                .opacity(showPlaceholder ? 1.0 : 0.0)
+                            VStack(spacing: 8) {
+                                Text(L.voicePlaceholder)
+                                    .foregroundColor(DesignSystem.Colors.primary)
+                                    .opacity(showPlaceholder ? 1.0 : 0.0)
+
+                                // 힌트: 길게 눌러 예시 보기
+                                if !hasSeenVoiceOnboarding {
+                                    Text(L.voice.guideHint)
+                                        .font(DesignSystem.Typography.labelSm)
+                                        .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.4))
+                                        .opacity(showPlaceholder ? 1.0 : 0.0)
+                                }
+                            }
                         }
                     }
                     .font(DesignSystem.Typography.titleSm)
@@ -185,16 +229,71 @@ struct HomeVoiceInterfaceView: View {
                 Spacer()
                 Spacer(minLength: 120) // 바텀 바 공간 확보
             }
+
+            // ── 에러 토스트 ──
+            if showErrorToast {
+                VStack {
+                    Spacer()
+
+                    HStack(spacing: 12) {
+                        Image(systemName: "exclamationmark.circle.fill")
+                            .font(.system(size: 18))
+                            .foregroundColor(.white.opacity(0.9))
+
+                        Text(errorToastMessage)
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.white)
+
+                        Spacer()
+
+                        Button(action: {
+                            withAnimation(.easeOut(duration: 0.2)) {
+                                showErrorToast = false
+                            }
+                            handleMicTap()
+                        }) {
+                            Text(L.voice.tryAgain)
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundColor(DesignSystem.Colors.primaryFixedDim)
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 14)
+                    .background(
+                        RoundedRectangle(cornerRadius: 14)
+                            .fill(Color(UIColor { traits in
+                                traits.userInterfaceStyle == .dark
+                                    ? UIColor(r: 0x3A, g: 0x2A, b: 0x22)
+                                    : UIColor(r: 0x4A, g: 0x30, b: 0x25)
+                            }))
+                    )
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 140)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+            }
         }
         .sheet(isPresented: $showSettings) {
             SettingsView()
                 .environmentObject(authManager)
                 .environmentObject(taskManager)
         }
+        .sheet(isPresented: $showVoiceGuide, onDismiss: {
+            if !hasSeenVoiceOnboarding { hasSeenVoiceOnboarding = true }
+        }) {
+            VoiceGuideSheet()
+                .presentationDetents([.medium])
+                .presentationDragIndicator(.visible)
+        }
+        .onChange(of: voiceManager.lastError) { _, newError in
+            if let error = newError {
+                triggerErrorFeedback(message: error.message)
+                voiceManager.lastError = nil
+            }
+        }
     }
 
     // MARK: - Mic Button Handler
-    /// Trigger 2 (Task 3): 오프라인이면 배너를 3초간 표시하고 녹음을 차단합니다.
     private func handleMicTap() {
         if !networkMonitor.isConnected && !voiceManager.isListening {
             networkMonitor.showOfflineBannerTemporarily()
@@ -206,18 +305,55 @@ struct HomeVoiceInterfaceView: View {
         voiceManager.toggleListening()
     }
 
+    // MARK: - Error Feedback
+    private func triggerErrorFeedback(message: String) {
+        // Shake 애니메이션
+        withAnimation(.spring(response: 0.1, dampingFraction: 0.2)) {
+            shakeOffset = 12
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            withAnimation(.spring(response: 0.1, dampingFraction: 0.2)) {
+                shakeOffset = -10
+            }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            withAnimation(.spring(response: 0.1, dampingFraction: 0.2)) {
+                shakeOffset = 6
+            }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            withAnimation(.spring(response: 0.15, dampingFraction: 0.5)) {
+                shakeOffset = 0
+            }
+        }
+
+        // 햅틱 에러 피드백
+        UINotificationFeedbackGenerator().notificationOccurred(.error)
+
+        // 토스트 표시
+        errorToastMessage = message
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+            showErrorToast = true
+        }
+        // 4초 후 자동 숨김
+        DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
+            withAnimation(.easeOut(duration: 0.3)) {
+                showErrorToast = false
+            }
+        }
+    }
+
+    // MARK: - Duration Formatter
+    private func formatDuration(_ duration: TimeInterval) -> String {
+        let seconds = Int(duration)
+        let remaining = Int(VoiceInputManager.maxRecordingDuration) - seconds
+        return "0:\(String(format: "%02d", seconds)) / 0:\(String(format: "%02d", remaining > 0 ? remaining : 0))"
+    }
+
     // MARK: - Speech Finalization Callback
-    /// 성공/에러 모든 Exit Path에서 recognizedText를 ""로 초기화하여 Placeholder로 복귀합니다.
     private func setupSpeechCallback() {
         voiceManager.onSpeechFinalized = { [weak voiceManager] text in
-            guard let voiceManager, !text.isEmpty else {
-                // 빈 텍스트 → Placeholder 즉시 복구
-                Task { @MainActor in
-                    voiceManager?.recognizedText = ""
-                    voiceManager?.isProcessing   = false
-                }
-                return
-            }
+            guard let voiceManager else { return }
 
             Task {
                 do {
@@ -245,14 +381,70 @@ struct HomeVoiceInterfaceView: View {
                     }
                 } catch {
                     print("❌ Cloud API Error: \(error.localizedDescription)")
-                    // ❌ 에러 Exit Path: 즉시 Placeholder 복구
+                    // ❌ 에러 Exit Path: 에러 피드백 + Placeholder 복구
                     await MainActor.run {
                         voiceManager.recognizedText = ""
                         voiceManager.isProcessing   = false
+                        voiceManager.lastError = .apiError(error.localizedDescription)
                     }
                 }
             }
         }
+    }
+}
+
+// MARK: - Voice Guide Sheet (온보딩 + 예시 명령어)
+struct VoiceGuideSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    private let examples: [(icon: String, text: String, color: Color)] = [
+        ("plus.circle.fill", L.voice.exampleAdd, DesignSystem.Colors.tertiary),
+        ("calendar.circle.fill", L.voice.exampleAppointment, DesignSystem.Colors.primary),
+        ("minus.circle.fill", L.voice.exampleDelete, Color.red.opacity(0.7)),
+    ]
+
+    var body: some View {
+        VStack(spacing: 28) {
+            // 헤더
+            VStack(spacing: 8) {
+                Image(systemName: "mic.circle.fill")
+                    .font(.system(size: 48))
+                    .foregroundColor(DesignSystem.Colors.primary)
+
+                Text(L.voice.guideTitle)
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
+            }
+            .padding(.top, 24)
+
+            // 예시 명령어 카드들
+            VStack(spacing: 16) {
+                ForEach(Array(examples.enumerated()), id: \.offset) { _, example in
+                    HStack(spacing: 16) {
+                        Image(systemName: example.icon)
+                            .font(.system(size: 24))
+                            .foregroundColor(example.color)
+                            .frame(width: 36)
+
+                        Text(example.text)
+                            .font(.system(size: 17, weight: .medium))
+                            .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
+
+                        Spacer()
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 16)
+                    .background(
+                        RoundedRectangle(cornerRadius: 14)
+                            .fill(DesignSystem.Colors.surfaceContainerLow)
+                    )
+                }
+            }
+            .padding(.horizontal, 24)
+
+            Spacer()
+        }
+        .background(DesignSystem.Colors.background)
     }
 }
 

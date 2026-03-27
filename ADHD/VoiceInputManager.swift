@@ -3,20 +3,51 @@ import SwiftUI
 import Combine
 import AVFoundation
 import Speech
-import SwiftUI
+
+// MARK: - Voice Error Types
+enum VoiceError: Equatable {
+    case emptyTranscription
+    case recognitionFailed
+    case networkError
+    case apiError(String)
+    case permissionDenied
+
+    var message: String {
+        switch self {
+        case .emptyTranscription:
+            return L.voice.errorNotHeard
+        case .recognitionFailed:
+            return L.voice.errorRecognitionFailed
+        case .networkError:
+            return L.voice.errorNetwork
+        case .apiError:
+            return L.voice.errorApi
+        case .permissionDenied:
+            return L.voice.errorPermission
+        }
+    }
+}
 
 class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate {
     @Published var isListening: Bool = false
     @Published var recognizedText: String = ""
     @Published var audioPower: CGFloat = 0.0 // 0.0 to 1.0 for ripple effect
     @Published var errorMessage: String?
-    
+
     // For Vibe Check logic (transitioning to inference)
     @Published var isProcessing: Bool = false
-    
+
+    // Recording duration timer
+    @Published var recordingDuration: TimeInterval = 0
+    private var recordingTimer: Timer?
+    static let maxRecordingDuration: TimeInterval = 30 // 최대 30초
+
+    // Error feedback
+    @Published var lastError: VoiceError?
+
     // Completion handler for when recording successfully finishes
     var onSpeechFinalized: ((String) -> Void)?
-    
+
     @Published var currentLocaleId: String = "en-US"
 
     private var speechRecognizer: SFSpeechRecognizer?
@@ -97,9 +128,12 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
         // Reset state
         recognizedText = ""
         errorMessage = nil
+        lastError = nil
         isListening = true
         isProcessing = false
         audioPower = 0.0
+        recordingDuration = 0
+        startRecordingTimer()
         
         // Cancel any previous task
         if recognitionTask != nil {
@@ -192,13 +226,14 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
             recognitionRequest?.endAudio()
             isListening = false
             audioPower = 0.0
-            
+            stopRecordingTimer()
+
             // Vibe Check: Finish quickly when stopped, finalizing text to prepare for Llama 3 8b inference
             isProcessing = true
             finalizeAndProceed()
         }
     }
-    
+
     private func stopHandling() {
         audioEngine.stop()
         audioEngine.inputNode.removeTap(onBus: 0)
@@ -206,11 +241,38 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
         recognitionTask = nil
         isListening = false
         audioPower = 0.0
+        stopRecordingTimer()
     }
-    
+
     private func finalizeAndProceed() {
         // Pass the recognized text over to the closure for SLM processing
         print("Finalizing text for pipeline: \(recognizedText)")
+
+        if recognizedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            lastError = .emptyTranscription
+            isProcessing = false
+            return
+        }
+
         onSpeechFinalized?(recognizedText)
+    }
+
+    // MARK: - Recording Timer
+    private func startRecordingTimer() {
+        recordingTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            DispatchQueue.main.async {
+                self.recordingDuration += 0.1
+                // 최대 녹음 시간 초과 시 자동 종료
+                if self.recordingDuration >= Self.maxRecordingDuration {
+                    self.stopListening()
+                }
+            }
+        }
+    }
+
+    private func stopRecordingTimer() {
+        recordingTimer?.invalidate()
+        recordingTimer = nil
     }
 }

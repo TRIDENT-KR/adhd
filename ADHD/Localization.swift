@@ -32,6 +32,7 @@ struct Strings {
     var voicePlaceholder: String { t("What should I remember for you?", "무엇을 기억해 드릴까요?", "何を覚えておきましょうか？") }
     var voiceListening: String { t("Listening...", "듣고 있어요...", "聞いています...") }
     var voiceAnalyzing: String { t("Analyzing...", "분석 중...", "分析中...") }
+    var voice: VoiceStrings { VoiceStrings() }
 
     // Routine Tab
     var routineTitle: String { t("My Routines", "나의 루틴", "マイルーティン") }
@@ -85,4 +86,23 @@ struct SettingsStrings {
     var done: String { t("Done", "완료", "完了") }
     var cancel: String { t("Cancel", "취소", "キャンセル") }
     var delete: String { t("Delete", "삭제", "削除") }
+}
+
+struct VoiceStrings {
+    // Error messages
+    var errorNotHeard: String { t("Couldn't hear you. Try again?", "잘 못 들었어요. 다시 말해주세요", "聞き取れませんでした。もう一度お願いします") }
+    var errorRecognitionFailed: String { t("Speech recognition failed. Try again", "음성 인식에 실패했어요. 다시 시도해주세요", "音声認識に失敗しました。再試行してください") }
+    var errorNetwork: String { t("No connection. Try again later", "연결이 없어요. 나중에 다시 시도해주세요", "接続がありません。後で再試行してください") }
+    var errorApi: String { t("Something went wrong. Try again", "문제가 생겼어요. 다시 시도해주세요", "問題が発生しました。再試行してください") }
+    var errorPermission: String { t("Microphone permission needed", "마이크 권한이 필요합니다", "マイクの許可が必要です") }
+    var tryAgain: String { t("Try Again", "다시 시도", "再試行") }
+
+    // Voice guide / onboarding hints
+    var guideTitle: String { t("Try saying...", "이렇게 말해보세요...", "こう言ってみてください...") }
+    var guideHint: String { t("Long press mic for examples", "마이크를 길게 눌러 예시를 확인", "マイクを長押しで例を表示") }
+
+    // Example commands
+    var exampleAdd: String { t("\"Take medicine at 9 AM\"", "\"오전 9시에 약 먹기\"", "\"午前9時に薬を飲む\"") }
+    var exampleAppointment: String { t("\"Meeting tomorrow at 3 PM\"", "\"내일 오후 3시에 회의\"", "\"明日午後3時に会議\"") }
+    var exampleDelete: String { t("\"Delete exercise\"", "\"운동 삭제\"", "\"運動を削除\"") }
 }
