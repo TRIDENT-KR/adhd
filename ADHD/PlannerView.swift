@@ -273,7 +273,7 @@ struct EventCard: View {
                             taskManager.delete(task: task)
                             editingTaskId = nil
                         }
-                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                        Haptic.impact(.medium)
                     }) {
                         Image(systemName: "trash")
                             .font(.system(size: 14))
@@ -332,12 +332,12 @@ struct EventCard: View {
         task.time = localTime.isEmpty ? nil : localTime
         taskManager.update(task: task)
         editingTaskId = nil
-        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        Haptic.impact(.light)
     }
 
     private func startEditing() {
         editingTaskId = task.id
-        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        Haptic.impact(.medium)
     }
 }
 

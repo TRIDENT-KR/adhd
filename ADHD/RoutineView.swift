@@ -3,15 +3,23 @@ import SwiftData
 
 struct RoutineView: View {
     // MARK: - SwiftData Queries
-    /// category == "Routine" 데이터만 필터링
+    /// category == "Routine" 데이터만 필터링 (날짜 무관, 매일 반복)
     @Query(filter: #Predicate<AppTask> { $0.category == "Routine" },
            sort: \.time)
     private var routines: [AppTask]
 
-    /// category == "Appointment" 데이터만 필터링
+    /// category == "Appointment" 데이터 (날짜 필터링은 computed property에서)
     @Query(filter: #Predicate<AppTask> { $0.category == "Appointment" },
            sort: \.time)
-    private var appointments: [AppTask]
+    private var allAppointments: [AppTask]
+
+    /// 오늘 날짜의 Appointment만 반환 (PlannerView와 데이터 분리)
+    private var todayAppointments: [AppTask] {
+        let cal = Calendar.current
+        return allAppointments.filter { task in
+            task.date == nil || cal.isDateInToday(task.date!)
+        }
+    }
 
     @EnvironmentObject private var taskManager: TaskManager
     @Environment(\.modelContext) private var modelContext
@@ -76,7 +84,7 @@ struct RoutineView: View {
                     .padding(.horizontal, 32)
 
                     // 선택된 섹션의 태스크 목록
-                    let currentTasks = selectedSection == .routines ? routines : appointments
+                    let currentTasks = selectedSection == .routines ? routines : todayAppointments
 
                     if currentTasks.isEmpty {
                         // Empty State: 화면 중앙 정렬
@@ -129,12 +137,12 @@ struct RoutineView: View {
                 guard !text.isEmpty, let targetId = voiceEditingTaskId else { return }
 
                 // 모든 태스크에서 편집 대상 찾기
-                let allTasks = routines + appointments
+                let allTasks = routines + todayAppointments
                 guard let target = allTasks.first(where: { $0.id == targetId }) else { return }
 
                 target.task = text
                 taskManager.update(task: target)
-                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                Haptic.impact(.medium)
             }
         }
     }
@@ -202,7 +210,7 @@ struct TaskRow: View {
                 withAnimation(.timingCurve(0.4, 0, 0.2, 1, duration: 0.3)) {
                     taskManager.toggleCompletion(of: task)
                 }
-                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                Haptic.impact(.medium)
             }) {
                 ZStack {
                     Circle()
@@ -279,7 +287,7 @@ struct TaskRow: View {
                             taskManager.delete(task: task)
                             editingTaskId = nil
                         }
-                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                        Haptic.impact(.medium)
                     }) {
                         Image(systemName: "trash")
                             .font(.system(size: 16))
@@ -355,12 +363,12 @@ struct TaskRow: View {
         taskManager.update(task: task)
         cachedCategoryIcon = Self.resolveIcon(for: localTaskName, category: task.category)
         editingTaskId = nil
-        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        Haptic.impact(.light)
     }
 
     private func startEditing() {
         editingTaskId = task.id
-        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        Haptic.impact(.medium)
     }
 
     private func handleVoiceEdit() {
@@ -371,7 +379,7 @@ struct TaskRow: View {
             // 녹음 시작
             voiceEditingTaskId = task.id
             voiceManager.startListening()
-            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            Haptic.impact(.medium)
         }
     }
 }

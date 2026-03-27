@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct MainTabView: View {
-    @State var activeTab: TabSelection = .planner
+    @State var activeTab: TabSelection = .voice
     @EnvironmentObject private var networkMonitor: NetworkMonitor
     @EnvironmentObject private var taskManager: TaskManager
     @AppStorage("appLanguage") private var appLanguage: String = "en"

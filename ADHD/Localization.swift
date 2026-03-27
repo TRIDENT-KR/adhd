@@ -132,6 +132,13 @@ struct VoiceStrings {
     var undoCompleted: String { t("Marked as done", "완료 처리됨", "完了にしました") }
     var undoUncompleted: String { t("Marked as not done", "미완료 처리됨", "未完了にしました") }
 
+    // Text input
+    var textInputPlaceholder: String { t("Type a task...", "할 일을 입력...", "タスクを入力...") }
+    var textInputSend: String { t("Send", "전송", "送信") }
+
+    // Confirmation card - remove single item
+    var confirmRemoveItem: String { t("Remove", "제거", "削除") }
+
     // Accessibility
     var a11yStartRecording: String { t("Start recording", "녹음 시작", "録音開始") }
     var a11yStopRecording: String { t("Stop recording", "녹음 중지", "録音停止") }

@@ -36,7 +36,7 @@ struct TabBarItem: View {
 
     var body: some View {
         Button(action: {
-            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            Haptic.impact(.medium)
             action()
         }) {
             VStack(spacing: 6) {
