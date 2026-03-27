@@ -12,6 +12,17 @@ final class NotificationManager {
 
     private let center = UNUserNotificationCenter.current()
 
+    // MARK: - Cached Formatters
+    private static let timeFormatters: [DateFormatter] = {
+        let formats = ["hh:mm a", "h:mm a", "HH:mm"]
+        return formats.map { format in
+            let f = DateFormatter()
+            f.locale = Locale(identifier: "en_US_POSIX")
+            f.dateFormat = format
+            return f
+        }
+    }()
+
     // MARK: - Settings Keys
     static let routineRemindersKey    = "routineRemindersEnabled"
     static let appointmentRemindersKey = "appointmentRemindersEnabled"
@@ -113,15 +124,10 @@ final class NotificationManager {
     /// "07:00 AM", "02:00 PM", "14:00" 등 다양한 포맷을 허용합니다.
     private func parseTime(_ timeString: String, on date: Date?) -> Date? {
         let base = date ?? Date()
-        let formats = ["hh:mm a", "h:mm a", "HH:mm"]
+        let trimmed = timeString.trimmingCharacters(in: .whitespaces)
 
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-
-        for format in formats {
-            formatter.dateFormat = format
-            if let parsed = formatter.date(from: timeString.trimmingCharacters(in: .whitespaces)) {
-                // 파싱된 시/분을 base 날짜에 합성
+        for formatter in Self.timeFormatters {
+            if let parsed = formatter.date(from: trimmed) {
                 let parsedComponents = Calendar.current.dateComponents([.hour, .minute], from: parsed)
                 var baseComponents   = Calendar.current.dateComponents([.year, .month, .day], from: base)
                 baseComponents.hour   = parsedComponents.hour
