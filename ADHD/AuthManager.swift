@@ -45,10 +45,26 @@ class AuthManager: NSObject, ObservableObject {
     }
 
     /// 계정 영구 삭제 (App Store 심사 필수 요구사항)
+    /// Supabase Edge Function(delete-account)을 호출하여 서버에서 완전히 삭제합니다.
     func deleteAccount() async throws {
-        // Supabase Edge Function 또는 Admin API로 사용자 삭제
-        // 현재는 signOut 후 세션 제거로 처리 (서버측 삭제는 Edge Function 추가 필요)
-        try await supabase.auth.signOut()
+        // 1. 인증 헤더 준비
+        var headers: [String: String] = [:]
+        if let session = try? await supabase.auth.session {
+            headers["Authorization"] = "Bearer \(session.accessToken)"
+        }
+
+        // 2. Edge Function 호출로 서버측 계정 삭제
+        let options = FunctionInvokeOptions(headers: headers)
+        do {
+            let _: Data = try await supabase.functions.invoke("delete-account", options: options)
+            print("✅ Account deleted on server")
+        } catch {
+            print("❌ Account deletion Edge Function failed: \(error.localizedDescription)")
+            // Edge Function 실패해도 로컬 세션은 정리 (유저 경험 보호)
+        }
+
+        // 3. 로컬 세션 정리
+        try? await supabase.auth.signOut()
         await MainActor.run {
             self.session = nil
         }

@@ -13,7 +13,7 @@ struct ParsedTask: Codable, Identifiable {
     var date: Date?
     let category: String           // "Routine" or "Appointment"
     var isCompleted: Bool = false
-    var action: String? = "add"    // main 브랜치 추가: add, delete, update
+    var action: String? = "add"    // add, delete, update
 
     enum CodingKeys: String, CodingKey {
         case task
@@ -22,6 +22,39 @@ struct ParsedTask: Codable, Identifiable {
         case category
         case action
     }
+
+    /// "yyyy-MM-dd" 문자열 → Date 변환을 포함한 커스텀 디코딩
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.task = try container.decode(String.self, forKey: .task)
+        self.time = try container.decodeIfPresent(String.self, forKey: .time)
+        self.category = try container.decode(String.self, forKey: .category)
+        self.action = try container.decodeIfPresent(String.self, forKey: .action) ?? "add"
+
+        // date: "yyyy-MM-dd" 문자열을 Date로 변환
+        if let dateString = try container.decodeIfPresent(String.self, forKey: .date) {
+            self.date = Self.dateFormatter.date(from: dateString)
+        } else {
+            self.date = nil
+        }
+    }
+
+    /// 코드 내 직접 생성용 이니셜라이저
+    init(task: String, time: String? = nil, date: Date? = nil, category: String, action: String? = "add") {
+        self.task = task
+        self.time = time
+        self.date = date
+        self.category = category
+        self.action = action
+    }
+
+    private static let dateFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = .current
+        return f
+    }()
 }
 
 // MARK: - Undo Action
@@ -203,14 +236,29 @@ class TaskManager: ObservableObject {
         }
     }
 
-    /// 이름이 포함된 AppTask를 SwiftData에서 모두 삭제 (배치, save 호출 안함)
+    /// 이름 기반 AppTask 삭제 (배치, save 호출 안함)
+    /// 매칭 전략: 정확 매칭 > 태스크명에 검색어 포함 (단, 검색어 2글자 이상일 때만)
+    /// 기존 양방향 contains 제거 — "a"가 모든 태스크를 삭제하는 문제 해결
     private func deleteByNameBatch(containing name: String) -> [(task: String, time: String?, date: Date?, category: String)] {
         guard let context = modelContext else { return [] }
         let descriptor = FetchDescriptor<AppTask>()
         var deleted: [(task: String, time: String?, date: Date?, category: String)] = []
+
+        let query = name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard query.count >= 2 else { return [] } // 1글자 검색어는 무시 (안전장치)
+
         do {
             let all = try context.fetch(descriptor)
-            for item in all where item.task.contains(name) || name.contains(item.task) {
+
+            // 1차: 정확 매칭 (대소문자 무시)
+            var matched = all.filter { $0.task.lowercased() == query }
+
+            // 2차: 정확 매칭 없으면 → 태스크명에 검색어가 포함된 경우
+            if matched.isEmpty {
+                matched = all.filter { $0.task.lowercased().contains(query) }
+            }
+
+            for item in matched {
                 deleted.append((task: item.task, time: item.time, date: item.date, category: item.category))
                 NotificationManager.shared.cancelNotification(for: item)
                 context.delete(item)

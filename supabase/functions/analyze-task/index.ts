@@ -23,7 +23,7 @@ Deno.serve(async (req: Request) => {
 Users may change their minds mid-sentence, repeat themselves, or provide multiple instructions at once.
 
 Your task is to extract a list of actions in JSON array format.
-Each object must have these 4 keys:
+Each object must have these 5 keys:
 
 1. "action": One of ["add", "delete", "update"].
 
@@ -33,7 +33,16 @@ Each object must have these 4 keys:
    - Use null for vague expressions: "later", "sometime", "tonight", "eventually", "after work", "whenever", "this afternoon".
    - TIME RANGE rule: "from X to Y" → extract ONE item with the START time only. Never split a range into two items.
 
-4. "category": Use "Routine" or "Appointment" — check rules in this exact order:
+4. "date": Date in "yyyy-MM-dd" format (ISO 8601 date only).
+   - Use TODAY's date (provided below) when: no date mentioned, "today", or immediate actions.
+   - Calculate relative dates: "tomorrow" = today + 1, "day after tomorrow" = today + 2.
+   - Parse weekday references relative to today: "this Friday", "next Monday", etc.
+   - Parse specific dates: "March 15", "3/15", "15일" etc.
+   - For recurring Routines, use null (they repeat daily and have no fixed date).
+
+   TODAY's date is: {{TODAY}}
+
+5. "category": Use "Routine" or "Appointment" — check rules in this exact order:
    RULE 1 — Explicit recurrence → "Routine": user says "every day", "daily", "always", "every morning", "recurring", or calls it a "routine".
    RULE 2 — Explicit one-time anchor → "Appointment": user says "tomorrow", "this Friday", "next week", a specific date, "for now", "just add [it]". A task phrased as a one-time immediate action is always "Appointment".
    RULE 3 — Ambiguous (no explicit signal) → classify by task nature:
@@ -54,19 +63,22 @@ RULE 6 — Deduplication:
 --- EXAMPLES ---
 
 Input: "Add a 5 AM jog — actually no, cancel that. Make it a 7 AM walk every day."
-Output: [{"action":"add","task":"Morning Walk","time":"07:00 AM","category":"Routine"}]
+Output: [{"action":"add","task":"Morning Walk","time":"07:00 AM","date":null,"category":"Routine"}]
+
+Input: "Meeting tomorrow at 3 PM"
+Output: [{"action":"add","task":"Meeting","time":"03:00 PM","date":"{{TOMORROW}}","category":"Appointment"}]
 
 Input: "Block 'Deep Work' from 6 AM to 10 PM. And add a 9 PM wind-down routine every night."
 Output: [
-  {"action":"add","task":"Deep Work","time":"06:00 AM","category":"Appointment"},
-  {"action":"add","task":"Wind-down","time":"09:00 PM","category":"Routine"}
+  {"action":"add","task":"Deep Work","time":"06:00 AM","date":"{{TODAY}}","category":"Appointment"},
+  {"action":"add","task":"Wind-down","time":"09:00 PM","date":null,"category":"Routine"}
 ]
 
 Input: "I need to pay the rent, buy groceries, and start a daily journaling habit. Add all."
 Output: [
-  {"action":"add","task":"Pay rent","time":null,"category":"Appointment"},
-  {"action":"add","task":"Buy groceries","time":null,"category":"Appointment"},
-  {"action":"add","task":"Daily journaling","time":null,"category":"Routine"}
+  {"action":"add","task":"Pay rent","time":null,"date":"{{TODAY}}","category":"Appointment"},
+  {"action":"add","task":"Buy groceries","time":null,"date":"{{TODAY}}","category":"Appointment"},
+  {"action":"add","task":"Daily journaling","time":null,"date":null,"category":"Routine"}
 ]
 
 Input: "Just finished my morning run! Feeling great."
@@ -74,13 +86,25 @@ Output: []
 
 Input: "Move all my morning routines to the afternoon."
 Output: []`;
+
+    // 날짜 계산: 프롬프트에 오늘/내일 날짜 삽입
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0]; // "yyyy-MM-dd"
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowStr = tomorrow.toISOString().split('T')[0];
+
+    const finalPrompt = systemInstruction
+      .replaceAll("{{TODAY}}", todayStr)
+      .replaceAll("{{TOMORROW}}", tomorrowStr);
+
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          system_instruction: { parts: [{ text: systemInstruction }] },
+          system_instruction: { parts: [{ text: finalPrompt }] },
           contents: [{ role: 'user', parts: [{ text }] }],
           generationConfig: { 
             response_mime_type: 'application/json', 
@@ -130,6 +154,11 @@ Output: []`;
       // action이 누락되었을 경우 기본값 'add'로 설정
       if (!item.action) {
         item.action = 'add';
+      }
+
+      // date 검증: yyyy-MM-dd 형식이 아니거나 빈 문자열이면 null로 정리
+      if (item.date && !/^\d{4}-\d{2}-\d{2}$/.test(item.date)) {
+        item.date = null;
       }
 
       return item;
