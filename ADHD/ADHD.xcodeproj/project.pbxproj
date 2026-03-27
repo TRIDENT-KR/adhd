@@ -27,6 +27,7 @@
 		AA000001000000000000001A /* DesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000002000000000000001A /* DesignSystem.swift */; };
 		AA000003000000000000001A /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000004000000000000001A /* SettingsView.swift */; };
 		AA000005000000000000001A /* HomeVoiceInterfaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000006000000000000001A /* HomeVoiceInterfaceView.swift */; };
+		AA000007000000000000001A /* SearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000008000000000000001A /* SearchView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -70,6 +71,7 @@
 		AA000002000000000000001A /* DesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystem.swift; sourceTree = "<group>"; };
 		AA000004000000000000001A /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		AA000006000000000000001A /* HomeVoiceInterfaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeVoiceInterfaceView.swift; sourceTree = "<group>"; };
+		AA000008000000000000001A /* SearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -109,6 +111,7 @@
 				F3D9E4A52F74CF5C00DA9A5A /* ContentView.swift */,
 				AA000002000000000000001A /* DesignSystem.swift */,
 				AA000006000000000000001A /* HomeVoiceInterfaceView.swift */,
+				AA000008000000000000001A /* SearchView.swift */,
 				BF1CC5EA265049FBB8EE3A58 /* Localization.swift */,
 				F3D9E4A62F74CF5C00DA9A5A /* LoginView.swift */,
 				F3D9E4A72F74CF5C00DA9A5A /* MainTabView.swift */,
@@ -301,6 +304,7 @@
 				AA000001000000000000001A /* DesignSystem.swift in Sources */,
 				AA000003000000000000001A /* SettingsView.swift in Sources */,
 				AA000005000000000000001A /* HomeVoiceInterfaceView.swift in Sources */,
+				AA000007000000000000001A /* SearchView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

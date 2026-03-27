@@ -14,6 +14,7 @@ struct PlannerView: View {
     @State private var editingTaskId: UUID?
     @State private var selectedDate: Date = Calendar.current.startOfDay(for: Date())
     @State private var isCalendarPresented: Bool = false
+    @State private var showSearch: Bool = false
 
     private let calendar = Calendar.current
 
@@ -24,20 +25,14 @@ struct PlannerView: View {
         let f = DateFormatter(); f.dateFormat = "d"; return f
     }()
 
-    /// 선택된 날짜와 같은 날의 약속만 반환
+    /// 선택된 날짜와 같은 날의 약속만 반환 (반복 일정 포함)
     private var filteredAppointments: [AppTask] {
-        appointments.filter { task in
-            guard let taskDate = task.date else { return false }
-            return calendar.isDate(taskDate, inSameDayAs: selectedDate)
-        }
+        appointments.filter { $0.occursOn(selectedDate) }
     }
 
     /// 특정 날짜에 이벤트가 있는지 확인 (배지 표시용)
     private func hasEvents(on date: Date) -> Bool {
-        appointments.contains { task in
-            guard let taskDate = task.date else { return false }
-            return calendar.isDate(taskDate, inSameDayAs: date)
-        }
+        appointments.contains { $0.occursOn(date) }
     }
 
     var body: some View {
@@ -55,6 +50,15 @@ struct PlannerView: View {
                             .tracking(-0.5)
 
                         Spacer()
+
+                        Button(action: { showSearch = true }) {
+                            Image(systemName: "magnifyingglass")
+                                .font(.system(size: 20, weight: .light))
+                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.4))
+                                .padding(8)
+                                .contentShape(Circle())
+                        }
+                        .buttonStyle(NoEffectButtonStyle())
 
                         Button(action: { isCalendarPresented.toggle() }) {
                             Image(systemName: "calendar")
@@ -144,6 +148,12 @@ struct PlannerView: View {
             // colorScheme follows system setting for dark mode support
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
+        }
+        .sheet(isPresented: $showSearch) {
+            SearchView { date in
+                // 검색 결과에서 Appointment 선택 시 해당 날짜로 이동
+                selectedDate = Calendar.current.startOfDay(for: date)
+            }
         }
     }
 
@@ -305,18 +315,32 @@ struct EventCard: View {
                     .submitLabel(.done)
                     .onSubmit { finishEditing() }
             } else {
-                Text(task.time ?? "")
-                    .font(DesignSystem.Typography.labelSm)
-                    .tracking(0.3)
-                    .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(task.isCompleted ? 0.3 : 0.6))
-                    .frame(width: 64, alignment: .leading)
+                HStack(spacing: 4) {
+                    Text(task.time ?? "")
+                        .font(DesignSystem.Typography.labelSm)
+                        .tracking(0.3)
+                        .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(task.isCompleted ? 0.3 : 0.6))
+                    if task.isRecurring {
+                        Image(systemName: "repeat")
+                            .font(.system(size: 10))
+                            .foregroundColor(DesignSystem.Colors.primary.opacity(0.5))
+                    }
+                }
+                .frame(width: task.isRecurring ? 80 : 64, alignment: .leading)
 
-                Text(task.task)
-                    .font(DesignSystem.Typography.bodyMd)
-                    .strikethrough(task.isCompleted, color: DesignSystem.Colors.onSurfaceVariant)
-                    .foregroundColor(task.isCompleted
-                        ? DesignSystem.Colors.onSurfaceVariant.opacity(0.4)
-                        : DesignSystem.Colors.onSurfaceVariant)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(task.task)
+                        .font(DesignSystem.Typography.bodyMd)
+                        .strikethrough(task.isCompleted, color: DesignSystem.Colors.onSurfaceVariant)
+                        .foregroundColor(task.isCompleted
+                            ? DesignSystem.Colors.onSurfaceVariant.opacity(0.4)
+                            : DesignSystem.Colors.onSurfaceVariant)
+                    if let label = task.recurrenceLabel {
+                        Text(label)
+                            .font(.system(size: 11))
+                            .foregroundColor(DesignSystem.Colors.primary.opacity(0.5))
+                    }
+                }
             }
 
             Spacer()

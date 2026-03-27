@@ -56,6 +56,12 @@ struct Strings {
 
     // Network
     var network: NetworkStrings { NetworkStrings() }
+
+    // Search
+    var search: SearchStrings { SearchStrings() }
+
+    // Recurrence
+    var recurrence: RecurrenceStrings { RecurrenceStrings() }
 }
 
 struct SettingsStrings {
@@ -167,4 +173,20 @@ struct LoginStrings {
 // MARK: - Network Strings
 struct NetworkStrings {
     var backOnline: String { t("Back online ✓", "온라인 복구 ✓", "オンライン復帰 ✓") }
+}
+
+// MARK: - Recurrence Strings
+struct RecurrenceStrings {
+    var weekly: String { t("Weekly", "매주", "毎週") }
+    var biweekly: String { t("Biweekly", "격주", "隔週") }
+    var monthly: String { t("Monthly", "매월", "毎月") }
+    var yearly: String { t("Yearly", "매년", "毎年") }
+}
+
+// MARK: - Search Strings
+struct SearchStrings {
+    var title: String { t("Search", "검색", "検索") }
+    var placeholder: String { t("Search tasks...", "할 일 검색...", "タスクを検索...") }
+    var noResults: String { t("No results found", "검색 결과 없음", "結果が見つかりません") }
+    var hint: String { t("Search your routines and plans", "루틴과 일정을 검색하세요", "ルーティンと予定を検索") }
 }

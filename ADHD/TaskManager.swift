@@ -14,6 +14,7 @@ struct ParsedTask: Codable, Identifiable {
     let category: String           // "Routine" or "Appointment"
     var isCompleted: Bool = false
     var action: String? = "add"    // add, delete, update
+    var recurrence: String?        // "weekly" | "biweekly" | "monthly" | "yearly" | nil
 
     enum CodingKeys: String, CodingKey {
         case task
@@ -21,6 +22,7 @@ struct ParsedTask: Codable, Identifiable {
         case date
         case category
         case action
+        case recurrence
     }
 
     /// "yyyy-MM-dd" 문자열 → Date 변환을 포함한 커스텀 디코딩
@@ -37,15 +39,24 @@ struct ParsedTask: Codable, Identifiable {
         } else {
             self.date = nil
         }
+
+        // recurrence 검증: 허용된 값만 통과
+        if let rec = try container.decodeIfPresent(String.self, forKey: .recurrence),
+           ["weekly", "biweekly", "monthly", "yearly"].contains(rec) {
+            self.recurrence = rec
+        } else {
+            self.recurrence = nil
+        }
     }
 
     /// 코드 내 직접 생성용 이니셜라이저
-    init(task: String, time: String? = nil, date: Date? = nil, category: String, action: String? = "add") {
+    init(task: String, time: String? = nil, date: Date? = nil, category: String, action: String? = "add", recurrence: String? = nil) {
         self.task = task
         self.time = time
         self.date = date
         self.category = category
         self.action = action
+        self.recurrence = recurrence
     }
 
     private static let dateFormatter: DateFormatter = {
@@ -62,7 +73,7 @@ struct ParsedTask: Codable, Identifiable {
 struct UndoableAction {
     enum ActionType {
         case added([AppTask])
-        case deleted([(task: String, time: String?, date: Date?, category: String)])
+        case deleted([(task: String, time: String?, date: Date?, category: String, recurrenceRule: String?)])
         case toggled(AppTask, Bool) // task, previousState
     }
     let type: ActionType
@@ -99,7 +110,7 @@ class TaskManager: ObservableObject {
     /// 배치 처리: 모든 intent를 처리한 뒤 단일 save 호출
     func process(intents: [ParsedTask]) {
         var addedTasks: [AppTask] = []
-        var deletedSnapshots: [(task: String, time: String?, date: Date?, category: String)] = []
+        var deletedSnapshots: [(task: String, time: String?, date: Date?, category: String, recurrenceRule: String?)] = []
 
         for intent in intents {
             let action = intent.action ?? "add"
@@ -144,7 +155,7 @@ class TaskManager: ObservableObject {
     // MARK: - Delete (by reference)
     func delete(task: AppTask) {
         guard let context = modelContext else { return }
-        let snapshot = (task: task.task, time: task.time, date: task.date, category: task.category)
+        let snapshot = (task: task.task, time: task.time, date: task.date, category: task.category, recurrenceRule: task.recurrenceRule)
         NotificationManager.shared.cancelNotification(for: task)
         context.delete(task)
         safeSave()
@@ -170,7 +181,8 @@ class TaskManager: ObservableObject {
                     task: snapshot.task,
                     time: snapshot.time,
                     date: snapshot.date,
-                    category: snapshot.category
+                    category: snapshot.category,
+                    recurrenceRule: snapshot.recurrenceRule
                 )
                 insertBatch(restored)
                 NotificationManager.shared.scheduleNotification(for: restored)
@@ -250,10 +262,10 @@ class TaskManager: ObservableObject {
     /// 이름 기반 AppTask 삭제 (배치, save 호출 안함)
     /// 매칭 전략: 정확 매칭 > 태스크명에 검색어 포함 (단, 검색어 2글자 이상일 때만)
     /// 기존 양방향 contains 제거 — "a"가 모든 태스크를 삭제하는 문제 해결
-    private func deleteByNameBatch(containing name: String) -> [(task: String, time: String?, date: Date?, category: String)] {
+    private func deleteByNameBatch(containing name: String) -> [(task: String, time: String?, date: Date?, category: String, recurrenceRule: String?)] {
         guard let context = modelContext else { return [] }
         let descriptor = FetchDescriptor<AppTask>()
-        var deleted: [(task: String, time: String?, date: Date?, category: String)] = []
+        var deleted: [(task: String, time: String?, date: Date?, category: String, recurrenceRule: String?)] = []
 
         let query = name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard query.count >= 2 else { return [] } // 1글자 검색어는 무시 (안전장치)
@@ -270,7 +282,7 @@ class TaskManager: ObservableObject {
             }
 
             for item in matched {
-                deleted.append((task: item.task, time: item.time, date: item.date, category: item.category))
+                deleted.append((task: item.task, time: item.time, date: item.date, category: item.category, recurrenceRule: item.recurrenceRule))
                 NotificationManager.shared.cancelNotification(for: item)
                 context.delete(item)
             }

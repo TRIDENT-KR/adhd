@@ -13,11 +13,11 @@ struct RoutineView: View {
            sort: \.time)
     private var allAppointments: [AppTask]
 
-    /// 오늘 날짜의 Appointment만 반환 (PlannerView와 데이터 분리), 시간순 정렬
+    /// 오늘 날짜의 Appointment만 반환 (반복 일정 포함), 시간순 정렬
     private var todayAppointments: [AppTask] {
-        let cal = Calendar.current
+        let today = Date()
         return allAppointments
-            .filter { $0.date == nil || cal.isDateInToday($0.date!) }
+            .filter { $0.occursOn(today) }
             .sorted { $0.sortableTime < $1.sortableTime }
     }
 
@@ -32,6 +32,7 @@ struct RoutineView: View {
     @Binding var activeTab: TabSelection
     @State private var editingTaskId: UUID?
     @State private var selectedSection: RoutineSection = .routines
+    @State private var showSearch = false
 
     enum RoutineSection: CaseIterable {
         case routines, tasks
@@ -54,14 +55,25 @@ struct RoutineView: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 48) {
 
-                    // 제목
-                    Text(L.routineTitle)
-                        .onAppear { setupVoiceEditCallback() }
-                        .font(DesignSystem.Typography.displayLg)
-                        .foregroundColor(DesignSystem.Colors.primary)
-                        .tracking(-0.5)
-                        .padding(.top, 16)
-                        .padding(.horizontal, 32)
+                    // 제목 + 검색 버튼
+                    HStack {
+                        Text(L.routineTitle)
+                            .onAppear { setupVoiceEditCallback() }
+                            .font(DesignSystem.Typography.displayLg)
+                            .foregroundColor(DesignSystem.Colors.primary)
+                            .tracking(-0.5)
+                        Spacer()
+                        Button(action: { showSearch = true }) {
+                            Image(systemName: "magnifyingglass")
+                                .font(.system(size: 20, weight: .light))
+                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.4))
+                                .padding(12)
+                                .contentShape(Circle())
+                        }
+                        .buttonStyle(NoEffectButtonStyle())
+                    }
+                    .padding(.top, 16)
+                    .padding(.horizontal, 32)
 
                     // 섹션 토글 (Zero Clutter: 한 번에 하나의 섹션만 표시)
                     HStack(spacing: 12) {
@@ -135,6 +147,9 @@ struct RoutineView: View {
                 }
             }
             .ignoresSafeArea(edges: .bottom)
+        }
+        .sheet(isPresented: $showSearch) {
+            SearchView()
         }
     }
 
@@ -296,9 +311,18 @@ struct TaskRow: View {
                         )
 
                     if let time = task.time, !time.isEmpty {
-                        Text(time)
-                            .font(DesignSystem.Typography.labelSm)
-                            .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.4))
+                        HStack(spacing: 4) {
+                            Text(time)
+                                .font(DesignSystem.Typography.labelSm)
+                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.4))
+                            if let label = task.recurrenceLabel {
+                                Image(systemName: "repeat")
+                                    .font(.system(size: 9))
+                                Text(label)
+                                    .font(.system(size: 11))
+                            }
+                        }
+                        .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.4))
                     }
                 }
             }
