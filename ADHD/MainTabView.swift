@@ -1,10 +1,9 @@
 import SwiftUI
 
 struct MainTabView: View {
-    @State var activeTab: TabSelection = .planner
+    @State var activeTab: TabSelection = .voice
     @EnvironmentObject private var networkMonitor: NetworkMonitor
     @EnvironmentObject private var taskManager: TaskManager
-    @AppStorage("appLanguage") private var appLanguage: String = "en"
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -31,17 +30,23 @@ struct MainTabView: View {
                 .accessibilityElement(children: .contain)
                 .accessibilityLabel(L.voice.a11yTabBar)
         }
-        .id(appLanguage)
-        // 4. 오프라인 배너
+        // 4. 오프라인 / Back Online 배너
         .overlay(alignment: .top) {
             if networkMonitor.isOfflineBannerVisible {
                 OfflineBanner()
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            } else if networkMonitor.isBackOnlineBannerVisible {
+                BackOnlineBanner()
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
         .animation(
             .spring(response: 0.4, dampingFraction: 0.75),
             value: networkMonitor.isOfflineBannerVisible
+        )
+        .animation(
+            .spring(response: 0.4, dampingFraction: 0.75),
+            value: networkMonitor.isBackOnlineBannerVisible
         )
         // 5. Undo 스낵바
         .overlay(alignment: .bottom) {
@@ -117,6 +122,27 @@ private struct OfflineBanner: View {
         )
         .padding(.horizontal, 24)
         .padding(.top, 56) // 노치/Dynamic Island 회피
+    }
+}
+
+// MARK: - Back Online Banner
+private struct BackOnlineBanner: View {
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "wifi")
+                .font(.system(size: 14, weight: .semibold))
+            Text(L.network.backOnline)
+                .font(DesignSystem.Typography.labelSm)
+        }
+        .foregroundColor(.white)
+        .padding(.horizontal, 20)
+        .padding(.vertical, 12)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(DesignSystem.Colors.tertiary.opacity(0.92))
+        )
+        .padding(.horizontal, 24)
+        .padding(.top, 56)
     }
 }
 

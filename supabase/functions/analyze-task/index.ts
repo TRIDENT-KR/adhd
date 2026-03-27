@@ -1,3 +1,4 @@
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
 
@@ -14,6 +15,22 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
+    // JWT 인증 검증 (#30)
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: 'Missing authorization header' }), { headers, status: 401 });
+    }
+
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), { headers, status: 401 });
+    }
+
     const { text } = await req.json();
     if (!text) throw new Error("음성 텍스트가 없습니다.");
 
@@ -23,7 +40,7 @@ Deno.serve(async (req: Request) => {
 Users may change their minds mid-sentence, repeat themselves, or provide multiple instructions at once.
 
 Your task is to extract a list of actions in JSON array format.
-Each object must have these 4 keys:
+Each object must have these 6 keys:
 
 1. "action": One of ["add", "delete", "update"].
 
@@ -33,54 +50,93 @@ Each object must have these 4 keys:
    - Use null for vague expressions: "later", "sometime", "tonight", "eventually", "after work", "whenever", "this afternoon".
    - TIME RANGE rule: "from X to Y" → extract ONE item with the START time only. Never split a range into two items.
 
-4. "category": Use "Routine" or "Appointment" — check rules in this exact order:
-   RULE 1 — Explicit recurrence → "Routine": user says "every day", "daily", "always", "every morning", "recurring", or calls it a "routine".
-   RULE 2 — Explicit one-time anchor → "Appointment": user says "tomorrow", "this Friday", "next week", a specific date, "for now", "just add [it]". A task phrased as a one-time immediate action is always "Appointment".
-   RULE 3 — Ambiguous (no explicit signal) → classify by task nature:
+4. "date": Date in "yyyy-MM-dd" format (ISO 8601 date only).
+   - Use TODAY's date (provided below) when: no date mentioned, "today", or immediate actions.
+   - Calculate relative dates: "tomorrow" = today + 1, "day after tomorrow" = today + 2.
+   - Parse weekday references relative to today: "this Friday", "next Monday", etc.
+   - Parse specific dates: "March 15", "3/15", "15일" etc.
+   - For recurring Routines (daily habits), use null (they repeat daily and have no fixed date).
+   - For recurring Appointments (weekly/monthly/yearly), set date to the NEXT occurrence from today.
+
+   TODAY's date is: {{TODAY}}
+
+5. "category": Use "Routine" or "Appointment" — check rules in this exact order:
+   RULE 1 — Daily recurrence → "Routine": user says "every day", "daily", "always", "every morning", or calls it a "routine".
+   RULE 2 — Non-daily recurrence → "Appointment" with recurrence: user says "every Monday", "every week", "every month", "every year", "biweekly". These are recurring Appointments, NOT Routines.
+   RULE 3 — Explicit one-time anchor → "Appointment": user says "tomorrow", "this Friday", "next week", a specific date, "for now", "just add [it]". A task phrased as a one-time immediate action is always "Appointment".
+   RULE 4 — Ambiguous (no explicit signal) → classify by task nature:
      - "Routine": pure personal physical habits — exercise, sleep, hygiene, regular mealtimes.
      - "Appointment": everything else — errands, payments, calls, emails, work tasks, social events, shopping. When in doubt, default to "Appointment".
 
+6. "recurrence": Repeat schedule for recurring appointments. One of ["weekly", "biweekly", "monthly", "yearly"] or null.
+   - "weekly": "every Monday", "every week", "weekly", "매주", "毎週"
+   - "biweekly": "every other week", "every two weeks", "격주", "隔週"
+   - "monthly": "every month", "monthly", "매월", "毎月"
+   - "yearly": "every year", "annually", "매년", "毎年"
+   - null: one-time events AND daily Routines (Routines already repeat daily by nature, so recurrence is null).
+
 SPECIAL RULES:
-RULE 4 — Return [] (empty array) when:
+RULE 5 — Return [] (empty array) when:
    a) User reports a completion or status ("I finished X", "I completed Y", "I did Z today") with no add/delete/update request.
    b) User requests a bulk operation on unnamed existing tasks ("move all my routines", "push everything earlier"). You don't have the existing list, so return [].
 
-RULE 5 — Explicit cancellation (last valid instruction wins):
+RULE 6 — Explicit cancellation (last valid instruction wins):
    If a user says "add X — actually no, cancel that — add Y instead", extract ONLY the final confirmed instruction. Drop all explicitly cancelled items.
 
-RULE 6 — Deduplication:
+RULE 7 — Deduplication:
    If the user repeats or re-emphasizes the same task multiple times, extract it exactly ONCE.
 
 --- EXAMPLES ---
 
 Input: "Add a 5 AM jog — actually no, cancel that. Make it a 7 AM walk every day."
-Output: [{"action":"add","task":"Morning Walk","time":"07:00 AM","category":"Routine"}]
+Output: [{"action":"add","task":"Morning Walk","time":"07:00 AM","date":null,"category":"Routine","recurrence":null}]
+
+Input: "Meeting tomorrow at 3 PM"
+Output: [{"action":"add","task":"Meeting","time":"03:00 PM","date":"{{TOMORROW}}","category":"Appointment","recurrence":null}]
 
 Input: "Block 'Deep Work' from 6 AM to 10 PM. And add a 9 PM wind-down routine every night."
 Output: [
-  {"action":"add","task":"Deep Work","time":"06:00 AM","category":"Appointment"},
-  {"action":"add","task":"Wind-down","time":"09:00 PM","category":"Routine"}
+  {"action":"add","task":"Deep Work","time":"06:00 AM","date":"{{TODAY}}","category":"Appointment","recurrence":null},
+  {"action":"add","task":"Wind-down","time":"09:00 PM","date":null,"category":"Routine","recurrence":null}
 ]
 
 Input: "I need to pay the rent, buy groceries, and start a daily journaling habit. Add all."
 Output: [
-  {"action":"add","task":"Pay rent","time":null,"category":"Appointment"},
-  {"action":"add","task":"Buy groceries","time":null,"category":"Appointment"},
-  {"action":"add","task":"Daily journaling","time":null,"category":"Routine"}
+  {"action":"add","task":"Pay rent","time":null,"date":"{{TODAY}}","category":"Appointment","recurrence":null},
+  {"action":"add","task":"Buy groceries","time":null,"date":"{{TODAY}}","category":"Appointment","recurrence":null},
+  {"action":"add","task":"Daily journaling","time":null,"date":null,"category":"Routine","recurrence":null}
 ]
+
+Input: "Team standup every Monday at 10 AM"
+Output: [{"action":"add","task":"Team standup","time":"10:00 AM","date":"{{NEXT_MONDAY}}","category":"Appointment","recurrence":"weekly"}]
+
+Input: "Dentist appointment every 6 months — actually make it monthly"
+Output: [{"action":"add","task":"Dentist","time":null,"date":"{{TODAY}}","category":"Appointment","recurrence":"monthly"}]
 
 Input: "Just finished my morning run! Feeling great."
 Output: []
 
 Input: "Move all my morning routines to the afternoon."
 Output: []`;
+
+    // 날짜 계산: 프롬프트에 오늘/내일 날짜 삽입
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0]; // "yyyy-MM-dd"
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowStr = tomorrow.toISOString().split('T')[0];
+
+    const finalPrompt = systemInstruction
+      .replaceAll("{{TODAY}}", todayStr)
+      .replaceAll("{{TOMORROW}}", tomorrowStr);
+
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          system_instruction: { parts: [{ text: systemInstruction }] },
+          system_instruction: { parts: [{ text: finalPrompt }] },
           contents: [{ role: 'user', parts: [{ text }] }],
           generationConfig: { 
             response_mime_type: 'application/json', 
@@ -130,6 +186,20 @@ Output: []`;
       // action이 누락되었을 경우 기본값 'add'로 설정
       if (!item.action) {
         item.action = 'add';
+      }
+
+      // date 검증: yyyy-MM-dd 형식이 아니거나 빈 문자열이면 null로 정리
+      if (item.date && !/^\d{4}-\d{2}-\d{2}$/.test(item.date)) {
+        item.date = null;
+      }
+
+      // recurrence 검증: 허용된 값만 통과, 나머지 null
+      const validRecurrence = ['weekly', 'biweekly', 'monthly', 'yearly'];
+      if (item.recurrence && !validRecurrence.includes(item.recurrence)) {
+        item.recurrence = null;
+      }
+      if (!item.recurrence) {
+        item.recurrence = null;
       }
 
       return item;

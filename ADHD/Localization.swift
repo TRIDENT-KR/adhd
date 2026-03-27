@@ -50,6 +50,18 @@ struct Strings {
 
     // Settings
     var settings: SettingsStrings { SettingsStrings() }
+
+    // Login
+    var login: LoginStrings { LoginStrings() }
+
+    // Network
+    var network: NetworkStrings { NetworkStrings() }
+
+    // Search
+    var search: SearchStrings { SearchStrings() }
+
+    // Recurrence
+    var recurrence: RecurrenceStrings { RecurrenceStrings() }
 }
 
 struct SettingsStrings {
@@ -69,6 +81,8 @@ struct SettingsStrings {
     var dataManagement: String { t("Data Management", "데이터 관리", "データ管理") }
     var clearCompleted: String { t("Clear Completed Tasks", "완료된 태스크 삭제", "完了タスクを削除") }
     var clearAll: String { t("Clear All Data", "전체 데이터 삭제", "全データ削除") }
+    var routineNotifTitle: String { t("🔔 Routine Reminder", "🔔 루틴 알림", "🔔 ルーティン通知") }
+    var appointmentNotifTitle: String { t("📅 Appointment Reminder", "📅 일정 알림", "📅 予定通知") }
     var about: String { t("About", "앱 정보", "アプリ情報") }
     var version: String { t("Version", "버전", "バージョン") }
     var privacyPolicy: String { t("Privacy Policy", "개인정보 처리방침", "プライバシーポリシー") }
@@ -132,6 +146,13 @@ struct VoiceStrings {
     var undoCompleted: String { t("Marked as done", "완료 처리됨", "完了にしました") }
     var undoUncompleted: String { t("Marked as not done", "미완료 처리됨", "未完了にしました") }
 
+    // Text input
+    var textInputPlaceholder: String { t("Type a task...", "할 일을 입력...", "タスクを入力...") }
+    var textInputSend: String { t("Send", "전송", "送信") }
+
+    // Confirmation card - remove single item
+    var confirmRemoveItem: String { t("Remove", "제거", "削除") }
+
     // Accessibility
     var a11yStartRecording: String { t("Start recording", "녹음 시작", "録音開始") }
     var a11yStopRecording: String { t("Stop recording", "녹음 중지", "録音停止") }
@@ -139,4 +160,33 @@ struct VoiceStrings {
     var a11yHoldHint: String { t("Press and hold to record, release to send", "길게 눌러 녹음하고, 떼면 전송됩니다", "長押しで録音、離すと送信") }
     var a11yTabBar: String { t("Tab navigation", "탭 내비게이션", "タブナビゲーション") }
     var a11yUndo: String { t("Undo last action", "마지막 작업 되돌리기", "最後の操作を元に戻す") }
+}
+
+// MARK: - Login Strings
+struct LoginStrings {
+    var subtitle: String { t("Your AI thoughts companion.", "당신의 AI 생각 도우미.", "あなたのAI思考パートナー。") }
+    var tosPrefix: String { t("By signing in, you agree to our ", "로그인하면 ", "サインインすると") }
+    var tosLink: String { t("Terms of Service", "이용약관", "利用規約") }
+    var tosSuffix: String { t(".", "에 동의합니다.", "に同意したことになります。") }
+}
+
+// MARK: - Network Strings
+struct NetworkStrings {
+    var backOnline: String { t("Back online ✓", "온라인 복구 ✓", "オンライン復帰 ✓") }
+}
+
+// MARK: - Recurrence Strings
+struct RecurrenceStrings {
+    var weekly: String { t("Weekly", "매주", "毎週") }
+    var biweekly: String { t("Biweekly", "격주", "隔週") }
+    var monthly: String { t("Monthly", "매월", "毎月") }
+    var yearly: String { t("Yearly", "매년", "毎年") }
+}
+
+// MARK: - Search Strings
+struct SearchStrings {
+    var title: String { t("Search", "검색", "検索") }
+    var placeholder: String { t("Search tasks...", "할 일 검색...", "タスクを検索...") }
+    var noResults: String { t("No results found", "검색 결과 없음", "結果が見つかりません") }
+    var hint: String { t("Search your routines and plans", "루틴과 일정을 검색하세요", "ルーティンと予定を検索") }
 }

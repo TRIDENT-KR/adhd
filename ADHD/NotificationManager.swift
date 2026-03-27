@@ -80,22 +80,44 @@ final class NotificationManager {
         guard fireDate > Date() else { return }
 
         let content = UNMutableNotificationContent()
-        content.title  = task.category == "Routine" ? "🔔 루틴 알림" : "📅 일정 알림"
+        content.title  = task.category == "Routine" ? L.settings.routineNotifTitle : L.settings.appointmentNotifTitle
         content.body   = task.task
         content.sound  = soundEnabled ? .default : nil
 
-        var components = Calendar.current.dateComponents(
-            [.year, .month, .day, .hour, .minute],
-            from: fireDate
-        )
-        // date가 없으면 매일 반복하는 루틴처럼 동작
-        if task.date == nil {
+        // 반복 규칙에 따라 DateComponents 및 repeats 설정
+        let components: DateComponents
+        let repeats: Bool
+
+        if let rule = task.recurrenceRule {
+            // 반복 일정: 규칙에 맞는 DateComponents 구성
+            switch rule {
+            case "weekly", "biweekly":
+                // weekly: 요일 + 시분으로 매주 반복 (biweekly는 iOS가 2주 간격을 지원하지 않으므로 weekly로 등록)
+                components = Calendar.current.dateComponents([.weekday, .hour, .minute], from: fireDate)
+                repeats = true
+            case "monthly":
+                components = Calendar.current.dateComponents([.day, .hour, .minute], from: fireDate)
+                repeats = true
+            case "yearly":
+                components = Calendar.current.dateComponents([.month, .day, .hour, .minute], from: fireDate)
+                repeats = true
+            default:
+                components = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: fireDate)
+                repeats = false
+            }
+        } else if task.date == nil {
+            // date가 없으면 매일 반복하는 루틴
             components = Calendar.current.dateComponents([.hour, .minute], from: fireDate)
+            repeats = true
+        } else {
+            // 일회성 Appointment
+            components = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: fireDate)
+            repeats = false
         }
 
         let trigger = UNCalendarNotificationTrigger(
             dateMatching: components,
-            repeats: task.date == nil   // date 없는 루틴은 매일 반복
+            repeats: repeats
         )
 
         let request = UNNotificationRequest(

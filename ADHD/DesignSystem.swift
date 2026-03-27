@@ -113,6 +113,26 @@ extension String {
     }
 }
 
+// MARK: - Haptic Manager
+/// hapticEnabled 설정을 존중하는 햅틱 피드백 래퍼
+struct Haptic {
+    private static var isEnabled: Bool {
+        UserDefaults.standard.object(forKey: "hapticEnabled") == nil
+            ? true  // 기본값: 활성화
+            : UserDefaults.standard.bool(forKey: "hapticEnabled")
+    }
+
+    static func impact(_ style: UIImpactFeedbackGenerator.FeedbackStyle) {
+        guard isEnabled else { return }
+        UIImpactFeedbackGenerator(style: style).impactOccurred()
+    }
+
+    static func notification(_ type: UINotificationFeedbackGenerator.FeedbackType) {
+        guard isEnabled else { return }
+        UINotificationFeedbackGenerator().notificationOccurred(type)
+    }
+}
+
 // MARK: - UIColor convenience for RGB bytes
 extension UIColor {
     convenience init(r: UInt8, g: UInt8, b: UInt8) {

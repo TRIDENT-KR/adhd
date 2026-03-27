@@ -13,7 +13,8 @@ struct ParsedTask: Codable, Identifiable {
     var date: Date?
     let category: String           // "Routine" or "Appointment"
     var isCompleted: Bool = false
-    var action: String? = "add"    // main 브랜치 추가: add, delete, update
+    var action: String? = "add"    // add, delete, update
+    var recurrence: String?        // "weekly" | "biweekly" | "monthly" | "yearly" | nil
 
     enum CodingKeys: String, CodingKey {
         case task
@@ -21,7 +22,50 @@ struct ParsedTask: Codable, Identifiable {
         case date
         case category
         case action
+        case recurrence
     }
+
+    /// "yyyy-MM-dd" 문자열 → Date 변환을 포함한 커스텀 디코딩
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.task = try container.decode(String.self, forKey: .task)
+        self.time = try container.decodeIfPresent(String.self, forKey: .time)
+        self.category = try container.decode(String.self, forKey: .category)
+        self.action = try container.decodeIfPresent(String.self, forKey: .action) ?? "add"
+
+        // date: "yyyy-MM-dd" 문자열을 Date로 변환
+        if let dateString = try container.decodeIfPresent(String.self, forKey: .date) {
+            self.date = Self.dateFormatter.date(from: dateString)
+        } else {
+            self.date = nil
+        }
+
+        // recurrence 검증: 허용된 값만 통과
+        if let rec = try container.decodeIfPresent(String.self, forKey: .recurrence),
+           ["weekly", "biweekly", "monthly", "yearly"].contains(rec) {
+            self.recurrence = rec
+        } else {
+            self.recurrence = nil
+        }
+    }
+
+    /// 코드 내 직접 생성용 이니셜라이저
+    init(task: String, time: String? = nil, date: Date? = nil, category: String, action: String? = "add", recurrence: String? = nil) {
+        self.task = task
+        self.time = time
+        self.date = date
+        self.category = category
+        self.action = action
+        self.recurrence = recurrence
+    }
+
+    private static let dateFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = .current
+        return f
+    }()
 }
 
 // MARK: - Undo Action
@@ -29,10 +73,11 @@ struct ParsedTask: Codable, Identifiable {
 struct UndoableAction {
     enum ActionType {
         case added([AppTask])
-        case deleted([(task: String, time: String?, date: Date?, category: String)])
+        case deleted([(task: String, time: String?, date: Date?, category: String, recurrenceRule: String?)])
         case toggled(AppTask, Bool) // task, previousState
     }
     let type: ActionType
+    let message: String
     let timestamp: Date = Date()
 }
 
@@ -44,10 +89,12 @@ class TaskManager: ObservableObject {
     // 외부에서 ModelContext를 주입하기 위한 저장소
     private var modelContext: ModelContext?
 
-    // Undo 지원
-    @Published var lastUndoableAction: UndoableAction?
+    // Undo 지원 (스택 기반 — 최대 10단계)
+    private var undoStack: [UndoableAction] = []
+    private static let maxUndoDepth = 10
     @Published var showUndoSnackbar = false
     @Published var undoSnackbarMessage = ""
+    private var undoDismissWorkItem: DispatchWorkItem?
 
     /// App.swift에서 modelContext를 주입합니다.
     func configure(context: ModelContext) {
@@ -63,7 +110,7 @@ class TaskManager: ObservableObject {
     /// 배치 처리: 모든 intent를 처리한 뒤 단일 save 호출
     func process(intents: [ParsedTask]) {
         var addedTasks: [AppTask] = []
-        var deletedSnapshots: [(task: String, time: String?, date: Date?, category: String)] = []
+        var deletedSnapshots: [(task: String, time: String?, date: Date?, category: String, recurrenceRule: String?)] = []
 
         for intent in intents {
             let action = intent.action ?? "add"
@@ -108,20 +155,19 @@ class TaskManager: ObservableObject {
     // MARK: - Delete (by reference)
     func delete(task: AppTask) {
         guard let context = modelContext else { return }
-        let snapshot = (task: task.task, time: task.time, date: task.date, category: task.category)
+        let snapshot = (task: task.task, time: task.time, date: task.date, category: task.category, recurrenceRule: task.recurrenceRule)
         NotificationManager.shared.cancelNotification(for: task)
         context.delete(task)
         safeSave()
         setUndoAction(.deleted([snapshot]), message: L.voice.undoDeletedSingle(task.task))
     }
 
-    // MARK: - Undo
+    // MARK: - Undo (스택 기반)
     func undo() {
-        guard let action = lastUndoableAction else { return }
+        guard let action = undoStack.popLast() else { return }
 
         switch action.type {
         case .added(let tasks):
-            // 추가된 태스크들 삭제
             guard let context = modelContext else { return }
             for task in tasks {
                 NotificationManager.shared.cancelNotification(for: task)
@@ -130,13 +176,13 @@ class TaskManager: ObservableObject {
             safeSave()
 
         case .deleted(let snapshots):
-            // 삭제된 태스크들 복원
             for snapshot in snapshots {
                 let restored = AppTask(
                     task: snapshot.task,
                     time: snapshot.time,
                     date: snapshot.date,
-                    category: snapshot.category
+                    category: snapshot.category,
+                    recurrenceRule: snapshot.recurrenceRule
                 )
                 insertBatch(restored)
                 NotificationManager.shared.scheduleNotification(for: restored)
@@ -148,9 +194,13 @@ class TaskManager: ObservableObject {
             safeSave()
         }
 
-        lastUndoableAction = nil
-        withAnimation(.easeOut(duration: 0.2)) {
-            showUndoSnackbar = false
+        // 스택에 남은 항목이 있으면 이전 메시지 표시, 없으면 숨김
+        if let prev = undoStack.last {
+            undoSnackbarMessage = prev.message
+        } else {
+            withAnimation(.easeOut(duration: 0.2)) {
+                showUndoSnackbar = false
+            }
         }
     }
 
@@ -185,33 +235,54 @@ class TaskManager: ObservableObject {
     // MARK: - Private Helpers
 
     private func setUndoAction(_ type: UndoableAction.ActionType, message: String) {
-        lastUndoableAction = UndoableAction(type: type)
+        let action = UndoableAction(type: type, message: message)
+        undoStack.append(action)
+        // 스택 크기 제한
+        if undoStack.count > Self.maxUndoDepth {
+            undoStack.removeFirst()
+        }
+
         undoSnackbarMessage = message
         withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
             showUndoSnackbar = true
         }
-        // 5초 후 자동 숨김
-        DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in
+
+        // 이전 타이머 취소 후 새 타이머 (경쟁 방지)
+        undoDismissWorkItem?.cancel()
+        let workItem = DispatchWorkItem { [weak self] in
             guard let self else { return }
             withAnimation(.easeOut(duration: 0.3)) {
                 self.showUndoSnackbar = false
             }
-            // 한 박자 뒤에 액션 삭제 (애니메이션 완료 후)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                self.lastUndoableAction = nil
-            }
         }
+        undoDismissWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5, execute: workItem)
     }
 
-    /// 이름이 포함된 AppTask를 SwiftData에서 모두 삭제 (배치, save 호출 안함)
-    private func deleteByNameBatch(containing name: String) -> [(task: String, time: String?, date: Date?, category: String)] {
+    /// 이름 기반 AppTask 삭제 (배치, save 호출 안함)
+    /// 매칭 전략: 정확 매칭 > 태스크명에 검색어 포함 (단, 검색어 2글자 이상일 때만)
+    /// 기존 양방향 contains 제거 — "a"가 모든 태스크를 삭제하는 문제 해결
+    private func deleteByNameBatch(containing name: String) -> [(task: String, time: String?, date: Date?, category: String, recurrenceRule: String?)] {
         guard let context = modelContext else { return [] }
         let descriptor = FetchDescriptor<AppTask>()
-        var deleted: [(task: String, time: String?, date: Date?, category: String)] = []
+        var deleted: [(task: String, time: String?, date: Date?, category: String, recurrenceRule: String?)] = []
+
+        let query = name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard query.count >= 2 else { return [] } // 1글자 검색어는 무시 (안전장치)
+
         do {
             let all = try context.fetch(descriptor)
-            for item in all where item.task.contains(name) || name.contains(item.task) {
-                deleted.append((task: item.task, time: item.time, date: item.date, category: item.category))
+
+            // 1차: 정확 매칭 (대소문자 무시)
+            var matched = all.filter { $0.task.lowercased() == query }
+
+            // 2차: 정확 매칭 없으면 → 태스크명에 검색어가 포함된 경우
+            if matched.isEmpty {
+                matched = all.filter { $0.task.lowercased().contains(query) }
+            }
+
+            for item in matched {
+                deleted.append((task: item.task, time: item.time, date: item.date, category: item.category, recurrenceRule: item.recurrenceRule))
                 NotificationManager.shared.cancelNotification(for: item)
                 context.delete(item)
             }

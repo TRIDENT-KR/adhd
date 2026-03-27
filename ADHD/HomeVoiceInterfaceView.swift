@@ -23,6 +23,11 @@ struct HomeVoiceInterfaceView: View {
     @State private var pendingTasks: [ParsedTask] = []
     @State private var showConfirmation = false
 
+    // Text input state
+    @State private var showTextInput = false
+    @State private var textInputValue = ""
+    @FocusState private var isTextInputFocused: Bool
+
     var body: some View {
         ZStack {
             DesignSystem.Colors.background
@@ -31,7 +36,22 @@ struct HomeVoiceInterfaceView: View {
             VStack {
                 // Top Bar
                 HStack {
+                    // 텍스트 입력 토글
+                    Button(action: {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            showTextInput.toggle()
+                            if showTextInput {
+                                isTextInputFocused = true
+                            }
+                        }
+                    }) {
+                        Image(systemName: showTextInput ? "mic.fill" : "keyboard")
+                            .font(.system(size: 20, weight: .medium))
+                            .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
+                    }
+
                     Spacer()
+
                     Button(action: { showSettings = true }) {
                         Image(systemName: "gearshape")
                             .font(.system(size: 20, weight: .medium))
@@ -42,6 +62,51 @@ struct HomeVoiceInterfaceView: View {
                 .padding(.horizontal, 24)
                 .padding(.top, 16)
 
+                if showTextInput {
+                    // ── 텍스트 입력 모드 ──
+                    Spacer()
+
+                    VStack(spacing: 20) {
+                        Image(systemName: "keyboard")
+                            .font(.system(size: 40))
+                            .foregroundColor(DesignSystem.Colors.primary.opacity(0.4))
+
+                        HStack(spacing: 12) {
+                            TextField(L.voice.textInputPlaceholder, text: $textInputValue)
+                                .font(.system(size: 16, weight: .medium))
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 14)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 14)
+                                        .fill(DesignSystem.Colors.surfaceContainerLow)
+                                )
+                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
+                                .focused($isTextInputFocused)
+                                .submitLabel(.send)
+                                .onSubmit { sendTextInput() }
+
+                            Button(action: { sendTextInput() }) {
+                                Image(systemName: "arrow.up.circle.fill")
+                                    .font(.system(size: 36))
+                                    .foregroundColor(textInputValue.trimmingCharacters(in: .whitespaces).isEmpty
+                                        ? DesignSystem.Colors.onSurfaceVariant.opacity(0.2)
+                                        : DesignSystem.Colors.primary)
+                            }
+                            .disabled(textInputValue.trimmingCharacters(in: .whitespaces).isEmpty || cloudLLM.isProcessing)
+                        }
+                        .padding(.horizontal, 24)
+
+                        if cloudLLM.isProcessing {
+                            Text(L.voiceAnalyzing)
+                                .font(DesignSystem.Typography.bodyMd)
+                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
+                        }
+                    }
+
+                    Spacer()
+                    Spacer(minLength: 120)
+                } else {
+                // ── 음성 입력 모드 (기존) ──
                 Spacer()
 
                 VStack(spacing: 32) {
@@ -90,9 +155,12 @@ struct HomeVoiceInterfaceView: View {
                         isBreathing = true
                         setupSpeechCallback()
                     }
-                    .task {
-                        // 1.5초 후 플레이스홀더 페이드 아웃 → 마이크 버튼만 남김 (Zero Clutter)
+                    .task(id: showPlaceholder) {
+                        // showPlaceholder가 true일 때만 1.5초 후 페이드 아웃
+                        guard showPlaceholder else { return }
                         try? await Task.sleep(nanoseconds: 1_500_000_000)
+                        // sleep 중 showPlaceholder가 false로 바뀌면 Task가 취소됨
+                        guard !Task.isCancelled else { return }
                         withAnimation(.easeOut(duration: 0.8)) {
                             showPlaceholder = false
                         }
@@ -173,12 +241,13 @@ struct HomeVoiceInterfaceView: View {
 
                 Spacer()
                 Spacer(minLength: 120)
+                } // end if-else showTextInput
             }
 
             // ── 확인 카드 오버레이 ──
             if showConfirmation {
                 ConfirmationCardOverlay(
-                    tasks: pendingTasks,
+                    tasks: $pendingTasks,
                     onConfirm: { confirmPendingTasks() },
                     onCancel: { cancelPendingTasks() }
                 )
@@ -283,7 +352,7 @@ struct HomeVoiceInterfaceView: View {
                 .simultaneousGesture(
                     LongPressGesture(minimumDuration: 1.5)
                         .onEnded { _ in
-                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                            Haptic.impact(.light)
                             showVoiceGuide = true
                         }
                 )
@@ -297,10 +366,50 @@ struct HomeVoiceInterfaceView: View {
             .simultaneousGesture(
                 LongPressGesture(minimumDuration: 0.5)
                     .onEnded { _ in
-                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        Haptic.impact(.light)
                         showVoiceGuide = true
                     }
             )
+        }
+    }
+
+    // MARK: - Text Input Handler
+    private func sendTextInput() {
+        let text = textInputValue.trimmingCharacters(in: .whitespaces)
+        guard !text.isEmpty else { return }
+
+        Haptic.impact(.medium)
+        textInputValue = ""
+        isTextInputFocused = false
+
+        Task {
+            do {
+                let parsedTasks = try await cloudLLM.analyzeText(text: text)
+                print("⌨️ 텍스트 입력 파싱 결과: \(parsedTasks)")
+
+                await MainActor.run {
+                    if confirmBeforeSave {
+                        pendingTasks = parsedTasks
+                        withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                            showConfirmation = true
+                        }
+                    } else {
+                        taskManager.process(intents: parsedTasks)
+                        showSuccessCheck = true
+                        Haptic.notification(.success)
+                    }
+                }
+
+                if !confirmBeforeSave {
+                    try? await Task.sleep(nanoseconds: 1_500_000_000)
+                    await MainActor.run { showSuccessCheck = false }
+                }
+            } catch {
+                print("❌ Text input API error: \(error.localizedDescription)")
+                await MainActor.run {
+                    triggerErrorFeedback(message: L.voice.errorApi)
+                }
+            }
         }
     }
 
@@ -311,7 +420,7 @@ struct HomeVoiceInterfaceView: View {
             return
         }
         showPlaceholder = true
-        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        Haptic.impact(.medium)
         voiceManager.toggleListening()
     }
 
@@ -323,7 +432,7 @@ struct HomeVoiceInterfaceView: View {
             pendingTasks = []
             showSuccessCheck = true
         }
-        UINotificationFeedbackGenerator().notificationOccurred(.success)
+        Haptic.notification(.success)
 
         Task {
             try? await Task.sleep(nanoseconds: 1_500_000_000)
@@ -369,7 +478,7 @@ struct HomeVoiceInterfaceView: View {
             }
         }
 
-        UINotificationFeedbackGenerator().notificationOccurred(.error)
+        Haptic.notification(.error)
 
         errorToastMessage = message
         withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
@@ -413,7 +522,7 @@ struct HomeVoiceInterfaceView: View {
                             // 바로 저장 (기존 동작)
                             taskManager.process(intents: parsedTasks)
                             showSuccessCheck = true
-                            UINotificationFeedbackGenerator().notificationOccurred(.success)
+                            Haptic.notification(.success)
                         }
                     }
 
@@ -445,7 +554,7 @@ struct HomeVoiceInterfaceView: View {
 
 // MARK: - Confirmation Card Overlay
 struct ConfirmationCardOverlay: View {
-    let tasks: [ParsedTask]
+    @Binding var tasks: [ParsedTask]
     let onConfirm: () -> Void
     let onCancel: () -> Void
 
@@ -492,6 +601,20 @@ struct ConfirmationCardOverlay: View {
                         }
 
                         Spacer()
+
+                        // 개별 항목 삭제 버튼
+                        if tasks.count > 1 {
+                            Button(action: {
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                    tasks.removeAll { $0.id == task.id }
+                                }
+                                Haptic.impact(.light)
+                            }) {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.system(size: 22))
+                                    .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.3))
+                            }
+                        }
                     }
                     .padding(.horizontal, 16)
                     .padding(.vertical, 14)

@@ -3,30 +3,30 @@ import AuthenticationServices
 
 struct LoginView: View {
     @EnvironmentObject var authManager: AuthManager
-    
+
     var body: some View {
         ZStack {
             // Warm paper background
             DesignSystem.Colors.background
                 .ignoresSafeArea()
-            
+
             VStack(spacing: 48) {
                 Spacer()
-                
+
                 // Minimalist Branding
                 VStack(spacing: 16) {
                     Text("WaitWhat")
                         .font(DesignSystem.Typography.displayLg)
                         .foregroundColor(DesignSystem.Colors.primary)
                         .tracking(-1.5)
-                    
-                    Text("Your AI thoughts companion.")
+
+                    Text(L.login.subtitle)
                         .font(DesignSystem.Typography.bodyMd)
                         .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
                 }
-                
+
                 Spacer()
-                
+
                 // Sign in with Apple Button
                 if authManager.isProcessing {
                     ProgressView()
@@ -39,14 +39,20 @@ struct LoginView: View {
                     }
                     .signInWithAppleButtonStyle(.black)
                     .frame(height: 56)
-                    .cornerRadius(28) // Rounded pill shape to match design system
+                    .cornerRadius(28)
                     .padding(.horizontal, 48)
                 }
-                
-                Text("By signing in, you agree to our Terms of Service.")
-                    .font(DesignSystem.Typography.labelSm)
-                    .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
-                    .padding(.bottom, 24)
+
+                // ToS with clickable link (#22)
+                HStack(spacing: 0) {
+                    Text(L.login.tosPrefix)
+                    Link(L.login.tosLink, destination: URL(string: "https://waitwhat.app/terms")!)
+                        .underline()
+                    Text(L.login.tosSuffix)
+                }
+                .font(DesignSystem.Typography.labelSm)
+                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
+                .padding(.bottom, 24)
             }
         }
     }

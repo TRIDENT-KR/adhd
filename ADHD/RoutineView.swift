@@ -3,15 +3,28 @@ import SwiftData
 
 struct RoutineView: View {
     // MARK: - SwiftData Queries
-    /// category == "Routine" 데이터만 필터링
+    /// category == "Routine" 데이터만 필터링 (날짜 무관, 매일 반복)
     @Query(filter: #Predicate<AppTask> { $0.category == "Routine" },
            sort: \.time)
     private var routines: [AppTask]
 
-    /// category == "Appointment" 데이터만 필터링
+    /// category == "Appointment" 데이터 (날짜 필터링은 computed property에서)
     @Query(filter: #Predicate<AppTask> { $0.category == "Appointment" },
            sort: \.time)
-    private var appointments: [AppTask]
+    private var allAppointments: [AppTask]
+
+    /// 오늘 날짜의 Appointment만 반환 (반복 일정 포함), 시간순 정렬
+    private var todayAppointments: [AppTask] {
+        let today = Date()
+        return allAppointments
+            .filter { $0.occursOn(today) }
+            .sorted { $0.sortableTime < $1.sortableTime }
+    }
+
+    /// Routines도 시간순 정렬
+    private var sortedRoutines: [AppTask] {
+        routines.sorted { $0.sortableTime < $1.sortableTime }
+    }
 
     @EnvironmentObject private var taskManager: TaskManager
     @Environment(\.modelContext) private var modelContext
@@ -19,6 +32,7 @@ struct RoutineView: View {
     @Binding var activeTab: TabSelection
     @State private var editingTaskId: UUID?
     @State private var selectedSection: RoutineSection = .routines
+    @State private var showSearch = false
 
     enum RoutineSection: CaseIterable {
         case routines, tasks
@@ -41,14 +55,25 @@ struct RoutineView: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 48) {
 
-                    // 제목
-                    Text(L.routineTitle)
-                        .onAppear { setupVoiceEditCallback() }
-                        .font(DesignSystem.Typography.displayLg)
-                        .foregroundColor(DesignSystem.Colors.primary)
-                        .tracking(-0.5)
-                        .padding(.top, 16)
-                        .padding(.horizontal, 32)
+                    // 제목 + 검색 버튼
+                    HStack {
+                        Text(L.routineTitle)
+                            .onAppear { setupVoiceEditCallback() }
+                            .font(DesignSystem.Typography.displayLg)
+                            .foregroundColor(DesignSystem.Colors.primary)
+                            .tracking(-0.5)
+                        Spacer()
+                        Button(action: { showSearch = true }) {
+                            Image(systemName: "magnifyingglass")
+                                .font(.system(size: 20, weight: .light))
+                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.4))
+                                .padding(12)
+                                .contentShape(Circle())
+                        }
+                        .buttonStyle(NoEffectButtonStyle())
+                    }
+                    .padding(.top, 16)
+                    .padding(.horizontal, 32)
 
                     // 섹션 토글 (Zero Clutter: 한 번에 하나의 섹션만 표시)
                     HStack(spacing: 12) {
@@ -76,7 +101,7 @@ struct RoutineView: View {
                     .padding(.horizontal, 32)
 
                     // 선택된 섹션의 태스크 목록
-                    let currentTasks = selectedSection == .routines ? routines : appointments
+                    let currentTasks = selectedSection == .routines ? sortedRoutines : todayAppointments
 
                     if currentTasks.isEmpty {
                         // Empty State: 화면 중앙 정렬
@@ -103,9 +128,17 @@ struct RoutineView: View {
                         LazyVStack(spacing: 32) {
                             ForEach(incomplete) { task in
                                 TaskRow(task: task, editingTaskId: $editingTaskId, voiceManager: voiceManager, voiceEditingTaskId: $voiceEditingTaskId)
+                                    .swipeToDelete {
+                                        withAnimation { taskManager.delete(task: task) }
+                                        Haptic.impact(.medium)
+                                    }
                             }
                             ForEach(completed) { task in
                                 TaskRow(task: task, editingTaskId: $editingTaskId, voiceManager: voiceManager, voiceEditingTaskId: $voiceEditingTaskId)
+                                    .swipeToDelete {
+                                        withAnimation { taskManager.delete(task: task) }
+                                        Haptic.impact(.medium)
+                                    }
                             }
                         }
                     }
@@ -114,6 +147,9 @@ struct RoutineView: View {
                 }
             }
             .ignoresSafeArea(edges: .bottom)
+        }
+        .sheet(isPresented: $showSearch) {
+            SearchView()
         }
     }
 
@@ -129,12 +165,12 @@ struct RoutineView: View {
                 guard !text.isEmpty, let targetId = voiceEditingTaskId else { return }
 
                 // 모든 태스크에서 편집 대상 찾기
-                let allTasks = routines + appointments
+                let allTasks = sortedRoutines + todayAppointments
                 guard let target = allTasks.first(where: { $0.id == targetId }) else { return }
 
                 target.task = text
                 taskManager.update(task: target)
-                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                Haptic.impact(.medium)
             }
         }
     }
@@ -162,31 +198,45 @@ struct TaskRow: View {
     var isVoiceEditing: Bool { voiceEditingTaskId == task.id && voiceManager.isListening }
 
     /// 태스크명에서 키워드 매칭으로 카테고리 아이콘 결정 (Visual Anchor)
+    /// 영어 / 한국어 / 일본어 키워드 지원
+    private static let iconRules: [(icon: String, keywords: [String])] = [
+        ("figure.run",              ["exercise", "workout", "run", "gym", "jog",
+                                     "운동", "달리기", "조깅", "헬스",
+                                     "運動", "ランニング", "ジョギング", "ジム"]),
+        ("pill.fill",               ["medicine", "pill", "drug", "vitamin", "supplement",
+                                     "약", "비타민", "영양제", "복용",
+                                     "薬", "ビタミン", "サプリ", "服薬"]),
+        ("fork.knife",              ["meal", "eat", "breakfast", "lunch", "dinner", "cook", "food",
+                                     "식사", "밥", "아침", "점심", "저녁", "요리", "먹",
+                                     "食事", "ご飯", "朝食", "昼食", "夕食", "料理"]),
+        ("alarm.fill",              ["sleep", "bed", "wake", "alarm",
+                                     "잠", "수면", "기상", "알람", "일어나",
+                                     "睡眠", "寝", "起き", "アラーム", "起床"]),
+        ("book.fill",               ["study", "read", "book", "learn", "homework",
+                                     "공부", "독서", "책", "학습", "숙제",
+                                     "勉強", "読書", "本", "学習", "宿題"]),
+        ("phone.fill",              ["meeting", "call", "zoom", "conference",
+                                     "회의", "전화", "미팅", "통화",
+                                     "会議", "電話", "ミーティング", "通話"]),
+        ("bubbles.and.sparkles.fill", ["clean", "laundry", "wash", "tidy",
+                                     "청소", "빨래", "세탁", "정리",
+                                     "掃除", "洗濯", "片付け"]),
+        ("pawprint.fill",           ["walk", "dog", "pet", "cat",
+                                     "산책", "강아지", "반려", "고양이",
+                                     "散歩", "犬", "ペット", "猫"]),
+        ("drop.fill",               ["water", "drink", "hydrat",
+                                     "물", "수분", "음료",
+                                     "水", "飲み物", "水分"]),
+    ]
+
     private static func resolveIcon(for taskName: String, category: String?) -> String {
         let name = taskName.lowercased()
-        if name.contains("exercise") || name.contains("workout") || name.contains("run") || name.contains("gym") {
-            return "figure.run"
-        } else if name.contains("medicine") || name.contains("pill") || name.contains("drug") || name.contains("vitamin") {
-            return "pill.fill"
-        } else if name.contains("meal") || name.contains("eat") || name.contains("breakfast") || name.contains("lunch") || name.contains("dinner") || name.contains("cook") {
-            return "fork.knife"
-        } else if name.contains("sleep") || name.contains("bed") || name.contains("wake") || name.contains("alarm") {
-            return "alarm.fill"
-        } else if name.contains("study") || name.contains("read") || name.contains("book") || name.contains("learn") {
-            return "book.fill"
-        } else if name.contains("meeting") || name.contains("call") || name.contains("zoom") {
-            return "phone.fill"
-        } else if name.contains("clean") || name.contains("laundry") || name.contains("wash") {
-            return "bubbles.and.sparkles.fill"
-        } else if name.contains("walk") || name.contains("dog") || name.contains("pet") {
-            return "pawprint.fill"
-        } else if name.contains("water") || name.contains("drink") || name.contains("hydrat") {
-            return "drop.fill"
-        } else if category == "Appointment" {
-            return "calendar"
-        } else {
-            return "circle.fill"
+        for rule in iconRules {
+            if rule.keywords.contains(where: { name.contains($0) }) {
+                return rule.icon
+            }
         }
+        return category == "Appointment" ? "calendar" : "circle.fill"
     }
 
     var body: some View {
@@ -202,7 +252,7 @@ struct TaskRow: View {
                 withAnimation(.timingCurve(0.4, 0, 0.2, 1, duration: 0.3)) {
                     taskManager.toggleCompletion(of: task)
                 }
-                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                Haptic.impact(.medium)
             }) {
                 ZStack {
                     Circle()
@@ -261,9 +311,18 @@ struct TaskRow: View {
                         )
 
                     if let time = task.time, !time.isEmpty {
-                        Text(time)
-                            .font(DesignSystem.Typography.labelSm)
-                            .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.4))
+                        HStack(spacing: 4) {
+                            Text(time)
+                                .font(DesignSystem.Typography.labelSm)
+                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.4))
+                            if let label = task.recurrenceLabel {
+                                Image(systemName: "repeat")
+                                    .font(.system(size: 9))
+                                Text(label)
+                                    .font(.system(size: 11))
+                            }
+                        }
+                        .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.4))
                     }
                 }
             }
@@ -279,7 +338,7 @@ struct TaskRow: View {
                             taskManager.delete(task: task)
                             editingTaskId = nil
                         }
-                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                        Haptic.impact(.medium)
                     }) {
                         Image(systemName: "trash")
                             .font(.system(size: 16))
@@ -355,12 +414,12 @@ struct TaskRow: View {
         taskManager.update(task: task)
         cachedCategoryIcon = Self.resolveIcon(for: localTaskName, category: task.category)
         editingTaskId = nil
-        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        Haptic.impact(.light)
     }
 
     private func startEditing() {
         editingTaskId = task.id
-        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        Haptic.impact(.medium)
     }
 
     private func handleVoiceEdit() {
@@ -371,7 +430,7 @@ struct TaskRow: View {
             // 녹음 시작
             voiceEditingTaskId = task.id
             voiceManager.startListening()
-            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            Haptic.impact(.medium)
         }
     }
 }
@@ -432,6 +491,69 @@ struct TimePickerModal: View {
         }
         .presentationDetents([.height(350)])
         .presentationDragIndicator(.visible)
+    }
+}
+
+// MARK: - Swipe-to-Delete Modifier
+struct SwipeToDeleteModifier: ViewModifier {
+    let onDelete: () -> Void
+    @State private var offset: CGFloat = 0
+    @State private var showDelete = false
+    private let threshold: CGFloat = -80
+
+    func body(content: Content) -> some View {
+        ZStack(alignment: .trailing) {
+            // Delete background
+            if showDelete {
+                HStack {
+                    Spacer()
+                    Button(action: {
+                        withAnimation(.spring(response: 0.3)) {
+                            offset = -UIScreen.main.bounds.width
+                        }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                            onDelete()
+                        }
+                    }) {
+                        Image(systemName: "trash.fill")
+                            .font(.system(size: 18))
+                            .foregroundColor(.white)
+                            .frame(width: 60, height: 50)
+                            .background(RoundedRectangle(cornerRadius: 12).fill(Color.red.opacity(0.8)))
+                    }
+                    .padding(.trailing, 32)
+                }
+            }
+
+            content
+                .offset(x: offset)
+                .gesture(
+                    DragGesture(minimumDistance: 20)
+                        .onChanged { value in
+                            if value.translation.width < 0 {
+                                offset = value.translation.width
+                                showDelete = offset < threshold / 2
+                            }
+                        }
+                        .onEnded { value in
+                            withAnimation(.spring(response: 0.3)) {
+                                if value.translation.width < threshold {
+                                    offset = threshold
+                                    showDelete = true
+                                } else {
+                                    offset = 0
+                                    showDelete = false
+                                }
+                            }
+                        }
+                )
+        }
+    }
+}
+
+extension View {
+    func swipeToDelete(onDelete: @escaping () -> Void) -> some View {
+        modifier(SwipeToDeleteModifier(onDelete: onDelete))
     }
 }
 

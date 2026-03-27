@@ -14,6 +14,7 @@ struct PlannerView: View {
     @State private var editingTaskId: UUID?
     @State private var selectedDate: Date = Calendar.current.startOfDay(for: Date())
     @State private var isCalendarPresented: Bool = false
+    @State private var showSearch: Bool = false
 
     private let calendar = Calendar.current
 
@@ -24,12 +25,14 @@ struct PlannerView: View {
         let f = DateFormatter(); f.dateFormat = "d"; return f
     }()
 
-    /// 선택된 날짜와 같은 날의 약속만 반환
+    /// 선택된 날짜와 같은 날의 약속만 반환 (반복 일정 포함)
     private var filteredAppointments: [AppTask] {
-        appointments.filter { task in
-            guard let taskDate = task.date else { return false }
-            return calendar.isDate(taskDate, inSameDayAs: selectedDate)
-        }
+        appointments.filter { $0.occursOn(selectedDate) }
+    }
+
+    /// 특정 날짜에 이벤트가 있는지 확인 (배지 표시용)
+    private func hasEvents(on date: Date) -> Bool {
+        appointments.contains { $0.occursOn(date) }
     }
 
     var body: some View {
@@ -47,6 +50,15 @@ struct PlannerView: View {
                             .tracking(-0.5)
 
                         Spacer()
+
+                        Button(action: { showSearch = true }) {
+                            Image(systemName: "magnifyingglass")
+                                .font(.system(size: 20, weight: .light))
+                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.4))
+                                .padding(8)
+                                .contentShape(Circle())
+                        }
+                        .buttonStyle(NoEffectButtonStyle())
 
                         Button(action: { isCalendarPresented.toggle() }) {
                             Image(systemName: "calendar")
@@ -84,6 +96,10 @@ struct PlannerView: View {
                         LazyVStack(spacing: 32) {
                             ForEach(filteredAppointments) { task in
                                 EventCard(task: task, editingTaskId: $editingTaskId)
+                                    .swipeToDelete {
+                                        withAnimation { taskManager.delete(task: task) }
+                                        Haptic.impact(.medium)
+                                    }
                             }
                         }
                     }
@@ -133,6 +149,12 @@ struct PlannerView: View {
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
         }
+        .sheet(isPresented: $showSearch) {
+            SearchView { date in
+                // 검색 결과에서 Appointment 선택 시 해당 날짜로 이동
+                selectedDate = Calendar.current.startOfDay(for: date)
+            }
+        }
     }
 
     // MARK: - Week Date Selector
@@ -169,6 +191,14 @@ struct PlannerView: View {
                         .foregroundColor(isTodaySelected ? .white : DesignSystem.Colors.primary)
                 }
                 .frame(width: 56, height: 68)
+                .overlay(alignment: .bottom) {
+                    if hasEvents(on: today) {
+                        Circle()
+                            .fill(isTodaySelected ? .white : DesignSystem.Colors.primary)
+                            .frame(width: 5, height: 5)
+                            .offset(y: -6)
+                    }
+                }
                 .background(
                     RoundedRectangle(cornerRadius: 16)
                         .fill(isTodaySelected ? DesignSystem.Colors.primary : DesignSystem.Colors.primary.opacity(0.08))
@@ -202,6 +232,14 @@ struct PlannerView: View {
                                     .foregroundColor(isSelected ? .white : DesignSystem.Colors.onSurfaceVariant)
                             }
                             .frame(width: 50, height: 64)
+                            .overlay(alignment: .bottom) {
+                                if hasEvents(on: date) {
+                                    Circle()
+                                        .fill(isSelected ? .white : DesignSystem.Colors.primaryContainer)
+                                        .frame(width: 5, height: 5)
+                                        .offset(y: -6)
+                                }
+                            }
                             .background(
                                 RoundedRectangle(cornerRadius: 14)
                                     .fill(isSelected ? DesignSystem.Colors.primaryContainer : Color.clear)
@@ -233,6 +271,30 @@ struct EventCard: View {
 
     var body: some View {
         HStack(spacing: 20) {
+            // Completion checkbox (#25)
+            if !isEditing {
+                Button(action: {
+                    withAnimation(.timingCurve(0.4, 0, 0.2, 1, duration: 0.3)) {
+                        taskManager.toggleCompletion(of: task)
+                    }
+                    Haptic.impact(.medium)
+                }) {
+                    ZStack {
+                        Circle()
+                            .stroke(DesignSystem.Colors.onSurfaceVariant.opacity(0.3), lineWidth: 1.5)
+                            .frame(width: 28, height: 28)
+                        if task.isCompleted {
+                            Circle()
+                                .fill(DesignSystem.Colors.tertiary)
+                                .frame(width: 28, height: 28)
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(.white)
+                        }
+                    }
+                }
+            }
+
             if isEditing {
                 Text(localTime.isEmpty ? "Set Time" : localTime)
                     .font(DesignSystem.Typography.labelSm)
@@ -253,15 +315,32 @@ struct EventCard: View {
                     .submitLabel(.done)
                     .onSubmit { finishEditing() }
             } else {
-                Text(task.time ?? "")
-                    .font(DesignSystem.Typography.labelSm)
-                    .tracking(0.3)
-                    .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
-                    .frame(width: 64, alignment: .leading)
+                HStack(spacing: 4) {
+                    Text(task.time ?? "")
+                        .font(DesignSystem.Typography.labelSm)
+                        .tracking(0.3)
+                        .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(task.isCompleted ? 0.3 : 0.6))
+                    if task.isRecurring {
+                        Image(systemName: "repeat")
+                            .font(.system(size: 10))
+                            .foregroundColor(DesignSystem.Colors.primary.opacity(0.5))
+                    }
+                }
+                .frame(width: task.isRecurring ? 80 : 64, alignment: .leading)
 
-                Text(task.task)
-                    .font(DesignSystem.Typography.bodyMd)
-                    .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(task.task)
+                        .font(DesignSystem.Typography.bodyMd)
+                        .strikethrough(task.isCompleted, color: DesignSystem.Colors.onSurfaceVariant)
+                        .foregroundColor(task.isCompleted
+                            ? DesignSystem.Colors.onSurfaceVariant.opacity(0.4)
+                            : DesignSystem.Colors.onSurfaceVariant)
+                    if let label = task.recurrenceLabel {
+                        Text(label)
+                            .font(.system(size: 11))
+                            .foregroundColor(DesignSystem.Colors.primary.opacity(0.5))
+                    }
+                }
             }
 
             Spacer()
@@ -273,7 +352,7 @@ struct EventCard: View {
                             taskManager.delete(task: task)
                             editingTaskId = nil
                         }
-                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                        Haptic.impact(.medium)
                     }) {
                         Image(systemName: "trash")
                             .font(.system(size: 14))
@@ -332,12 +411,12 @@ struct EventCard: View {
         task.time = localTime.isEmpty ? nil : localTime
         taskManager.update(task: task)
         editingTaskId = nil
-        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        Haptic.impact(.light)
     }
 
     private func startEditing() {
         editingTaskId = task.id
-        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        Haptic.impact(.medium)
     }
 }
 
