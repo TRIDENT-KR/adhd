@@ -3,6 +3,7 @@ import SwiftUI
 struct MainTabView: View {
     @State var activeTab: TabSelection = .planner
     @EnvironmentObject private var networkMonitor: NetworkMonitor
+    @AppStorage("appLanguage") private var appLanguage: String = "en"
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -13,19 +14,21 @@ struct MainTabView: View {
             TabView(selection: $activeTab) {
                 RoutineView(activeTab: $activeTab)
                     .tag(TabSelection.routine)
-                
+
                 HomeVoiceInterfaceView()
                     .tag(TabSelection.voice)
-                
+
                 PlannerView(activeTab: $activeTab)
                     .tag(TabSelection.planner)
             }
             .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding(.bottom, 80)
 
             // 3. 글로벌 바텀 바
             CustomBottomBar(activeTab: $activeTab)
         }
+        .id(appLanguage)
         // 4. 오프라인 배너 — isOfflineBannerVisible 이 true일 때만 3초간 노출
         .overlay(alignment: .top) {
             if networkMonitor.isOfflineBannerVisible {

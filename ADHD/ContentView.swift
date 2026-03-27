@@ -283,7 +283,8 @@ struct CustomBottomBar: View {
             Spacer()
         }
         .padding(.vertical, 12)
-        .background(Color.clear)
+        .background(DesignSystem.Colors.background)
+        .contentShape(Rectangle())
         .padding(.bottom, 20)
         .padding(.horizontal, 16)
     }
@@ -304,12 +305,12 @@ struct TabBarItem: View {
                 Image(systemName: iconName)
                     .font(.system(size: 26, weight: isActive ? .bold : .medium))
                     .scaleEffect(isActive ? 1.15 : 1.0)
-                
+
                 Text(label)
                     .font(DesignSystem.Typography.labelSm)
                     .fontWeight(isActive ? .semibold : .regular)
                     .opacity(isActive ? 1 : 0.6)
-                
+
                 // Active Dot Indicator
                 Circle()
                     .fill(DesignSystem.Colors.primary)
@@ -320,7 +321,8 @@ struct TabBarItem: View {
             .foregroundColor(
                 isActive ? DesignSystem.Colors.primary : DesignSystem.Colors.onSurfaceVariant.opacity(0.3)
             )
-            .frame(width: 80)
+            .frame(width: 80, height: 56)
+            .contentShape(Rectangle())
             .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isActive)
         }
         .buttonStyle(PlainButtonStyle())

@@ -29,7 +29,7 @@ struct PlannerView: View {
         ZStack(alignment: .bottom) {
             DesignSystem.Colors.background.ignoresSafeArea()
 
-            ScrollView {
+            ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 40) {
 
                     // Header
