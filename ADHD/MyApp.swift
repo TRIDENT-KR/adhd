@@ -49,6 +49,8 @@ struct WaitWhatApp: App {
             if authManager.session != nil {
                 MainTabView()
                     .preferredColorScheme(colorScheme)
+                    .environment(\.locale, Locale(identifier: appLanguage))
+                    .id(appLanguage)
                     .environmentObject(taskManager)
                     .environmentObject(cloudLLM)
                     .environmentObject(authManager)
