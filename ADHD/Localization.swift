@@ -68,6 +68,9 @@ struct Strings {
     // Search
     var search: SearchStrings { SearchStrings() }
 
+    // Calendar
+    var calendarToday: String { t("Today", "오늘", "今日") }
+
     // Recurrence
     var recurrence: RecurrenceStrings { RecurrenceStrings() }
 }

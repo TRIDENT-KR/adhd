@@ -31,6 +31,8 @@ struct RoutineView: View {
 
     @EnvironmentObject private var taskManager: TaskManager
     @Environment(\.modelContext) private var modelContext
+    /// 언어 변경 시 이 뷰를 즉각 재렌더링하기 위해 @AppStorage로 감지
+    @AppStorage("appLanguage") private var _lang: String = "en"
 
     @Binding var activeTab: TabSelection
     @State private var editingTaskId: UUID?
@@ -60,7 +62,7 @@ struct RoutineView: View {
 
                     // 제목 + 검색 버튼
                     HStack {
-                        Text(L.routineTitle)
+                        Text(verbatim: "Routine")
                             .onAppear { setupVoiceEditCallback() }
                             .font(DesignSystem.Typography.displayLg)
                             .foregroundColor(DesignSystem.Colors.primary)

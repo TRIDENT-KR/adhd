@@ -276,7 +276,7 @@ struct SettingsView: View {
                     Text(L.settings.about)
                 }
             }
-            .navigationTitle(L.settings.title)
+            .navigationTitle(Text(verbatim: "Settings"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
