@@ -33,6 +33,7 @@ struct WaitWhatApp: App {
     @StateObject private var authManager = AuthManager()
     @StateObject private var networkMonitor = NetworkMonitor.shared
     @AppStorage("appTheme") private var appTheme: String = "system"
+    @Environment(\.scenePhase) private var scenePhase
 
     private var colorScheme: ColorScheme? {
         switch appTheme {
@@ -57,6 +58,12 @@ struct WaitWhatApp: App {
                         taskManager.configure(context: container.mainContext)
                         // 알림 권한 요청 (최초 1회)
                         NotificationManager.shared.requestAuthorization()
+                    }
+                    .onChange(of: scenePhase) { oldPhase, newPhase in
+                        if newPhase == .active {
+                            // 앱이 활성화될 때마다 날짜 체크 및 리셋 실행
+                            taskManager.checkAndResetDailyTasks()
+                        }
                     }
             } else {
                 LoginView()

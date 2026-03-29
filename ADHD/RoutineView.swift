@@ -21,9 +21,12 @@ struct RoutineView: View {
             .sorted { $0.sortableTime < $1.sortableTime }
     }
 
-    /// Routines도 시간순 정렬
-    private var sortedRoutines: [AppTask] {
-        routines.sorted { $0.sortableTime < $1.sortableTime }
+    /// 오늘의 Routines (매일 반복 혹은 오늘 날짜 지정), 시간순 정렬
+    private var todayRoutines: [AppTask] {
+        let today = Date()
+        return routines
+            .filter { $0.occursOn(today) }
+            .sorted { $0.sortableTime < $1.sortableTime }
     }
 
     @EnvironmentObject private var taskManager: TaskManager
@@ -101,7 +104,7 @@ struct RoutineView: View {
                     .padding(.horizontal, 32)
 
                     // 선택된 섹션의 태스크 목록
-                    let currentTasks = selectedSection == .routines ? sortedRoutines : todayAppointments
+                    let currentTasks = selectedSection == .routines ? todayRoutines : todayAppointments
 
                     if currentTasks.isEmpty {
                         // Empty State: 화면 중앙 정렬
@@ -165,7 +168,7 @@ struct RoutineView: View {
                 guard !text.isEmpty, let targetId = voiceEditingTaskId else { return }
 
                 // 모든 태스크에서 편집 대상 찾기
-                let allTasks = sortedRoutines + todayAppointments
+                let allTasks = todayRoutines + todayAppointments
                 guard let target = allTasks.first(where: { $0.id == targetId }) else { return }
 
                 target.task = text
