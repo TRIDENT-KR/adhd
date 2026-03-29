@@ -2,7 +2,7 @@ import Foundation
 import Supabase
 
 struct SupabaseConfig {
-    static var url: URL {
+    static let url: URL = {
         guard let path = Bundle.main.path(forResource: "Config", ofType: "plist"),
               let dict = NSDictionary(contentsOfFile: path) as? [String: Any],
               let urlString = dict["SUPABASE_URL"] as? String,
@@ -10,16 +10,16 @@ struct SupabaseConfig {
             return URL(string: "https://example.supabase.co")!
         }
         return url
-    }
+    }()
     
-    static var anonKey: String {
+    static let anonKey: String = {
         guard let path = Bundle.main.path(forResource: "Config", ofType: "plist"),
               let dict = NSDictionary(contentsOfFile: path) as? [String: Any],
               let key = dict["SUPABASE_ANON_KEY"] as? String else {
             return ""
         }
         return key
-    }
+    }()
 }
 
 let supabase = SupabaseClient(

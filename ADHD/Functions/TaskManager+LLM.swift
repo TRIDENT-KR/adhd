@@ -64,9 +64,13 @@ extension TaskManager {
     
     // MARK: - 1. Add Single Task
     private func addSingleTask(params: AddSingleTaskParams) {
+        // 일정이 시간 없이 추가되면 '허전함'을 방지하기 위해 기본값(오전 09:00) 부여
+        let defaultTime = (params.category == "Appointment") ? "오전 09:00" : nil
+        let finalTime = (params.time == nil || params.time!.isEmpty) ? defaultTime : params.time
+
         let task = AppTask(
             task: params.task_name,
-            time: params.time,
+            time: finalTime,
             date: date(from: params.date) ?? (params.category == "Routine" ? nil : Date()),
             category: params.category,
             recurrenceRule: params.recurrence

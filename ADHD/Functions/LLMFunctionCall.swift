@@ -1,22 +1,38 @@
 import Foundation
+import SwiftUI
+
+/// 컨펌 모달에서 사용자가 직접 내용을 수정할 수 있도록 관리하기 위한 래퍼(Wrapper)
+struct PendingLLMCall: Identifiable {
+    let id = UUID()
+    var call: LLMFunctionCall
+    
+    // UI Helpers pass-through to simplify views
+    var uiAction: String { call.uiAction }
+    var uiIcon: String { call.uiIcon }
+    var uiActionLabel: String { call.uiActionLabel }
+    var uiTaskName: String { call.uiTaskName }
+    var uiTime: String? { call.uiTime }
+    var uiCategory: String { call.uiCategory }
+}
+
 
 // MARK: - Parameter Structs
 
 struct AddSingleTaskParams: Codable {
-    let task_name: String
-    let time: String?
-    let date: String?
-    let category: String
-    let recurrence: String?
+    var task_name: String
+    var time: String?
+    var date: String?
+    var category: String
+    var recurrence: String?
 }
 
 struct UpdateTaskParams: Codable {
-    let target_task_name: String
-    let new_task_name: String?
-    let new_time: String?
-    let new_date: String?
-    let new_category: String?
-    let new_recurrence: String?
+    var target_task_name: String
+    var new_task_name: String?
+    var new_time: String?
+    var new_date: String?
+    var new_category: String?
+    var new_recurrence: String?
 }
 
 struct DeleteTaskParams: Codable {
@@ -87,6 +103,25 @@ enum LLMFunctionCall: Decodable {
             self = .unknown(functionName)
         }
     }
+
+    mutating func updateFields(taskName: String, time: String?, date: String?, category: String) {
+        switch self {
+        case .addSingleTask(var p):
+            p.task_name = taskName
+            p.time = time
+            p.date = date
+            p.category = category
+            self = .addSingleTask(p)
+        case .updateTask(var p):
+            p.new_task_name = taskName
+            p.new_time = time
+            p.new_date = date
+            p.new_category = category
+            self = .updateTask(p)
+        default:
+            break
+        }
+    }
 }
 
 // MARK: - UI Helpers for Confirmation Card
@@ -99,6 +134,26 @@ extension LLMFunctionCall: Identifiable {
         case .addSingleTask: return "add"
         case .updateTask, .postponeAllTasks, .markTaskComplete: return "update"
         case .requestClarification, .unknown: return "info"
+        }
+    }
+    
+    var uiIcon: String {
+        switch uiAction {
+        case "delete": return "trash.circle.fill"
+        case "update": return "pencil.circle.fill"
+        default:
+            return uiCategory == "Task" ? "checklist" : "plus.circle.fill"
+        }
+    }
+    
+    var uiActionLabel: String {
+        switch uiAction {
+        case "delete": return L.voice.confirmDelete
+        case "update": return "수정"
+        default:
+            if uiCategory == "Task" { return L.voice.confirmTask }
+            if uiCategory == "Appointment" { return L.voice.confirmAppointment }
+            return L.voice.confirmRoutine
         }
     }
     

@@ -316,7 +316,7 @@ struct EventCard: View {
                     .onSubmit { finishEditing() }
             } else {
                 HStack(spacing: 4) {
-                    Text(task.time ?? "")
+                    Text(task.time ?? "시간 미정")
                         .font(DesignSystem.Typography.labelSm)
                         .tracking(0.3)
                         .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(task.isCompleted ? 0.3 : 0.6))

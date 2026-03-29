@@ -20,8 +20,9 @@ struct HomeVoiceInterfaceView: View {
     @AppStorage("confirmBeforeSave") private var confirmBeforeSave = true
 
     // Confirmation card state
-    @State private var pendingTasks: [LLMFunctionCall] = []
+    @State private var pendingTasks: [PendingLLMCall] = []
     @State private var showConfirmation = false
+    @State private var editingTask: PendingLLMCall? = nil
 
     // Text input state
     @State private var showTextInput = false
@@ -244,14 +245,14 @@ struct HomeVoiceInterfaceView: View {
                 } // end if-else showTextInput
             }
 
-            // ── 확인 카드 오버레이 ──
             if showConfirmation {
                 ConfirmationCardOverlay(
                     tasks: $pendingTasks,
+                    editingTask: $editingTask,
                     onConfirm: { confirmPendingTasks() },
                     onCancel: { cancelPendingTasks() }
                 )
-                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .transition(AnyTransition.move(edge: .bottom).combined(with: .opacity))
             }
 
             // ── 에러 토스트 ──
@@ -308,6 +309,13 @@ struct HomeVoiceInterfaceView: View {
             VoiceGuideSheet()
                 .presentationDetents([.medium])
                 .presentationDragIndicator(.visible)
+        }
+        .sheet(item: $editingTask) { (taskToEdit: PendingLLMCall) in
+            // Find the index to bind correctly
+            if let index = pendingTasks.firstIndex(where: { $0.id == taskToEdit.id }) {
+                TaskEditSheet(pendingCall: $pendingTasks[index])
+                    .presentationDetents([.medium])
+            }
         }
         .onChange(of: voiceManager.lastError) { _, newError in
             if let error = newError {
@@ -389,7 +397,7 @@ struct HomeVoiceInterfaceView: View {
 
                 await MainActor.run {
                     if confirmBeforeSave {
-                        pendingTasks = parsedTasks
+                        pendingTasks = parsedTasks.map { PendingLLMCall(call: $0) }
                         withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
                             showConfirmation = true
                         }
@@ -426,7 +434,7 @@ struct HomeVoiceInterfaceView: View {
 
     // MARK: - Confirmation Actions
     private func confirmPendingTasks() {
-        taskManager.execute(llmCalls: pendingTasks)
+        taskManager.execute(llmCalls: pendingTasks.map { $0.call })
         withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
             showConfirmation = false
             pendingTasks = []
@@ -514,7 +522,7 @@ struct HomeVoiceInterfaceView: View {
 
                         if confirmBeforeSave {
                             // 확인 카드 표시
-                            pendingTasks = parsedTasks
+                            pendingTasks = parsedTasks.map { PendingLLMCall(call: $0) }
                             withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
                                 showConfirmation = true
                             }
@@ -554,7 +562,8 @@ struct HomeVoiceInterfaceView: View {
 
 // MARK: - Confirmation Card Overlay
 struct ConfirmationCardOverlay: View {
-    @Binding var tasks: [LLMFunctionCall]
+    @Binding var tasks: [PendingLLMCall]
+    @Binding var editingTask: PendingLLMCall?
     let onConfirm: () -> Void
     let onCancel: () -> Void
 
@@ -567,13 +576,13 @@ struct ConfirmationCardOverlay: View {
                 ForEach(tasks) { task in
                     HStack(spacing: 14) {
                         // 액션 아이콘
-                        Image(systemName: task.uiAction == "delete" ? "trash.circle.fill" : (task.uiAction == "update" ? "pencil.circle.fill" : "plus.circle.fill"))
+                        Image(systemName: task.uiIcon)
                             .font(.system(size: 28))
                             .foregroundColor(task.uiAction == "delete" ? .red.opacity(0.8) : DesignSystem.Colors.tertiary)
 
                         VStack(alignment: .leading, spacing: 3) {
                             // 액션 라벨
-                            Text(task.uiAction == "delete" ? L.voice.confirmDelete : (task.uiAction == "update" ? "수정" : L.voice.confirmAdd))
+                            Text(task.uiActionLabel)
                                 .font(.system(size: 12, weight: .medium))
                                 .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.5))
 
@@ -618,6 +627,10 @@ struct ConfirmationCardOverlay: View {
                     }
                     .padding(.horizontal, 16)
                     .padding(.vertical, 14)
+                    .contentShape(Rectangle()) // Make the whole area tappable
+                    .onTapGesture {
+                        editingTask = task
+                    }
                     .background(
                         RoundedRectangle(cornerRadius: 14)
                             .fill(DesignSystem.Colors.surfaceContainerLow)
@@ -659,6 +672,71 @@ struct ConfirmationCardOverlay: View {
             )
             .padding(.horizontal, 16)
             .padding(.bottom, 140)
+        }
+    }
+}
+
+// MARK: - Task Edit Sheet
+struct TaskEditSheet: View {
+    @Binding var pendingCall: PendingLLMCall
+    @Environment(\.dismiss) var dismiss
+
+    @State private var taskName: String = ""
+    @State private var time: String = ""
+    @State private var category: String = "Routine"
+    @State private var date: String = ""
+
+    var body: some View {
+        NavigationView {
+            Form {
+                Section(header: Text(L.voice.fieldName)) {
+                    TextField(L.voice.fieldName, text: $taskName)
+                }
+                
+                Section(header: Text(L.voice.fieldTime)) {
+                    TextField(L.voice.fieldTime + " (e.g. 10:00 AM)", text: $time)
+                }
+                
+                Section(header: Text(L.voice.fieldCategory)) {
+                    Picker(L.voice.fieldCategory, selection: $category) {
+                        Text(L.voice.confirmTask).tag("Task")
+                        Text(L.voice.confirmAppointment).tag("Appointment")
+                        Text(L.voice.confirmRoutine).tag("Routine")
+                    }
+                    .pickerStyle(.segmented)
+                }
+            }
+            .navigationTitle(L.voice.editTaskTitle)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(L.voice.cancel) { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(L.voice.save) {
+                        pendingCall.call.updateFields(
+                            taskName: taskName,
+                            time: time.isEmpty ? nil : time,
+                            date: date.isEmpty ? nil : date,
+                            category: category
+                        )
+                        dismiss()
+                    }
+                    .fontWeight(.bold)
+                }
+            }
+            .onAppear {
+                taskName = pendingCall.call.uiTaskName
+                time = pendingCall.call.uiTime ?? ""
+                category = pendingCall.call.uiCategory
+                
+                // Get original date if possible (though date editing is limited in this simplified UI)
+                if case .addSingleTask(let p) = pendingCall.call {
+                    date = p.date ?? ""
+                } else if case .updateTask(let p) = pendingCall.call {
+                    date = p.new_date ?? ""
+                }
+            }
         }
     }
 }

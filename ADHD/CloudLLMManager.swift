@@ -3,7 +3,7 @@ import SwiftUI
 import Combine
 import Supabase
 
-struct AnalyzePayload: Codable {
+struct AnalyzePayload: Codable, Sendable {
     let text: String
     let currentTime: String
 }

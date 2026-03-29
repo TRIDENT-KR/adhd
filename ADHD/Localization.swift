@@ -9,6 +9,14 @@ enum AppLanguage: String, CaseIterable {
     static var current: AppLanguage {
         AppLanguage(rawValue: UserDefaults.standard.string(forKey: "appLanguage") ?? "en") ?? .en
     }
+    
+    var localeIdentifier: String {
+        switch self {
+        case .en: return "en-US"
+        case .ko: return "ko-KR"
+        case .ja: return "ja-JP"
+        }
+    }
 }
 
 /// 글로벌 접근: L.tabRoutine, L.settings.logOut 등
@@ -125,9 +133,19 @@ struct VoiceStrings {
     var confirmDelete: String { t("Delete", "삭제", "削除") }
     var confirmRoutine: String { t("Routine", "루틴", "ルーティン") }
     var confirmAppointment: String { t("Planner", "플래너", "プランナー") }
+    var confirmTask: String { t("Today's Task", "오늘 할 일", "今日のタ스크") }
     var confirmButton: String { t("Confirm", "확인", "確認") }
     var confirmCancel: String { t("Cancel", "취소", "キャンセル") }
     var confirmSending: String { t("Sending...", "전송 중...", "送信中...") }
+
+    // Task Edit Sheet
+    var editTaskTitle: String { t("Edit Task", "일정 수정", "タ스크編集") }
+    var fieldName: String { t("Task Name", "내용", "内容") }
+    var fieldTime: String { t("Time", "시간", "時間") }
+    var fieldDate: String { t("Date", "날짜", "日付") }
+    var fieldCategory: String { t("Category", "카테고리", "カテゴリー") }
+    var save: String { t("Save", "저장", "保存") }
+    var cancel: String { t("Cancel", "취소", "キャンセル") }
 
     // Silence countdown
     var silenceCountdown: String { t("Sending in", "전송까지", "送信まで") }
