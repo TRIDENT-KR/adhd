@@ -74,8 +74,8 @@ struct WaitWhatApp: App {
                 LoginView()
                     .environmentObject(authManager)
                     .preferredColorScheme(colorScheme)
-                    .id(appLanguage)
                     .environment(\.locale, Locale(identifier: appLanguage))
+                    .id(appLanguage)
             }
         }
     }
