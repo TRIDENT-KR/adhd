@@ -61,7 +61,7 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
     // Completion handler for when recording successfully finishes
     var onSpeechFinalized: ((String) -> Void)?
 
-    @Published var currentLocaleId: String = "en-US"
+    @Published var currentLocaleId: String = "ko-KR"
 
     // Mic input mode
     @Published var micMode: MicInputMode = {
@@ -85,7 +85,7 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
     static var enabledLocales: [String] {
         get {
             let saved = UserDefaults.standard.stringArray(forKey: enabledLocalesKey)
-            return (saved?.isEmpty == false) ? saved! : ["en-US"]
+            return (saved?.isEmpty == false) ? saved! : ["ko-KR"]
         }
         set {
             UserDefaults.standard.set(newValue, forKey: enabledLocalesKey)
@@ -94,7 +94,7 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
 
     override init() {
         super.init()
-        let localeId = UserDefaults.standard.string(forKey: Self.speechLocaleKey) ?? "en-US"
+        let localeId = UserDefaults.standard.string(forKey: Self.speechLocaleKey) ?? "ko-KR"
         currentLocaleId = localeId
         speechRecognizer = SFSpeechRecognizer(locale: Locale(identifier: localeId))
         speechRecognizer?.delegate = self

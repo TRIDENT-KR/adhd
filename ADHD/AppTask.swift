@@ -121,17 +121,4 @@ final class AppTask {
         }
     }
 
-    // MARK: - DTO 변환 헬퍼
-    /// ParsedTask(DTO) → AppTask 변환 이니셜라이저
-    /// Routine은 date=nil (매일 반복), Appointment는 날짜 필수 (없으면 오늘)
-    convenience init(from dto: ParsedTask) {
-        let resolvedDate: Date? = dto.category == "Routine" ? nil : (dto.date ?? Date())
-        self.init(
-            task:           dto.task,
-            time:           dto.time,
-            date:           resolvedDate,
-            category:       dto.category,
-            recurrenceRule: dto.recurrence
-        )
-    }
 }

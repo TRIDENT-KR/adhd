@@ -7,6 +7,11 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		09A02A8B9E43463FABAA10AD /* Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF1CC5EA265049FBB8EE3A58 /* Localization.swift */; };
+		AA000001000000000000001A /* DesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000002000000000000001A /* DesignSystem.swift */; };
+		AA000003000000000000001A /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000004000000000000001A /* SettingsView.swift */; };
+		AA000005000000000000001A /* HomeVoiceInterfaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000006000000000000001A /* HomeVoiceInterfaceView.swift */; };
+		AA000007000000000000001A /* SearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000008000000000000001A /* SearchView.swift */; };
 		F3D9E4B02F74D07100DA9A5A /* AuthManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3D9E4A22F74CF5C00DA9A5A /* AuthManager.swift */; };
 		F3D9E4B12F74D07100DA9A5A /* CloudLLMManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3D9E4A32F74CF5C00DA9A5A /* CloudLLMManager.swift */; };
 		F3D9E4B22F74D07100DA9A5A /* Config.plist in Sources */ = {isa = PBXBuildFile; fileRef = F3D9E4A42F74CF5C00DA9A5A /* Config.plist */; };
@@ -23,11 +28,8 @@
 		F3D9E4C42F74DA1800DA9A5A /* NetworkMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3D9E4C22F74DA1800DA9A5A /* NetworkMonitor.swift */; };
 		F3D9E4C52F74DA1800DA9A5A /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3D9E4C32F74DA1800DA9A5A /* NotificationManager.swift */; };
 		F3D9E4C62F74DA1800DA9A5A /* AppTask.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3D9E4C12F74DA1800DA9A5A /* AppTask.swift */; };
-		09A02A8B9E43463FABAA10AD /* Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF1CC5EA265049FBB8EE3A58 /* Localization.swift */; };
-		AA000001000000000000001A /* DesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000002000000000000001A /* DesignSystem.swift */; };
-		AA000003000000000000001A /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000004000000000000001A /* SettingsView.swift */; };
-		AA000005000000000000001A /* HomeVoiceInterfaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000006000000000000001A /* HomeVoiceInterfaceView.swift */; };
-		AA000007000000000000001A /* SearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000008000000000000001A /* SearchView.swift */; };
+		F3FCA0732F79479E00193607 /* LLMFunctionCall.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3FCA0702F79479E00193607 /* LLMFunctionCall.swift */; };
+		F3FCA0742F79479E00193607 /* TaskManager+LLM.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3FCA0712F79479E00193607 /* TaskManager+LLM.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -48,6 +50,11 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		AA000002000000000000001A /* DesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystem.swift; sourceTree = "<group>"; };
+		AA000004000000000000001A /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		AA000006000000000000001A /* HomeVoiceInterfaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeVoiceInterfaceView.swift; sourceTree = "<group>"; };
+		AA000008000000000000001A /* SearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchView.swift; sourceTree = "<group>"; };
+		BF1CC5EA265049FBB8EE3A58 /* Localization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Localization.swift; sourceTree = "<group>"; };
 		F3D9E4782F74CF5200DA9A5A /* ADHD.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ADHD.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		F3D9E4852F74CF5200DA9A5A /* ADHDTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ADHDTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		F3D9E48F2F74CF5200DA9A5A /* ADHDUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ADHDUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -67,11 +74,8 @@
 		F3D9E4C12F74DA1800DA9A5A /* AppTask.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTask.swift; sourceTree = "<group>"; };
 		F3D9E4C22F74DA1800DA9A5A /* NetworkMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkMonitor.swift; sourceTree = "<group>"; };
 		F3D9E4C32F74DA1800DA9A5A /* NotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManager.swift; sourceTree = "<group>"; };
-		BF1CC5EA265049FBB8EE3A58 /* Localization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Localization.swift; sourceTree = "<group>"; };
-		AA000002000000000000001A /* DesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystem.swift; sourceTree = "<group>"; };
-		AA000004000000000000001A /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
-		AA000006000000000000001A /* HomeVoiceInterfaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeVoiceInterfaceView.swift; sourceTree = "<group>"; };
-		AA000008000000000000001A /* SearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchView.swift; sourceTree = "<group>"; };
+		F3FCA0702F79479E00193607 /* LLMFunctionCall.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMFunctionCall.swift; sourceTree = "<group>"; };
+		F3FCA0712F79479E00193607 /* TaskManager+LLM.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TaskManager+LLM.swift"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -118,6 +122,7 @@
 				F3D9E4A82F74CF5C00DA9A5A /* MyApp.swift */,
 				F3D9E4AB2F74CF5C00DA9A5A /* PlannerView.swift */,
 				F3D9E4C12F74DA1800DA9A5A /* AppTask.swift */,
+				F3FCA0722F79479E00193607 /* Functions */,
 				F3D9E4C22F74DA1800DA9A5A /* NetworkMonitor.swift */,
 				F3D9E4C32F74DA1800DA9A5A /* NotificationManager.swift */,
 				F3D9E4AC2F74CF5C00DA9A5A /* RoutineView.swift */,
@@ -144,6 +149,15 @@
 			children = (
 			);
 			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		F3FCA0722F79479E00193607 /* Functions */ = {
+			isa = PBXGroup;
+			children = (
+				F3FCA0702F79479E00193607 /* LLMFunctionCall.swift */,
+				F3FCA0712F79479E00193607 /* TaskManager+LLM.swift */,
+			);
+			path = Functions;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -303,6 +317,8 @@
 				F3D9E4BA2F74D07100DA9A5A /* VoiceInputManager.swift in Sources */,
 				AA000001000000000000001A /* DesignSystem.swift in Sources */,
 				AA000003000000000000001A /* SettingsView.swift in Sources */,
+				F3FCA0732F79479E00193607 /* LLMFunctionCall.swift in Sources */,
+				F3FCA0742F79479E00193607 /* TaskManager+LLM.swift in Sources */,
 				AA000005000000000000001A /* HomeVoiceInterfaceView.swift in Sources */,
 				AA000007000000000000001A /* SearchView.swift in Sources */,
 			);
