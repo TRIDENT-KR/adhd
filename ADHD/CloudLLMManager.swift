@@ -5,6 +5,7 @@ import Supabase
 
 struct AnalyzePayload: Codable {
     let text: String
+    let currentTime: String
 }
 
 class CloudLLMManager: ObservableObject {
@@ -15,7 +16,7 @@ class CloudLLMManager: ObservableObject {
     /// 요청 당 타임아웃 (초)
     private static let requestTimeout: TimeInterval = 15
 
-    func analyzeText(text: String) async throws -> [ParsedTask] {
+    func analyzeText(text: String) async throws -> [LLMFunctionCall] {
         await MainActor.run { self.isProcessing = true }
         defer { Task { @MainActor in self.isProcessing = false } }
 
@@ -23,10 +24,15 @@ class CloudLLMManager: ObservableObject {
 
         for attempt in 0..<Self.maxRetries {
             do {
-                let intents = try await withThrowingTaskGroup(of: [ParsedTask].self) { group in
+                let intents = try await withThrowingTaskGroup(of: [LLMFunctionCall].self) { group in
                     // API 호출 태스크
                     group.addTask {
-                        let payload = AnalyzePayload(text: text)
+                        let formatter = DateFormatter()
+                        formatter.dateFormat = "yyyy-MM-dd HH:mm"
+                        formatter.locale = Locale(identifier: "ko_KR")
+                        let currentTimeString = formatter.string(from: Date())
+                        
+                        let payload = AnalyzePayload(text: text, currentTime: currentTimeString)
 
                         var headers: [String: String] = [:]
                         if let session = try? await supabase.auth.session {
@@ -34,7 +40,7 @@ class CloudLLMManager: ObservableObject {
                         }
 
                         let options = FunctionInvokeOptions(headers: headers, body: payload)
-                        let result: [ParsedTask] = try await supabase.functions.invoke("analyze-task", options: options)
+                        let result: [LLMFunctionCall] = try await supabase.functions.invoke("analyze-task", options: options)
                         return result
                     }
 

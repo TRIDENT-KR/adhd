@@ -20,7 +20,7 @@ struct HomeVoiceInterfaceView: View {
     @AppStorage("confirmBeforeSave") private var confirmBeforeSave = true
 
     // Confirmation card state
-    @State private var pendingTasks: [ParsedTask] = []
+    @State private var pendingTasks: [LLMFunctionCall] = []
     @State private var showConfirmation = false
 
     // Text input state
@@ -394,7 +394,7 @@ struct HomeVoiceInterfaceView: View {
                             showConfirmation = true
                         }
                     } else {
-                        taskManager.process(intents: parsedTasks)
+                        taskManager.execute(llmCalls: parsedTasks)
                         showSuccessCheck = true
                         Haptic.notification(.success)
                     }
@@ -426,7 +426,7 @@ struct HomeVoiceInterfaceView: View {
 
     // MARK: - Confirmation Actions
     private func confirmPendingTasks() {
-        taskManager.process(intents: pendingTasks)
+        taskManager.execute(llmCalls: pendingTasks)
         withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
             showConfirmation = false
             pendingTasks = []
@@ -520,7 +520,7 @@ struct HomeVoiceInterfaceView: View {
                             }
                         } else {
                             // 바로 저장 (기존 동작)
-                            taskManager.process(intents: parsedTasks)
+                            taskManager.execute(llmCalls: parsedTasks)
                             showSuccessCheck = true
                             Haptic.notification(.success)
                         }
@@ -554,7 +554,7 @@ struct HomeVoiceInterfaceView: View {
 
 // MARK: - Confirmation Card Overlay
 struct ConfirmationCardOverlay: View {
-    @Binding var tasks: [ParsedTask]
+    @Binding var tasks: [LLMFunctionCall]
     let onConfirm: () -> Void
     let onCancel: () -> Void
 
@@ -567,24 +567,24 @@ struct ConfirmationCardOverlay: View {
                 ForEach(tasks) { task in
                     HStack(spacing: 14) {
                         // 액션 아이콘
-                        Image(systemName: task.action == "delete" ? "trash.circle.fill" : "plus.circle.fill")
+                        Image(systemName: task.uiAction == "delete" ? "trash.circle.fill" : (task.uiAction == "update" ? "pencil.circle.fill" : "plus.circle.fill"))
                             .font(.system(size: 28))
-                            .foregroundColor(task.action == "delete" ? .red.opacity(0.8) : DesignSystem.Colors.tertiary)
+                            .foregroundColor(task.uiAction == "delete" ? .red.opacity(0.8) : DesignSystem.Colors.tertiary)
 
                         VStack(alignment: .leading, spacing: 3) {
                             // 액션 라벨
-                            Text(task.action == "delete" ? L.voice.confirmDelete : L.voice.confirmAdd)
+                            Text(task.uiAction == "delete" ? L.voice.confirmDelete : (task.uiAction == "update" ? "수정" : L.voice.confirmAdd))
                                 .font(.system(size: 12, weight: .medium))
                                 .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.5))
 
                             // 태스크 이름
-                            Text(task.task)
+                            Text(task.uiTaskName)
                                 .font(.system(size: 17, weight: .semibold))
                                 .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
 
                             // 시간 + 카테고리
                             HStack(spacing: 8) {
-                                if let time = task.time, !time.isEmpty {
+                                if let time = task.uiTime, !time.isEmpty {
                                     HStack(spacing: 3) {
                                         Image(systemName: "clock")
                                             .font(.system(size: 11))
@@ -594,7 +594,7 @@ struct ConfirmationCardOverlay: View {
                                     .foregroundColor(DesignSystem.Colors.primary)
                                 }
 
-                                Text(task.category == "Appointment" ? L.voice.confirmAppointment : L.voice.confirmRoutine)
+                                Text(task.uiCategory == "Appointment" ? L.voice.confirmAppointment : L.voice.confirmRoutine)
                                     .font(.system(size: 12, weight: .medium))
                                     .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.4))
                             }

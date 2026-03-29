@@ -31,104 +31,68 @@ Deno.serve(async (req: Request) => {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), { headers, status: 401 });
     }
 
-    const { text } = await req.json();
+    const { text, currentTime } = await req.json();
     if (!text) throw new Error("음성 텍스트가 없습니다.");
 
+    // 전달받은 currentTime(예: "2026-03-29 21:15")이 없으면 서버 현재시간 사용
+    const localTimeStr = currentTime || new Date().toLocaleString("ko-KR", { timeZone: "Asia/Seoul", hour12: false });
+
     // ADHD 타겟 유저를 위한 시스템 프롬프트
-    // 최적화 이력: 20가지 임상 기반 ADHD 발화 패턴 테스트 통과 (feature/llm-prompt-testing)
-    const systemInstruction = `You are an AI assistant specialized in analyzing rambling, ADHD-style voice transcripts to extract structured tasks.
-Users may change their minds mid-sentence, repeat themselves, or provide multiple instructions at once.
+    const finalPrompt = `You are an AI Command Router specialized in analyzing rambling, ADHD-style voice transcripts and translating them into precise function calls.
+Users may change their minds mid-sentence, repeat themselves, or give multiple disparate instructions. Your job is to extract their FINAL INTENT and map it to specific functions.
 
-Your task is to extract a list of actions in JSON array format.
-Each object must have these 6 keys:
+Return a JSON array of objects. Each object represents a function call with exactly two keys: "function_name" and "parameters".
 
-1. "action": One of ["add", "delete", "update"].
+### CRITICAL CONTEXT FOR DATE & TIME
+The user's current local date and time is: \`${localTimeStr}\` (Format: yyyy-MM-dd HH:mm)
+Please use this EXACT time to resolve any relative time references! You MUST do the math yourself.
+- "Today" (오늘) means the date part of the current time.
+- "Tomorrow" (내일) means the day after the current time.
+- "In 1 hour" (1시간 뒤, 1시간 후), "After 10 mins" MUST be calculated mathematically from the current time. The output MUST be formatted as "hh:mm AM/PM".
+- "On the 2nd" (2일에) or "On the 3rd" means the 2nd or 3rd day of the CURRENT MONTH (or next month if that date has already passed in the current month). Output must be "yyyy-MM-dd".
 
-2. "task": A concise, action-oriented name. Use the same language as the user. Ignore filler and emotional commentary.
+AVAILABLE FUNCTIONS:
 
-3. "time": Time in "hh:mm AM/PM" format.
-   - Use null for vague expressions: "later", "sometime", "tonight", "eventually", "after work", "whenever", "this afternoon".
-   - TIME RANGE rule: "from X to Y" → extract ONE item with the START time only. Never split a range into two items.
+1. "add_single_task"
+   - parameters: { "task_name": string, "time": string | null, "date": string | null, "category": "Routine" | "Appointment", "recurrence": "weekly" | "biweekly" | "monthly" | "yearly" | null }
+   - Rules: 
+     - "time" must be "hh:mm AM/PM" or null. (e.g. "03:00 PM")
+     - "date" must be "yyyy-MM-dd" or null. Use the calculated date for immediate actions.
+     - "category": Use "Appointment" unless the user explicitly wants a repeating daily habit with NO specific date. Most tasks (e.g. "오늘 10시에 약먹기") MUST be "Appointment", NOT "Routine". Use "Routine" ONLY for general daily habits that don't have a specific date.
+     - "recurrence": Use only for non-daily repeating appointments ("monthly", "weekly"). Routines are implicitly daily, so their recurrence is null.
 
-4. "date": Date in "yyyy-MM-dd" format (ISO 8601 date only).
-   - Use TODAY's date (provided below) when: no date mentioned, "today", or immediate actions.
-   - Calculate relative dates: "tomorrow" = today + 1, "day after tomorrow" = today + 2.
-   - Parse weekday references relative to today: "this Friday", "next Monday", etc.
-   - Parse specific dates: "March 15", "3/15", "15일" etc.
-   - For recurring Routines (daily habits), use null (they repeat daily and have no fixed date).
-   - For recurring Appointments (weekly/monthly/yearly), set date to the NEXT occurrence from today.
+2. "update_task"
+   - parameters: { "target_task_name": string, "new_time": string | null, "new_date": string | null, "new_task_name": string | null, "new_category": "Routine" | "Appointment" | null, "new_recurrence": string | null }
+   - Rules: Target the task using its semantic name. e.g. "2일에 있는 플랜 3일로 옮겨" -> target_task_name: "플랜", new_date: (calculated 3rd date).
 
-   TODAY's date is: {{TODAY}}
+3. "delete_specific_task"
+   - parameters: { "target_task_name": string }
 
-5. "category": Use "Routine" or "Appointment" — check rules in this exact order:
-   RULE 1 — Daily recurrence → "Routine": user says "every day", "daily", "always", "every morning", or calls it a "routine".
-   RULE 2 — Non-daily recurrence → "Appointment" with recurrence: user says "every Monday", "every week", "every month", "every year", "biweekly". These are recurring Appointments, NOT Routines.
-   RULE 3 — Explicit one-time anchor → "Appointment": user says "tomorrow", "this Friday", "next week", a specific date, "for now", "just add [it]". A task phrased as a one-time immediate action is always "Appointment".
-   RULE 4 — Ambiguous (no explicit signal) → classify by task nature:
-     - "Routine": pure personal physical habits — exercise, sleep, hygiene, regular mealtimes.
-     - "Appointment": everything else — errands, payments, calls, emails, work tasks, social events, shopping. When in doubt, default to "Appointment".
+4. "clear_all_tasks"
+   - parameters: { "target_date": "yyyy-MM-dd" | "all" }
+   - Rules: Use when the user specifically wants to reset their whole schedule for a given date.
 
-6. "recurrence": Repeat schedule for recurring appointments. One of ["weekly", "biweekly", "monthly", "yearly"] or null.
-   - "weekly": "every Monday", "every week", "weekly", "매주", "毎週"
-   - "biweekly": "every other week", "every two weeks", "격주", "隔週"
-   - "monthly": "every month", "monthly", "매월", "毎月"
-   - "yearly": "every year", "annually", "매년", "毎年"
-   - null: one-time events AND daily Routines (Routines already repeat daily by nature, so recurrence is null).
+5. "postpone_all_tasks"
+   - parameters: { "from_date": "yyyy-MM-dd", "to_date": "yyyy-MM-dd" }
+   - Rules: Use when user wants to move ALL tasks from one date to another. If they mentioned a SPECIFIC task to move, use \`update_task\` instead.
 
-SPECIAL RULES:
-RULE 5 — Return [] (empty array) when:
-   a) User reports a completion or status ("I finished X", "I completed Y", "I did Z today") with no add/delete/update request.
-   b) User requests a bulk operation on unnamed existing tasks ("move all my routines", "push everything earlier"). You don't have the existing list, so return [].
+6. "mark_task_complete"
+   - parameters: { "target_task_name": string }
 
-RULE 6 — Explicit cancellation (last valid instruction wins):
-   If a user says "add X — actually no, cancel that — add Y instead", extract ONLY the final confirmed instruction. Drop all explicitly cancelled items.
-
-RULE 7 — Deduplication:
-   If the user repeats or re-emphasizes the same task multiple times, extract it exactly ONCE.
+7. "request_clarification"
+   - parameters: { "reason": string }
+   - Rules: Use ONLY if the user's request is completely incomprehensible without a final decision.
 
 --- EXAMPLES ---
 
-Input: "Add a 5 AM jog — actually no, cancel that. Make it a 7 AM walk every day."
-Output: [{"action":"add","task":"Morning Walk","time":"07:00 AM","date":null,"category":"Routine","recurrence":null}]
+Input: "오늘 10시 영양제 먹어야지" (Current time: "2026-03-29 08:00")
+Output: [{"function_name": "add_single_task", "parameters": {"task_name": "영양제 먹기", "time": "10:00 AM", "date": "2026-03-29", "category": "Appointment", "recurrence": null}}]
 
-Input: "Meeting tomorrow at 3 PM"
-Output: [{"action":"add","task":"Meeting","time":"03:00 PM","date":"{{TOMORROW}}","category":"Appointment","recurrence":null}]
+Input: "지금부터 1시간 후에 미팅" (Current time: "2026-03-29 14:00")
+Output: [{"function_name": "add_single_task", "parameters": {"task_name": "미팅", "time": "03:00 PM", "date": "2026-03-29", "category": "Appointment", "recurrence": null}}]
 
-Input: "Block 'Deep Work' from 6 AM to 10 PM. And add a 9 PM wind-down routine every night."
-Output: [
-  {"action":"add","task":"Deep Work","time":"06:00 AM","date":"{{TODAY}}","category":"Appointment","recurrence":null},
-  {"action":"add","task":"Wind-down","time":"09:00 PM","date":null,"category":"Routine","recurrence":null}
-]
-
-Input: "I need to pay the rent, buy groceries, and start a daily journaling habit. Add all."
-Output: [
-  {"action":"add","task":"Pay rent","time":null,"date":"{{TODAY}}","category":"Appointment","recurrence":null},
-  {"action":"add","task":"Buy groceries","time":null,"date":"{{TODAY}}","category":"Appointment","recurrence":null},
-  {"action":"add","task":"Daily journaling","time":null,"date":null,"category":"Routine","recurrence":null}
-]
-
-Input: "Team standup every Monday at 10 AM"
-Output: [{"action":"add","task":"Team standup","time":"10:00 AM","date":"{{NEXT_MONDAY}}","category":"Appointment","recurrence":"weekly"}]
-
-Input: "Dentist appointment every 6 months — actually make it monthly"
-Output: [{"action":"add","task":"Dentist","time":null,"date":"{{TODAY}}","category":"Appointment","recurrence":"monthly"}]
-
-Input: "Just finished my morning run! Feeling great."
-Output: []
-
-Input: "Move all my morning routines to the afternoon."
-Output: []`;
-
-    // 날짜 계산: 프롬프트에 오늘/내일 날짜 삽입
-    const now = new Date();
-    const todayStr = now.toISOString().split('T')[0]; // "yyyy-MM-dd"
-    const tomorrow = new Date(now);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const tomorrowStr = tomorrow.toISOString().split('T')[0];
-
-    const finalPrompt = systemInstruction
-      .replaceAll("{{TODAY}}", todayStr)
-      .replaceAll("{{TOMORROW}}", tomorrowStr);
+Input: "2일에 있는 플랜을 3일로 옮겨줘" (Current time: "2026-03-29 14:00")
+Output: [{"function_name": "update_task", "parameters": {"target_task_name": "플랜", "new_date": "2026-04-03", "new_time": null, "new_task_name": null, "new_category": null, "new_recurrence": null}}]`;
 
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
@@ -173,33 +137,31 @@ Output: []`;
 
     // 2. 배열을 순회하며 각 항목(item)마다 누락된 값 채워주기
     parsedData = parsedData.map((item: any) => {
-      // Swift에서 task는 non-optional이므로 null이면 안 됨
-      if (!item.task) {
-        item.task = text.length > 20 ? text.substring(0, 20) + "..." : (text || "할 일 확인 필요");
+      if (!item.function_name) {
+        item.function_name = 'add_single_task';
       }
-      
-      // category가 Routine이나 Appointment가 아니면 Routine으로 기본값 설정
-      if (item.category !== 'Routine' && item.category !== 'Appointment') {
-        item.category = 'Routine';
+      if (!item.parameters) {
+        item.parameters = {};
       }
 
-      // action이 누락되었을 경우 기본값 'add'로 설정
-      if (!item.action) {
-        item.action = 'add';
-      }
+      // add_single_task 에 대한 필수 파라미터 방어 로직
+      if (item.function_name === 'add_single_task') {
+        if (!item.parameters.task_name) {
+          item.parameters.task_name = text.length > 20 ? text.substring(0, 20) + "..." : (text || "할 일 확인 필요");
+        }
+        
+        if (item.parameters.category !== 'Routine' && item.parameters.category !== 'Appointment') {
+          item.parameters.category = 'Appointment';
+        }
 
-      // date 검증: yyyy-MM-dd 형식이 아니거나 빈 문자열이면 null로 정리
-      if (item.date && !/^\d{4}-\d{2}-\d{2}$/.test(item.date)) {
-        item.date = null;
-      }
+        if (item.parameters.date && !/^\d{4}-\d{2}-\d{2}$/.test(item.parameters.date)) {
+          item.parameters.date = null;
+        }
 
-      // recurrence 검증: 허용된 값만 통과, 나머지 null
-      const validRecurrence = ['weekly', 'biweekly', 'monthly', 'yearly'];
-      if (item.recurrence && !validRecurrence.includes(item.recurrence)) {
-        item.recurrence = null;
-      }
-      if (!item.recurrence) {
-        item.recurrence = null;
+        const validRecurrence = ['weekly', 'biweekly', 'monthly', 'yearly'];
+        if (item.parameters.recurrence && !validRecurrence.includes(item.parameters.recurrence)) {
+          item.parameters.recurrence = null;
+        }
       }
 
       return item;

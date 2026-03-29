@@ -3,70 +3,7 @@ import SwiftUI
 import Combine
 import SwiftData
 
-// MARK: - ParsedTask (DTO)
-/// Gemini API 응답을 디코딩하기 위한 데이터 전송 객체(DTO).
-/// SwiftData @Model과 분리하여 Codable 충돌을 방지합니다.
-struct ParsedTask: Codable, Identifiable {
-    var id = UUID()
-    var task: String
-    var time: String?
-    var date: Date?
-    let category: String           // "Routine" or "Appointment"
-    var isCompleted: Bool = false
-    var action: String? = "add"    // add, delete, update
-    var recurrence: String?        // "weekly" | "biweekly" | "monthly" | "yearly" | nil
-
-    enum CodingKeys: String, CodingKey {
-        case task
-        case time
-        case date
-        case category
-        case action
-        case recurrence
-    }
-
-    /// "yyyy-MM-dd" 문자열 → Date 변환을 포함한 커스텀 디코딩
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        self.task = try container.decode(String.self, forKey: .task)
-        self.time = try container.decodeIfPresent(String.self, forKey: .time)
-        self.category = try container.decode(String.self, forKey: .category)
-        self.action = try container.decodeIfPresent(String.self, forKey: .action) ?? "add"
-
-        // date: "yyyy-MM-dd" 문자열을 Date로 변환
-        if let dateString = try container.decodeIfPresent(String.self, forKey: .date) {
-            self.date = Self.dateFormatter.date(from: dateString)
-        } else {
-            self.date = nil
-        }
-
-        // recurrence 검증: 허용된 값만 통과
-        if let rec = try container.decodeIfPresent(String.self, forKey: .recurrence),
-           ["weekly", "biweekly", "monthly", "yearly"].contains(rec) {
-            self.recurrence = rec
-        } else {
-            self.recurrence = nil
-        }
-    }
-
-    /// 코드 내 직접 생성용 이니셜라이저
-    init(task: String, time: String? = nil, date: Date? = nil, category: String, action: String? = "add", recurrence: String? = nil) {
-        self.task = task
-        self.time = time
-        self.date = date
-        self.category = category
-        self.action = action
-        self.recurrence = recurrence
-    }
-
-    private static let dateFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.dateFormat = "yyyy-MM-dd"
-        f.locale = Locale(identifier: "en_US_POSIX")
-        f.timeZone = .current
-        return f
-    }()
-}
+// Removed ParsedTask
 
 // MARK: - Undo Action
 /// 되돌리기를 위한 최근 액션 저장
@@ -87,57 +24,22 @@ struct UndoableAction {
 class TaskManager: ObservableObject {
 
     // 외부에서 ModelContext를 주입하기 위한 저장소
-    private var modelContext: ModelContext?
+    var modelContext: ModelContext?
 
     // Undo 지원 (스택 기반 — 최대 10단계)
-    private var undoStack: [UndoableAction] = []
-    private static let maxUndoDepth = 10
+    var undoStack: [UndoableAction] = []
+    static let maxUndoDepth = 10
     @Published var showUndoSnackbar = false
     @Published var undoSnackbarMessage = ""
-    private var undoDismissWorkItem: DispatchWorkItem?
+    var undoDismissWorkItem: DispatchWorkItem?
 
     /// App.swift에서 modelContext를 주입합니다.
     func configure(context: ModelContext) {
         self.modelContext = context
     }
 
-    // MARK: - Add (single)
-    func add(task dto: ParsedTask) {
-        process(intents: [dto])
-    }
-
-    // MARK: - Process (batch)
-    /// 배치 처리: 모든 intent를 처리한 뒤 단일 save 호출
-    func process(intents: [ParsedTask]) {
-        var addedTasks: [AppTask] = []
-        var deletedSnapshots: [(task: String, time: String?, date: Date?, category: String, recurrenceRule: String?)] = []
-
-        for intent in intents {
-            let action = intent.action ?? "add"
-
-            if action == "delete" {
-                print("🗑️ 삭제 요청: \(intent.task)")
-                let deleted = deleteByNameBatch(containing: intent.task)
-                deletedSnapshots.append(contentsOf: deleted)
-            } else {
-                let appTask = AppTask(from: intent)
-                insertBatch(appTask)
-                NotificationManager.shared.scheduleNotification(for: appTask)
-                addedTasks.append(appTask)
-            }
-        }
-
-        // 단일 트랜잭션으로 저장
-        safeSave()
-
-        // Undo 액션 기록
-        if !addedTasks.isEmpty {
-            setUndoAction(.added(addedTasks), message: L.voice.undoAdded(addedTasks.count))
-        } else if !deletedSnapshots.isEmpty {
-            setUndoAction(.deleted(deletedSnapshots), message: L.voice.undoDeleted(deletedSnapshots.count))
-        }
-    }
-
+    // Process logic moved to TaskManager+LLM.swift (execute method)
+    
     // MARK: - Toggle Completion
     func toggleCompletion(of task: AppTask) {
         let previousState = task.isCompleted
@@ -232,9 +134,9 @@ class TaskManager: ObservableObject {
         }
     }
 
-    // MARK: - Private Helpers
+    // MARK: - Helpers
 
-    private func setUndoAction(_ type: UndoableAction.ActionType, message: String) {
+    func setUndoAction(_ type: UndoableAction.ActionType, message: String) {
         let action = UndoableAction(type: type, message: message)
         undoStack.append(action)
         // 스택 크기 제한
@@ -262,7 +164,7 @@ class TaskManager: ObservableObject {
     /// 이름 기반 AppTask 삭제 (배치, save 호출 안함)
     /// 매칭 전략: 정확 매칭 > 태스크명에 검색어 포함 (단, 검색어 2글자 이상일 때만)
     /// 기존 양방향 contains 제거 — "a"가 모든 태스크를 삭제하는 문제 해결
-    private func deleteByNameBatch(containing name: String) -> [(task: String, time: String?, date: Date?, category: String, recurrenceRule: String?)] {
+    func deleteByNameBatch(containing name: String) -> [(task: String, time: String?, date: Date?, category: String, recurrenceRule: String?)] {
         guard let context = modelContext else { return [] }
         let descriptor = FetchDescriptor<AppTask>()
         var deleted: [(task: String, time: String?, date: Date?, category: String, recurrenceRule: String?)] = []
@@ -293,7 +195,7 @@ class TaskManager: ObservableObject {
     }
 
     /// insert만 수행 (save는 호출하지 않음)
-    private func insertBatch(_ task: AppTask) {
+    func insertBatch(_ task: AppTask) {
         guard let context = modelContext else {
             print("⚠️ TaskManager: ModelContext가 주입되지 않았습니다.")
             return
@@ -303,7 +205,7 @@ class TaskManager: ObservableObject {
     }
 
     /// do-catch 기반 안전한 저장
-    private func safeSave() {
+    func safeSave() {
         guard let context = modelContext else { return }
         do {
             try context.save()
