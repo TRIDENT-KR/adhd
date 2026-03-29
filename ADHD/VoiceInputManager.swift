@@ -154,6 +154,15 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
     }
 
     func startListening() {
+        // 앱 설정 언어와 인식 언어 동기화
+        syncLocaleWithAppLanguage()
+        
+        guard let recognizer = speechRecognizer, recognizer.isAvailable else {
+            self.errorMessage = L.voice.errorRecognitionFailed
+            self.lastError = .recognitionFailed
+            return
+        }
+        
         // Reset state
         recognizedText = ""
         errorMessage = nil
@@ -358,5 +367,16 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
     private func stopSilenceDetection() {
         silenceTimer?.invalidate()
         silenceTimer = nil
+    }
+
+    /// 앱의 현재 설정 언어에 맞춰 음성 인식기 로케일을 동기화합니다.
+    private func syncLocaleWithAppLanguage() {
+        let appLocale = AppLanguage.current.localeIdentifier
+        if currentLocaleId != appLocale {
+            currentLocaleId = appLocale
+            speechRecognizer = SFSpeechRecognizer(locale: Locale(identifier: appLocale))
+            speechRecognizer?.delegate = self
+            print("🎙️ Speech Recognition Locale Synced: \(appLocale)")
+        }
     }
 }

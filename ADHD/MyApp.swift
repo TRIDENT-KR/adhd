@@ -5,18 +5,16 @@ import SwiftData
 struct WaitWhatApp: App {
     // MARK: - SwiftData Container
     /// 스키마 변경 시 기존 데이터와 호환되지 않으면 저장소를 초기화하여 크래시를 방지합니다.
-    let container: ModelContainer = {
+    private static let sharedContainer: ModelContainer = {
         let schema = Schema([AppTask.self])
         let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
         do {
             return try ModelContainer(for: schema, configurations: [config])
         } catch {
             print("⚠️ SwiftData 초기화 실패, 저장소 재생성: \(error)")
-            // 기존 저장소 삭제 후 재생성 (스키마 마이그레이션 실패 복구)
             let url = config.url
             if FileManager.default.fileExists(atPath: url.path()) {
                 try? FileManager.default.removeItem(at: url)
-                // WAL, SHM 파일도 정리
                 try? FileManager.default.removeItem(at: URL(filePath: url.path() + "-wal"))
                 try? FileManager.default.removeItem(at: URL(filePath: url.path() + "-shm"))
             }
@@ -27,6 +25,8 @@ struct WaitWhatApp: App {
             }
         }
     }()
+    
+    private var container: ModelContainer { Self.sharedContainer }
 
     @StateObject private var taskManager = TaskManager()
     @StateObject private var cloudLLM = CloudLLMManager()

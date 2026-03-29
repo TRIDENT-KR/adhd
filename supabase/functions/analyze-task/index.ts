@@ -58,7 +58,11 @@ AVAILABLE FUNCTIONS:
    - Rules: 
      - "time" must be "hh:mm AM/PM" or null. (e.g. "03:00 PM")
      - "date" must be "yyyy-MM-dd" or null. Use the calculated date for immediate actions.
-     - "category": Use "Appointment" unless the user explicitly wants a repeating daily habit with NO specific date. Most tasks (e.g. "오늘 10시에 약먹기") MUST be "Appointment", NOT "Routine". Use "Routine" ONLY for general daily habits that don't have a specific date.
+     - "category": Choose one of: "Task", "Appointment", "Routine".
+       * "Task": Use for any one-time goal or item occurring TODAY (e.g., "Take medicine at 11:30 oggi", "Write a diary tonight"). Even if it has a specific time, if it's for today, it is a "Task".
+       * "Appointment": Use for one-time events on specific FUTURE dates (e.g., "Meeting tomorrow at 2 PM", "Doctor on April 5th"). 
+       * "Routine": Use ONLY for recurring daily/weekly habits or general resolutions with NO specific date (e.g., "Stretch every morning", "Drink more water"). 
+     - "IMPORTANT": If the user mentions "Today" or a time without a future date, prioritize "Task", NOT "Routine". "Routine" should be reserved for things that are meant to be repeated indefinitely.
      - "recurrence": Use only for non-daily repeating appointments ("monthly", "weekly"). Routines are implicitly daily, so their recurrence is null.
 
 2. "update_task"
