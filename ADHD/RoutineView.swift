@@ -60,7 +60,7 @@ struct RoutineView: View {
 
                     // 제목 + 검색 버튼
                     HStack {
-                        Text(L.routineTitle)
+                        Text(verbatim: "Routine")
                             .onAppear { setupVoiceEditCallback() }
                             .font(DesignSystem.Typography.displayLg)
                             .foregroundColor(DesignSystem.Colors.primary)

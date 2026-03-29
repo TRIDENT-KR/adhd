@@ -7,15 +7,15 @@ struct CustomBottomBar: View {
     var body: some View {
         HStack(spacing: 0) {
             Spacer()
-            TabBarItem(iconName: "square.grid.2x2", label: L.tabRoutine, isActive: activeTab == .routine) {
+            TabBarItem(iconName: "square.grid.2x2", label: "Routine", isActive: activeTab == .routine) {
                 withAnimation(.spring()) { activeTab = .routine }
             }
             Spacer()
-            TabBarItem(iconName: "mic.fill", label: L.tabVoice, isActive: activeTab == .voice) {
+            TabBarItem(iconName: "mic.fill", label: "Voice", isActive: activeTab == .voice) {
                 withAnimation(.spring()) { activeTab = .voice }
             }
             Spacer()
-            TabBarItem(iconName: "calendar", label: L.tabPlanner, isActive: activeTab == .planner) {
+            TabBarItem(iconName: "calendar", label: "Planner", isActive: activeTab == .planner) {
                 withAnimation(.spring()) { activeTab = .planner }
             }
             Spacer()
@@ -44,7 +44,7 @@ struct TabBarItem: View {
                     .font(.system(size: 26, weight: isActive ? .bold : .medium))
                     .scaleEffect(isActive ? 1.15 : 1.0)
 
-                Text(label)
+                Text(verbatim: label)
                     .font(DesignSystem.Typography.labelSm)
                     .fontWeight(isActive ? .semibold : .regular)
                     .opacity(isActive ? 1 : 0.6)

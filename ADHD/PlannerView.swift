@@ -44,7 +44,7 @@ struct PlannerView: View {
 
                     // Header
                     HStack {
-                        Text(L.plannerTitle)
+                        Text(verbatim: "Planner")
                             .font(DesignSystem.Typography.displayLg)
                             .foregroundColor(DesignSystem.Colors.primary)
                             .tracking(-0.5)
@@ -127,7 +127,7 @@ struct PlannerView: View {
 
                     Spacer()
                 }
-                .navigationTitle("Calendar")
+                .navigationTitle(Text(verbatim: "Calendar"))
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .navigationBarLeading) {
