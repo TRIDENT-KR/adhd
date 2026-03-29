@@ -33,6 +33,7 @@ struct WaitWhatApp: App {
     @StateObject private var authManager = AuthManager()
     @StateObject private var networkMonitor = NetworkMonitor.shared
     @AppStorage("appTheme") private var appTheme: String = "system"
+    @AppStorage("appLanguage") private var appLanguage: String = "en"
     @Environment(\.scenePhase) private var scenePhase
 
     private var colorScheme: ColorScheme? {
@@ -59,6 +60,8 @@ struct WaitWhatApp: App {
                         // 알림 권한 요청 (최초 1회)
                         NotificationManager.shared.requestAuthorization()
                     }
+                    .id(appLanguage) // 언어 변경 시 전체 뷰 재렌더링 강제
+                    .environment(\.locale, Locale(identifier: appLanguage))
                     .onChange(of: scenePhase) { oldPhase, newPhase in
                         if newPhase == .active {
                             // 앱이 활성화될 때마다 날짜 체크 및 리셋 실행
@@ -69,6 +72,8 @@ struct WaitWhatApp: App {
                 LoginView()
                     .environmentObject(authManager)
                     .preferredColorScheme(colorScheme)
+                    .id(appLanguage)
+                    .environment(\.locale, Locale(identifier: appLanguage))
             }
         }
     }
