@@ -99,6 +99,44 @@ class TaskManager: ObservableObject {
     /// App.swift에서 modelContext를 주입합니다.
     func configure(context: ModelContext) {
         self.modelContext = context
+        // 앱 구동 시 초기화 체크
+        checkAndResetDailyTasks()
+    }
+
+    // MARK: - Daily Reset Logic
+    private let lastResetKey = "lastResetDate"
+
+    /// 날짜가 바뀌었는지 확인하고 루틴/반복 일정을 초기화합니다.
+    func checkAndResetDailyTasks() {
+        guard let context = modelContext else { return }
+        let now = Date()
+        let lastReset = UserDefaults.standard.object(forKey: lastResetKey) as? Date
+
+        // 마지막 초기화 날짜가 오늘이 아니면 실행
+        if lastReset == nil || !Calendar.current.isDate(lastReset!, inSameDayAs: now) {
+            print("🌅 새로운 날 발견: 일일 태스크 초기화 중...")
+            do {
+                let descriptor = FetchDescriptor<AppTask>()
+                let allTasks = try context.fetch(descriptor)
+
+                var resetCount = 0
+                for task in allTasks {
+                    // 루틴이거나 반복 설정이 있는 경우만 리셋
+                    if task.category == "Routine" || task.isRecurring {
+                        if task.isCompleted {
+                            task.isCompleted = false
+                            resetCount += 1
+                        }
+                    }
+                }
+
+                UserDefaults.standard.set(now, forKey: lastResetKey)
+                safeSave()
+                print("✅ \(resetCount)개의 태스크 초기화 완료.")
+            } catch {
+                print("❌ 초기화 실패: \(error.localizedDescription)")
+            }
+        }
     }
 
     // MARK: - Add (single)
