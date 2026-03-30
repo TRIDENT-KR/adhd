@@ -2,6 +2,7 @@ import Foundation
 import SwiftUI
 import Combine
 import SwiftData
+import WidgetKit
 
 // Removed ParsedTask
 
@@ -270,8 +271,71 @@ class TaskManager: ObservableObject {
         guard let context = modelContext else { return }
         do {
             try context.save()
+            // 데이터 변경 시 위젯 동기화
+            writeWidgetSnapshot()
         } catch {
             print("❌ TaskManager 저장 실패: \(error.localizedDescription)")
+        }
+    }
+
+    // MARK: - Widget Toggle Sync
+    /// 위젯에서 토글된 태스크를 SwiftData에 반영합니다.
+    func syncWidgetToggles() {
+        guard let context = modelContext,
+              let defaults = UserDefaults(suiteName: "group.trident-KR.ADHD") else { return }
+
+        let pendingToggles = defaults.stringArray(forKey: "pendingWidgetToggles") ?? []
+        guard !pendingToggles.isEmpty else { return }
+
+        // 처리 완료 표시 (중복 방지)
+        defaults.removeObject(forKey: "pendingWidgetToggles")
+
+        do {
+            let descriptor = FetchDescriptor<AppTask>()
+            let allTasks = try context.fetch(descriptor)
+
+            for idString in pendingToggles {
+                guard let uuid = UUID(uuidString: idString),
+                      let task = allTasks.first(where: { $0.id == uuid }) else { continue }
+                task.isCompleted.toggle()
+                print("🔄 위젯에서 토글 동기화: \(task.task) → \(task.isCompleted ? "완료" : "미완료")")
+            }
+
+            try context.save()
+            print("✅ 위젯 토글 \(pendingToggles.count)개 동기화 완료")
+        } catch {
+            print("❌ 위젯 토글 동기화 실패: \(error.localizedDescription)")
+        }
+    }
+
+    // MARK: - Widget Data Sync
+    /// 오늘의 태스크를 스냅샷으로 만들어 위젯과 공유합니다.
+    func writeWidgetSnapshot() {
+        guard let context = modelContext else { return }
+        do {
+            let descriptor = FetchDescriptor<AppTask>()
+            let allTasks = try context.fetch(descriptor)
+            let today = Date()
+
+            let routines = allTasks
+                .filter { $0.category == "Routine" && $0.occursOn(today) }
+                .sorted { $0.sortableTime < $1.sortableTime }
+                .map { $0.toWidgetSnapshot() }
+
+            let appointments = allTasks
+                .filter { $0.category == "Appointment" && $0.occursOn(today) }
+                .sorted { $0.sortableTime < $1.sortableTime }
+                .map { $0.toWidgetSnapshot() }
+
+            let payload = WidgetDataPayload(
+                routines: routines,
+                appointments: appointments,
+                updatedAt: today
+            )
+            WidgetDataStore.write(payload)
+            WidgetCenter.shared.reloadAllTimelines()
+        } catch {
+            print("❌ 위젯 스냅샷 생성 실패: \(error.localizedDescription)")
         }
     }
 }

@@ -13,25 +13,31 @@ struct RoutineView: View {
            sort: \.time)
     private var allAppointments: [AppTask]
 
-    /// 오늘 날짜의 Appointment만 반환 (반복 일정 포함), 시간순 정렬
+    /// 오늘 날짜의 Appointment만 반환 (반복 일정 포함), 사용자 정렬 > 시간순
     private var todayAppointments: [AppTask] {
         let today = Date()
         return allAppointments
             .filter { $0.occursOn(today) }
-            .sorted { $0.sortableTime < $1.sortableTime }
+            .sorted { a, b in
+                if a.sortOrder != b.sortOrder { return a.sortOrder < b.sortOrder }
+                return a.sortableTime < b.sortableTime
+            }
     }
 
-    /// 오늘의 Routines (매일 반복 혹은 오늘 날짜 지정), 시간순 정렬
+    /// 오늘의 Routines (매일 반복 혹은 오늘 날짜 지정), 사용자 정렬 > 시간순
     private var todayRoutines: [AppTask] {
         let today = Date()
         return routines
             .filter { $0.occursOn(today) }
-            .sorted { $0.sortableTime < $1.sortableTime }
+            .sorted { a, b in
+                if a.sortOrder != b.sortOrder { return a.sortOrder < b.sortOrder }
+                return a.sortableTime < b.sortableTime
+            }
     }
 
     @EnvironmentObject private var taskManager: TaskManager
     @Environment(\.modelContext) private var modelContext
-    
+
     @ObservedObject var langManager = LocalizationManager.shared
 
 
@@ -39,6 +45,8 @@ struct RoutineView: View {
     @State private var editingTaskId: UUID?
     @State private var selectedSection: RoutineSection = .routines
     @State private var showSearch = false
+    @State private var isReordering = false
+    @State private var draggingTask: AppTask?
 
     enum RoutineSection: CaseIterable {
         case routines, tasks
@@ -81,13 +89,14 @@ struct RoutineView: View {
                     .padding(.top, 16)
                     .padding(.horizontal, 32)
 
-                    // 섹션 토글 (Zero Clutter: 한 번에 하나의 섹션만 표시)
+                    // 섹션 토글 + 정렬 버튼
                     HStack(spacing: 12) {
                         ForEach(RoutineSection.allCases, id: \.self) { section in
                             let isSelected = selectedSection == section
                             Button(action: {
                                 withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                                     selectedSection = section
+                                    isReordering = false
                                 }
                             }) {
                                 Text(section.label)
@@ -103,6 +112,18 @@ struct RoutineView: View {
                             .buttonStyle(PlainButtonStyle())
                         }
                         Spacer()
+
+                        // 정렬 모드 토글
+                        Button(action: {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                isReordering.toggle()
+                                if isReordering { editingTaskId = nil }
+                            }
+                        }) {
+                            Image(systemName: isReordering ? "checkmark.circle.fill" : "arrow.up.arrow.down")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundColor(isReordering ? DesignSystem.Colors.tertiary : DesignSystem.Colors.onSurfaceVariant.opacity(0.4))
+                        }
                     }
                     .padding(.horizontal, 32)
 
@@ -129,6 +150,13 @@ struct RoutineView: View {
                             }
                         }
                         .frame(minHeight: ((UIApplication.shared.connectedScenes.first as? UIWindowScene)?.screen.bounds.height ?? 800) * 0.45)
+                    } else if isReordering {
+                        // 정렬 모드: 드래그 핸들 표시
+                        LazyVStack(spacing: 16) {
+                            ForEach(currentTasks) { task in
+                                ReorderRow(task: task, allTasks: currentTasks, taskManager: taskManager)
+                            }
+                        }
                     } else {
                         let (incomplete, completed) = currentTasks.partitioned { !$0.isCompleted }
                         LazyVStack(spacing: 32) {
@@ -518,6 +546,103 @@ struct SwipeToDeleteModifier: ViewModifier {
 extension View {
     func swipeToDelete(onDelete: @escaping () -> Void) -> some View {
         modifier(SwipeToDeleteModifier(onDelete: onDelete))
+    }
+}
+
+// MARK: - Reorder Row Component
+struct ReorderRow: View {
+    var task: AppTask
+    let allTasks: [AppTask]
+    let taskManager: TaskManager
+
+    private var currentIndex: Int {
+        allTasks.firstIndex(where: { $0.id == task.id }) ?? 0
+    }
+    private var isFirst: Bool { currentIndex == 0 }
+    private var isLast: Bool { currentIndex == allTasks.count - 1 }
+
+    var body: some View {
+        HStack(spacing: 16) {
+            // 드래그 핸들
+            Image(systemName: "line.3.horizontal")
+                .font(.system(size: 16, weight: .medium))
+                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.3))
+
+            // 완료 표시
+            Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
+                .font(.system(size: 16))
+                .foregroundColor(task.isCompleted ? DesignSystem.Colors.tertiary : DesignSystem.Colors.onSurfaceVariant.opacity(0.25))
+
+            // 태스크 이름
+            VStack(alignment: .leading, spacing: 2) {
+                Text(task.task)
+                    .font(DesignSystem.Typography.bodyMd)
+                    .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
+                    .lineLimit(1)
+                if let time = task.time, !time.isEmpty {
+                    Text(time)
+                        .font(DesignSystem.Typography.labelSm)
+                        .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.4))
+                }
+            }
+
+            Spacer()
+
+            // 위/아래 이동 버튼
+            HStack(spacing: 8) {
+                Button(action: { moveUp() }) {
+                    Image(systemName: "chevron.up")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(isFirst ? DesignSystem.Colors.onSurfaceVariant.opacity(0.1) : DesignSystem.Colors.primary)
+                }
+                .disabled(isFirst)
+
+                Button(action: { moveDown() }) {
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(isLast ? DesignSystem.Colors.onSurfaceVariant.opacity(0.1) : DesignSystem.Colors.primary)
+                }
+                .disabled(isLast)
+            }
+        }
+        .padding(.vertical, 12)
+        .padding(.horizontal, 32)
+        .background(DesignSystem.Colors.surfaceContainerLow.opacity(0.5))
+        .cornerRadius(12)
+        .padding(.horizontal, 24)
+    }
+
+    private func moveUp() {
+        guard !isFirst else { return }
+        let idx = currentIndex
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+            swapOrder(allTasks[idx], allTasks[idx - 1])
+        }
+        Haptic.impact(.light)
+    }
+
+    private func moveDown() {
+        guard !isLast else { return }
+        let idx = currentIndex
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+            swapOrder(allTasks[idx], allTasks[idx + 1])
+        }
+        Haptic.impact(.light)
+    }
+
+    private func swapOrder(_ a: AppTask, _ b: AppTask) {
+        let tempOrder = a.sortOrder
+        a.sortOrder = b.sortOrder
+        b.sortOrder = tempOrder
+
+        // 같은 값이었으면 강제로 분리
+        if a.sortOrder == b.sortOrder {
+            // 전체 목록에 순서를 재할당
+            for (i, t) in allTasks.enumerated() {
+                t.sortOrder = (i + 1) * 10
+            }
+        }
+        taskManager.safeSave()
     }
 }
 

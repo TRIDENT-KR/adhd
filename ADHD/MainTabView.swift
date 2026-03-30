@@ -90,7 +90,20 @@ struct MainTabView: View {
             .spring(response: 0.4, dampingFraction: 0.7),
             value: taskManager.showUndoSnackbar
         )
+        .onReceive(NotificationCenter.default.publisher(for: .widgetDeepLink)) { notification in
+            if let tab = notification.object as? TabSelection {
+                if !loadedTabs.contains(tab) {
+                    loadedTabs.insert(tab)
+                }
+                withAnimation { activeTab = tab }
+            }
+        }
     }
+}
+
+// MARK: - Widget Deep Link Notification
+extension Notification.Name {
+    static let widgetDeepLink = Notification.Name("widgetDeepLink")
 }
 
 // MARK: - Undo Snackbar
