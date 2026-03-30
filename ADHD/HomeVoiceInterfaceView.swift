@@ -10,7 +10,6 @@ struct HomeVoiceInterfaceView: View {
     @ObservedObject var langManager = LocalizationManager.shared
     @StateObject private var voiceManager = VoiceInputManager()
     @State private var isBreathing = false
-    @State private var showPlaceholder = true
     @State private var showSuccessCheck = false
     @State private var showSettings = false
 
@@ -159,16 +158,7 @@ struct HomeVoiceInterfaceView: View {
                         isBreathing = true
                         setupSpeechCallback()
                     }
-                    .task(id: showPlaceholder) {
-                        // showPlaceholder가 true일 때만 1.5초 후 페이드 아웃
-                        guard showPlaceholder else { return }
-                        try? await Task.sleep(nanoseconds: 1_500_000_000)
-                        // sleep 중 showPlaceholder가 false로 바뀌면 Task가 취소됨
-                        guard !Task.isCancelled else { return }
-                        withAnimation(.easeOut(duration: 0.8)) {
-                            showPlaceholder = false
-                        }
-                    }
+
 
                     // ── 녹음 타이머 + 침묵 카운트다운 ──
                     if voiceManager.isListening {
@@ -222,13 +212,11 @@ struct HomeVoiceInterfaceView: View {
                             VStack(spacing: 8) {
                                 Text(L.voicePlaceholder)
                                     .foregroundColor(DesignSystem.Colors.primary)
-                                    .opacity(showPlaceholder ? 1.0 : 0.0)
 
                                 if !hasSeenVoiceOnboarding {
                                     Text(L.voice.guideHint)
                                         .font(DesignSystem.Typography.labelSm)
                                         .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.4))
-                                        .opacity(showPlaceholder ? 1.0 : 0.0)
                                 }
                             }
                         }
@@ -430,7 +418,6 @@ struct HomeVoiceInterfaceView: View {
             networkMonitor.showOfflineBannerTemporarily()
             return
         }
-        showPlaceholder = true
         Haptic.impact(.medium)
         voiceManager.toggleListening()
     }
@@ -449,13 +436,6 @@ struct HomeVoiceInterfaceView: View {
             try? await Task.sleep(nanoseconds: 1_500_000_000)
             await MainActor.run {
                 showSuccessCheck = false
-                showPlaceholder = true
-            }
-            try? await Task.sleep(nanoseconds: 1_500_000_000)
-            await MainActor.run {
-                withAnimation(.easeOut(duration: 0.8)) {
-                    showPlaceholder = false
-                }
             }
         }
     }
@@ -464,7 +444,6 @@ struct HomeVoiceInterfaceView: View {
         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
             showConfirmation = false
             pendingTasks = []
-            showPlaceholder = true
         }
     }
 
@@ -541,13 +520,6 @@ struct HomeVoiceInterfaceView: View {
                         try? await Task.sleep(nanoseconds: 1_500_000_000)
                         await MainActor.run {
                             showSuccessCheck = false
-                            showPlaceholder = true
-                        }
-                        try? await Task.sleep(nanoseconds: 1_500_000_000)
-                        await MainActor.run {
-                            withAnimation(.easeOut(duration: 0.8)) {
-                                showPlaceholder = false
-                            }
                         }
                     }
                 } catch {
