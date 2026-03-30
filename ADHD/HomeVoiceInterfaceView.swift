@@ -699,7 +699,6 @@ struct TaskEditSheet: View {
                 
                 Section(header: Text(L.voice.fieldCategory)) {
                     Picker(L.voice.fieldCategory, selection: $category) {
-                        Text(L.voice.confirmTask).tag("Task")
                         Text(L.voice.confirmAppointment).tag("Appointment")
                         Text(L.voice.confirmRoutine).tag("Routine")
                     }
