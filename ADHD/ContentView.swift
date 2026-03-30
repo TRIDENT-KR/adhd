@@ -3,8 +3,8 @@ import SwiftUI
 // MARK: - Custom Bottom Bar
 struct CustomBottomBar: View {
     @Binding var activeTab: TabSelection
-    /// 언어 변경 시 탭 바 레이블도 즉각 재렌더링
-    @AppStorage("appLanguage") private var _lang: String = "en"
+    @ObservedObject var langManager = LocalizationManager.shared
+
 
     var body: some View {
         HStack(spacing: 0) {

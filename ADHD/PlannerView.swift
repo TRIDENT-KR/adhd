@@ -9,8 +9,8 @@ struct PlannerView: View {
     private var appointments: [AppTask]
 
     @EnvironmentObject private var taskManager: TaskManager
-    /// 언어 변경 시 이 뷰를 즐각 재렌더링하기 위해 @AppStorage로 감지
-    @AppStorage("appLanguage") private var _lang: String = "en"
+    @ObservedObject var langManager = LocalizationManager.shared
+
 
     @Binding var activeTab: TabSelection
     @State private var editingTaskId: UUID?

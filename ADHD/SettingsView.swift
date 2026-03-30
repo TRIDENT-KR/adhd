@@ -5,11 +5,13 @@ struct SettingsView: View {
     @EnvironmentObject var authManager: AuthManager
     @EnvironmentObject var taskManager: TaskManager
     @Environment(\.dismiss) private var dismiss
+    
+    @ObservedObject var langManager = LocalizationManager.shared
+    
     @State private var showLogoutConfirm = false
     @State private var showDeleteConfirm = false
     @State private var showClearCompletedConfirm = false
     @State private var showClearAllConfirm = false
-    @AppStorage("appLanguage") private var appLanguage: String = "en"
 
     // Notifications
     @State private var routineReminders: Bool = !UserDefaults.standard.bool(forKey: "routineRemindersDisabled")
@@ -24,12 +26,6 @@ struct SettingsView: View {
     // Voice
     @AppStorage("micInputMode") private var micInputMode: String = "tap"
     @AppStorage("confirmBeforeSave") private var confirmBeforeSave: Bool = true
-
-    private let supportedLocales: [(id: String, label: String)] = [
-        ("en-US", "English"),
-        ("ko-KR", "한국어"),
-        ("ja-JP", "日本語"),
-    ]
 
     private var remindBeforeOptions: [(value: Int, label: String)] {[
         (0, L.settings.atTime),
@@ -80,23 +76,19 @@ struct SettingsView: View {
 
                 // ── Language ──
                 Section {
-                    Picker(selection: $appLanguage) {
-                        ForEach(supportedLocales, id: \.id) { locale in
-                            Text(locale.label).tag(String(locale.id.prefix(2)).lowercased())
+                    Picker(selection: $langManager.currentLanguage) {
+                        ForEach(AppLanguage.allCases, id: \.self) { lang in
+                            Text(lang.label).tag(lang)
                         }
                     } label: {
                         HStack {
                             Image(systemName: "globe")
                                 .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.5))
-                            Text(L.settings.language)
+                            Text(L.settings.languageLabel)
                         }
                     }
-                    .onChange(of: appLanguage) { _, newValue in
-                        let voiceLocale = supportedLocales.first { String($0.id.prefix(2)).lowercased() == newValue }?.id ?? "en-US"
-                        UserDefaults.standard.set(voiceLocale, forKey: VoiceInputManager.speechLocaleKey)
-                    }
                 } header: {
-                    Text(L.settings.language)
+                    Text(L.settings.languageLabel)
                 }
 
                 // ── Voice ──
@@ -179,7 +171,7 @@ struct SettingsView: View {
                 // ── Appearance ──
                 Section {
                     Picker(selection: $appTheme) {
-                        Text(L.settings.system).tag("system")
+                        Text(L.settings.systemResource).tag("system")
                         Text(L.settings.light).tag("light")
                         Text(L.settings.dark).tag("dark")
                     } label: {
@@ -322,6 +314,12 @@ struct SettingsView: View {
             } message: {
                 Text(L.settings.clearAllConfirm)
             }
+        }
+        .onChange(of: langManager.currentLanguage) { oldVal, newVal in
+            // Update speech locale when language changes
+            let voiceLocale = newVal.localeIdentifier
+            UserDefaults.standard.set(voiceLocale, forKey: VoiceInputManager.speechLocaleKey)
+            Haptic.impact(.light)
         }
     }
 }
