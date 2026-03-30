@@ -95,10 +95,20 @@ extension TaskManager {
         // 파라미터가 들어온 것만 선별적으로 업데이트 (nil인 경우 기존 값 유지)
         if let newName = params.new_task_name { matchingTask.task = newName }
         if let newTime = params.new_time { matchingTask.time = newTime }
+        
+        if let newCategory = params.new_category { 
+            matchingTask.category = newCategory 
+            // 만약 루틴으로 변경된 경우, 특정 날짜 정보를 제거하여 매일 반복되도록 처리
+            if newCategory == "Routine" {
+                matchingTask.date = nil
+            }
+        }
+        
+        // 날짜가 명시적으로 들어왔다면 (Appointment 등) 업데이트
         if let newDateString = params.new_date, let newDate = date(from: newDateString) {
             matchingTask.date = newDate
         }
-        if let newCategory = params.new_category { matchingTask.category = newCategory }
+        
         if let newRecurrence = params.new_recurrence { matchingTask.recurrenceRule = newRecurrence }
         
         // 알림 재설정

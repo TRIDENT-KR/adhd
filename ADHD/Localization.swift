@@ -180,6 +180,14 @@ struct VoiceStrings {
     var errorApi: String { t("Something went wrong. Try again", "문제가 생겼어요. 다시 시도해주세요", "問題が発生しました。再試行してください") }
     var errorPermission: String { t("Microphone permission needed", "마이크 권한이 필요합니다", "마이크의 허가가 필요합니다") }
     var tryAgain: String { t("Try Again", "다시 시도", "再試行") }
+    var confirmTitle: String { t("Review & Confirm", "확인 및 검토", "確認と検討") }
+    var confirmUpdate: String { t("Edit", "수정", "編集") }
+    
+    var actionClearAll: String { t("Clear All Tasks", "모든 일정 지우기", "すべてのタスクをクリア") }
+    func actionClearDate(_ date: String) -> String { t("Clear tasks for \(date)", "\(date) 일정 일괄 지우기", "\(date)のタスクを一括削除") }
+    func actionPostpone(from: String, to: String) -> String { t("Postpone from \(from) to \(to)", "\(from) 일정을 \(to)로 미루기", "\(from)の予定を\(to)に延期") }
+    func actionComplete(_ name: String) -> String { t("Mark \"\(name)\" as complete", "\"\(name)\" 완료 처리", "\"\(name)\"を完了にする") }
+    func actionUnknown(_ cmd: String) -> String { t("Unknown command (\(cmd))", "알 수 없는 명령 (\(cmd))", "不明なコマンド (\(cmd))") }
 
     var guideTitle: String { t("Try saying...", "이렇게 말해보세요...", "こう言ってみてください...") }
     var guideHint: String { t("Long press mic for examples", "마이크를 길게 눌러 예시를 확인", "마이크를 길게 눌러서 예를 표시") }
@@ -193,6 +201,7 @@ struct VoiceStrings {
     var confirmRoutine: String { t("Routine", "루틴", "ルーティン") }
     var confirmAppointment: String { t("Planner", "플래너", "プランナー") }
     var confirmTask: String { t("Today's Task", "오늘 할 일", "今日のタスク") }
+    var confirmToday: String { t("Today", "오늘 할 일", "今日") }
     var confirmButton: String { t("Confirm", "확인", "確認") }
     var confirmCancel: String { t("Cancel", "취소", "キャンセル") }
     var confirmSending: String { t("Sending...", "전송 중...", "送信中...") }
