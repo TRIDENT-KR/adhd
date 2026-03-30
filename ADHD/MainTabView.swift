@@ -1,9 +1,11 @@
 import SwiftUI
 
 struct MainTabView: View {
+    @ObservedObject var langManager = LocalizationManager.shared
     @State var activeTab: TabSelection = .voice
     @EnvironmentObject private var networkMonitor: NetworkMonitor
     @EnvironmentObject private var taskManager: TaskManager
+
 
     var body: some View {
         ZStack(alignment: .bottom) {
