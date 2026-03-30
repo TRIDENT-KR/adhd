@@ -7,23 +7,25 @@ import CryptoKit
 class AuthManager: NSObject, ObservableObject {
     @Published var session: Session?
     @Published var isProcessing = false
+    /// 세션 로딩이 완료되었는지 여부 (초기 스플래시 방지)
+    @Published var isSessionLoaded = false
 
     /// Settings에서 사용할 이메일 (Auth 모듈 import 없이 접근)
     var userEmail: String? {
         session?.user.email
     }
-    
-    private var currentNonce: String?
-    
 
-    
+    private var currentNonce: String?
+
+
+
     override init() {
         super.init()
         Task {
             await checkSession()
         }
     }
-    
+
     @MainActor
     func checkSession() async {
         do {
@@ -31,6 +33,7 @@ class AuthManager: NSObject, ObservableObject {
         } catch {
             self.session = nil
         }
+        self.isSessionLoaded = true
     }
     
     func signOut() async {

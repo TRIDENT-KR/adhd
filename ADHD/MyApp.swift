@@ -47,32 +47,38 @@ struct WaitWhatApp: App {
 
     var body: some Scene {
         WindowGroup {
-            if authManager.session != nil {
-                MainTabView()
-                    .preferredColorScheme(colorScheme)
-                    .environment(\.locale, Locale(identifier: appLanguage))
-                    .environmentObject(taskManager)
-                    .environmentObject(cloudLLM)
-                    .environmentObject(authManager)
-                    .environmentObject(networkMonitor)
-                    .modelContainer(container)
-                    .onAppear {
-                        // ModelContext 주입 (TaskManager → SwiftData)
-                        taskManager.configure(context: container.mainContext)
-                        // 알림 권한 요청 (최초 1회)
-                        NotificationManager.shared.requestAuthorization()
-                    }
-                    .onChange(of: scenePhase) { oldPhase, newPhase in
-                        if newPhase == .active {
-                            // 앱이 활성화될 때마다 날짜 체크 및 리셋 실행
-                            taskManager.checkAndResetDailyTasks()
+            Group {
+                if !authManager.isSessionLoaded {
+                    // 세션 확인 중 — 가벼운 스플래시로 렉 없이 대기
+                    DesignSystem.Colors.background
+                        .ignoresSafeArea()
+                } else if authManager.session != nil {
+                    MainTabView()
+                        .preferredColorScheme(colorScheme)
+                        .environment(\.locale, Locale(identifier: appLanguage))
+                        .environmentObject(taskManager)
+                        .environmentObject(cloudLLM)
+                        .environmentObject(authManager)
+                        .environmentObject(networkMonitor)
+                        .modelContainer(container)
+                        .task {
+                            // ModelContext 주입 (TaskManager → SwiftData)
+                            taskManager.configure(context: container.mainContext)
+                            // 알림 권한 요청 (최초 1회) — UI 렌더링 후 비동기 실행
+                            NotificationManager.shared.requestAuthorization()
                         }
-                    }
-            } else {
-                LoginView()
-                    .environmentObject(authManager)
-                    .preferredColorScheme(colorScheme)
-                    .environment(\.locale, Locale(identifier: appLanguage))
+                        .onChange(of: scenePhase) { oldPhase, newPhase in
+                            if newPhase == .active {
+                                // 앱이 활성화될 때마다 날짜 체크 및 리셋 실행
+                                taskManager.checkAndResetDailyTasks()
+                            }
+                        }
+                } else {
+                    LoginView()
+                        .environmentObject(authManager)
+                        .preferredColorScheme(colorScheme)
+                        .environment(\.locale, Locale(identifier: appLanguage))
+                }
             }
         }
     }
