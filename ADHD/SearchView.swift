@@ -119,7 +119,7 @@ struct SearchView: View {
                 }
             }
             .background(DesignSystem.Colors.background.ignoresSafeArea())
-            .navigationTitle(L.search.title)
+            .navigationTitle(Text(verbatim: "Search"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {

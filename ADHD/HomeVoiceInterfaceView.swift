@@ -6,11 +6,14 @@ struct HomeVoiceInterfaceView: View {
     @EnvironmentObject var taskManager: TaskManager
     @EnvironmentObject var authManager: AuthManager
     @EnvironmentObject var networkMonitor: NetworkMonitor
+    
+    @ObservedObject var langManager = LocalizationManager.shared
     @StateObject private var voiceManager = VoiceInputManager()
     @State private var isBreathing = false
     @State private var showPlaceholder = true
     @State private var showSuccessCheck = false
     @State private var showSettings = false
+
     @State private var showVoiceGuide = false
     @State private var shakeOffset: CGFloat = 0
     @State private var showErrorToast = false

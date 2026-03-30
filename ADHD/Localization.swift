@@ -1,13 +1,46 @@
 import Foundation
+import Combine
 import SwiftUI
 
-// MARK: - Localization System
+// MARK: - Localization Manager
+class LocalizationManager: ObservableObject {
+    static let shared = LocalizationManager()
+    
+    @Published var currentLanguage: AppLanguage {
+        didSet {
+            UserDefaults.standard.set(currentLanguage.rawValue, forKey: "appLanguage")
+        }
+    }
+    
+    private init() {
+        let saved = UserDefaults.standard.string(forKey: "appLanguage") ?? "en"
+        self.currentLanguage = AppLanguage(rawValue: saved) ?? .en
+    }
+    
+    var strings: Strings {
+        Strings(language: currentLanguage)
+    }
+}
+
+
+/// 전역적으로 사용할 짧은 접근자
+var L: Strings {
+    LocalizationManager.shared.strings
+}
 
 enum AppLanguage: String, CaseIterable {
     case en, ko, ja
 
+    var label: String {
+        switch self {
+        case .en: return "English"
+        case .ko: return "한국어"
+        case .ja: return "日本語"
+        }
+    }
+
     static var current: AppLanguage {
-        AppLanguage(rawValue: UserDefaults.standard.string(forKey: "appLanguage") ?? "en") ?? .en
+        LocalizationManager.shared.currentLanguage
     }
     
     var localeIdentifier: String {
@@ -19,29 +52,35 @@ enum AppLanguage: String, CaseIterable {
     }
 }
 
-/// 글로벌 접근: L.tabRoutine, L.settings.logOut 등
-var L: Strings { Strings() }
-
-private func t(_ en: String, _ ko: String, _ ja: String) -> String {
-    switch AppLanguage.current {
-    case .en: return en
-    case .ko: return ko
-    case .ja: return ja
-    }
-}
-
 struct Strings {
-    // Tab Bar
-    var tabRoutine: String { t("Routine", "루틴", "ルーティン") }
-    var tabVoice: String { t("Voice", "음성", "音声") }
-    var tabPlanner: String { t("Planner", "플래너", "プランナー") }
+    let language: AppLanguage
+    
+    func t(_ en: String, _ ko: String, _ ja: String) -> String {
+        switch language {
+        case .en: return en
+        case .ko: return ko
+        case .ja: return ja
+        }
+    }
 
-    // Voice Tab
-    var voicePlaceholder: String { t("What should I remember for you?", "무엇을 기억해 드릴까요?", "何を覚えておきましょうか？") }
-    var voiceListening: String { t("Listening...", "듣고 있어요...", "聞いています...") }
-    var voiceAnalyzing: String { t("Analyzing...", "분석 중...", "分析中...") }
-    var voice: VoiceStrings { VoiceStrings() }
+    // Tab Bar (English Fixed per Objective 1)
+    var tabRoutine: String { "Routine" }
+    var tabVoice:   String { "Voice" }
+    var tabPlanner: String { "Planner" }
 
+    // Navigation Labels (English Fixed per Objective 1)
+    var navSettings: String { "Settings" }
+    var navCalendar: String { "Calendar" }
+
+    // Offline Banner (Objective 2: Fixed to English)
+    var offlineText: String { "Offline. Check your connection." }
+    var backOnline:  String { "Back Online" }
+
+    // Global
+    var cancel: String { t("Cancel", "취소", "キャンセル") }
+    var save:   String { t("Save", "저장", "保存") }
+    var done:   String { t("Done", "완료", "完了") }
+    
     // Routine Tab
     var routineTitle: String { t("My Routines", "나의 루틴", "マイルーティン") }
     var routineDailySection: String { t("Daily Routines", "매일 루틴", "デイリールーティン") }
@@ -53,31 +92,46 @@ struct Strings {
     var plannerTitle: String { t("My Planner", "나의 플래너", "マイプランナー") }
     var plannerEmpty: String { t("Tap to add a plan", "탭하여 일정을 추가하세요", "タップして予定を追加") }
 
-    // Offline
-    var offlineText: String { t("Offline — voice paused", "오프라인 — 음성 중단", "オフライン — 音声停止") }
-
     // Settings
-    var settings: SettingsStrings { SettingsStrings() }
+    var settings: SettingsStrings { SettingsStrings(language: language) }
+
+    // Voice Tab
+    var voicePlaceholder: String { t("What should I remember for you?", "무엇을 기억해 드릴까요?", "何を覚えておきましょうか？") }
+    var voiceListening: String { t("Listening...", "듣고 있어요...", "聞いています...") }
+    var voiceAnalyzing: String { t("Analyzing...", "분석 중...", "分析中...") }
+    var voice: VoiceStrings { VoiceStrings(language: language) }
 
     // Login
-    var login: LoginStrings { LoginStrings() }
+    var login: LoginStrings { LoginStrings(language: language) }
 
     // Network
-    var network: NetworkStrings { NetworkStrings() }
+    var network: NetworkStrings { NetworkStrings(language: language) }
 
     // Search
-    var search: SearchStrings { SearchStrings() }
+    var search: SearchStrings { SearchStrings(language: language) }
+
+    // Calendar
+    var calendarToday: String { t("Today", "오늘", "今日") }
 
     // Recurrence
-    var recurrence: RecurrenceStrings { RecurrenceStrings() }
+    var recurrence: RecurrenceStrings { RecurrenceStrings(language: language) }
 }
 
 struct SettingsStrings {
+    let language: AppLanguage
+    private func t(_ en: String, _ ko: String, _ ja: String) -> String {
+        switch language {
+        case .en: return en
+        case .ko: return ko
+        case .ja: return ja
+        }
+    }
+
     var title: String { t("Settings", "설정", "設定") }
     var account: String { t("Account", "계정", "アカウント") }
     var logOut: String { t("Log Out", "로그아웃", "ログアウト") }
     var deleteAccount: String { t("Delete Account", "계정 삭제", "アカウント削除") }
-    var language: String { t("Language", "언어", "言語") }
+    var languageLabel: String { t("Language", "언어", "言語") }
     var notifications: String { t("Notifications", "알림", "通知") }
     var routineReminders: String { t("Routine Reminders", "루틴 알림", "ルーティン通知") }
     var appointmentReminders: String { t("Appointment Reminders", "일정 알림", "予定通知") }
@@ -88,7 +142,7 @@ struct SettingsStrings {
     var haptic: String { t("Haptic Feedback", "햅틱 피드백", "触覚フィードバック") }
     var dataManagement: String { t("Data Management", "데이터 관리", "データ管理") }
     var clearCompleted: String { t("Clear Completed Tasks", "완료된 태스크 삭제", "完了タスクを削除") }
-    var clearAll: String { t("Clear All Data", "전체 데이터 삭제", "全データ削除") }
+    var clearAll: String { t("Clear All Data", "전체 데이터 삭제", "全데이터 삭제") }
     var routineNotifTitle: String { t("🔔 Routine Reminder", "🔔 루틴 알림", "🔔 ルーティン通知") }
     var appointmentNotifTitle: String { t("📅 Appointment Reminder", "📅 일정 알림", "📅 予定通知") }
     var about: String { t("About", "앱 정보", "アプリ情報") }
@@ -102,7 +156,7 @@ struct SettingsStrings {
     var clearAllConfirm: String { t("This will delete all routines and appointments. This cannot be undone.", "모든 루틴과 일정이 삭제됩니다. 되돌릴 수 없습니다.", "全ルーティンと予定が削除されます。元に戻せません。") }
     var atTime: String { t("At time", "정시", "予定時刻") }
     var minBefore: String { t("min before", "분 전", "分前") }
-    var system: String { t("System", "시스템", "システム") }
+    var systemResource: String { t("System", "시스템", "システム") }
     var light: String { t("Light", "라이트", "ライト") }
     var dark: String { t("Dark", "다크", "ダーク") }
     var done: String { t("Done", "완료", "完了") }
@@ -111,35 +165,39 @@ struct SettingsStrings {
 }
 
 struct VoiceStrings {
-    // Error messages
+    let language: AppLanguage
+    private func t(_ en: String, _ ko: String, _ ja: String) -> String {
+        switch language {
+        case .en: return en
+        case .ko: return ko
+        case .ja: return ja
+        }
+    }
+
     var errorNotHeard: String { t("Couldn't hear you. Try again?", "잘 못 들었어요. 다시 말해주세요", "聞き取れませんでした。もう一度お願いします") }
-    var errorRecognitionFailed: String { t("Speech recognition failed. Try again", "음성 인식에 실패했어요. 다시 시도해주세요", "音声認識に失敗しました。再試行してください") }
+    var errorRecognitionFailed: String { t("Speech recognition failed. Try again", "음성 인식에 실패했어요. 다시 시도해주세요", "音声認識に失敗しました. 再試行してください") }
     var errorNetwork: String { t("No connection. Try again later", "연결이 없어요. 나중에 다시 시도해주세요", "接続がありません。後で再試行してください") }
     var errorApi: String { t("Something went wrong. Try again", "문제가 생겼어요. 다시 시도해주세요", "問題が発生しました。再試行してください") }
-    var errorPermission: String { t("Microphone permission needed", "마이크 권한이 필요합니다", "マイクの許可が必要です") }
+    var errorPermission: String { t("Microphone permission needed", "마이크 권한이 필요합니다", "마이크의 허가가 필요합니다") }
     var tryAgain: String { t("Try Again", "다시 시도", "再試行") }
 
-    // Voice guide / onboarding hints
     var guideTitle: String { t("Try saying...", "이렇게 말해보세요...", "こう言ってみてください...") }
-    var guideHint: String { t("Long press mic for examples", "마이크를 길게 눌러 예시를 확인", "マイクを長押しで例を表示") }
+    var guideHint: String { t("Long press mic for examples", "마이크를 길게 눌러 예시를 확인", "마이크를 길게 눌러서 예를 표시") }
 
-    // Example commands
     var exampleAdd: String { t("\"Take medicine at 9 AM\"", "\"오전 9시에 약 먹기\"", "\"午前9時に薬を飲む\"") }
     var exampleAppointment: String { t("\"Meeting tomorrow at 3 PM\"", "\"내일 오후 3시에 회의\"", "\"明日午後3時に会議\"") }
     var exampleDelete: String { t("\"Delete exercise\"", "\"운동 삭제\"", "\"運動を削除\"") }
 
-    // Confirmation card
     var confirmAdd: String { t("Add to", "에 추가", "に追加") }
     var confirmDelete: String { t("Delete", "삭제", "削除") }
     var confirmRoutine: String { t("Routine", "루틴", "ルーティン") }
     var confirmAppointment: String { t("Planner", "플래너", "プランナー") }
-    var confirmTask: String { t("Today's Task", "오늘 할 일", "今日のタ스크") }
+    var confirmTask: String { t("Today's Task", "오늘 할 일", "今日のタスク") }
     var confirmButton: String { t("Confirm", "확인", "確認") }
     var confirmCancel: String { t("Cancel", "취소", "キャンセル") }
     var confirmSending: String { t("Sending...", "전송 중...", "送信中...") }
 
-    // Task Edit Sheet
-    var editTaskTitle: String { t("Edit Task", "일정 수정", "タ스크編集") }
+    var editTaskTitle: String { t("Edit Task", "일정 수정", "タスク編集") }
     var fieldName: String { t("Task Name", "내용", "内容") }
     var fieldTime: String { t("Time", "시간", "時間") }
     var fieldDate: String { t("Date", "날짜", "日付") }
@@ -147,62 +205,83 @@ struct VoiceStrings {
     var save: String { t("Save", "저장", "保存") }
     var cancel: String { t("Cancel", "취소", "キャンセル") }
 
-    // Silence countdown
     var silenceCountdown: String { t("Sending in", "전송까지", "送信まで") }
-
-    // Mic mode
-    var micModeTap: String { t("Tap to Toggle", "탭하여 전환", "タップで切替") }
+    var micModeTap: String { t("Tap to Toggle", "탭하여 전환", "탭하여 전환") }
     var micModeHold: String { t("Hold to Talk", "길게 눌러 말하기", "押し続けて話す") }
-    var micModeTitle: String { t("Mic Mode", "마이크 모드", "マイクモード") }
+    var micModeTitle: String { t("Mic Mode", "마이크 모드", "마이크 모드") }
     var confirmBeforeSave: String { t("Confirm Before Save", "저장 전 확인", "保存前に確認") }
 
-    // Undo
     var undoButton: String { t("Undo", "되돌리기", "元に戻す") }
     func undoAdded(_ count: Int) -> String { t("\(count) task(s) added", "\(count)개 추가됨", "\(count)件追加") }
     func undoDeleted(_ count: Int) -> String { t("\(count) task(s) deleted", "\(count)개 삭제됨", "\(count)件削除") }
-    func undoDeletedSingle(_ name: String) -> String { t("\"\(name)\" deleted", "\"\(name)\" 삭제됨", "\"\(name)\"を削除") }
+    func undoDeletedSingle(_ name: String) -> String { t("\"\(name)\" deleted", "\"\(name)\" 삭제됨", "\"\(name)\"를 삭제") }
     var undoCompleted: String { t("Marked as done", "완료 처리됨", "完了にしました") }
     var undoUncompleted: String { t("Marked as not done", "미완료 처리됨", "未完了にしました") }
 
-    // Text input
     var textInputPlaceholder: String { t("Type a task...", "할 일을 입력...", "タスクを入力...") }
     var textInputSend: String { t("Send", "전송", "送信") }
 
-    // Confirmation card - remove single item
     var confirmRemoveItem: String { t("Remove", "제거", "削除") }
 
-    // Accessibility
     var a11yStartRecording: String { t("Start recording", "녹음 시작", "録音開始") }
     var a11yStopRecording: String { t("Stop recording", "녹음 중지", "録音停止") }
-    var a11yTapHint: String { t("Tap to start or stop voice input", "탭하여 음성 입력을 시작하거나 중지합니다", "タップして音声入力の開始・停止") }
+    var a11yTapHint: String { t("Tap to start or stop voice input", "탭하여 음성 입력을 시작하거나 중지합니다", "탭하여 음성 입력을 시작하거나 중지합니다") }
     var a11yHoldHint: String { t("Press and hold to record, release to send", "길게 눌러 녹음하고, 떼면 전송됩니다", "長押しで録音、離すと送信") }
-    var a11yTabBar: String { t("Tab navigation", "탭 내비게이션", "タブナビゲーション") }
+    var a11yTabBar: String { t("Tab navigation", "탭 내비게이션", "탭 내비게이션") }
     var a11yUndo: String { t("Undo last action", "마지막 작업 되돌리기", "最後の操作を元に戻す") }
 }
 
-// MARK: - Login Strings
 struct LoginStrings {
+    let language: AppLanguage
+    private func t(_ en: String, _ ko: String, _ ja: String) -> String {
+        switch language {
+        case .en: return en
+        case .ko: return ko
+        case .ja: return ja
+        }
+    }
     var subtitle: String { t("Your AI thoughts companion.", "당신의 AI 생각 도우미.", "あなたのAI思考パートナー。") }
     var tosPrefix: String { t("By signing in, you agree to our ", "로그인하면 ", "サインインすると") }
     var tosLink: String { t("Terms of Service", "이용약관", "利用規約") }
-    var tosSuffix: String { t(".", "에 동의합니다.", "に同意したことになります。") }
+    var tosSuffix: String { t(".", "에 동의합니다.", "에 동의합니다.") }
 }
 
-// MARK: - Network Strings
 struct NetworkStrings {
-    var backOnline: String { t("Back online ✓", "온라인 복구 ✓", "オンライン復帰 ✓") }
+    let language: AppLanguage
+    private func t(_ en: String, _ ko: String, _ ja: String) -> String {
+        switch language {
+        case .en: return en
+        case .ko: return ko
+        case .ja: return ja
+        }
+    }
+    var backOnline: String { t("Back online ✓", "온라인 복구 ✓", "온라인 복구 ✓") }
 }
 
-// MARK: - Recurrence Strings
 struct RecurrenceStrings {
+    let language: AppLanguage
+    private func t(_ en: String, _ ko: String, _ ja: String) -> String {
+        switch language {
+        case .en: return en
+        case .ko: return ko
+        case .ja: return ja
+        }
+    }
     var weekly: String { t("Weekly", "매주", "毎週") }
     var biweekly: String { t("Biweekly", "격주", "隔週") }
     var monthly: String { t("Monthly", "매월", "毎月") }
     var yearly: String { t("Yearly", "매년", "毎年") }
 }
 
-// MARK: - Search Strings
 struct SearchStrings {
+    let language: AppLanguage
+    private func t(_ en: String, _ ko: String, _ ja: String) -> String {
+        switch language {
+        case .en: return en
+        case .ko: return ko
+        case .ja: return ja
+        }
+    }
     var title: String { t("Search", "검색", "検索") }
     var placeholder: String { t("Search tasks...", "할 일 검색...", "タスクを検索...") }
     var noResults: String { t("No results found", "검색 결과 없음", "結果が見つかりません") }

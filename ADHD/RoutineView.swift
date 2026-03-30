@@ -31,6 +31,9 @@ struct RoutineView: View {
 
     @EnvironmentObject private var taskManager: TaskManager
     @Environment(\.modelContext) private var modelContext
+    
+    @ObservedObject var langManager = LocalizationManager.shared
+
 
     @Binding var activeTab: TabSelection
     @State private var editingTaskId: UUID?
@@ -60,7 +63,7 @@ struct RoutineView: View {
 
                     // 제목 + 검색 버튼
                     HStack {
-                        Text(L.routineTitle)
+                        Text(verbatim: "Routine")
                             .onAppear { setupVoiceEditCallback() }
                             .font(DesignSystem.Typography.displayLg)
                             .foregroundColor(DesignSystem.Colors.primary)
