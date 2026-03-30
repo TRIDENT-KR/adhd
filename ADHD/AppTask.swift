@@ -17,13 +17,17 @@ final class AppTask {
     /// 반복 규칙: "weekly" | "biweekly" | "monthly" | "yearly" | nil (일회성)
     var recurrenceRule: String?
 
+    /// 사용자 지정 정렬 순서 (0 = 미지정, 낮을수록 위에 표시)
+    var sortOrder: Int = 0
+
     init(id: UUID = UUID(),
          task: String,
          time: String? = nil,
          date: Date? = nil,
          category: String,
          isCompleted: Bool = false,
-         recurrenceRule: String? = nil) {
+         recurrenceRule: String? = nil,
+         sortOrder: Int = 0) {
         self.id             = id
         self.task           = task
         self.time           = time
@@ -31,6 +35,7 @@ final class AppTask {
         self.category       = category
         self.isCompleted    = isCompleted
         self.recurrenceRule = recurrenceRule
+        self.sortOrder      = sortOrder
     }
 
     /// 반복 여부
@@ -121,6 +126,18 @@ final class AppTask {
         }
     }
 
+    // MARK: - Widget Snapshot 변환
+    /// 위젯용 경량 DTO로 변환
+    func toWidgetSnapshot() -> WidgetTaskSnapshot {
+        WidgetTaskSnapshot(
+            id: id,
+            task: task,
+            time: time,
+            category: category,
+            isCompleted: isCompleted,
+            recurrenceLabel: recurrenceLabel
+        )
+    }
 }
 
 public struct CategoryIconResolver {

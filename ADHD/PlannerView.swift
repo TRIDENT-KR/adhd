@@ -27,9 +27,16 @@ struct PlannerView: View {
         let f = DateFormatter(); f.dateFormat = "d"; return f
     }()
 
-    /// 선택된 날짜와 같은 날의 약속만 반환 (반복 일정 포함)
+    @State private var isReordering = false
+
+    /// 선택된 날짜와 같은 날의 약속만 반환 (반복 일정 포함), 사용자 정렬 > 시간순
     private var filteredAppointments: [AppTask] {
-        appointments.filter { $0.occursOn(selectedDate) }
+        appointments
+            .filter { $0.occursOn(selectedDate) }
+            .sorted { a, b in
+                if a.sortOrder != b.sortOrder { return a.sortOrder < b.sortOrder }
+                return a.sortableTime < b.sortableTime
+            }
     }
 
     /// 특정 날짜에 이벤트가 있는지 확인 (배지 표시용)
@@ -52,6 +59,20 @@ struct PlannerView: View {
                             .tracking(-0.5)
 
                         Spacer()
+
+                        Button(action: {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                isReordering.toggle()
+                                if isReordering { editingTaskId = nil }
+                            }
+                        }) {
+                            Image(systemName: isReordering ? "checkmark.circle.fill" : "arrow.up.arrow.down")
+                                .font(.system(size: 18, weight: .light))
+                                .foregroundColor(isReordering ? DesignSystem.Colors.tertiary : DesignSystem.Colors.onSurfaceVariant.opacity(0.4))
+                                .padding(8)
+                                .contentShape(Circle())
+                        }
+                        .buttonStyle(NoEffectButtonStyle())
 
                         Button(action: { showSearch = true }) {
                             Image(systemName: "magnifyingglass")
@@ -94,6 +115,12 @@ struct PlannerView: View {
                             }
                         }
                         .frame(minHeight: ((UIApplication.shared.connectedScenes.first as? UIWindowScene)?.screen.bounds.height ?? 800) * 0.4)
+                    } else if isReordering {
+                        LazyVStack(spacing: 16) {
+                            ForEach(filteredAppointments) { task in
+                                ReorderRow(task: task, allTasks: filteredAppointments, taskManager: taskManager)
+                            }
+                        }
                     } else {
                         LazyVStack(spacing: 32) {
                             ForEach(filteredAppointments) { task in

@@ -19,7 +19,9 @@ struct WaitWhatApp: App {
                 try? FileManager.default.removeItem(at: URL(filePath: url.path() + "-shm"))
             }
             do {
-                return try ModelContainer(for: schema, configurations: [config])
+                // 실패한 config 재사용 불가 — 새 인스턴스 생성
+                let freshConfig = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+                return try ModelContainer(for: schema, configurations: [freshConfig])
             } catch {
                 fatalError("SwiftData 복구 불가: \(error)")
             }
@@ -45,6 +47,34 @@ struct WaitWhatApp: App {
         }
     }
 
+    // MARK: - Widget Deep Link Handling
+    private func handleWidgetDeepLink(_ url: URL) {
+        guard url.scheme == "waitwhat", url.host == "tab" else { return }
+        let tabName = url.lastPathComponent
+        let tab: TabSelection
+        switch tabName {
+        case "routine": tab = .routine
+        case "planner": tab = .planner
+        default:        tab = .voice
+        }
+        NotificationCenter.default.post(name: .widgetDeepLink, object: tab)
+    }
+
+    private func handlePendingDeepLink() {
+        guard let defaults = UserDefaults(suiteName: "group.trident-KR.ADHD"),
+              let link = defaults.string(forKey: "widgetDeepLink") else { return }
+        defaults.removeObject(forKey: "widgetDeepLink")
+        let tab: TabSelection
+        switch link {
+        case "routine": tab = .routine
+        case "planner": tab = .planner
+        default:        tab = .voice
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            NotificationCenter.default.post(name: .widgetDeepLink, object: tab)
+        }
+    }
+
     var body: some Scene {
         WindowGroup {
             Group {
@@ -67,10 +97,19 @@ struct WaitWhatApp: App {
                             // 알림 권한 요청 (최초 1회) — UI 렌더링 후 비동기 실행
                             NotificationManager.shared.requestAuthorization()
                         }
+                        .onOpenURL { url in
+                            handleWidgetDeepLink(url)
+                        }
                         .onChange(of: scenePhase) { oldPhase, newPhase in
                             if newPhase == .active {
                                 // 앱이 활성화될 때마다 날짜 체크 및 리셋 실행
                                 taskManager.checkAndResetDailyTasks()
+                                // 위젯에서 토글한 태스크 동기화
+                                taskManager.syncWidgetToggles()
+                                // 위젯 데이터 최신 상태로 갱신
+                                taskManager.writeWidgetSnapshot()
+                                // 위젯 딥링크 처리 (AppIntent 경유)
+                                handlePendingDeepLink()
                             }
                         }
                 } else {

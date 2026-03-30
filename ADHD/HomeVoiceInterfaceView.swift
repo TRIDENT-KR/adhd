@@ -108,9 +108,7 @@ struct HomeVoiceInterfaceView: View {
                                 .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
                         }
                     }
-
-                    Spacer()
-                    Spacer(minLength: 120)
+                    .padding(.bottom, 48)
                 } else {
                 // ── 음성 입력 모드 (기존) ──
                 Spacer()
