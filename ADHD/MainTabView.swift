@@ -6,6 +6,8 @@ struct MainTabView: View {
     @EnvironmentObject private var networkMonitor: NetworkMonitor
     @EnvironmentObject private var taskManager: TaskManager
 
+    /// 한 번이라도 방문한 탭을 추적하여 지연 로딩
+    @State private var loadedTabs: Set<TabSelection> = [.voice]
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -14,18 +16,35 @@ struct MainTabView: View {
 
             // 2. 현재 탭 뷰 (스와이프 가능하도록 TabView 사용)
             TabView(selection: $activeTab) {
-                RoutineView(activeTab: $activeTab)
-                    .tag(TabSelection.routine)
+                Group {
+                    if loadedTabs.contains(.routine) {
+                        RoutineView(activeTab: $activeTab)
+                    } else {
+                        Color.clear
+                    }
+                }
+                .tag(TabSelection.routine)
 
                 HomeVoiceInterfaceView()
                     .tag(TabSelection.voice)
 
-                PlannerView(activeTab: $activeTab)
-                    .tag(TabSelection.planner)
+                Group {
+                    if loadedTabs.contains(.planner) {
+                        PlannerView(activeTab: $activeTab)
+                    } else {
+                        Color.clear
+                    }
+                }
+                .tag(TabSelection.planner)
             }
             .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .padding(.bottom, 80)
+            .onChange(of: activeTab) { _, newTab in
+                if !loadedTabs.contains(newTab) {
+                    loadedTabs.insert(newTab)
+                }
+            }
 
             // 3. 글로벌 바텀 바
             CustomBottomBar(activeTab: $activeTab)

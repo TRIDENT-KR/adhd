@@ -67,6 +67,7 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
     @Published var micMode: MicInputMode = {
         MicInputMode(rawValue: UserDefaults.standard.string(forKey: "micInputMode") ?? "tap") ?? .tapToggle
     }()
+    private var micModeObserver: AnyCancellable?
 
     // Audio power downsampling: 4프레임당 1회만 계산
     private var audioFrameCount: Int = 0
@@ -75,7 +76,8 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
     private var speechRecognizer: SFSpeechRecognizer?
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var recognitionTask: SFSpeechRecognitionTask?
-    private let audioEngine = AVAudioEngine()
+    private lazy var audioEngine = AVAudioEngine()
+    private var didPrepare = false
 
     /// UserDefaults Keys
     static let speechLocaleKey = "speechLocale"
@@ -96,7 +98,26 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
         super.init()
         let localeId = UserDefaults.standard.string(forKey: Self.speechLocaleKey) ?? "ko-KR"
         currentLocaleId = localeId
-        speechRecognizer = SFSpeechRecognizer(locale: Locale(identifier: localeId))
+        // SFSpeechRecognizer와 권한 요청은 첫 사용 시까지 지연
+
+        // Settings에서 micInputMode 변경 시 즉시 반영
+        micModeObserver = NotificationCenter.default
+            .publisher(for: UserDefaults.didChangeNotification)
+            .compactMap { _ in
+                MicInputMode(rawValue: UserDefaults.standard.string(forKey: "micInputMode") ?? "tap")
+            }
+            .removeDuplicates()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] newMode in
+                self?.micMode = newMode
+            }
+    }
+
+    /// 첫 녹음 시작 전 한 번만 호출되는 무거운 초기화
+    private func prepareIfNeeded() {
+        guard !didPrepare else { return }
+        didPrepare = true
+        speechRecognizer = SFSpeechRecognizer(locale: Locale(identifier: currentLocaleId))
         speechRecognizer?.delegate = self
         requestPermissions()
     }
@@ -117,6 +138,7 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
         UserDefaults.standard.set(localeId, forKey: Self.speechLocaleKey)
         speechRecognizer = SFSpeechRecognizer(locale: Locale(identifier: localeId))
         speechRecognizer?.delegate = self
+        didPrepare = true
     }
     
     func requestPermissions() {
@@ -141,6 +163,7 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
     }
     
     func toggleListening() {
+        prepareIfNeeded()
         if audioEngine.isRunning {
             stopListening()
         } else {
