@@ -109,7 +109,11 @@ extension TaskManager {
     
     // MARK: - 3. Delete Specific Task
     private func deleteSpecificTask(params: DeleteTaskParams) {
-        let deleted = deleteByNameBatch(containing: params.target_task_name)
+        let deleted = deleteByNameBatch(
+            containing: params.target_task_name,
+            category: params.target_category,
+            dateString: params.target_date
+        )
         if !deleted.isEmpty {
             setUndoAction(.deleted(deleted), message: L.voice.undoDeleted(deleted.count))
         } else {
@@ -124,14 +128,22 @@ extension TaskManager {
         let isAllTime = (params.target_date.lowercased() == "all")
         let targetDate = date(from: params.target_date)
         
+        // 안전망: 날짜가 지정되었는데 카테고리가 없으면 루틴 보호를 위해 Appointment로 간주
+        let finalCategory = (params.target_category == nil && !isAllTime) ? "Appointment" : params.target_category
+        
         do {
             let allTasks = try context.fetch(FetchDescriptor<AppTask>())
             var deletedCount = 0
             var deletedSnapshots: [(task: String, time: String?, date: Date?, category: String, recurrenceRule: String?)] = []
             
             for task in allTasks {
-                // "all" 이면 모두 삭제, 아니면 해당 날짜에 해당하는 태스크 삭제
-                let shouldDelete = isAllTime || (targetDate != nil && task.occursOn(targetDate!))
+                // 1) 날짜 조건 검사 ("all" 이면 무조건 참, 아니면 해당 날짜에 해당하는지)
+                let dateMatches = isAllTime || (targetDate != nil && task.occursOn(targetDate!))
+                
+                // 2) 카테고리 조건 검사
+                let categoryMatches = (finalCategory == nil || finalCategory?.lowercased() == "all" || task.category == finalCategory)
+                
+                let shouldDelete = dateMatches && categoryMatches
                 
                 if shouldDelete {
                     deletedSnapshots.append((task: task.task, time: task.time, date: task.date, category: task.category, recurrenceRule: task.recurrenceRule))

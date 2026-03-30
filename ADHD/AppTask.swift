@@ -122,3 +122,47 @@ final class AppTask {
     }
 
 }
+
+public struct CategoryIconResolver {
+    /// 태스크명에서 키워드 매칭으로 카테고리 아이콘 결정 (Visual Anchor)
+    /// 영어 / 한국어 / 일본어 키워드 지원
+    public static let iconRules: [(icon: String, keywords: [String])] = [
+        ("figure.run",              ["exercise", "workout", "run", "gym", "jog",
+                                     "운동", "달리기", "조깅", "헬스",
+                                     "運動", "ランニング", "ジョギング", "ジム"]),
+        ("pill.fill",               ["medicine", "pill", "drug", "vitamin", "supplement",
+                                     "약", "비타민", "영양제", "복용",
+                                     "薬", "ビタミン", "サプリ", "服薬"]),
+        ("fork.knife",              ["meal", "eat", "breakfast", "lunch", "dinner", "cook", "food",
+                                     "식사", "밥", "아침", "점심", "저녁", "요리", "먹",
+                                     "食事", "ご飯", "朝食", "昼食", "夕食", "料理"]),
+        ("alarm.fill",              ["sleep", "bed", "wake", "alarm",
+                                     "잠", "수면", "기상", "알람", "일어나",
+                                     "睡眠", "寝", "起き", "アラーム", "起床"]),
+        ("book.fill",               ["study", "read", "book", "learn", "homework",
+                                     "공부", "독서", "책", "학습", "숙제",
+                                     "勉強", "読書", "本", "学習", "宿題"]),
+        ("phone.fill",              ["meeting", "call", "zoom", "conference",
+                                     "회의", "전화", "미팅", "통화",
+                                     "会議", "電話", "ミーティング", "通話"]),
+        ("bubbles.and.sparkles.fill", ["clean", "laundry", "wash", "tidy",
+                                     "청소", "빨래", "세탁", "정리",
+                                     "掃除", "洗濯", "片付け"]),
+        ("pawprint.fill",           ["walk", "dog", "pet", "cat",
+                                     "산책", "강아지", "반려", "고양이",
+                                     "散歩", "犬", "ペット", "猫"]),
+        ("drop.fill",               ["water", "drink", "hydrat",
+                                     "물", "수분", "음료",
+                                     "水", "飲み物", "水分"]),
+    ]
+
+    public static func resolveIcon(for taskName: String, category: String?) -> String {
+        let name = taskName.lowercased()
+        for rule in iconRules {
+            if rule.keywords.contains(where: { name.contains($0) }) {
+                return rule.icon
+            }
+        }
+        return category == "Appointment" ? "calendar" : "circle.fill"
+    }
+}

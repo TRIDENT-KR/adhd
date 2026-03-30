@@ -37,10 +37,13 @@ struct UpdateTaskParams: Codable {
 
 struct DeleteTaskParams: Codable {
     let target_task_name: String
+    var target_category: String?
+    var target_date: String?
 }
 
 struct ClearTasksParams: Codable {
-    let target_date: String
+    var target_category: String?
+    var target_date: String
 }
 
 struct PostponeTasksParams: Codable {
@@ -141,8 +144,10 @@ extension LLMFunctionCall: Identifiable {
         switch uiAction {
         case "delete": return "trash.circle.fill"
         case "update": return "pencil.circle.fill"
+        case "add":
+            return CategoryIconResolver.resolveIcon(for: uiTaskName, category: uiCategory)
         default:
-            return uiCategory == "Task" ? "checklist" : "plus.circle.fill"
+            return "plus.circle.fill"
         }
     }
     
@@ -151,8 +156,16 @@ extension LLMFunctionCall: Identifiable {
         case "delete": return L.voice.confirmDelete
         case "update": return "수정"
         default:
-            if uiCategory == "Task" { return L.voice.confirmTask }
-            if uiCategory == "Appointment" { return L.voice.confirmAppointment }
+            if uiCategory == "Appointment" {
+                // 오늘 날짜인지 판별 (DateFormatter 사용)
+                let df = DateFormatter()
+                df.dateFormat = "yyyy-MM-dd"
+                let todayString = df.string(from: Date())
+                if uiDate == todayString {
+                    return L.voice.confirmTask
+                }
+                return L.voice.confirmAppointment
+            }
             return L.voice.confirmRoutine
         }
     }
@@ -174,6 +187,14 @@ extension LLMFunctionCall: Identifiable {
         switch self {
         case .addSingleTask(let p): return p.time
         case .updateTask(let p): return p.new_time
+        default: return nil
+        }
+    }
+    
+    var uiDate: String? {
+        switch self {
+        case .addSingleTask(let p): return p.date
+        case .updateTask(let p): return p.new_date
         default: return nil
         }
     }

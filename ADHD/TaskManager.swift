@@ -202,7 +202,7 @@ class TaskManager: ObservableObject {
     /// 이름 기반 AppTask 삭제 (배치, save 호출 안함)
     /// 매칭 전략: 정확 매칭 > 태스크명에 검색어 포함 (단, 검색어 2글자 이상일 때만)
     /// 기존 양방향 contains 제거 — "a"가 모든 태스크를 삭제하는 문제 해결
-    func deleteByNameBatch(containing name: String) -> [(task: String, time: String?, date: Date?, category: String, recurrenceRule: String?)] {
+    func deleteByNameBatch(containing name: String, category: String? = nil, dateString: String? = nil) -> [(task: String, time: String?, date: Date?, category: String, recurrenceRule: String?)] {
         guard let context = modelContext else { return [] }
         let descriptor = FetchDescriptor<AppTask>()
         var deleted: [(task: String, time: String?, date: Date?, category: String, recurrenceRule: String?)] = []
@@ -212,13 +212,36 @@ class TaskManager: ObservableObject {
 
         do {
             let all = try context.fetch(descriptor)
+            
+            // 공통 날짜 파서
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyy-MM-dd"
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+            let parsedDate = (dateString != nil && dateString?.lowercased() != "all") ? formatter.date(from: dateString!) : nil
 
-            // 1차: 정확 매칭 (대소문자 무시)
-            var matched = all.filter { $0.task.lowercased() == query }
+            // 1차 필터: 카테고리와 날짜 조건 먼저 검사
+            let filteredAll = all.filter { item in
+                if let cat = category, cat.lowercased() != "all", item.category != cat {
+                    return false
+                }
+                if let filterDate = parsedDate {
+                    if let itemDate = item.date {
+                        if !Calendar.current.isDate(itemDate, inSameDayAs: filterDate) {
+                            return false
+                        }
+                    } else {
+                        return false // 날짜 조건이 있는데 대상의 날짜가 없으면 제외
+                    }
+                }
+                return true
+            }
 
-            // 2차: 정확 매칭 없으면 → 태스크명에 검색어가 포함된 경우
+            // 2차: 정확 매칭 (대소문자 무시)
+            var matched = filteredAll.filter { $0.task.lowercased() == query }
+
+            // 3차: 정확 매칭 없으면 → 태스크명에 검색어가 포함된 경우
             if matched.isEmpty {
-                matched = all.filter { $0.task.lowercased().contains(query) }
+                matched = filteredAll.filter { $0.task.lowercased().contains(query) }
             }
 
             for item in matched {

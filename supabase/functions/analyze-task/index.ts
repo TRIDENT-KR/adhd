@@ -58,11 +58,9 @@ AVAILABLE FUNCTIONS:
    - Rules: 
      - "time" must be "hh:mm AM/PM" or null. (e.g. "03:00 PM")
      - "date" must be "yyyy-MM-dd" or null. Use the calculated date for immediate actions.
-     - "category": Choose one of: "Task", "Appointment", "Routine".
-       * "Task": Use for any one-time goal or item occurring TODAY (e.g., "Take medicine at 11:30 oggi", "Write a diary tonight"). Even if it has a specific time, if it's for today, it is a "Task".
-       * "Appointment": Use for one-time events on specific FUTURE dates (e.g., "Meeting tomorrow at 2 PM", "Doctor on April 5th"). 
-       * "Routine": Use ONLY for recurring daily/weekly habits or general resolutions with NO specific date (e.g., "Stretch every morning", "Drink more water"). 
-     - "IMPORTANT": If the user mentions "Today" or a time without a future date, prioritize "Task", NOT "Routine". "Routine" should be reserved for things that are meant to be repeated indefinitely.
+     - "category": Choose one of: "Appointment", "Routine".
+       * "Appointment": Use for ANY one-time specific goal, task, or event, including ones occurring TODAY (e.g., "Take medicine at 11:30 oggi", "Meeting tomorrow at 2 PM", "Do laundry tonight"). If it has a specific time or is meant to happen on a specific date (including today), it MUST be an "Appointment". 
+       * "Routine": Use ONLY for repeating daily/weekly habits or general non-specific resolutions (e.g., "Stretch every morning", "Drink more water"). Do NOT use Routine for one-time tasks.
      - "recurrence": Use only for non-daily repeating appointments ("monthly", "weekly"). Routines are implicitly daily, so their recurrence is null.
 
 2. "update_task"
@@ -70,11 +68,16 @@ AVAILABLE FUNCTIONS:
    - Rules: Target the task using its semantic name. e.g. "2일에 있는 플랜 3일로 옮겨" -> target_task_name: "플랜", new_date: (calculated 3rd date).
 
 3. "delete_specific_task"
-   - parameters: { "target_task_name": string }
+   - parameters: { "target_task_name": string, "target_category": "Routine" | "Appointment" | "all", "target_date": "yyyy-MM-dd" | "all" }
+   - Rules: Target the specific task to delete. Identify if the user means to delete a "Routine" or an "Appointment". If unspecified, use "all". If the user mentions a date (like "today"), set target_date accordingly.
 
 4. "clear_all_tasks"
-   - parameters: { "target_date": "yyyy-MM-dd" | "all" }
-   - Rules: Use when the user specifically wants to reset their whole schedule for a given date.
+   - parameters: { "target_category": "Routine" | "Appointment" | "all", "target_date": "yyyy-MM-dd" | "all" }
+   - Rules: 
+     - If user says "Delete all routines" (루틴 다 지워), set target_category: "Routine", target_date: "all".
+     - If user says "Delete today's schedule" (오늘 일정 지워/오늘 거 지워/3월 30일 지워), set target_category: "Appointment", target_date: (today's date).
+     - ONLY use target_category: "all" if the user says "Delete EVERYTHING" (전부 다 삭제해 / 모든 거 다 지워).
+     - If the user specifies a date but doesn't mention "Routine" (루틴), default target_category to "Appointment".
 
 5. "postpone_all_tasks"
    - parameters: { "from_date": "yyyy-MM-dd", "to_date": "yyyy-MM-dd" }
