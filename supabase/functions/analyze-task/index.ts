@@ -68,11 +68,16 @@ AVAILABLE FUNCTIONS:
    - Rules: Target the task using its semantic name. e.g. "2일에 있는 플랜 3일로 옮겨" -> target_task_name: "플랜", new_date: (calculated 3rd date).
 
 3. "delete_specific_task"
-   - parameters: { "target_task_name": string }
+   - parameters: { "target_task_name": string, "target_category": "Routine" | "Appointment" | "all", "target_date": "yyyy-MM-dd" | "all" }
+   - Rules: Target the specific task to delete. Identify if the user means to delete a "Routine" or an "Appointment". If unspecified, use "all". If the user mentions a date (like "today"), set target_date accordingly.
 
 4. "clear_all_tasks"
-   - parameters: { "target_date": "yyyy-MM-dd" | "all" }
-   - Rules: Use when the user specifically wants to reset their whole schedule for a given date.
+   - parameters: { "target_category": "Routine" | "Appointment" | "all", "target_date": "yyyy-MM-dd" | "all" }
+   - Rules: 
+     - If user says "Delete all routines" (루틴 다 지워), set target_category: "Routine", target_date: "all".
+     - If user says "Delete today's schedule" (오늘 일정 지워/오늘 거 지워/3월 30일 지워), set target_category: "Appointment", target_date: (today's date).
+     - ONLY use target_category: "all" if the user says "Delete EVERYTHING" (전부 다 삭제해 / 모든 거 다 지워).
+     - If the user specifies a date but doesn't mention "Routine" (루틴), default target_category to "Appointment".
 
 5. "postpone_all_tasks"
    - parameters: { "from_date": "yyyy-MM-dd", "to_date": "yyyy-MM-dd" }

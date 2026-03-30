@@ -37,10 +37,13 @@ struct UpdateTaskParams: Codable {
 
 struct DeleteTaskParams: Codable {
     let target_task_name: String
+    var target_category: String?
+    var target_date: String?
 }
 
 struct ClearTasksParams: Codable {
-    let target_date: String
+    var target_category: String?
+    var target_date: String
 }
 
 struct PostponeTasksParams: Codable {
