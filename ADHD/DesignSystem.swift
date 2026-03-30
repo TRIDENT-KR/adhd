@@ -78,6 +78,82 @@ struct SquishyButtonStyle: ButtonStyle {
     }
 }
 
+// MARK: - Satisfying Button Style (Tactile/Bouncy)
+struct SatisfyingButtonStyle: BoolButtonStyle {
+    var color: Color = DesignSystem.Colors.primary
+    var isDestructive: Bool = false
+    
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 16, weight: .bold))
+            .foregroundColor(isDestructive ? DesignSystem.Colors.onSurfaceVariant : .white)
+            .padding(.vertical, 14)
+            .padding(.horizontal, 28)
+            .background(
+                ZStack {
+                    if isDestructive {
+                        Capsule()
+                            .fill(DesignSystem.Colors.onSurfaceVariant.opacity(0.1))
+                    } else {
+                        Capsule()
+                            .fill(color)
+                            .shadow(color: color.opacity(0.3), radius: configuration.isPressed ? 4 : 12, y: configuration.isPressed ? 2 : 6)
+                    }
+                }
+            )
+            .scaleEffect(configuration.isPressed ? 0.94 : 1.0)
+            .animation(.spring(response: 0.3, dampingFraction: 0.6), value: configuration.isPressed)
+    }
+}
+
+protocol BoolButtonStyle: ButtonStyle {}
+extension BoolButtonStyle {
+    // Helper to allow different colors easily if needed
+}
+
+// MARK: - Glass Modifier
+struct GlassModifier: ViewModifier {
+    var cornerRadius: CGFloat = 24
+    
+    func body(content: Content) -> some View {
+        content
+            .background(
+                ZStack {
+                    // Base Material
+                    RoundedRectangle(cornerRadius: cornerRadius)
+                        .fill(.ultraThinMaterial)
+                    
+                    // Subtle light reflection gradient
+                    LinearGradient(
+                        colors: [.white.opacity(0.2), .clear, .white.opacity(0.05)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                    .cornerRadius(cornerRadius)
+                }
+            )
+            .cornerRadius(cornerRadius)
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius)
+                    .stroke(
+                        LinearGradient(
+                            colors: [.white.opacity(0.5), .white.opacity(0.1)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 1
+                    )
+            )
+            .shadow(color: .black.opacity(0.15), radius: 30, x: 0, y: 15)
+    }
+}
+
+extension View {
+    func glassStyle(cornerRadius: CGFloat = 24) -> some View {
+        modifier(GlassModifier(cornerRadius: cornerRadius))
+    }
+}
+
 // MARK: - Color Extension for Hex
 extension Color {
     init(hex: String) {

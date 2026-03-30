@@ -25,6 +25,9 @@ struct HomeVoiceInterfaceView: View {
     @State private var pendingTasks: [PendingLLMCall] = []
     @State private var showConfirmation = false
     @State private var editingTask: PendingLLMCall? = nil
+    
+    // Binding to pass modal state up to parent (MainTabView)
+    @Binding var isModalVisible: Bool
 
     // Text input state
     @State private var showTextInput = false
@@ -237,13 +240,27 @@ struct HomeVoiceInterfaceView: View {
             }
 
             if showConfirmation {
-                ConfirmationCardOverlay(
-                    tasks: $pendingTasks,
-                    editingTask: $editingTask,
-                    onConfirm: { confirmPendingTasks() },
-                    onCancel: { cancelPendingTasks() }
-                )
-                .transition(AnyTransition.move(edge: .bottom).combined(with: .opacity))
+                ZStack {
+                    // Background Dim (Blurry Material)
+                    Rectangle()
+                        .fill(.ultraThinMaterial.opacity(0.8))
+                        .ignoresSafeArea()
+                        .onTapGesture { cancelPendingTasks() }
+                        .transition(.opacity)
+
+                    VoiceConfirmationSheet(
+                        tasks: $pendingTasks,
+                        editingTask: $editingTask,
+                        onConfirm: { confirmPendingTasks() },
+                        onCancel: { cancelPendingTasks() }
+                    )
+                    .transition(.asymmetric(
+                        insertion: .move(edge: .bottom).combined(with: .opacity).combined(with: .scale(scale: 0.95)),
+                        removal: .opacity.combined(with: .scale(scale: 0.95))
+                    ))
+                }
+                .ignoresSafeArea()
+                .zIndex(20)
             }
 
             // ── 에러 토스트 ──
@@ -288,7 +305,8 @@ struct HomeVoiceInterfaceView: View {
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
-        }
+        } // End main ZStack
+        .edgesIgnoringSafeArea(.bottom)
         .sheet(isPresented: $showSettings) {
             SettingsView()
                 .environmentObject(authManager)
@@ -301,18 +319,19 @@ struct HomeVoiceInterfaceView: View {
                 .presentationDetents([.medium])
                 .presentationDragIndicator(.visible)
         }
-        .sheet(item: $editingTask) { (taskToEdit: PendingLLMCall) in
-            // Find the index to bind correctly
-            if let index = pendingTasks.firstIndex(where: { $0.id == taskToEdit.id }) {
-                TaskEditSheet(pendingCall: $pendingTasks[index])
-                    .presentationDetents([.medium])
-            }
-        }
         .onChange(of: voiceManager.lastError) { _, newError in
             if let error = newError {
                 triggerErrorFeedback(message: error.message)
                 voiceManager.lastError = nil
             }
+        }
+        .onChange(of: showConfirmation) { _, isVisible in
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                isModalVisible = isVisible
+            }
+        }
+        .onAppear {
+            isModalVisible = showConfirmation
         }
     }
 
@@ -535,119 +554,228 @@ struct HomeVoiceInterfaceView: View {
     }
 }
 
-// MARK: - Confirmation Card Overlay
-struct ConfirmationCardOverlay: View {
+// MARK: - Voice Confirmation Sheet (Floating Glass Card)
+struct VoiceConfirmationSheet: View {
     @Binding var tasks: [PendingLLMCall]
     @Binding var editingTask: PendingLLMCall?
-    let onConfirm: () -> Void
-    let onCancel: () -> Void
+    
+    // Edit fields
+    @State private var editName: String = ""
+    @State private var editCategory: String = "Routine"
+    @State private var editDateTime: Date = Date()
+    
+    var onConfirm: () -> Void
+    var onCancel: () -> Void
 
     var body: some View {
-        VStack {
-            Spacer()
-
-            VStack(spacing: 16) {
-                // 태스크 미리보기 카드
-                ForEach(tasks) { task in
-                    HStack(spacing: 14) {
-                        // 액션 아이콘
-                        Image(systemName: task.uiIcon)
-                            .font(.system(size: 28))
-                            .foregroundColor(task.uiAction == "delete" ? .red.opacity(0.8) : DesignSystem.Colors.tertiary)
-
-                        VStack(alignment: .leading, spacing: 3) {
-                            // 액션 라벨
-                            Text(task.uiActionLabel)
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.5))
-
-                            // 태스크 이름
-                            Text(task.uiTaskName)
-                                .font(.system(size: 17, weight: .semibold))
-                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
-
-                            // 시간 + 카테고리
-                            HStack(spacing: 8) {
-                                if let time = task.uiTime, !time.isEmpty {
-                                    HStack(spacing: 3) {
-                                        Image(systemName: "clock")
-                                            .font(.system(size: 11))
-                                        Text(time)
-                                    }
-                                    .font(.system(size: 12, weight: .medium))
-                                    .foregroundColor(DesignSystem.Colors.primary)
-                                }
-
-                                Text(task.uiCategory == "Appointment" ? L.voice.confirmAppointment : L.voice.confirmRoutine)
-                                    .font(.system(size: 12, weight: .medium))
-                                    .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.4))
-                            }
-                        }
-
-                        Spacer()
-
-                        // 개별 항목 삭제 버튼
-                        if tasks.count > 1 {
-                            Button(action: {
-                                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                    tasks.removeAll { $0.id == task.id }
-                                }
-                                Haptic.impact(.light)
-                            }) {
-                                Image(systemName: "xmark.circle.fill")
-                                    .font(.system(size: 22))
-                                    .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.3))
-                            }
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 14)
-                    .contentShape(Rectangle()) // Make the whole area tappable
-                    .onTapGesture {
-                        editingTask = task
-                    }
-                    .background(
-                        RoundedRectangle(cornerRadius: 14)
-                            .fill(DesignSystem.Colors.surfaceContainerLow)
-                    )
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                Text(editingTask == nil ? L.voice.confirmTitle : L.voice.editTaskTitle)
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
+                
+                Spacer()
+                
+                Button(action: onCancel) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 24))
+                        .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.3))
                 }
+                .buttonStyle(PlainButtonStyle())
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 24)
+            .padding(.bottom, 16)
 
-                // 확인/취소 버튼
-                HStack(spacing: 12) {
-                    Button(action: onCancel) {
-                        Text(L.voice.confirmCancel)
-                            .font(.system(size: 15, weight: .medium))
-                            .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
+            ScrollView(showsIndicators: false) {
+                if let currentEdit = editingTask, let index = tasks.firstIndex(where: { $0.id == currentEdit.id }) {
+                    // --- Inline Edit Mode (Bubbles Style) ---
+                    VStack(alignment: .leading, spacing: 20) {
+                        VStack(alignment: .leading, spacing: 16) {
+                            // Category Selection (Segmented)
+                            Picker(L.voice.fieldCategory, selection: $editCategory) {
+                                Text(L.voice.confirmAppointment).tag("Appointment")
+                                Text(L.voice.confirmRoutine).tag("Routine")
+                            }
+                            .pickerStyle(.segmented)
+                            
+                            // Task Name Bubble
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(L.voice.fieldName)
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
+                                
+                                TextField(L.voice.fieldName, text: $editName)
+                                    .padding(14)
+                                    .background(Color(UIColor.systemBackground).opacity(0.6))
+                                    .cornerRadius(12)
+                            }
+                            
+                            // Time Bubble (Minimalist Picker)
+                            HStack {
+                                Text(L.voice.fieldTime)
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
+                                Spacer()
+                                DatePicker("", selection: $editDateTime, displayedComponents: editCategory == "Appointment" ? [.date, .hourAndMinute] : [.hourAndMinute])
+                                    .labelsHidden()
+                                    .datePickerStyle(.compact)
+                                    .environment(\.locale, Locale.current)
+                            }
+                            .padding(14)
+                            .background(Color(UIColor.systemBackground).opacity(0.6))
+                            .cornerRadius(12)
+                        }
+                        .padding(4)
+
+                        // Internal Save/Cancel
+                        HStack(spacing: 12) {
+                            Button(L.voice.cancel) {
+                                withAnimation(.spring()) { editingTask = nil }
+                            }
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 14)
-                            .background(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .stroke(DesignSystem.Colors.onSurfaceVariant.opacity(0.2), lineWidth: 1)
-                            )
-                    }
 
+                            Button(L.voice.save) {
+                                let tf = DateFormatter()
+                                tf.timeStyle = .short
+                                tf.dateStyle = .none
+                                let numStr = tf.string(from: editDateTime)
+                                
+                                let df = DateFormatter()
+                                df.dateFormat = "yyyy-MM-dd"
+                                let newDateStr = df.string(from: editDateTime)
+                                
+                                var updatedCall = tasks[index].call
+                                updatedCall.updateFields(
+                                    taskName: editName,
+                                    time: numStr,
+                                    date: newDateStr,
+                                    category: editCategory
+                                )
+                                tasks[index].call = updatedCall
+                                Haptic.impact(.light)
+                                withAnimation(.spring()) { editingTask = nil }
+                            }
+                            .buttonStyle(SatisfyingButtonStyle(color: DesignSystem.Colors.primary))
+                            .frame(maxWidth: .infinity)
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 20)
+                    .onAppear {
+                        editName = currentEdit.call.uiTaskName
+                        editCategory = currentEdit.call.uiCategory
+                        
+                        let dateRaw = currentEdit.call.uiSmartDateRaw
+                        let timeRaw = currentEdit.call.uiTime ?? ""
+                        
+                        let df = DateFormatter()
+                        df.dateFormat = "yyyy-MM-dd"
+                        var finalDate = df.date(from: dateRaw) ?? Date()
+                        
+                        if !timeRaw.isEmpty {
+                            let tf = DateFormatter()
+                            tf.timeStyle = .short
+                            if let parsedTime = tf.date(from: timeRaw) {
+                                let timeComponents = Calendar.current.dateComponents([.hour, .minute], from: parsedTime)
+                                finalDate = Calendar.current.date(bySettingHour: timeComponents.hour ?? 0, minute: timeComponents.minute ?? 0, second: 0, of: finalDate) ?? finalDate
+                            }
+                        }
+                        
+                        editDateTime = finalDate
+                    }
+                } else {
+                    // --- List Mode ---
+                    VStack(spacing: 14) {
+                        ForEach(tasks) { task in
+                            VStack(alignment: .leading, spacing: 10) {
+                                HStack {
+                                    let isPlanner = task.uiCategory == "Appointment"
+                                    
+                                    // High Contrast Badge
+                                    Label(isPlanner ? L.voice.confirmAppointment : L.voice.confirmRoutine,
+                                          systemImage: isPlanner ? "calendar" : "repeat")
+                                        .font(.system(size: 12, weight: .bold))
+                                        .foregroundColor(isPlanner ? DesignSystem.Colors.tertiary : DesignSystem.Colors.primary)
+                                        .padding(.horizontal, 10)
+                                        .padding(.vertical, 6)
+                                        .background(isPlanner ? DesignSystem.Colors.tertiary.opacity(0.15) : DesignSystem.Colors.primary.opacity(0.15))
+                                        .cornerRadius(8)
+
+                                    Spacer()
+                                    
+                                    if task.uiAction != "add" {
+                                        Text(task.uiActionLabel)
+                                            .font(.system(size: 11, weight: .black))
+                                            .padding(.horizontal, 8)
+                                            .padding(.vertical, 4)
+                                            .background(task.uiAction == "delete" ? Color.red.opacity(0.15) : Color.blue.opacity(0.15))
+                                            .foregroundColor(task.uiAction == "delete" ? .red : .blue)
+                                            .cornerRadius(6)
+                                    }
+                                }
+
+                                // Large Task Title
+                                Text(task.uiTaskName)
+                                    .font(.system(size: 19, weight: .bold))
+                                    .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
+                                
+                                let smartDateTimeStr = task.uiSmartDateTime
+                                if !smartDateTimeStr.isEmpty {
+                                    HStack(spacing: 6) {
+                                        Image(systemName: "clock.fill")
+                                            .font(.system(size: 12))
+                                        Text(smartDateTimeStr)
+                                            .font(.system(size: 14, weight: .semibold))
+                                    }
+                                    .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
+                                }
+                            }
+                            .padding(.vertical, 16)
+                            .padding(.horizontal, 20)
+                            // Clean white/dark surface background
+                            .background(Color(UIColor.systemBackground).opacity(0.7))
+                            .cornerRadius(24)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 24)
+                                    .stroke(Color.white.opacity(0.5), lineWidth: 0.5)
+                            )
+                            .shadow(color: .black.opacity(0.03), radius: 8, x: 0, y: 4)
+                            .onTapGesture {
+                                withAnimation(.spring()) { editingTask = task }
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 24)
+                    
+                    // The "Satisfying Hub" Confirm Button
                     Button(action: onConfirm) {
-                        Text(L.voice.confirmButton)
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
-                            .background(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .fill(DesignSystem.Gradients.primaryCTA)
-                            )
+                        HStack(spacing: 8) {
+                            Image(systemName: "sparkles")
+                            Text(L.voice.confirmButton)
+                        }
+                        .frame(maxWidth: .infinity)
                     }
+                    .buttonStyle(SatisfyingButtonStyle(color: DesignSystem.Colors.primary))
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 28)
                 }
             }
-            .padding(20)
-            .background(
-                RoundedRectangle(cornerRadius: 24)
-                    .fill(DesignSystem.Colors.background)
-                    .shadow(color: .black.opacity(0.15), radius: 20, y: -5)
-            )
-            .padding(.horizontal, 16)
-            .padding(.bottom, 140)
+            .fixedSize(horizontal: false, vertical: true) // shrink-wraps height for < 4 items
         }
+        .frame(maxWidth: 340) // slightly narrower
+        // The modal background & glow
+        .glassStyle(cornerRadius: 32)
+        // Replaced muddy black shadow with a soft themed glow
+        .shadow(color: DesignSystem.Colors.primary.opacity(0.15), radius: 40, x: 0, y: 15)
+        .shadow(color: DesignSystem.Colors.onSurfaceVariant.opacity(0.05), radius: 10, x: 0, y: 5)
+        .padding(.horizontal, 24)
+        .padding(.vertical, 40)
     }
 }
 
@@ -771,7 +899,7 @@ struct VoiceGuideSheet: View {
 // MARK: - Preview
 struct HomeVoiceInterfaceView_Previews: PreviewProvider {
     static var previews: some View {
-        HomeVoiceInterfaceView()
+        HomeVoiceInterfaceView(isModalVisible: .constant(false))
             .environmentObject(CloudLLMManager())
             .environmentObject(TaskManager())
             .environmentObject(AuthManager())

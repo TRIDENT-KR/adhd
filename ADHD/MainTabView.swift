@@ -8,6 +8,8 @@ struct MainTabView: View {
 
     /// 한 번이라도 방문한 탭을 추적하여 지연 로딩
     @State private var loadedTabs: Set<TabSelection> = [.voice]
+    /// HomeVoiceInterfaceView에서 모달이 열려 있는지 여부 
+    @State private var isVoiceModalVisible = false
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -25,7 +27,7 @@ struct MainTabView: View {
                 }
                 .tag(TabSelection.routine)
 
-                HomeVoiceInterfaceView()
+                HomeVoiceInterfaceView(isModalVisible: $isVoiceModalVisible)
                     .tag(TabSelection.voice)
 
                 Group {
@@ -50,6 +52,9 @@ struct MainTabView: View {
             CustomBottomBar(activeTab: $activeTab)
                 .accessibilityElement(children: .contain)
                 .accessibilityLabel(L.voice.a11yTabBar)
+                .blur(radius: isVoiceModalVisible ? 12 : 0)
+                .opacity(isVoiceModalVisible ? 0.6 : 1)
+                .animation(.spring(response: 0.4, dampingFraction: 0.7), value: isVoiceModalVisible)
         }
         // 4. 오프라인 / Back Online 배너
         .overlay(alignment: .top) {

@@ -12,7 +12,10 @@ struct PendingLLMCall: Identifiable {
     var uiActionLabel: String { call.uiActionLabel }
     var uiTaskName: String { call.uiTaskName }
     var uiTime: String? { call.uiTime }
+    var uiDate: String? { call.uiDate } // Adding uiDate pass-through
     var uiCategory: String { call.uiCategory }
+    var uiSmartDateRaw: String { call.uiSmartDateRaw }
+    var uiSmartDateTime: String { call.uiSmartDateTime }
 }
 
 
@@ -108,17 +111,21 @@ enum LLMFunctionCall: Decodable {
     }
 
     mutating func updateFields(taskName: String, time: String?, date: String?, category: String) {
+        let isRoutine = (category == "Routine")
+        // 루틴은 날짜 정보가 있으면 안 됨 (매일 반복이 기본이므로)
+        let finalDate = isRoutine ? nil : date
+        
         switch self {
         case .addSingleTask(var p):
             p.task_name = taskName
             p.time = time
-            p.date = date
+            p.date = finalDate
             p.category = category
             self = .addSingleTask(p)
         case .updateTask(var p):
             p.new_task_name = taskName
             p.new_time = time
-            p.new_date = date
+            p.new_date = finalDate
             p.new_category = category
             self = .updateTask(p)
         default:
@@ -154,7 +161,7 @@ extension LLMFunctionCall: Identifiable {
     var uiActionLabel: String {
         switch uiAction {
         case "delete": return L.voice.confirmDelete
-        case "update": return "수정"
+        case "update": return L.voice.confirmUpdate
         default:
             if uiCategory == "Appointment" {
                 // 오늘 날짜인지 판별 (DateFormatter 사용)
@@ -175,11 +182,12 @@ extension LLMFunctionCall: Identifiable {
         case .addSingleTask(let p): return p.task_name
         case .updateTask(let p): return p.new_task_name ?? p.target_task_name
         case .deleteSpecificTask(let p): return p.target_task_name
-        case .clearAllTasks(let p): return p.target_date.lowercased() == "all" ? "모든 일정 지우기" : "\(p.target_date) 일정 일괄 지우기"
-        case .postponeAllTasks(let p): return "\(p.from_date) 일정을 \(p.to_date)로 미루기"
-        case .markTaskComplete(let p): return "\(p.target_task_name) 완료 처리"
+        case .clearAllTasks(let p): 
+            return p.target_date.lowercased() == "all" ? L.voice.actionClearAll : L.voice.actionClearDate(p.target_date)
+        case .postponeAllTasks(let p): return L.voice.actionPostpone(from: p.from_date, to: p.to_date)
+        case .markTaskComplete(let p): return L.voice.actionComplete(p.target_task_name)
         case .requestClarification(let p): return p.reason
-        case .unknown(let s): return "알 수 없는 명령 (\(s))"
+        case .unknown(let s): return L.voice.actionUnknown(s)
         }
     }
     
@@ -195,15 +203,50 @@ extension LLMFunctionCall: Identifiable {
         switch self {
         case .addSingleTask(let p): return p.date
         case .updateTask(let p): return p.new_date
+        case .deleteSpecificTask(let p): return p.target_date
         default: return nil
         }
+    }
+    
+    var uiSmartDateRaw: String {
+        uiDate ?? ""
     }
     
     var uiCategory: String {
         switch self {
         case .addSingleTask(let p): return p.category
-        case .updateTask(let p): return p.new_category ?? "Routine"
+        case .updateTask(let p): 
+            // 만약 새로 지정된 카테고리가 없으면 기본적으로 Routine으로 간주하지만, 
+            // 실제 로직에서는 matchingTask의 기존 카테고리를 유지함
+            return p.new_category ?? "Appointment" 
         default: return "Routine"
+        }
+    }
+    
+    // Smart Display for date and time UI
+    var uiSmartDateTime: String {
+        let isRoutine = (uiCategory == "Routine")
+        let hasTime = (uiTime != nil && !uiTime!.isEmpty)
+        let timeString = hasTime ? uiTime! : ""
+        
+        if isRoutine {
+            // 루틴은 시간만 노출
+            return timeString
+        } else {
+            // 일정(Appointment)은 날짜를 변환
+            guard let dateString = uiDate, !dateString.isEmpty else { return timeString }
+            
+            let df = DateFormatter()
+            df.dateFormat = "yyyy-MM-dd"
+            let todayString = df.string(from: Date())
+            
+            let datePrefix = (dateString == todayString) ? L.voice.confirmToday : dateString
+            
+            if hasTime {
+                return "\(datePrefix) \(timeString)"
+            } else {
+                return datePrefix
+            }
         }
     }
 }
