@@ -409,7 +409,8 @@ struct TaskRow: View {
         }
         .task(id: editingTaskId) {
             guard editingTaskId == task.id else { return }
-            try? await Task.sleep(nanoseconds: 100_000_000)
+            // 키보드 초기화 블로킹 방지: 충분한 지연 후 포커스
+            try? await Task.sleep(nanoseconds: 500_000_000)
             isTitleFocused = true
         }
     }

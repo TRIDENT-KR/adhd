@@ -144,6 +144,7 @@ struct WaitWhatApp: App {
 // MARK: - Splash Screen
 private struct SplashView: View {
     @State private var pulse = false
+    @FocusState private var warmUpFocus: Bool
 
     var body: some View {
         ZStack {
@@ -163,6 +164,18 @@ private struct SplashView: View {
                     pulse = true
                 }
             }
+
+            // 키보드 사전 로딩 (보이지 않는 TextField로 iOS 키보드 캐시 워밍)
+            TextField("", text: .constant(""))
+                .focused($warmUpFocus)
+                .frame(width: 0, height: 0)
+                .opacity(0)
+                .task {
+                    try? await Task.sleep(nanoseconds: 200_000_000)
+                    warmUpFocus = true
+                    try? await Task.sleep(nanoseconds: 100_000_000)
+                    warmUpFocus = false
+                }
         }
     }
 }
