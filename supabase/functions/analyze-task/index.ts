@@ -55,8 +55,9 @@ AVAILABLE FUNCTIONS:
 
 1. "add_single_task"
    - parameters: { "task_name": string, "time": string | null, "date": string | null, "category": "Routine" | "Appointment", "recurrence": "weekly" | "biweekly" | "monthly" | "yearly" | null }
-   - Rules: 
+   - Rules:
      - "time" must be "hh:mm AM/PM" or null. (e.g. "03:00 PM")
+     - IMPORTANT: If the user does NOT explicitly mention a specific time, "time" MUST be null. Do NOT guess or infer a default time. Only set "time" when the user clearly states a time (e.g. "at 3", "10 o'clock", "1시간 후", "오후 2시").
      - "date" must be "yyyy-MM-dd" or null. Use the calculated date for immediate actions.
      - "category": Choose one of: "Appointment", "Routine".
        * "Appointment": Use for ANY one-time specific goal, task, or event, including ones occurring TODAY (e.g., "Take medicine at 11:30 oggi", "Meeting tomorrow at 2 PM", "Do laundry tonight"). If it has a specific time or is meant to happen on a specific date (including today), it MUST be an "Appointment". 

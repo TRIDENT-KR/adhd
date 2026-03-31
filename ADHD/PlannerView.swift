@@ -93,7 +93,8 @@ struct PlannerView: View {
                         .buttonStyle(NoEffectButtonStyle())
                     }
                     .padding(.top, 16)
-                    .padding(.horizontal, 32)
+                    .padding(.leading, 32)
+                    .padding(.trailing, 20)
 
                     // 요일 선택 바: 오늘 | 나머지 요일
                     weekDateSelector
@@ -417,9 +418,7 @@ struct EventCard: View {
                 }
 
                 Button(action: {
-                    withAnimation {
-                        if isEditing { finishEditing() } else { startEditing() }
-                    }
+                    if isEditing { finishEditing() } else { withAnimation { startEditing() } }
                 }) {
                     Image(systemName: isEditing ? "checkmark" : "pencil")
                         .font(.system(size: 16))
@@ -448,16 +447,6 @@ struct EventCard: View {
             guard editingTaskId == task.id else { return }
             try? await Task.sleep(nanoseconds: 100_000_000)
             isTitleFocused = true
-        }
-        .toolbar {
-            ToolbarItemGroup(placement: .keyboard) {
-                if isEditing {
-                    Spacer()
-                    Button("Done") {
-                        withAnimation { finishEditing() }
-                    }
-                }
-            }
         }
     }
 

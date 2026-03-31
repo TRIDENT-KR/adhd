@@ -87,7 +87,8 @@ struct RoutineView: View {
                         .buttonStyle(NoEffectButtonStyle())
                     }
                     .padding(.top, 16)
-                    .padding(.horizontal, 32)
+                    .padding(.leading, 32)
+                    .padding(.trailing, 20)
 
                     // 섹션 토글 + 정렬 버튼
                     HStack(spacing: 12) {
@@ -338,7 +339,7 @@ struct TaskRow: View {
                     }
 
                     Button(action: {
-                        withAnimation { finishEditing() }
+                        finishEditing()
                     }) {
                         Image(systemName: "checkmark")
                             .font(.system(size: 18))
@@ -385,16 +386,6 @@ struct TaskRow: View {
             guard editingTaskId == task.id else { return }
             try? await Task.sleep(nanoseconds: 100_000_000)
             isTitleFocused = true
-        }
-        .toolbar {
-            ToolbarItemGroup(placement: .keyboard) {
-                if isEditing {
-                    Spacer()
-                    Button("Done") {
-                        withAnimation { finishEditing() }
-                    }
-                }
-            }
         }
     }
 
