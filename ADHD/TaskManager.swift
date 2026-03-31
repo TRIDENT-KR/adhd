@@ -19,6 +19,13 @@ struct UndoableAction {
     let timestamp: Date = Date()
 }
 
+// MARK: - Undo UI State (MainTabView 전용 — 다른 뷰의 불필요한 리렌더 방지)
+@MainActor
+class UndoUIState: ObservableObject {
+    @Published var showSnackbar = false
+    @Published var message = ""
+}
+
 // MARK: - TaskManager
 /// SwiftData ModelContext를 주입받아 AppTask의 CRUD를 담당합니다.
 @MainActor
@@ -30,8 +37,7 @@ class TaskManager: ObservableObject {
     // Undo 지원 (스택 기반 — 최대 10단계)
     var undoStack: [UndoableAction] = []
     static let maxUndoDepth = 10
-    @Published var showUndoSnackbar = false
-    @Published var undoSnackbarMessage = ""
+    let undoState = UndoUIState()
     var undoDismissWorkItem: DispatchWorkItem?
 
     /// App.swift에서 modelContext를 주입합니다.
@@ -140,10 +146,10 @@ class TaskManager: ObservableObject {
 
         // 스택에 남은 항목이 있으면 이전 메시지 표시, 없으면 숨김
         if let prev = undoStack.last {
-            undoSnackbarMessage = prev.message
+            undoState.message = prev.message
         } else {
             withAnimation(.easeOut(duration: 0.2)) {
-                showUndoSnackbar = false
+                undoState.showSnackbar = false
             }
         }
     }
@@ -186,9 +192,9 @@ class TaskManager: ObservableObject {
             undoStack.removeFirst()
         }
 
-        undoSnackbarMessage = message
+        undoState.message = message
         withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-            showUndoSnackbar = true
+            undoState.showSnackbar = true
         }
 
         // 이전 타이머 취소 후 새 타이머 (경쟁 방지)
@@ -196,7 +202,7 @@ class TaskManager: ObservableObject {
         let workItem = DispatchWorkItem { [weak self] in
             guard let self else { return }
             withAnimation(.easeOut(duration: 0.3)) {
-                self.showUndoSnackbar = false
+                self.undoState.showSnackbar = false
             }
         }
         undoDismissWorkItem = workItem

@@ -359,7 +359,7 @@ struct HomeVoiceInterfaceView: View {
         }
 
         if voiceManager.micMode == .holdToTalk {
-            // Hold-to-Talk: 누르면 시작, 떼면 종료
+            // Hold-to-Talk: 누르면 시작, 떼면 종료 (꾹 누르기=녹음이므로 가이드 제스처 없음)
             buttonContent
                 .scaleEffect(voiceManager.isListening ? 0.93 : 1.0)
                 .animation(.easeOut(duration: 0.2), value: voiceManager.isListening)
@@ -374,13 +374,6 @@ struct HomeVoiceInterfaceView: View {
                             if voiceManager.isListening {
                                 voiceManager.stopListening()
                             }
-                        }
-                )
-                .simultaneousGesture(
-                    LongPressGesture(minimumDuration: 1.5)
-                        .onEnded { _ in
-                            Haptic.impact(.light)
-                            showVoiceGuide = true
                         }
                 )
         } else {

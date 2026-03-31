@@ -71,7 +71,7 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
 
     // Audio power downsampling: 4프레임당 1회만 계산
     private var audioFrameCount: Int = 0
-    private static let audioPowerSampleRate = 4
+    private static let audioPowerSampleRate = 10
 
     private var speechRecognizer: SFSpeechRecognizer?
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
@@ -339,10 +339,10 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
 
     // MARK: - Recording Timer
     private func startRecordingTimer() {
-        recordingTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+        recordingTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             guard let self else { return }
             DispatchQueue.main.async {
-                self.recordingDuration += 0.1
+                self.recordingDuration += 1.0
                 // 최대 녹음 시간 초과 시 자동 종료
                 if self.recordingDuration >= Self.maxRecordingDuration {
                     self.stopListening()

@@ -189,6 +189,9 @@ struct SettingsView: View {
                             Text(L.settings.haptic)
                         }
                     }
+                    .onChange(of: hapticEnabled) { _, _ in
+                        Haptic.refreshEnabledState()
+                    }
                 } header: {
                     Text(L.settings.appearance)
                 }

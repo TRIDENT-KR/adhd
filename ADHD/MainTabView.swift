@@ -74,22 +74,10 @@ struct MainTabView: View {
             .spring(response: 0.4, dampingFraction: 0.75),
             value: networkMonitor.isBackOnlineBannerVisible
         )
-        // 5. Undo 스낵바
+        // 5. Undo 스낵바 (별도 뷰로 분리하여 undoState만 관찰)
         .overlay(alignment: .bottom) {
-            if taskManager.showUndoSnackbar {
-                UndoSnackbar(
-                    message: taskManager.undoSnackbarMessage,
-                    onUndo: { taskManager.undo() }
-                )
-                .padding(.bottom, 100)
-                .padding(.horizontal, 24)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
+            UndoSnackbarOverlay(undoState: taskManager.undoState, onUndo: { taskManager.undo() })
         }
-        .animation(
-            .spring(response: 0.4, dampingFraction: 0.7),
-            value: taskManager.showUndoSnackbar
-        )
         .onReceive(NotificationCenter.default.publisher(for: .widgetDeepLink)) { notification in
             if let tab = notification.object as? TabSelection {
                 if !loadedTabs.contains(tab) {
@@ -104,6 +92,24 @@ struct MainTabView: View {
 // MARK: - Widget Deep Link Notification
 extension Notification.Name {
     static let widgetDeepLink = Notification.Name("widgetDeepLink")
+}
+
+// MARK: - Undo Snackbar Overlay (별도 ObservableObject 관찰로 다른 뷰 리렌더 방지)
+struct UndoSnackbarOverlay: View {
+    @ObservedObject var undoState: UndoUIState
+    var onUndo: () -> Void
+
+    var body: some View {
+        Group {
+            if undoState.showSnackbar {
+                UndoSnackbar(message: undoState.message, onUndo: onUndo)
+                    .padding(.bottom, 100)
+                    .padding(.horizontal, 24)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .animation(.spring(response: 0.4, dampingFraction: 0.7), value: undoState.showSnackbar)
+    }
 }
 
 // MARK: - Undo Snackbar
