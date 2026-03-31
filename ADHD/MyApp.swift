@@ -96,6 +96,11 @@ struct WaitWhatApp: App {
                             taskManager.configure(context: container.mainContext)
                             // 알림 권한 요청 (최초 1회) — UI 렌더링 후 비동기 실행
                             NotificationManager.shared.requestAuthorization()
+                            
+                            // 알람 확인 시 자동 완료 연동
+                            AlarmManager.shared.onTaskConfirmed = { taskId in
+                                taskManager.completeTask(id: taskId)
+                            }
                         }
                         .onOpenURL { url in
                             handleWidgetDeepLink(url)

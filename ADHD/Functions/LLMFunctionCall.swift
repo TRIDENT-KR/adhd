@@ -5,7 +5,8 @@ import SwiftUI
 struct PendingLLMCall: Identifiable {
     let id = UUID()
     var call: LLMFunctionCall
-    
+    var urgency: Urgency = .weak
+
     // UI Helpers pass-through to simplify views
     var uiAction: String { call.uiAction }
     var uiIcon: String { call.uiIcon }

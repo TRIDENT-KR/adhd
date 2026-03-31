@@ -5,6 +5,7 @@ struct MainTabView: View {
     @State var activeTab: TabSelection = .voice
     @EnvironmentObject private var networkMonitor: NetworkMonitor
     @EnvironmentObject private var taskManager: TaskManager
+    @ObservedObject private var alarmManager = AlarmManager.shared
 
     /// 한 번이라도 방문한 탭을 추적하여 지연 로딩
     @State private var loadedTabs: Set<TabSelection> = [.voice]
@@ -97,6 +98,11 @@ struct MainTabView: View {
                 }
                 withAnimation { activeTab = tab }
             }
+        }
+        // 6. 강한 알림 오버레이
+        .fullScreenCover(item: $alarmManager.activeAlarm) { alarm in
+            AlarmOverlayView(alarm: alarm)
+                .interactiveDismissDisabled(true)
         }
     }
 }

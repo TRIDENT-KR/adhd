@@ -476,11 +476,14 @@ struct HomeVoiceInterfaceView: View {
                 let isMissingDate = invalidTask.uiDate == nil || invalidTask.uiDate!.isEmpty
                 errorMessage = isMissingDate ? L.voice.errorMissingDate : L.voice.errorMissingAppointmentTime
             }
+            
             triggerErrorFeedback(message: errorMessage)
             return
         }
-
-        taskManager.execute(llmCalls: pendingTasks.map { $0.call })
+        
+        // 알림 강도(Urgency) 정보를 포함하여 실행
+        taskManager.execute(pendingCalls: pendingTasks)
+        
         withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
             showConfirmation = false
             pendingTasks = []
@@ -743,8 +746,9 @@ struct VoiceConfirmationSheet: View {
                                         let isPlanner = task.uiCategory == "Appointment"
                                         
                                         // High Contrast Badge
+                                        let useCalendar = isPlanner && task.urgency == .strong
                                         Label(isPlanner ? L.voice.confirmAppointment : L.voice.confirmRoutine,
-                                              systemImage: isPlanner ? "calendar" : "repeat")
+                                              systemImage: useCalendar ? "calendar" : (isPlanner ? "clock" : "repeat"))
                                             .font(.system(size: 12, weight: .bold))
                                             .foregroundColor(isPlanner ? DesignSystem.Colors.tertiary : DesignSystem.Colors.primary)
                                             .padding(.horizontal, 10)
@@ -778,6 +782,30 @@ struct VoiceConfirmationSheet: View {
                                             .font(.system(size: 12))
                                         Text(smartDateTimeStr)
                                             .font(.system(size: 14, weight: .semibold))
+                                        
+                                        Spacer()
+                                        
+                                        // Urgency Toggle (Strong/Weak)
+                                        HStack(spacing: 4) {
+                                            let isStrong = task.urgency == .strong
+                                            Button {
+                                                if let idx = tasks.firstIndex(where: { $0.id == task.id }) {
+                                                    tasks[idx].urgency = isStrong ? .weak : .strong
+                                                }
+                                            } label: {
+                                                HStack(spacing: 4) {
+                                                    Image(systemName: isStrong ? "bolt.fill" : "bolt")
+                                                        .font(.system(size: 10, weight: .bold))
+                                                    Text(isStrong ? "기습 알림" : "잔잔 알림")
+                                                        .font(.system(size: 11, weight: .bold))
+                                                }
+                                                .padding(.horizontal, 10)
+                                                .padding(.vertical, 6)
+                                                .background(isStrong ? Color.orange.opacity(0.2) : Color.gray.opacity(0.1))
+                                                .foregroundColor(isStrong ? .orange : Color.gray)
+                                                .cornerRadius(20)
+                                            }
+                                        }
                                     }
                                     .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
                                 }

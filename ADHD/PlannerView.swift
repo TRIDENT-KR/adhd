@@ -322,6 +322,7 @@ struct EventCard: View {
     @State private var showingTimePicker = false
     @State private var localTaskName: String = ""
     @State private var localTime: String     = ""
+    @State private var localUrgency: Urgency  = .weak
 
     var isEditing: Bool { editingTaskId == task.id }
     var isDimmed:  Bool { editingTaskId != nil && editingTaskId != task.id }
@@ -365,6 +366,25 @@ struct EventCard: View {
                         TimePickerModal(timeString: $localTime, isPresented: $showingTimePicker)
                     }
 
+                // urgency 토글
+                Button(action: {
+                    localUrgency = (localUrgency == .weak) ? .strong : .weak
+                    Haptic.impact(.light)
+                }) {
+                    HStack(spacing: 3) {
+                        Image(systemName: localUrgency == .strong ? "bolt.fill" : "bolt")
+                            .font(.system(size: 12, weight: .semibold))
+                        Text(localUrgency == .strong ? "Strong" : "Weak")
+                            .font(.system(size: 12, weight: .medium))
+                    }
+                    .foregroundColor(localUrgency == .strong ? .orange : DesignSystem.Colors.onSurfaceVariant.opacity(0.5))
+                    .padding(.vertical, 4)
+                    .padding(.horizontal, 8)
+                    .background((localUrgency == .strong ? Color.orange : DesignSystem.Colors.onSurfaceVariant).opacity(0.12))
+                    .cornerRadius(6)
+                }
+                .buttonStyle(NoEffectButtonStyle())
+
                 TextField("Title", text: $localTaskName)
                     .focused($isTitleFocused)
                     .font(DesignSystem.Typography.bodyMd)
@@ -403,6 +423,11 @@ struct EventCard: View {
             Spacer()
 
             HStack(spacing: 14) {
+                if !isEditing && task.urgency == .strong {
+                    Image(systemName: "bolt.fill")
+                        .font(.system(size: 12))
+                        .foregroundColor(.orange.opacity(0.7))
+                }
                 if isEditing {
                     Button(action: {
                         withAnimation {
@@ -452,14 +477,16 @@ struct EventCard: View {
 
     private func finishEditing() {
         guard editingTaskId == task.id else { return }
-        task.task = localTaskName
-        task.time = localTime.isEmpty ? nil : localTime
+        task.task    = localTaskName
+        task.time    = localTime.isEmpty ? nil : localTime
+        task.urgency = localUrgency
         taskManager.update(task: task)
         editingTaskId = nil
         Haptic.impact(.light)
     }
 
     private func startEditing() {
+        localUrgency  = task.urgency
         editingTaskId = task.id
         Haptic.impact(.medium)
     }

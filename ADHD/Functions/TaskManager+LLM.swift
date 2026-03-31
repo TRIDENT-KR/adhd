@@ -7,45 +7,51 @@ extension TaskManager {
     
     /// 메인 라우터: CloudLLMManager에서 파싱된 함수 호출들을 순차적으로 실행합니다.
     func execute(llmCalls: [LLMFunctionCall]) {
+        execute(pendingCalls: llmCalls.map { PendingLLMCall(call: $0) })
+    }
+
+    /// PendingLLMCall 배열을 받아 urgency 정보까지 함께 실행합니다.
+    func execute(pendingCalls: [PendingLLMCall]) {
         print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
         print("🤖 [AI Function Calling 라우터 작동 시작]")
-        print("수신된 명령어 개수: \(llmCalls.count)개")
-        
-        for (index, call) in llmCalls.enumerated() {
+        print("수신된 명령어 개수: \(pendingCalls.count)개")
+
+        for (index, pending) in pendingCalls.enumerated() {
+            let call = pending.call
             print("----------------------------------------")
-            
+
             switch call {
             case .addSingleTask(let params):
                 print("▶️ [명령 \(index + 1)] 호출 함수: add_single_task")
-                print("   ↳ 파라미터: 이름='\(params.task_name)', 시간='\(params.time ?? "nil")', 날짜='\(params.date ?? "nil")', 카테고리='\(params.category)', 반복='\(params.recurrence ?? "nil")'")
-                addSingleTask(params: params)
-                
+                print("   ↳ 파라미터: 이름='\(params.task_name)', 시간='\(params.time ?? "nil")', 날짜='\(params.date ?? "nil")', 카테고리='\(params.category)', 반복='\(params.recurrence ?? "nil")', 알림강도='\(pending.urgency.rawValue)'")
+                addSingleTask(params: params, urgency: pending.urgency)
+
             case .updateTask(let params):
                 print("▶️ [명령 \(index + 1)] 호출 함수: update_task")
                 print("   ↳ 파라미터(수정대상): '\(params.target_task_name)'")
                 print("   ↳ 파라미터(변경값): 반환된 새 이름='\(params.new_task_name ?? "nil")', 시간='\(params.new_time ?? "nil")', 날짜='\(params.new_date ?? "nil")', 카테고리='\(params.new_category ?? "nil")', 반복='\(params.new_recurrence ?? "nil")'")
                 updateTask(params: params)
-                
+
             case .deleteSpecificTask(let params):
                 print("▶️ [명령 \(index + 1)] 호출 함수: delete_specific_task")
                 print("   ↳ 파라미터(삭제대상): '\(params.target_task_name)'")
                 deleteSpecificTask(params: params)
-                
+
             case .clearAllTasks(let params):
                 print("▶️ [명령 \(index + 1)] 호출 함수: clear_all_tasks")
                 print("   ↳ 파라미터(삭제일자): '\(params.target_date)'")
                 clearAllTasks(params: params)
-                
+
             case .postponeAllTasks(let params):
                 print("▶️ [명령 \(index + 1)] 호출 함수: postpone_all_tasks")
                 print("   ↳ 파라미터(연기경로): '\(params.from_date)' -> '\(params.to_date)'")
                 postponeAllTasks(params: params)
-                
+
             case .markTaskComplete(let params):
                 print("▶️ [명령 \(index + 1)] 호출 함수: mark_task_complete")
                 print("   ↳ 파라미터(완료대상): '\(params.target_task_name)'")
                 markTaskComplete(params: params)
-                
+
             case .requestClarification(let params):
                 print("▶️ [명령 \(index + 1)] 호출 함수: request_clarification")
                 print("   ↳ 파라미터(분류불가 사유): '\(params.reason)'")
@@ -55,20 +61,21 @@ extension TaskManager {
                 print("▶️ [명령 \(index + 1)] 호출 함수: handle_off_topic_chat")
                 print("   ↳ OOV 응답 메시지: '\(params.message)'")
                 handleOffTopicChat(params: params)
-                
+
             case .unknown(let funcName):
                 print("▶️ [명령 \(index + 1)] 호출 함수: (알 수 없음)")
                 print("⚠️ [TaskManager] 에러: 지원하지 않는 함수 호출: \(funcName)")
             }
         }
-        
+
         print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
         // 일괄 변경 내역 한 번에 저장
         safeSave()
     }
+
     
     // MARK: - 1. Add Single Task
-    private func addSingleTask(params: AddSingleTaskParams) {
+    private func addSingleTask(params: AddSingleTaskParams, urgency: Urgency = .weak) {
         // 시간을 언급하지 않으면 nil 유지 → UI에 "시간 미정" 표시
         let finalTime = (params.time == nil || params.time!.isEmpty) ? nil : params.time
 
@@ -79,6 +86,7 @@ extension TaskManager {
             category: params.category,
             recurrenceRule: params.recurrence
         )
+        task.urgencyRaw = urgency.rawValue
         insertBatch(task)
         NotificationManager.shared.scheduleNotification(for: task)
         setUndoAction(.added([task]), message: L.voice.undoAdded(1))
