@@ -79,6 +79,27 @@ class TaskManager: ObservableObject {
 
     // Process logic moved to TaskManager+LLM.swift (execute method)
     
+    // MARK: - Core Actions
+    /// 특정 ID의 태스크를 '완료' 상태로 직접 설정 (알람 확인 시 사용)
+    func completeTask(id: UUID) {
+        guard let context = modelContext else { return }
+        let descriptor = FetchDescriptor<AppTask>(predicate: #Predicate { $0.id == id })
+        do {
+            if let task = try context.fetch(descriptor).first {
+                if !task.isCompleted {
+                    task.isCompleted = true
+                    safeSave()
+                    print("✅ [TaskManager] 알람 확인으로 태스크 완료 처리: \(task.task)")
+                    // 위젯 및 알림 갱신
+                    writeWidgetSnapshot()
+                    NotificationManager.shared.cancelNotification(for: task)
+                }
+            }
+        } catch {
+            print("❌ completeTask 실패: \(error.localizedDescription)")
+        }
+    }
+
     // MARK: - Toggle Completion
     func toggleCompletion(of task: AppTask) {
         let previousState = task.isCompleted

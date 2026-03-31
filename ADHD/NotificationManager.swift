@@ -47,13 +47,30 @@ final class NotificationManager {
     // MARK: - Permission Request
     /// App 실행 시 onAppear에서 한 번 호출합니다.
     func requestAuthorization() {
-        center.requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
+        center.requestAuthorization(options: [.alert, .sound, .badge, .criticalAlert]) { granted, error in
             if let error {
                 print("❌ 알림 권한 요청 실패: \(error.localizedDescription)")
                 return
             }
             print(granted ? "✅ 알림 권한 허용됨" : "🔕 알림 권한 거부됨")
         }
+        
+        // --- 강한 알림용 카테고리 등록 ---
+        let confirmAction = UNNotificationAction(
+            identifier: "CONFIRM_ACTION",
+            title: "확인하기(지금 당장!)",
+            options: [.foreground]
+        )
+        let strongCategory = UNNotificationCategory(
+            identifier: "STRONG_ALARM",
+            actions: [confirmAction],
+            intentIdentifiers: [],
+            options: [.customDismissAction]
+        )
+        center.setNotificationCategories([strongCategory])
+        
+        // 포그라운드 알림 수신을 위한 Delegate 설정
+        center.delegate = AlarmManager.shared
     }
 
     // MARK: - Schedule Notification
@@ -80,9 +97,42 @@ final class NotificationManager {
         guard fireDate > Date() else { return }
 
         let content = UNMutableNotificationContent()
-        content.title  = task.category == "Routine" ? L.settings.routineNotifTitle : L.settings.appointmentNotifTitle
-        content.body   = task.task
-        content.sound  = soundEnabled ? .default : nil
+        let isRoutine = task.category == "Routine"
+        
+        // 1. 제목: 사용자 요청에 따라 일정/루틴 구분 유지
+        content.title = isRoutine ? L.settings.routineNotifTitle : L.settings.appointmentNotifTitle
+        
+        // 2. 부제목: 앱의 아이덴티티와 긴급도 표현
+        if task.urgency == .strong {
+            content.subtitle = "⚠️ 긴급 확인이 필요합니다"
+        } else {
+            content.subtitle = "오늘의 한 걸음"
+        }
+        
+        // 3. 본문: 깔끔한 따옴표 처리로 미려함 추구
+        content.body  = "「\(task.task)」"
+        content.sound = soundEnabled ? .default : nil
+
+        // --- 강한 알림 설정 ---
+        if task.urgency == .strong {
+            content.interruptionLevel = .timeSensitive
+            content.sound = .defaultRingtone
+            content.categoryIdentifier = "STRONG_ALARM" // 카테고리 연동
+            // 알람 페이로드: AlarmManager에서 태스크명 표시에 사용
+            content.userInfo = [
+                "taskId":   task.id.uuidString,
+                "taskName": task.task,
+                "urgency":  Urgency.strong.rawValue
+            ]
+        } else {
+            content.interruptionLevel = .active
+            content.categoryIdentifier = "" 
+            content.userInfo = [
+                "taskId":   task.id.uuidString,
+                "taskName": task.task,
+                "urgency":  Urgency.weak.rawValue
+            ]
+        }
 
         // 반복 규칙에 따라 DateComponents 및 repeats 설정
         let components: DateComponents
@@ -132,7 +182,8 @@ final class NotificationManager {
             if let error {
                 print("❌ 알림 등록 실패 [\(task.task)]: \(error.localizedDescription)")
             } else {
-                print("🔔 알림 등록 완료: \(task.task) @ \(fireDate)")
+                let urgencyLabel = task.urgency == .strong ? "🔴강함" : "🔵약함"
+                print("🔔 알림 등록 완료 [\(urgencyLabel)]: \(task.task) @ \(fireDate)")
             }
         }
     }

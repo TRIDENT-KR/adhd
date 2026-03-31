@@ -226,6 +226,7 @@ struct TaskRow: View {
     @State private var showingTimePicker = false
     @State private var localTaskName: String = ""
     @State private var localTime: String     = ""
+    @State private var localUrgency: Urgency  = .weak
     @State private var cachedCategoryIcon: String = "circle.fill"
 
     var isEditing: Bool { editingTaskId == task.id }
@@ -287,6 +288,25 @@ struct TaskRow: View {
                         .sheet(isPresented: $showingTimePicker) {
                             TimePickerModal(timeString: $localTime, isPresented: $showingTimePicker)
                         }
+
+                    // urgency 토글
+                    Button(action: {
+                        localUrgency = (localUrgency == .weak) ? .strong : .weak
+                        Haptic.impact(.light)
+                    }) {
+                        HStack(spacing: 3) {
+                            Image(systemName: localUrgency == .strong ? "bolt.fill" : "bolt")
+                                .font(.system(size: 11, weight: .semibold))
+                            Text(localUrgency == .strong ? "Strong" : "Weak")
+                                .font(.system(size: 11, weight: .medium))
+                        }
+                        .foregroundColor(localUrgency == .strong ? .orange : DesignSystem.Colors.onSurfaceVariant.opacity(0.5))
+                        .padding(.vertical, 4)
+                        .padding(.horizontal, 8)
+                        .background((localUrgency == .strong ? Color.orange : DesignSystem.Colors.onSurfaceVariant).opacity(0.12))
+                        .cornerRadius(6)
+                    }
+                    .buttonStyle(NoEffectButtonStyle())
                 } else if isVoiceEditing {
                     // 음성 편집 중: 실시간 인식 텍스트 표시
                     Text(voiceManager.recognizedText.isEmpty ? "Listening..." : voiceManager.recognizedText)
@@ -313,6 +333,11 @@ struct TaskRow: View {
                                     .font(.system(size: 9))
                                 Text(label)
                                     .font(.system(size: 11))
+                            }
+                            if task.urgency == .strong {
+                                Image(systemName: "bolt.fill")
+                                    .font(.system(size: 9))
+                                    .foregroundColor(.orange.opacity(0.7))
                             }
                         }
                         .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.4))
@@ -392,8 +417,9 @@ struct TaskRow: View {
     private func finishEditing() {
         guard editingTaskId == task.id else { return }
         // 변경 내용 AppTask에 반영 후 저장
-        task.task = localTaskName
-        task.time = localTime.isEmpty ? nil : localTime
+        task.task    = localTaskName
+        task.time    = localTime.isEmpty ? nil : localTime
+        task.urgency = localUrgency
         taskManager.update(task: task)
         cachedCategoryIcon = CategoryIconResolver.resolveIcon(for: localTaskName, category: task.category)
         editingTaskId = nil
@@ -401,6 +427,7 @@ struct TaskRow: View {
     }
 
     private func startEditing() {
+        localUrgency  = task.urgency
         editingTaskId = task.id
         Haptic.impact(.medium)
     }

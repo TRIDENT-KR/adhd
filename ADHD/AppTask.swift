@@ -1,6 +1,13 @@
 import Foundation
 import SwiftData
 
+// MARK: - Urgency
+/// 알림 강도: weak = 일반 배너, strong = 시간 민감형 + 앱 내 풀스크린 오버레이
+public enum Urgency: String, Codable {
+    case weak   = "weak"
+    case strong = "strong"
+}
+
 // MARK: - SwiftData Persistent Model
 /// 영구 저장소에 기록되는 실제 데이터 모델.
 /// ParsedTask(DTO)와 분리하여 Codable 디코딩과의 충돌을 방지합니다.
@@ -17,6 +24,13 @@ final class AppTask {
     /// 반복 규칙: "weekly" | "biweekly" | "monthly" | "yearly" | nil (일회성)
     var recurrenceRule: String?
 
+    /// 알림 강도 (SwiftData @Model은 enum 기본값을 직접 지원하지 않으므로 String으로 저장)
+    var urgencyRaw: String = Urgency.weak.rawValue
+    var urgency: Urgency {
+        get { Urgency(rawValue: urgencyRaw) ?? .weak }
+        set { urgencyRaw = newValue.rawValue }
+    }
+
     /// 사용자 지정 정렬 순서 (0 = 미지정, 낮을수록 위에 표시)
     var sortOrder: Int = 0
 
@@ -27,7 +41,8 @@ final class AppTask {
          category: String,
          isCompleted: Bool = false,
          recurrenceRule: String? = nil,
-         sortOrder: Int = 0) {
+         sortOrder: Int = 0,
+         urgency: Urgency = .weak) {
         self.id             = id
         self.task           = task
         self.time           = time
@@ -36,6 +51,7 @@ final class AppTask {
         self.isCompleted    = isCompleted
         self.recurrenceRule = recurrenceRule
         self.sortOrder      = sortOrder
+        self.urgencyRaw     = urgency.rawValue
     }
 
     /// 반복 여부
@@ -173,13 +189,18 @@ public struct CategoryIconResolver {
                                      "水", "飲み物", "水分"]),
     ]
 
-    public static func resolveIcon(for taskName: String, category: String?) -> String {
+    public static func resolveIcon(for taskName: String, category: String?, urgency: Urgency = .weak) -> String {
         let name = taskName.lowercased()
         for rule in iconRules {
             if rule.keywords.contains(where: { name.contains($0) }) {
                 return rule.icon
             }
         }
-        return category == "Appointment" ? "calendar" : "circle.fill"
+        
+        if category == "Appointment" {
+            // 약한 알림일 경우 달력 아이콘 제외 (사용자 요청)
+            return urgency == .strong ? "calendar" : "clock"
+        }
+        return "circle.fill"
     }
 }
