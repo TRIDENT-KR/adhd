@@ -69,11 +69,7 @@ struct MainTabView: View {
         }
         .animation(
             .spring(response: 0.4, dampingFraction: 0.75),
-            value: networkMonitor.isOfflineBannerVisible
-        )
-        .animation(
-            .spring(response: 0.4, dampingFraction: 0.75),
-            value: networkMonitor.isBackOnlineBannerVisible
+            value: networkMonitor.bannerState
         )
         // 5. Undo 스낵바
         .overlay(alignment: .bottom) {

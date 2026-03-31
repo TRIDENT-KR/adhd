@@ -94,13 +94,16 @@ struct WaitWhatApp: App {
                         .task {
                             // ModelContext 주입 (TaskManager → SwiftData)
                             taskManager.configure(context: container.mainContext)
-                            // 알림 권한 요청 (최초 1회) — UI 렌더링 후 비동기 실행
-                            NotificationManager.shared.requestAuthorization()
-                            
+
                             // 알람 확인 시 자동 완료 연동
                             AlarmManager.shared.onTaskConfirmed = { taskId in
                                 taskManager.completeTask(id: taskId)
                             }
+                        }
+                        .task {
+                            // 알림 권한 요청 — 초기 렌더링 완료 후 지연 실행
+                            try? await Task.sleep(nanoseconds: 500_000_000)
+                            NotificationManager.shared.requestAuthorization()
                         }
                         .onOpenURL { url in
                             handleWidgetDeepLink(url)

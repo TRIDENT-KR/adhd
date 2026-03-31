@@ -16,6 +16,11 @@ final class NetworkMonitor: ObservableObject {
     @Published private(set) var isOfflineBannerVisible: Bool = false
     @Published private(set) var isBackOnlineBannerVisible: Bool = false
 
+    /// 배너 상태를 단일 값으로 결합하여 animation value 충돌 방지
+    var bannerState: Int {
+        (isOfflineBannerVisible ? 1 : 0) | (isBackOnlineBannerVisible ? 2 : 0)
+    }
+
     // MARK: - Private
     private let monitor = NWPathMonitor()
     private let queue   = DispatchQueue(label: "com.waitwhat.networkmonitor", qos: .utility)

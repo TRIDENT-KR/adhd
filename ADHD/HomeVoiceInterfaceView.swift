@@ -17,7 +17,6 @@ struct HomeVoiceInterfaceView: View {
     @State private var shakeOffset: CGFloat = 0
     @State private var showErrorToast = false
     @State private var errorToastMessage = ""
-    @State private var cursorVisible = true
     @AppStorage("hasSeenVoiceOnboarding") private var hasSeenVoiceOnboarding = false
     @AppStorage("confirmBeforeSave") private var confirmBeforeSave = true
 
@@ -148,7 +147,7 @@ struct HomeVoiceInterfaceView: View {
                                 )
                                 .frame(width: 140, height: 140)
                                 .rotationEffect(.degrees(-90))
-                                .animation(.linear(duration: 0.1), value: voiceManager.recordingDuration)
+                                .animation(.linear(duration: 0.5), value: voiceManager.recordingDuration)
                         }
 
                         // Mic button with Hold-to-Talk or Tap gesture
@@ -199,11 +198,7 @@ struct HomeVoiceInterfaceView: View {
                             HStack(spacing: 0) {
                                 Text(voiceManager.recognizedText)
                                     .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
-                                Text("|")
-                                    .foregroundColor(DesignSystem.Colors.primary)
-                                    .opacity(cursorVisible ? 1.0 : 0.0)
-                                    .animation(.easeInOut(duration: 0.5).repeatForever(autoreverses: true), value: cursorVisible)
-                                    .onAppear { cursorVisible.toggle() }
+                                BlinkingCursor()
                             }
                         } else if !voiceManager.recognizedText.isEmpty {
                             Text(voiceManager.recognizedText)
@@ -228,10 +223,8 @@ struct HomeVoiceInterfaceView: View {
                     .tracking(-0.5)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 32)
-                    .animation(.easeInOut, value: voiceManager.recognizedText)
                     .animation(.easeInOut, value: voiceManager.isListening)
-                    .animation(.easeInOut, value: voiceManager.isProcessing || cloudLLM.isProcessing)
-                    .animation(.spring(response: 0.4, dampingFraction: 0.6), value: showSuccessCheck)
+                    .animation(.easeInOut, value: showSuccessCheck)
                 }
 
                 Spacer()
@@ -549,6 +542,7 @@ struct HomeVoiceInterfaceView: View {
 
     // MARK: - Speech Finalization Callback
     private func setupSpeechCallback() {
+        guard voiceManager.onSpeechFinalized == nil else { return }
         voiceManager.onSpeechFinalized = { [weak voiceManager] text in
             guard let voiceManager else { return }
 
@@ -593,6 +587,18 @@ struct HomeVoiceInterfaceView: View {
                 }
             }
         }
+    }
+}
+
+// MARK: - Blinking Cursor (isolated to avoid parent re-renders)
+private struct BlinkingCursor: View {
+    @State private var visible = true
+    var body: some View {
+        Text("|")
+            .foregroundColor(DesignSystem.Colors.primary)
+            .opacity(visible ? 1.0 : 0.0)
+            .animation(.easeInOut(duration: 0.5).repeatForever(autoreverses: true), value: visible)
+            .onAppear { visible = false }
     }
 }
 
