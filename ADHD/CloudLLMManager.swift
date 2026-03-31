@@ -22,26 +22,27 @@ class CloudLLMManager: ObservableObject {
         defer { Task { @MainActor in self.isProcessing = false } }
 
         var lastError: Error?
+        let maxRetries = Self.maxRetries
+        let timeout = Self.requestTimeout
 
-        for attempt in 0..<Self.maxRetries {
+        for attempt in 0..<maxRetries {
             do {
+                // Main-actor-isolated 값을 task group 밖에서 캡처
+                let formatter = DateFormatter()
+                formatter.dateFormat = "yyyy-MM-dd HH:mm"
+                formatter.locale = Locale(identifier: "ko_KR")
+                let currentTimeString = formatter.string(from: Date())
+                let currentLanguage = await MainActor.run { LocalizationManager.shared.currentLanguage.rawValue }
+
+                let payload = AnalyzePayload(
+                    text: text,
+                    currentTime: currentTimeString,
+                    language: currentLanguage
+                )
+
                 let intents = try await withThrowingTaskGroup(of: [LLMFunctionCall].self) { group in
                     // API 호출 태스크
                     group.addTask {
-                        let formatter = DateFormatter()
-                        formatter.dateFormat = "yyyy-MM-dd HH:mm"
-                        formatter.locale = Locale(identifier: "ko_KR")
-                        let currentTimeString = formatter.string(from: Date())
-
-                        // 사용자 선택 언어를 페이로드에 포함
-                        let currentLanguage = LocalizationManager.shared.currentLanguage.rawValue
-
-                        let payload = AnalyzePayload(
-                            text: text,
-                            currentTime: currentTimeString,
-                            language: currentLanguage
-                        )
-
                         var headers: [String: String] = [:]
                         if let session = try? await supabase.auth.session {
                             headers["Authorization"] = "Bearer \(session.accessToken)"
@@ -54,9 +55,9 @@ class CloudLLMManager: ObservableObject {
 
                     // 타임아웃 태스크
                     group.addTask {
-                        try await Task.sleep(nanoseconds: UInt64(Self.requestTimeout * 1_000_000_000))
+                        try await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
                         throw NSError(domain: "CloudLLM", code: 408,
-                                      userInfo: [NSLocalizedDescriptionKey: "Request timed out after \(Int(Self.requestTimeout))s"])
+                                      userInfo: [NSLocalizedDescriptionKey: "Request timed out after \(Int(timeout))s"])
                     }
 
                     // 먼저 완료된 쪽 결과 반환, 나머지 취소
@@ -67,10 +68,10 @@ class CloudLLMManager: ObservableObject {
                 return intents
             } catch {
                 lastError = error
-                print("⚠️ API 시도 \(attempt + 1)/\(Self.maxRetries) 실패: \(error.localizedDescription)")
+                print("⚠️ API 시도 \(attempt + 1)/\(maxRetries) 실패: \(error.localizedDescription)")
 
                 // 마지막 시도가 아니면 지수 백오프 대기
-                if attempt < Self.maxRetries - 1 {
+                if attempt < maxRetries - 1 {
                     let delay = UInt64(pow(2.0, Double(attempt))) * 1_000_000_000 // 1s, 2s, 4s
                     try? await Task.sleep(nanoseconds: delay)
                 }
@@ -81,7 +82,7 @@ class CloudLLMManager: ObservableObject {
         throw NSError(
             domain: "CloudLLM",
             code: 500,
-            userInfo: [NSLocalizedDescriptionKey: "Failed after \(Self.maxRetries) attempts: \(lastError?.localizedDescription ?? "unknown")"]
+            userInfo: [NSLocalizedDescriptionKey: "Failed after \(maxRetries) attempts: \(lastError?.localizedDescription ?? "unknown")"]
         )
     }
 }

@@ -519,7 +519,9 @@ struct SwipeToDeleteModifier: ViewModifier {
                     Spacer()
                     Button(action: {
                         withAnimation(.spring(response: 0.3)) {
-                            offset = -UIScreen.main.bounds.width
+                            offset = -(UIApplication.shared.connectedScenes
+                                .compactMap { $0 as? UIWindowScene }
+                                .first?.screen.bounds.width ?? 400)
                         }
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
                             onDelete()

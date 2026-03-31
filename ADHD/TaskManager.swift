@@ -111,10 +111,7 @@ class TaskManager: ObservableObject {
     // MARK: - Update Task
     func update(task: AppTask) {
         safeSave()
-        let taskCopy = task
-        DispatchQueue.global(qos: .utility).async {
-            NotificationManager.shared.scheduleNotification(for: taskCopy)
-        }
+        NotificationManager.shared.scheduleNotification(for: task)
     }
 
     // MARK: - Delete (by reference)
