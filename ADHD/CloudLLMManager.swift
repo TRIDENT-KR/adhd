@@ -6,6 +6,7 @@ import Supabase
 struct AnalyzePayload: Codable, Sendable {
     let text: String
     let currentTime: String
+    let language: String
 }
 
 class CloudLLMManager: ObservableObject {
@@ -31,8 +32,15 @@ class CloudLLMManager: ObservableObject {
                         formatter.dateFormat = "yyyy-MM-dd HH:mm"
                         formatter.locale = Locale(identifier: "ko_KR")
                         let currentTimeString = formatter.string(from: Date())
-                        
-                        let payload = AnalyzePayload(text: text, currentTime: currentTimeString)
+
+                        // 사용자 선택 언어를 페이로드에 포함
+                        let currentLanguage = LocalizationManager.shared.currentLanguage.rawValue
+
+                        let payload = AnalyzePayload(
+                            text: text,
+                            currentTime: currentTimeString,
+                            language: currentLanguage
+                        )
 
                         var headers: [String: String] = [:]
                         if let session = try? await supabase.auth.session {

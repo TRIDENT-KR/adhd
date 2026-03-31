@@ -12,7 +12,7 @@ struct PendingLLMCall: Identifiable {
     var uiActionLabel: String { call.uiActionLabel }
     var uiTaskName: String { call.uiTaskName }
     var uiTime: String? { call.uiTime }
-    var uiDate: String? { call.uiDate } // Adding uiDate pass-through
+    var uiDate: String? { call.uiDate }
     var uiCategory: String { call.uiCategory }
     var uiSmartDateRaw: String { call.uiSmartDateRaw }
     var uiSmartDateTime: String { call.uiSmartDateTime }
@@ -62,6 +62,11 @@ struct ClarificationParams: Codable {
     let reason: String
 }
 
+/// OOV(Out-of-Domain) 응답 파라미터: 앱 목적과 무관한 입력에 대한 재치 있는 응답 메시지
+struct OffTopicChatParams: Codable {
+    let message: String
+}
+
 // MARK: - LLMFunctionCall Router Enum
 
 enum LLMFunctionCall: Decodable {
@@ -72,6 +77,7 @@ enum LLMFunctionCall: Decodable {
     case postponeAllTasks(PostponeTasksParams)
     case markTaskComplete(MarkTaskCompleteParams)
     case requestClarification(ClarificationParams)
+    case handleOffTopicChat(OffTopicChatParams) // OOV 예외 처리
     case unknown(String) // Fallback for unsupported functions
 
     enum CodingKeys: String, CodingKey {
@@ -105,6 +111,9 @@ enum LLMFunctionCall: Decodable {
         case "request_clarification":
             let params = try container.decode(ClarificationParams.self, forKey: .parameters)
             self = .requestClarification(params)
+        case "handle_off_topic_chat":
+            let params = try container.decode(OffTopicChatParams.self, forKey: .parameters)
+            self = .handleOffTopicChat(params)
         default:
             self = .unknown(functionName)
         }
@@ -132,6 +141,18 @@ enum LLMFunctionCall: Decodable {
             break
         }
     }
+    
+    /// OOV 응답 여부
+    var isOffTopic: Bool {
+        if case .handleOffTopicChat = self { return true }
+        return false
+    }
+    
+    /// OOV 응답 메시지 추출
+    var offTopicMessage: String? {
+        if case .handleOffTopicChat(let p) = self { return p.message }
+        return nil
+    }
 }
 
 // MARK: - UI Helpers for Confirmation Card
@@ -143,7 +164,7 @@ extension LLMFunctionCall: Identifiable {
         case .deleteSpecificTask, .clearAllTasks: return "delete"
         case .addSingleTask: return "add"
         case .updateTask, .postponeAllTasks, .markTaskComplete: return "update"
-        case .requestClarification, .unknown: return "info"
+        case .requestClarification, .handleOffTopicChat, .unknown: return "info"
         }
     }
     
@@ -164,7 +185,6 @@ extension LLMFunctionCall: Identifiable {
         case "update": return L.voice.confirmUpdate
         default:
             if uiCategory == "Appointment" {
-                // 오늘 날짜인지 판별 (DateFormatter 사용)
                 let df = DateFormatter()
                 df.dateFormat = "yyyy-MM-dd"
                 let todayString = df.string(from: Date())
@@ -182,11 +202,12 @@ extension LLMFunctionCall: Identifiable {
         case .addSingleTask(let p): return p.task_name
         case .updateTask(let p): return p.new_task_name ?? p.target_task_name
         case .deleteSpecificTask(let p): return p.target_task_name
-        case .clearAllTasks(let p): 
+        case .clearAllTasks(let p):
             return p.target_date.lowercased() == "all" ? L.voice.actionClearAll : L.voice.actionClearDate(p.target_date)
         case .postponeAllTasks(let p): return L.voice.actionPostpone(from: p.from_date, to: p.to_date)
         case .markTaskComplete(let p): return L.voice.actionComplete(p.target_task_name)
         case .requestClarification(let p): return p.reason
+        case .handleOffTopicChat(let p): return p.message
         case .unknown(let s): return L.voice.actionUnknown(s)
         }
     }
@@ -215,10 +236,8 @@ extension LLMFunctionCall: Identifiable {
     var uiCategory: String {
         switch self {
         case .addSingleTask(let p): return p.category
-        case .updateTask(let p): 
-            // 만약 새로 지정된 카테고리가 없으면 기본적으로 Routine으로 간주하지만, 
-            // 실제 로직에서는 matchingTask의 기존 카테고리를 유지함
-            return p.new_category ?? "Appointment" 
+        case .updateTask(let p):
+            return p.new_category ?? "Appointment"
         default: return "Routine"
         }
     }
@@ -230,10 +249,8 @@ extension LLMFunctionCall: Identifiable {
         let timeString = hasTime ? uiTime! : ""
         
         if isRoutine {
-            // 루틴은 시간만 노출
             return timeString
         } else {
-            // 일정(Appointment)은 날짜를 변환
             guard let dateString = uiDate, !dateString.isEmpty else { return timeString }
             
             let df = DateFormatter()
@@ -250,4 +267,3 @@ extension LLMFunctionCall: Identifiable {
         }
     }
 }
-

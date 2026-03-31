@@ -108,7 +108,9 @@ struct HomeVoiceInterfaceView: View {
                                 .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
                         }
                     }
-                    .padding(.bottom, 48)
+
+                    Spacer()
+                    Spacer(minLength: 120)
                 } else {
                 // ── 음성 입력 모드 (기존) ──
                 Spacer()
@@ -331,6 +333,15 @@ struct HomeVoiceInterfaceView: View {
         .onAppear {
             isModalVisible = showConfirmation
         }
+        .onReceive(NotificationCenter.default.publisher(for: .didReceiveOffTopicChat)) { notification in
+            if let message = notification.userInfo?["message"] as? String {
+                let call = LLMFunctionCall.handleOffTopicChat(OffTopicChatParams(message: message))
+                pendingTasks = [PendingLLMCall(call: call)]
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                    showConfirmation = true
+                }
+            }
+        }
     }
 
     // MARK: - Mic Button (Tap vs Hold mode)
@@ -404,22 +415,24 @@ struct HomeVoiceInterfaceView: View {
                 print("⌨️ 텍스트 입력 파싱 결과: \(parsedTasks)")
 
                 await MainActor.run {
-                    if confirmBeforeSave {
-                        pendingTasks = parsedTasks.map { PendingLLMCall(call: $0) }
-                        withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                            showConfirmation = true
+                        if confirmBeforeSave {
+                            pendingTasks = parsedTasks.map { PendingLLMCall(call: $0) }
+                            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                                showConfirmation = true
+                            }
+                        } else {
+                            taskManager.execute(llmCalls: parsedTasks)
+                            if !parsedTasks.contains(where: { $0.isOffTopic }) {
+                                showSuccessCheck = true
+                                Haptic.notification(.success)
+                            }
                         }
-                    } else {
-                        taskManager.execute(llmCalls: parsedTasks)
-                        showSuccessCheck = true
-                        Haptic.notification(.success)
                     }
-                }
 
-                if !confirmBeforeSave {
-                    try? await Task.sleep(nanoseconds: 1_500_000_000)
-                    await MainActor.run { showSuccessCheck = false }
-                }
+                    if !confirmBeforeSave && !parsedTasks.contains(where: { $0.isOffTopic }) {
+                        try? await Task.sleep(nanoseconds: 1_500_000_000)
+                        await MainActor.run { showSuccessCheck = false }
+                    }
             } catch {
                 print("❌ Text input API error: \(error.localizedDescription)")
                 await MainActor.run {
@@ -528,12 +541,14 @@ struct HomeVoiceInterfaceView: View {
                         } else {
                             // 바로 저장 (기존 동작)
                             taskManager.execute(llmCalls: parsedTasks)
-                            showSuccessCheck = true
-                            Haptic.notification(.success)
+                            if !parsedTasks.contains(where: { $0.isOffTopic }) {
+                                showSuccessCheck = true
+                                Haptic.notification(.success)
+                            }
                         }
                     }
 
-                    if !confirmBeforeSave {
+                    if !confirmBeforeSave && !parsedTasks.contains(where: { $0.isOffTopic }) {
                         try? await Task.sleep(nanoseconds: 1_500_000_000)
                         await MainActor.run {
                             showSuccessCheck = false
@@ -564,12 +579,18 @@ struct VoiceConfirmationSheet: View {
     
     var onConfirm: () -> Void
     var onCancel: () -> Void
+    
+    // OOV(재치 있는 메시지) 상태 확인
+    private var isOffTopic: Bool {
+        tasks.contains { $0.call.isOffTopic }
+    }
 
     var body: some View {
         VStack(spacing: 0) {
             // Header
             HStack {
-                Text(editingTask == nil ? L.voice.confirmTitle : L.voice.editTaskTitle)
+                let titleText = editingTask == nil ? (isOffTopic ? "알림" : L.voice.confirmTitle) : L.voice.editTaskTitle
+                Text(titleText)
                     .font(.system(size: 20, weight: .bold))
                     .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
                 
@@ -691,29 +712,31 @@ struct VoiceConfirmationSheet: View {
                     VStack(spacing: 14) {
                         ForEach(tasks) { task in
                             VStack(alignment: .leading, spacing: 10) {
-                                HStack {
-                                    let isPlanner = task.uiCategory == "Appointment"
-                                    
-                                    // High Contrast Badge
-                                    Label(isPlanner ? L.voice.confirmAppointment : L.voice.confirmRoutine,
-                                          systemImage: isPlanner ? "calendar" : "repeat")
-                                        .font(.system(size: 12, weight: .bold))
-                                        .foregroundColor(isPlanner ? DesignSystem.Colors.tertiary : DesignSystem.Colors.primary)
-                                        .padding(.horizontal, 10)
-                                        .padding(.vertical, 6)
-                                        .background(isPlanner ? DesignSystem.Colors.tertiary.opacity(0.15) : DesignSystem.Colors.primary.opacity(0.15))
-                                        .cornerRadius(8)
+                                if !task.call.isOffTopic {
+                                    HStack {
+                                        let isPlanner = task.uiCategory == "Appointment"
+                                        
+                                        // High Contrast Badge
+                                        Label(isPlanner ? L.voice.confirmAppointment : L.voice.confirmRoutine,
+                                              systemImage: isPlanner ? "calendar" : "repeat")
+                                            .font(.system(size: 12, weight: .bold))
+                                            .foregroundColor(isPlanner ? DesignSystem.Colors.tertiary : DesignSystem.Colors.primary)
+                                            .padding(.horizontal, 10)
+                                            .padding(.vertical, 6)
+                                            .background(isPlanner ? DesignSystem.Colors.tertiary.opacity(0.15) : DesignSystem.Colors.primary.opacity(0.15))
+                                            .cornerRadius(8)
 
-                                    Spacer()
-                                    
-                                    if task.uiAction != "add" {
-                                        Text(task.uiActionLabel)
-                                            .font(.system(size: 11, weight: .black))
-                                            .padding(.horizontal, 8)
-                                            .padding(.vertical, 4)
-                                            .background(task.uiAction == "delete" ? Color.red.opacity(0.15) : Color.blue.opacity(0.15))
-                                            .foregroundColor(task.uiAction == "delete" ? .red : .blue)
-                                            .cornerRadius(6)
+                                        Spacer()
+                                        
+                                        if task.uiAction != "add" {
+                                            Text(task.uiActionLabel)
+                                                .font(.system(size: 11, weight: .black))
+                                                .padding(.horizontal, 8)
+                                                .padding(.vertical, 4)
+                                                .background(task.uiAction == "delete" ? Color.red.opacity(0.15) : Color.blue.opacity(0.15))
+                                                .foregroundColor(task.uiAction == "delete" ? .red : .blue)
+                                                .cornerRadius(6)
+                                        }
                                     }
                                 }
 
@@ -752,10 +775,10 @@ struct VoiceConfirmationSheet: View {
                     .padding(.bottom, 24)
                     
                     // The "Satisfying Hub" Confirm Button
-                    Button(action: onConfirm) {
+                    Button(action: isOffTopic ? onCancel : onConfirm) {
                         HStack(spacing: 8) {
                             Image(systemName: "sparkles")
-                            Text(L.voice.confirmButton)
+                            Text(isOffTopic ? "다시 질문하기" : L.voice.confirmButton)
                         }
                         .frame(maxWidth: .infinity)
                     }
@@ -892,6 +915,11 @@ struct VoiceGuideSheet: View {
         }
         .background(DesignSystem.Colors.background)
     }
+}
+
+// MARK: - Notifications
+extension Notification.Name {
+    static let didReceiveOffTopicChat = Notification.Name("didReceiveOffTopicChat")
 }
 
 // MARK: - Preview
