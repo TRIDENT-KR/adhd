@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import UniformTypeIdentifiers
 
 struct PlannerView: View {
     // MARK: - SwiftData Query
@@ -28,6 +29,7 @@ struct PlannerView: View {
     }()
 
     @State private var isReordering = false
+    @State private var draggingTask: AppTask?
 
     /// 선택된 날짜와 같은 날의 약속만 반환 (반복 일정 포함), 사용자 정렬 > 시간순
     private var filteredAppointments: [AppTask] {
@@ -117,9 +119,15 @@ struct PlannerView: View {
                         }
                         .frame(minHeight: ((UIApplication.shared.connectedScenes.first as? UIWindowScene)?.screen.bounds.height ?? 800) * 0.4)
                     } else if isReordering {
+                        // 정렬 모드: 드래그 앤 드롭
                         LazyVStack(spacing: 16) {
                             ForEach(filteredAppointments) { task in
-                                ReorderRow(task: task, allTasks: filteredAppointments, taskManager: taskManager)
+                                ReorderRow(task: task, allTasks: filteredAppointments, taskManager: taskManager, draggingTask: $draggingTask)
+                                    .onDrag {
+                                        self.draggingTask = task
+                                        return NSItemProvider(object: task.id.uuidString as NSString)
+                                    }
+                                    .onDrop(of: [.text], delegate: TaskDropDelegate(item: task, tasks: filteredAppointments, draggingItem: $draggingTask, taskManager: taskManager))
                             }
                         }
                     } else {
@@ -285,28 +293,24 @@ struct PlannerView: View {
                 }
                 .onChange(of: selectedDate) { _, newDate in
                     let target = calendar.startOfDay(for: newDate)
+                    // 오늘 선택 시에도 스크롤 위치 리셋 (오늘 다음날로)
                     if calendar.isDate(target, inSameDayAs: today) {
-                        // 오늘 선택 → 내일(오늘 다음날)을 최좌측에 배치
-                        if let tomorrow = rightDays.first(where: { $0 > today }) {
+                        if let firstDay = rightDays.first {
                             withAnimation(.easeInOut(duration: 0.3)) {
-                                proxy.scrollTo(tomorrow, anchor: .leading)
+                                proxy.scrollTo(firstDay, anchor: .leading)
                             }
                         }
                     } else {
-                        // 다른 날짜 선택 → 해당 날짜를 최좌측에 배치
                         withAnimation(.easeInOut(duration: 0.3)) {
-                            proxy.scrollTo(target, anchor: .leading)
+                            proxy.scrollTo(target, anchor: .center)
                         }
                     }
                 }
                 .onAppear {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                        if isTodaySelected {
-                            if let tomorrow = rightDays.first(where: { $0 > today }) {
-                                proxy.scrollTo(tomorrow, anchor: .leading)
-                            }
-                        } else {
-                            proxy.scrollTo(selected, anchor: .leading)
+                    // 초기 로드 시 선택 날짜가 중앙에 오도록
+                    if !isTodaySelected {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            proxy.scrollTo(selected, anchor: .center)
                         }
                     }
                 }
@@ -474,8 +478,7 @@ struct EventCard: View {
         }
         .task(id: editingTaskId) {
             guard editingTaskId == task.id else { return }
-            // 키보드 초기화 블로킹 방지: 충분한 지연 후 포커스
-            try? await Task.sleep(nanoseconds: 500_000_000)
+            try? await Task.sleep(nanoseconds: 100_000_000)
             isTitleFocused = true
         }
     }
