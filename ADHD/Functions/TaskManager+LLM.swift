@@ -50,6 +50,11 @@ extension TaskManager {
                 print("▶️ [명령 \(index + 1)] 호출 함수: request_clarification")
                 print("   ↳ 파라미터(분류불가 사유): '\(params.reason)'")
                 requestClarification(params: params)
+
+            case .handleOffTopicChat(let params):
+                print("▶️ [명령 \(index + 1)] 호출 함수: handle_off_topic_chat")
+                print("   ↳ OOV 응답 메시지: '\(params.message)'")
+                handleOffTopicChat(params: params)
                 
             case .unknown(let funcName):
                 print("▶️ [명령 \(index + 1)] 호출 함수: (알 수 없음)")
@@ -233,6 +238,18 @@ extension TaskManager {
         }
         undoDismissWorkItem = workItem
         DispatchQueue.main.asyncAfter(deadline: .now() + 5, execute: workItem)
+    }
+    
+    // MARK: - 8. Handle Off-Topic Chat (OOV 예외 처리)
+    private func handleOffTopicChat(params: OffTopicChatParams) {
+        // HomeVoiceInterfaceView에서 OOV 팝업을 표시할 수 있도록 NotificationCenter로 메시지 브로드캐스트
+        DispatchQueue.main.async {
+            NotificationCenter.default.post(
+                name: .didReceiveOffTopicChat,
+                object: nil,
+                userInfo: ["message": params.message]
+            )
+        }
     }
     
     // MARK: - Helpers
