@@ -802,7 +802,7 @@ struct VoiceConfirmationSheet: View {
                                                 HStack(spacing: 4) {
                                                     Image(systemName: isStrong ? "bolt.fill" : "bolt")
                                                         .font(.system(size: 10, weight: .bold))
-                                                    Text(isStrong ? "기습 알림" : "잔잔 알림")
+                                                    Text(isStrong ? L.voice.urgencyStrong : L.voice.urgencyWeak)
                                                         .font(.system(size: 11, weight: .bold))
                                                 }
                                                 .padding(.horizontal, 10)
