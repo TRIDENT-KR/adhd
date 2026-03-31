@@ -31,8 +31,8 @@ final class AlarmManager: NSObject, ObservableObject, UNUserNotificationCenterDe
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
         let userInfo = notification.request.content.userInfo
-        let urgencyRaw = userInfo["urgency"] as? String ?? Urgency.weak.rawValue
-        let urgency    = Urgency(rawValue: urgencyRaw) ?? .weak
+        let urgencyRaw = userInfo["urgency"] as? String ?? Urgency.strong.rawValue
+        let urgency    = Urgency(rawValue: urgencyRaw) ?? .strong
 
         if urgency == .strong {
             // 강한 알림: 오버레이 표시 + 시스템 배너 없음
@@ -58,8 +58,8 @@ final class AlarmManager: NSObject, ObservableObject, UNUserNotificationCenterDe
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
         let userInfo  = response.notification.request.content.userInfo
-        let urgencyRaw = userInfo["urgency"] as? String ?? Urgency.weak.rawValue
-        let urgency    = Urgency(rawValue: urgencyRaw) ?? .weak
+        let urgencyRaw = userInfo["urgency"] as? String ?? Urgency.strong.rawValue
+        let urgency    = Urgency(rawValue: urgencyRaw) ?? .strong
 
         if urgency == .strong,
            let taskName = userInfo["taskName"] as? String,

@@ -330,7 +330,7 @@ struct EventCard: View {
     @State private var showingTimePicker = false
     @State private var localTaskName: String = ""
     @State private var localTime: String     = ""
-    @State private var localUrgency: Urgency  = .weak
+    @State private var localUrgency: Urgency  = .strong
 
     var isEditing: Bool { editingTaskId == task.id }
     var isDimmed:  Bool { editingTaskId != nil && editingTaskId != task.id }

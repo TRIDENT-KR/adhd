@@ -75,7 +75,7 @@ extension TaskManager {
 
     
     // MARK: - 1. Add Single Task
-    private func addSingleTask(params: AddSingleTaskParams, urgency: Urgency = .weak) {
+    private func addSingleTask(params: AddSingleTaskParams, urgency: Urgency = .strong) {
         // 시간을 언급하지 않으면 nil 유지 → UI에 "시간 미정" 표시
         let finalTime = (params.time == nil || params.time!.isEmpty) ? nil : params.time
 

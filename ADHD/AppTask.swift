@@ -25,9 +25,9 @@ final class AppTask {
     var recurrenceRule: String?
 
     /// 알림 강도 (SwiftData @Model은 enum 기본값을 직접 지원하지 않으므로 String으로 저장)
-    var urgencyRaw: String = Urgency.weak.rawValue
+    var urgencyRaw: String = Urgency.strong.rawValue
     var urgency: Urgency {
-        get { Urgency(rawValue: urgencyRaw) ?? .weak }
+        get { Urgency(rawValue: urgencyRaw) ?? .strong }
         set { urgencyRaw = newValue.rawValue }
     }
 
@@ -42,7 +42,7 @@ final class AppTask {
          isCompleted: Bool = false,
          recurrenceRule: String? = nil,
          sortOrder: Int = 0,
-         urgency: Urgency = .weak) {
+         urgency: Urgency = .strong) {
         self.id             = id
         self.task           = task
         self.time           = time
@@ -189,7 +189,7 @@ public struct CategoryIconResolver {
                                      "水", "飲み物", "水分"]),
     ]
 
-    public static func resolveIcon(for taskName: String, category: String?, urgency: Urgency = .weak) -> String {
+    public static func resolveIcon(for taskName: String, category: String?, urgency: Urgency = .strong) -> String {
         let name = taskName.lowercased()
         for rule in iconRules {
             if rule.keywords.contains(where: { name.contains($0) }) {

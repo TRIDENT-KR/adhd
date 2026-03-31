@@ -130,7 +130,7 @@ final class NotificationManager {
             content.userInfo = [
                 "taskId":   task.id.uuidString,
                 "taskName": task.task,
-                "urgency":  Urgency.weak.rawValue
+                "urgency":  Urgency.strong.rawValue
             ]
         }
 

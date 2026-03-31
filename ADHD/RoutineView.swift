@@ -226,7 +226,7 @@ struct TaskRow: View {
     @State private var showingTimePicker = false
     @State private var localTaskName: String = ""
     @State private var localTime: String     = ""
-    @State private var localUrgency: Urgency  = .weak
+    @State private var localUrgency: Urgency  = .strong
     @State private var cachedCategoryIcon: String = "circle.fill"
 
     var isEditing: Bool { editingTaskId == task.id }
