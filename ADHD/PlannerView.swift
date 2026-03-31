@@ -93,7 +93,8 @@ struct PlannerView: View {
                         .buttonStyle(NoEffectButtonStyle())
                     }
                     .padding(.top, 16)
-                    .padding(.horizontal, 32)
+                    .padding(.leading, 32)
+                    .padding(.trailing, 20)
 
                     // 요일 선택 바: 오늘 | 나머지 요일
                     weekDateSelector
@@ -187,19 +188,20 @@ struct PlannerView: View {
     }
 
     // MARK: - Week Date Selector
+    @State private var scrollTarget: Date?
+
     private var weekDateSelector: some View {
         let today = calendar.startOfDay(for: Date())
         let selected = calendar.startOfDay(for: selectedDate)
         let isTodaySelected = calendar.isDate(selected, inSameDayAs: today)
 
-        // 우측: 오늘 선택 시 → 내일부터 6일, 다른 날짜 선택 시 → 선택일 + 다음 5일
-        let rightDays: [Date] = {
-            if isTodaySelected {
-                return (1...6).compactMap { calendar.date(byAdding: .day, value: $0, to: today) }
-            } else {
-                return (0...5).compactMap { calendar.date(byAdding: .day, value: $0, to: selected) }
-            }
-        }()
+        // 우측: 선택 날짜 기준 -7 ~ +7 (15일), 오늘과 겹치면 제외
+        let rightDays: [Date] = (-7...7).compactMap { offset in
+            guard let date = calendar.date(byAdding: .day, value: offset, to: selected) else { return nil }
+            let d = calendar.startOfDay(for: date)
+            // 오늘은 좌측에 고정이므로 제외
+            return calendar.isDate(d, inSameDayAs: today) ? nil : d
+        }
 
         let weekdayFormatter = Self.weekdayFormatter
         let dayFormatter = Self.dayFormatter
@@ -241,43 +243,69 @@ struct PlannerView: View {
                 .frame(width: 1, height: 36)
                 .padding(.horizontal, 12)
 
-            // 우측: 스크롤 가능한 날짜들
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 10) {
-                    ForEach(rightDays, id: \.self) { date in
-                        let isSelected = calendar.isDate(date, inSameDayAs: selected)
+            // 우측: 선택 날짜 ±7일 스크롤 뷰
+            ScrollViewReader { proxy in
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 10) {
+                        ForEach(rightDays, id: \.self) { date in
+                            let isSelected = calendar.isDate(date, inSameDayAs: selected)
 
-                        Button(action: {
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                selectedDate = date
-                            }
-                        }) {
-                            VStack(spacing: 4) {
-                                Text(weekdayFormatter.string(from: date))
-                                    .font(.system(size: 11, weight: .medium))
-                                    .foregroundColor(isSelected ? .white : DesignSystem.Colors.onSurfaceVariant.opacity(0.5))
-                                Text(dayFormatter.string(from: date))
-                                    .font(.system(size: 22, weight: isSelected ? .bold : .semibold))
-                                    .foregroundColor(isSelected ? .white : DesignSystem.Colors.onSurfaceVariant)
-                            }
-                            .frame(width: 50, height: 64)
-                            .overlay(alignment: .bottom) {
-                                if hasEvents(on: date) {
-                                    Circle()
-                                        .fill(isSelected ? .white : DesignSystem.Colors.primaryContainer)
-                                        .frame(width: 5, height: 5)
-                                        .offset(y: -6)
+                            Button(action: {
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                    selectedDate = date
                                 }
+                            }) {
+                                VStack(spacing: 4) {
+                                    Text(weekdayFormatter.string(from: date))
+                                        .font(.system(size: 11, weight: .medium))
+                                        .foregroundColor(isSelected ? .white : DesignSystem.Colors.onSurfaceVariant.opacity(0.5))
+                                    Text(dayFormatter.string(from: date))
+                                        .font(.system(size: 22, weight: isSelected ? .bold : .semibold))
+                                        .foregroundColor(isSelected ? .white : DesignSystem.Colors.onSurfaceVariant)
+                                }
+                                .frame(width: 50, height: 64)
+                                .overlay(alignment: .bottom) {
+                                    if hasEvents(on: date) {
+                                        Circle()
+                                            .fill(isSelected ? .white : DesignSystem.Colors.primaryContainer)
+                                            .frame(width: 5, height: 5)
+                                            .offset(y: -6)
+                                    }
+                                }
+                                .background(
+                                    RoundedRectangle(cornerRadius: 14)
+                                        .fill(isSelected ? DesignSystem.Colors.primaryContainer : Color.clear)
+                                )
                             }
-                            .background(
-                                RoundedRectangle(cornerRadius: 14)
-                                    .fill(isSelected ? DesignSystem.Colors.primaryContainer : Color.clear)
-                            )
+                            .buttonStyle(NoEffectButtonStyle())
+                            .id(date)
                         }
-                        .buttonStyle(NoEffectButtonStyle())
+                    }
+                    .padding(.trailing, 24)
+                }
+                .onChange(of: selectedDate) { _, newDate in
+                    let target = calendar.startOfDay(for: newDate)
+                    // 오늘 선택 시에도 스크롤 위치 리셋 (오늘 다음날로)
+                    if calendar.isDate(target, inSameDayAs: today) {
+                        if let firstDay = rightDays.first {
+                            withAnimation(.easeInOut(duration: 0.3)) {
+                                proxy.scrollTo(firstDay, anchor: .leading)
+                            }
+                        }
+                    } else {
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            proxy.scrollTo(target, anchor: .center)
+                        }
                     }
                 }
-                .padding(.trailing, 24)
+                .onAppear {
+                    // 초기 로드 시 선택 날짜가 중앙에 오도록
+                    if !isTodaySelected {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            proxy.scrollTo(selected, anchor: .center)
+                        }
+                    }
+                }
             }
         }
         .padding(.leading, 24)
@@ -390,9 +418,7 @@ struct EventCard: View {
                 }
 
                 Button(action: {
-                    withAnimation {
-                        if isEditing { finishEditing() } else { startEditing() }
-                    }
+                    if isEditing { finishEditing() } else { withAnimation { startEditing() } }
                 }) {
                     Image(systemName: isEditing ? "checkmark" : "pencil")
                         .font(.system(size: 16))
@@ -421,16 +447,6 @@ struct EventCard: View {
             guard editingTaskId == task.id else { return }
             try? await Task.sleep(nanoseconds: 100_000_000)
             isTitleFocused = true
-        }
-        .toolbar {
-            ToolbarItemGroup(placement: .keyboard) {
-                if isEditing {
-                    Spacer()
-                    Button("Done") {
-                        withAnimation { finishEditing() }
-                    }
-                }
-            }
         }
     }
 

@@ -90,7 +90,10 @@ class TaskManager: ObservableObject {
     // MARK: - Update Task
     func update(task: AppTask) {
         safeSave()
-        NotificationManager.shared.scheduleNotification(for: task)
+        let taskCopy = task
+        DispatchQueue.global(qos: .utility).async {
+            NotificationManager.shared.scheduleNotification(for: taskCopy)
+        }
     }
 
     // MARK: - Delete (by reference)
@@ -266,13 +269,21 @@ class TaskManager: ObservableObject {
         print("🎯 삽입 완료! [\(task.category)] \(task.task) (시간: \(task.time ?? "미지정"))")
     }
 
+    /// 위젯 스냅샷 디바운스용 워크아이템
+    private var widgetDebounceWork: DispatchWorkItem?
+
     /// do-catch 기반 안전한 저장
     func safeSave() {
         guard let context = modelContext else { return }
         do {
             try context.save()
-            // 데이터 변경 시 위젯 동기화
-            writeWidgetSnapshot()
+            // 데이터 변경 시 위젯 동기화 (디바운스: 0.5초 내 중복 호출 병합)
+            widgetDebounceWork?.cancel()
+            let work = DispatchWorkItem { [weak self] in
+                self?.writeWidgetSnapshot()
+            }
+            widgetDebounceWork = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: work)
         } catch {
             print("❌ TaskManager 저장 실패: \(error.localizedDescription)")
         }
