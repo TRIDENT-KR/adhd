@@ -242,6 +242,9 @@ struct VoiceStrings {
     var errorMissingTime: String { t("Please set the time for the routine.", "루틴 시간을 설정해주세요.", "ルーティンの時間を設定してください。") }
     var errorMissingDate: String { t("Please set the date for the planner.", "플래너 날짜를 설정해주세요.", "プランナーの日付を設定してください。") }
     var errorMissingAppointmentTime: String { t("Please set the time for the planner.", "플래너 시간을 설정해주세요.", "プランナーの時間を設定してください。") }
+
+    var urgencyStrong: String { t("Strong Alert", "기습 알림", "強い通知") }
+    var urgencyWeak: String { t("Gentle Alert", "잔잔 알림", "優しい通知") }
 }
 
 struct LoginStrings {

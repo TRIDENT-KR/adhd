@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import UniformTypeIdentifiers
 
 struct RoutineView: View {
     // MARK: - SwiftData Queries
@@ -129,11 +130,11 @@ struct RoutineView: View {
                     .padding(.horizontal, 32)
 
                     // 선택된 섹션의 태스크 목록
-                    let currentTasks = selectedSection == .routines ? todayRoutines : todayAppointments
+                    Group {
+                        let currentTasks = selectedSection == .routines ? todayRoutines : todayAppointments
 
-                    if currentTasks.isEmpty {
-                        // Empty State: 화면 중앙 정렬
-                        GeometryReader { geo in
+                        if currentTasks.isEmpty {
+                            // Empty State: 안정적인 레이아웃 구조로 변경 (GeometryReader 제거)
                             VStack(spacing: 20) {
                                 Image(systemName: "mic.fill")
                                     .font(.system(size: 48))
@@ -145,38 +146,37 @@ struct RoutineView: View {
                                     .font(DesignSystem.Typography.bodyMd)
                                     .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
                             }
-                            .frame(width: geo.size.width, height: geo.size.height)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 300)
+                            .contentShape(Rectangle())
                             .onTapGesture {
                                 withAnimation(.spring()) { activeTab = .voice }
                             }
-                        }
-                        .frame(minHeight: ((UIApplication.shared.connectedScenes.first as? UIWindowScene)?.screen.bounds.height ?? 800) * 0.45)
-                    } else if isReordering {
-                        // 정렬 모드: 드래그 핸들 표시
-                        LazyVStack(spacing: 16) {
-                            ForEach(currentTasks) { task in
-                                ReorderRow(task: task, allTasks: currentTasks, taskManager: taskManager)
+                        } else if isReordering {
+                            // 정렬 모드: 드래그 앤 드롭
+                            LazyVStack(spacing: 16) {
+                                ForEach(currentTasks) { task in
+                                    ReorderRow(task: task, allTasks: currentTasks, taskManager: taskManager, draggingTask: $draggingTask)
+                                        .onDrag {
+                                            self.draggingTask = task
+                                            return NSItemProvider(object: task.id.uuidString as NSString)
+                                        }
+                                        .onDrop(of: [.text], delegate: TaskDropDelegate(item: task, tasks: currentTasks, draggingItem: $draggingTask, taskManager: taskManager))
+                                }
                             }
-                        }
-                    } else {
-                        let (incomplete, completed) = currentTasks.partitioned { !$0.isCompleted }
-                        LazyVStack(spacing: 32) {
-                            ForEach(incomplete) { task in
-                                TaskRow(task: task, editingTaskId: $editingTaskId, voiceManager: voiceManager, voiceEditingTaskId: $voiceEditingTaskId)
-                                    .swipeToDelete {
-                                        withAnimation { taskManager.delete(task: task) }
-                                        Haptic.impact(.medium)
-                                    }
-                            }
-                            ForEach(completed) { task in
-                                TaskRow(task: task, editingTaskId: $editingTaskId, voiceManager: voiceManager, voiceEditingTaskId: $voiceEditingTaskId)
-                                    .swipeToDelete {
-                                        withAnimation { taskManager.delete(task: task) }
-                                        Haptic.impact(.medium)
-                                    }
+                        } else {
+                            let (incomplete, completed) = currentTasks.partitioned { !$0.isCompleted }
+                            LazyVStack(spacing: 32) {
+                                ForEach(incomplete) { task in
+                                    TaskRow(task: task, editingTaskId: $editingTaskId, voiceManager: voiceManager, voiceEditingTaskId: $voiceEditingTaskId)
+                                }
+                                ForEach(completed) { task in
+                                    TaskRow(task: task, editingTaskId: $editingTaskId, voiceManager: voiceManager, voiceEditingTaskId: $voiceEditingTaskId)
+                                }
                             }
                         }
                     }
+                    .id(selectedSection) // 섹션 전환 시 화면 튐 방지
 
                     Spacer(minLength: 140)
                 }
@@ -226,7 +226,7 @@ struct TaskRow: View {
     @State private var showingTimePicker = false
     @State private var localTaskName: String = ""
     @State private var localTime: String     = ""
-    @State private var localUrgency: Urgency  = .weak
+    @State private var localUrgency: Urgency  = .strong
     @State private var cachedCategoryIcon: String = "circle.fill"
 
     var isEditing: Bool { editingTaskId == task.id }
@@ -572,12 +572,11 @@ struct ReorderRow: View {
     var task: AppTask
     let allTasks: [AppTask]
     let taskManager: TaskManager
+    @Binding var draggingTask: AppTask?
 
     private var currentIndex: Int {
         allTasks.firstIndex(where: { $0.id == task.id }) ?? 0
     }
-    private var isFirst: Bool { currentIndex == 0 }
-    private var isLast: Bool { currentIndex == allTasks.count - 1 }
 
     var body: some View {
         HStack(spacing: 16) {
@@ -605,62 +604,56 @@ struct ReorderRow: View {
             }
 
             Spacer()
-
-            // 위/아래 이동 버튼
-            HStack(spacing: 8) {
-                Button(action: { moveUp() }) {
-                    Image(systemName: "chevron.up")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(isFirst ? DesignSystem.Colors.onSurfaceVariant.opacity(0.1) : DesignSystem.Colors.primary)
-                }
-                .disabled(isFirst)
-
-                Button(action: { moveDown() }) {
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(isLast ? DesignSystem.Colors.onSurfaceVariant.opacity(0.1) : DesignSystem.Colors.primary)
-                }
-                .disabled(isLast)
-            }
         }
         .padding(.vertical, 12)
         .padding(.horizontal, 32)
         .background(DesignSystem.Colors.surfaceContainerLow.opacity(0.5))
         .cornerRadius(12)
         .padding(.horizontal, 24)
+        .scaleEffect(draggingTask?.id == task.id ? 1.05 : 1.0)
+        .opacity(draggingTask?.id == task.id ? 0.6 : 1.0)
+    }
+}
+
+// MARK: - Drag & Drop Delegate
+struct TaskDropDelegate: DropDelegate {
+    let item: AppTask
+    let tasks: [AppTask]
+    @Binding var draggingItem: AppTask?
+    let taskManager: TaskManager
+
+    func performDrop(info: DropInfo) -> Bool {
+        draggingItem = nil
+        return true
     }
 
-    private func moveUp() {
-        guard !isFirst else { return }
-        let idx = currentIndex
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-            swapOrder(allTasks[idx], allTasks[idx - 1])
-        }
-        Haptic.impact(.light)
-    }
+    func dropEntered(info: DropInfo) {
+        guard let draggingItem = draggingItem,
+              draggingItem.id != item.id,
+              let fromIndex = tasks.firstIndex(where: { $0.id == draggingItem.id }),
+              let toIndex = tasks.firstIndex(where: { $0.id == item.id }) else { return }
 
-    private func moveDown() {
-        guard !isLast else { return }
-        let idx = currentIndex
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-            swapOrder(allTasks[idx], allTasks[idx + 1])
-        }
-        Haptic.impact(.light)
-    }
-
-    private func swapOrder(_ a: AppTask, _ b: AppTask) {
-        let tempOrder = a.sortOrder
-        a.sortOrder = b.sortOrder
-        b.sortOrder = tempOrder
-
-        // 같은 값이었으면 강제로 분리
-        if a.sortOrder == b.sortOrder {
-            // 전체 목록에 순서를 재할당
-            for (i, t) in allTasks.enumerated() {
-                t.sortOrder = (i + 1) * 10
+        // 순서 변경 적용
+        if fromIndex != toIndex {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                // sortOrder 값을 재배정
+                let fromOrder = draggingItem.sortOrder
+                let toOrder = item.sortOrder
+                
+                draggingItem.sortOrder = toOrder
+                item.sortOrder = fromOrder
+                
+                // 만약 동일한 값이면 미세하게 조정
+                if draggingItem.sortOrder == item.sortOrder {
+                    // 전체 리스트의 순서를 재할당
+                    for (i, t) in tasks.sorted(by: { $0.sortOrder < $1.sortOrder }).enumerated() {
+                        t.sortOrder = (i + 1) * 10
+                    }
+                }
+                
+                taskManager.safeSave()
             }
         }
-        taskManager.safeSave()
     }
 }
 
