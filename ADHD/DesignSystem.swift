@@ -192,9 +192,19 @@ extension String {
 // MARK: - Haptic Manager
 /// hapticEnabled 설정을 존중하는 햅틱 피드백 래퍼
 struct Haptic {
+    private static var _cachedEnabled: Bool?
     private static var isEnabled: Bool {
-        UserDefaults.standard.object(forKey: "hapticEnabled") == nil
-            ? true  // 기본값: 활성화
+        if let cached = _cachedEnabled { return cached }
+        let value = UserDefaults.standard.object(forKey: "hapticEnabled") == nil
+            ? true
+            : UserDefaults.standard.bool(forKey: "hapticEnabled")
+        _cachedEnabled = value
+        return value
+    }
+
+    static func refreshEnabledState() {
+        _cachedEnabled = UserDefaults.standard.object(forKey: "hapticEnabled") == nil
+            ? true
             : UserDefaults.standard.bool(forKey: "hapticEnabled")
     }
 

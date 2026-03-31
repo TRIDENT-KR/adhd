@@ -61,6 +61,10 @@ struct RoutineView: View {
     @StateObject private var voiceManager = VoiceInputManager()
     @State private var voiceEditingTaskId: UUID?
 
+    private static let screenHeight: CGFloat = {
+        (UIApplication.shared.connectedScenes.first as? UIWindowScene)?.screen.bounds.height ?? 800
+    }()
+
     var body: some View {
         ZStack(alignment: .bottom) {
             DesignSystem.Colors.background
@@ -150,7 +154,7 @@ struct RoutineView: View {
                                 withAnimation(.spring()) { activeTab = .voice }
                             }
                         }
-                        .frame(minHeight: ((UIApplication.shared.connectedScenes.first as? UIWindowScene)?.screen.bounds.height ?? 800) * 0.45)
+                        .frame(minHeight: Self.screenHeight * 0.45)
                     } else if isReordering {
                         // 정렬 모드: 드래그 핸들 표시
                         LazyVStack(spacing: 16) {
@@ -162,18 +166,32 @@ struct RoutineView: View {
                         let (incomplete, completed) = currentTasks.partitioned { !$0.isCompleted }
                         LazyVStack(spacing: 32) {
                             ForEach(incomplete) { task in
-                                TaskRow(task: task, editingTaskId: $editingTaskId, voiceManager: voiceManager, voiceEditingTaskId: $voiceEditingTaskId)
-                                    .swipeToDelete {
-                                        withAnimation { taskManager.delete(task: task) }
-                                        Haptic.impact(.medium)
-                                    }
+                                TaskRow(
+                                    task: task,
+                                    editingTaskId: $editingTaskId,
+                                    voiceManager: voiceManager,
+                                    voiceEditingTaskId: $voiceEditingTaskId,
+                                    isVoiceEditing: voiceEditingTaskId == task.id && voiceManager.isListening,
+                                    voiceRecognizedText: (voiceEditingTaskId == task.id && voiceManager.isListening) ? voiceManager.recognizedText : ""
+                                )
+                                .swipeToDelete {
+                                    withAnimation { taskManager.delete(task: task) }
+                                    Haptic.impact(.medium)
+                                }
                             }
                             ForEach(completed) { task in
-                                TaskRow(task: task, editingTaskId: $editingTaskId, voiceManager: voiceManager, voiceEditingTaskId: $voiceEditingTaskId)
-                                    .swipeToDelete {
-                                        withAnimation { taskManager.delete(task: task) }
-                                        Haptic.impact(.medium)
-                                    }
+                                TaskRow(
+                                    task: task,
+                                    editingTaskId: $editingTaskId,
+                                    voiceManager: voiceManager,
+                                    voiceEditingTaskId: $voiceEditingTaskId,
+                                    isVoiceEditing: voiceEditingTaskId == task.id && voiceManager.isListening,
+                                    voiceRecognizedText: (voiceEditingTaskId == task.id && voiceManager.isListening) ? voiceManager.recognizedText : ""
+                                )
+                                .swipeToDelete {
+                                    withAnimation { taskManager.delete(task: task) }
+                                    Haptic.impact(.medium)
+                                }
                             }
                         }
                     }
@@ -216,8 +234,10 @@ struct TaskRow: View {
     /// AppTask는 @Model 참조 타입이므로 직접 참조하여 수정합니다.
     var task: AppTask
     @Binding var editingTaskId: UUID?
-    @ObservedObject var voiceManager: VoiceInputManager
+    var voiceManager: VoiceInputManager
     @Binding var voiceEditingTaskId: UUID?
+    var isVoiceEditing: Bool
+    var voiceRecognizedText: String
 
     @EnvironmentObject private var taskManager: TaskManager
     @Environment(\.modelContext) private var modelContext
@@ -230,7 +250,6 @@ struct TaskRow: View {
 
     var isEditing: Bool { editingTaskId == task.id }
     var isDimmed:  Bool { editingTaskId != nil && editingTaskId != task.id }
-    var isVoiceEditing: Bool { voiceEditingTaskId == task.id && voiceManager.isListening }
 
     var body: some View {
         HStack(spacing: 20) {
@@ -289,10 +308,10 @@ struct TaskRow: View {
                         }
                 } else if isVoiceEditing {
                     // 음성 편집 중: 실시간 인식 텍스트 표시
-                    Text(voiceManager.recognizedText.isEmpty ? "Listening..." : voiceManager.recognizedText)
+                    Text(voiceRecognizedText.isEmpty ? "Listening..." : voiceRecognizedText)
                         .font(DesignSystem.Typography.bodyMd)
                         .foregroundColor(DesignSystem.Colors.primary)
-                        .animation(.easeInOut, value: voiceManager.recognizedText)
+                        .animation(.easeInOut, value: voiceRecognizedText)
                 } else {
                     Text(task.task)
                         .font(DesignSystem.Typography.bodyMd)
@@ -406,7 +425,7 @@ struct TaskRow: View {
     }
 
     private func handleVoiceEdit() {
-        if voiceManager.isListening && voiceEditingTaskId == task.id {
+        if isVoiceEditing {
             // 녹음 중지 → onSpeechFinalized에서 태스크 업데이트
             voiceManager.stopListening()
         } else {

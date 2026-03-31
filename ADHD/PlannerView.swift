@@ -44,6 +44,11 @@ struct PlannerView: View {
         appointments.contains { $0.occursOn(date) }
     }
 
+    /// 화면 높이 캐시 (body 렌더링마다 UIKit 쿼리 방지)
+    private static let screenHeight: CGFloat = {
+        (UIApplication.shared.connectedScenes.first as? UIWindowScene)?.screen.bounds.height ?? 800
+    }()
+
     var body: some View {
         ZStack(alignment: .bottom) {
             DesignSystem.Colors.background.ignoresSafeArea()
@@ -115,7 +120,7 @@ struct PlannerView: View {
                                 withAnimation(.spring()) { activeTab = .voice }
                             }
                         }
-                        .frame(minHeight: ((UIApplication.shared.connectedScenes.first as? UIWindowScene)?.screen.bounds.height ?? 800) * 0.4)
+                        .frame(minHeight: Self.screenHeight * 0.4)
                     } else if isReordering {
                         LazyVStack(spacing: 16) {
                             ForEach(filteredAppointments) { task in
@@ -206,6 +211,10 @@ struct PlannerView: View {
         let weekdayFormatter = Self.weekdayFormatter
         let dayFormatter = Self.dayFormatter
 
+        // 이벤트 배지를 위한 사전 계산 (ForEach 내부에서 반복 탐색 방지)
+        let todayHasEvents = hasEvents(on: today)
+        let eventDatesSet: Set<Date> = Set(rightDays.filter { hasEvents(on: $0) })
+
         return HStack(spacing: 0) {
             // 좌측: 오늘 고정
             Button(action: {
@@ -223,7 +232,7 @@ struct PlannerView: View {
                 }
                 .frame(width: 56, height: 68)
                 .overlay(alignment: .bottom) {
-                    if hasEvents(on: today) {
+                    if todayHasEvents {
                         Circle()
                             .fill(isTodaySelected ? .white : DesignSystem.Colors.primary)
                             .frame(width: 5, height: 5)
@@ -265,7 +274,7 @@ struct PlannerView: View {
                                 }
                                 .frame(width: 50, height: 64)
                                 .overlay(alignment: .bottom) {
-                                    if hasEvents(on: date) {
+                                    if eventDatesSet.contains(date) {
                                         Circle()
                                             .fill(isSelected ? .white : DesignSystem.Colors.primaryContainer)
                                             .frame(width: 5, height: 5)
@@ -287,22 +296,25 @@ struct PlannerView: View {
                     let target = calendar.startOfDay(for: newDate)
                     // 오늘 선택 시에도 스크롤 위치 리셋 (오늘 다음날로)
                     if calendar.isDate(target, inSameDayAs: today) {
-                        if let firstDay = rightDays.first {
+                        if let tomorrow = rightDays.first(where: { $0 > today }) {
                             withAnimation(.easeInOut(duration: 0.3)) {
-                                proxy.scrollTo(firstDay, anchor: .leading)
+                                proxy.scrollTo(tomorrow, anchor: .leading)
                             }
                         }
                     } else {
                         withAnimation(.easeInOut(duration: 0.3)) {
-                            proxy.scrollTo(target, anchor: .center)
+                            proxy.scrollTo(target, anchor: .leading)
                         }
                     }
                 }
                 .onAppear {
-                    // 초기 로드 시 선택 날짜가 중앙에 오도록
-                    if !isTodaySelected {
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                            proxy.scrollTo(selected, anchor: .center)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        if isTodaySelected {
+                            if let tomorrow = rightDays.first(where: { $0 > today }) {
+                                proxy.scrollTo(tomorrow, anchor: .leading)
+                            }
+                        } else {
+                            proxy.scrollTo(selected, anchor: .leading)
                         }
                     }
                 }

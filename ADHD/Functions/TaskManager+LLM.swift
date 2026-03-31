@@ -198,9 +198,9 @@ extension TaskManager {
             }
             
             if postponedCount > 0 {
-                undoSnackbarMessage = "\(postponedCount)개의 일정이 연기되었습니다."
+                undoState.message = "\(postponedCount)개의 일정이 연기되었습니다."
                 withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                    showUndoSnackbar = true
+                    undoState.showSnackbar = true
                 }
             }
         } catch {
@@ -223,9 +223,9 @@ extension TaskManager {
     // MARK: - 7. Request Clarification (명확화 요청)
     private func requestClarification(params: ClarificationParams) {
         // 기존 UI의 스낵바를 활용해 텍스트 피드백 표출
-        undoSnackbarMessage = "🤔 \(params.reason)"
+        undoState.message = "🤔 \(params.reason)"
         withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-            showUndoSnackbar = true
+            undoState.showSnackbar = true
         }
         
         // 5초 뒤 자동 숨김 설정 (기존 setUndoAction 로직 차용)
@@ -233,7 +233,7 @@ extension TaskManager {
         let workItem = DispatchWorkItem { [weak self] in
             guard let self else { return }
             withAnimation(.easeOut(duration: 0.3)) {
-                self.showUndoSnackbar = false
+                self.undoState.showSnackbar = false
             }
         }
         undoDismissWorkItem = workItem
