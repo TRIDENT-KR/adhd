@@ -454,15 +454,15 @@ struct HomeVoiceInterfaceView: View {
 
     // MARK: - Confirmation Actions
     private func confirmPendingTasks() {
-        // [main] 브런치의 유효성 검사 로직: 필수 정보(시간/날짜) 누락 체크
+        // 필수 정보(시간/날짜) 누락 체크
         if let invalidTask = pendingTasks.first(where: { task in
-            guard task.call.uiAction == "add" else { return false }
-            let isMissingTime = task.call.uiTime == nil || task.call.uiTime!.isEmpty
-            let isMissingDate = task.call.uiDate == nil || task.call.uiDate!.isEmpty
+            guard task.uiAction == "add" else { return false }
+            let isMissingTime = task.uiTime == nil || task.uiTime!.isEmpty
+            let isMissingDate = task.uiDate == nil || task.uiDate!.isEmpty
             
-            if task.call.uiCategory == "Routine" && isMissingTime {
+            if task.uiCategory == "Routine" && isMissingTime {
                 return true
-            } else if task.call.uiCategory == "Appointment" && (isMissingDate || isMissingTime) {
+            } else if task.uiCategory == "Appointment" && (isMissingDate || isMissingTime) {
                 return true
             }
             return false
@@ -472,10 +472,10 @@ struct HomeVoiceInterfaceView: View {
             }
             
             let errorMessage: String
-            if invalidTask.call.uiCategory == "Routine" {
+            if invalidTask.uiCategory == "Routine" {
                 errorMessage = L.voice.errorMissingTime
             } else {
-                let isMissingDate = invalidTask.call.uiDate == nil || invalidTask.call.uiDate!.isEmpty
+                let isMissingDate = invalidTask.uiDate == nil || invalidTask.uiDate!.isEmpty
                 errorMessage = isMissingDate ? L.voice.errorMissingDate : L.voice.errorMissingAppointmentTime
             }
             
@@ -483,7 +483,7 @@ struct HomeVoiceInterfaceView: View {
             return
         }
         
-        // [feat] 브런치의 실행 로직: 알람 강도(Urgency) 정보를 포함하여 실행
+        // 알림 강도(Urgency) 정보를 포함하여 실행
         taskManager.execute(pendingCalls: pendingTasks)
         
         withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
