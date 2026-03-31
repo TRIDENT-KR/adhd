@@ -409,7 +409,8 @@ struct TaskRow: View {
         }
         .task(id: editingTaskId) {
             guard editingTaskId == task.id else { return }
-            try? await Task.sleep(nanoseconds: 100_000_000)
+            // 키보드 초기화 블로킹 방지: 충분한 지연 후 포커스
+            try? await Task.sleep(nanoseconds: 500_000_000)
             isTitleFocused = true
         }
     }
@@ -519,7 +520,9 @@ struct SwipeToDeleteModifier: ViewModifier {
                     Spacer()
                     Button(action: {
                         withAnimation(.spring(response: 0.3)) {
-                            offset = -UIScreen.main.bounds.width
+                            offset = -(UIApplication.shared.connectedScenes
+                                .compactMap { $0 as? UIWindowScene }
+                                .first?.screen.bounds.width ?? 400)
                         }
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
                             onDelete()

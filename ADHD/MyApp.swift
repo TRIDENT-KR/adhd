@@ -79,32 +79,42 @@ struct WaitWhatApp: App {
         WindowGroup {
             Group {
                 if !authManager.isSessionLoaded {
-                    // 세션 확인 중 — 가벼운 스플래시로 렉 없이 대기
-                    DesignSystem.Colors.background
-                        .ignoresSafeArea()
-                } else if authManager.session != nil {
-                    MainTabView()
+                    // 세션 확인 중 — 스플래시 화면 표시
+                    SplashView()
                         .preferredColorScheme(colorScheme)
-                        .environment(\.locale, Locale(identifier: appLanguage))
-                        .environmentObject(taskManager)
-                        .environmentObject(cloudLLM)
-                        .environmentObject(authManager)
-                        .environmentObject(networkMonitor)
-                        .modelContainer(container)
-                        .task {
-                            // ModelContext 주입 (TaskManager → SwiftData)
-                            taskManager.configure(context: container.mainContext)
+                } else if authManager.session != nil {
+                    ZStack {
+                        MainTabView()
+                            .environment(\.locale, Locale(identifier: appLanguage))
+                            .environmentObject(taskManager)
+                            .environmentObject(cloudLLM)
+                            .environmentObject(authManager)
+                            .environmentObject(networkMonitor)
+                            .modelContainer(container)
 
-                            // 알람 확인 시 자동 완료 연동
-                            AlarmManager.shared.onTaskConfirmed = { taskId in
-                                taskManager.completeTask(id: taskId)
-                            }
+                        // 데이터 로딩 완료 전 스플래시 오버레이
+                        if !taskManager.isReady {
+                            SplashView()
+                                .transition(.opacity)
+                                .zIndex(1)
                         }
-                        .task {
-                            // 알림 권한 요청 — 초기 렌더링 완료 후 지연 실행
-                            try? await Task.sleep(nanoseconds: 500_000_000)
-                            NotificationManager.shared.requestAuthorization()
+                    }
+                    .animation(.easeOut(duration: 0.4), value: taskManager.isReady)
+                    .preferredColorScheme(colorScheme)
+                    .task {
+                        // ModelContext 주입 (TaskManager → SwiftData)
+                        taskManager.configure(context: container.mainContext)
+
+                        // 알람 확인 시 자동 완료 연동
+                        AlarmManager.shared.onTaskConfirmed = { taskId in
+                            taskManager.completeTask(id: taskId)
                         }
+                    }
+                    .task {
+                        // 알림 권한 요청 — 초기 렌더링 완료 후 지연 실행
+                        try? await Task.sleep(nanoseconds: 500_000_000)
+                        NotificationManager.shared.requestAuthorization()
+                    }
                         .onOpenURL { url in
                             handleWidgetDeepLink(url)
                         }
@@ -127,6 +137,45 @@ struct WaitWhatApp: App {
                         .environment(\.locale, Locale(identifier: appLanguage))
                 }
             }
+        }
+    }
+}
+
+// MARK: - Splash Screen
+private struct SplashView: View {
+    @State private var pulse = false
+    @FocusState private var warmUpFocus: Bool
+
+    var body: some View {
+        ZStack {
+            DesignSystem.Colors.background
+                .ignoresSafeArea()
+            VStack(spacing: 16) {
+                Text("Wait, What?")
+                    .font(.system(size: 32, weight: .bold, design: .rounded))
+                    .foregroundColor(DesignSystem.Colors.primary)
+                ProgressView()
+                    .tint(DesignSystem.Colors.primary)
+            }
+            .scaleEffect(pulse ? 1.02 : 0.98)
+            .opacity(pulse ? 1.0 : 0.7)
+            .onAppear {
+                withAnimation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true)) {
+                    pulse = true
+                }
+            }
+
+            // 키보드 사전 로딩 (보이지 않는 TextField로 iOS 키보드 캐시 워밍)
+            TextField("", text: .constant(""))
+                .focused($warmUpFocus)
+                .frame(width: 0, height: 0)
+                .opacity(0)
+                .task {
+                    try? await Task.sleep(nanoseconds: 200_000_000)
+                    warmUpFocus = true
+                    try? await Task.sleep(nanoseconds: 100_000_000)
+                    warmUpFocus = false
+                }
         }
     }
 }

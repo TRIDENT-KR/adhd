@@ -21,7 +21,7 @@ struct ToggleTaskIntent: AppIntent {
     func perform() async throws -> some IntentResult {
         guard let defaults = UserDefaults(suiteName: appGroupID),
               let data = defaults.data(forKey: "widgetTaskPayload"),
-              var payload = try? JSONDecoder().decode(WidgetDataPayload.self, from: data),
+              let payload = try? JSONDecoder().decode(WidgetDataPayload.self, from: data),
               let uuid = UUID(uuidString: taskID) else {
             return .result()
         }
