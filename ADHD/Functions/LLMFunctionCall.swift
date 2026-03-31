@@ -91,16 +91,26 @@ enum LLMFunctionCall: Decodable {
 
         switch functionName {
         case "add_single_task":
-            let params = try container.decode(AddSingleTaskParams.self, forKey: .parameters)
+            var params = try container.decode(AddSingleTaskParams.self, forKey: .parameters)
+            params.category = (params.category.lowercased() == "appointment") ? "Appointment" : "Routine"
             self = .addSingleTask(params)
         case "update_task":
-            let params = try container.decode(UpdateTaskParams.self, forKey: .parameters)
+            var params = try container.decode(UpdateTaskParams.self, forKey: .parameters)
+            if let cat = params.new_category {
+                params.new_category = (cat.lowercased() == "appointment") ? "Appointment" : "Routine"
+            }
             self = .updateTask(params)
         case "delete_specific_task":
-            let params = try container.decode(DeleteTaskParams.self, forKey: .parameters)
+            var params = try container.decode(DeleteTaskParams.self, forKey: .parameters)
+            if let cat = params.target_category {
+                params.target_category = (cat.lowercased() == "appointment") ? "Appointment" : "Routine"
+            }
             self = .deleteSpecificTask(params)
         case "clear_all_tasks":
-            let params = try container.decode(ClearTasksParams.self, forKey: .parameters)
+            var params = try container.decode(ClearTasksParams.self, forKey: .parameters)
+            if let cat = params.target_category {
+                params.target_category = (cat.lowercased() == "appointment") ? "Appointment" : "Routine"
+            }
             self = .clearAllTasks(params)
         case "postpone_all_tasks":
             let params = try container.decode(PostponeTasksParams.self, forKey: .parameters)

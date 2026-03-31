@@ -454,6 +454,32 @@ struct HomeVoiceInterfaceView: View {
 
     // MARK: - Confirmation Actions
     private func confirmPendingTasks() {
+        if let invalidTask = pendingTasks.first(where: { task in
+            guard task.uiAction == "add" else { return false }
+            let isMissingTime = task.uiTime == nil || task.uiTime!.isEmpty
+            let isMissingDate = task.uiDate == nil || task.uiDate!.isEmpty
+            
+            if task.uiCategory == "Routine" && isMissingTime {
+                return true
+            } else if task.uiCategory == "Appointment" && (isMissingDate || isMissingTime) {
+                return true
+            }
+            return false
+        }) {
+            withAnimation(.spring()) {
+                self.editingTask = invalidTask
+            }
+            let errorMessage: String
+            if invalidTask.uiCategory == "Routine" {
+                errorMessage = L.voice.errorMissingTime
+            } else {
+                let isMissingDate = invalidTask.uiDate == nil || invalidTask.uiDate!.isEmpty
+                errorMessage = isMissingDate ? L.voice.errorMissingDate : L.voice.errorMissingAppointmentTime
+            }
+            triggerErrorFeedback(message: errorMessage)
+            return
+        }
+
         taskManager.execute(llmCalls: pendingTasks.map { $0.call })
         withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
             showConfirmation = false
