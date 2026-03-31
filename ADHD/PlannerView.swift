@@ -285,24 +285,28 @@ struct PlannerView: View {
                 }
                 .onChange(of: selectedDate) { _, newDate in
                     let target = calendar.startOfDay(for: newDate)
-                    // 오늘 선택 시에도 스크롤 위치 리셋 (오늘 다음날로)
                     if calendar.isDate(target, inSameDayAs: today) {
-                        if let firstDay = rightDays.first {
+                        // 오늘 선택 → 내일(오늘 다음날)을 최좌측에 배치
+                        if let tomorrow = rightDays.first(where: { $0 > today }) {
                             withAnimation(.easeInOut(duration: 0.3)) {
-                                proxy.scrollTo(firstDay, anchor: .leading)
+                                proxy.scrollTo(tomorrow, anchor: .leading)
                             }
                         }
                     } else {
+                        // 다른 날짜 선택 → 해당 날짜를 최좌측에 배치
                         withAnimation(.easeInOut(duration: 0.3)) {
-                            proxy.scrollTo(target, anchor: .center)
+                            proxy.scrollTo(target, anchor: .leading)
                         }
                     }
                 }
                 .onAppear {
-                    // 초기 로드 시 선택 날짜가 중앙에 오도록
-                    if !isTodaySelected {
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                            proxy.scrollTo(selected, anchor: .center)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        if isTodaySelected {
+                            if let tomorrow = rightDays.first(where: { $0 > today }) {
+                                proxy.scrollTo(tomorrow, anchor: .leading)
+                            }
+                        } else {
+                            proxy.scrollTo(selected, anchor: .leading)
                         }
                     }
                 }

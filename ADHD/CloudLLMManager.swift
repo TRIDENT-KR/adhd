@@ -3,12 +3,6 @@ import SwiftUI
 import Combine
 import Supabase
 
-struct AnalyzePayload: Codable, Sendable {
-    let text: String
-    let currentTime: String
-    let language: String
-}
-
 class CloudLLMManager: ObservableObject {
     @Published var isProcessing = false
 
@@ -34,11 +28,11 @@ class CloudLLMManager: ObservableObject {
                 let currentTimeString = formatter.string(from: Date())
                 let currentLanguage = await MainActor.run { LocalizationManager.shared.currentLanguage.rawValue }
 
-                let payload = AnalyzePayload(
-                    text: text,
-                    currentTime: currentTimeString,
-                    language: currentLanguage
-                )
+                let payload: [String: String] = [
+                    "text": text,
+                    "currentTime": currentTimeString,
+                    "language": currentLanguage
+                ]
 
                 let intents = try await withThrowingTaskGroup(of: [LLMFunctionCall].self) { group in
                     // API 호출 태스크

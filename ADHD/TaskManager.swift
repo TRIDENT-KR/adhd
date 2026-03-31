@@ -27,6 +27,9 @@ class TaskManager: ObservableObject {
     // 외부에서 ModelContext를 주입하기 위한 저장소
     var modelContext: ModelContext?
 
+    /// 데이터 로딩 완료 여부 (스플래시 → 메인 화면 전환 트리거)
+    @Published var isReady = false
+
     // Undo 지원 (스택 기반 — 최대 10단계)
     var undoStack: [UndoableAction] = []
     static let maxUndoDepth = 10
@@ -39,6 +42,7 @@ class TaskManager: ObservableObject {
         self.modelContext = context
         // 앱 구동 시 초기화 체크
         checkAndResetDailyTasks()
+        isReady = true
     }
 
     // MARK: - Daily Reset Logic
