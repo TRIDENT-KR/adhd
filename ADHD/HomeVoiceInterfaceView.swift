@@ -454,7 +454,6 @@ struct HomeVoiceInterfaceView: View {
 
     // MARK: - Confirmation Actions
     private func confirmPendingTasks() {
-        // 필수 정보(시간/날짜) 누락 체크
         if let invalidTask = pendingTasks.first(where: { task in
             guard task.uiAction == "add" else { return false }
             let isMissingTime = task.uiTime == nil || task.uiTime!.isEmpty
@@ -470,7 +469,6 @@ struct HomeVoiceInterfaceView: View {
             withAnimation(.spring()) {
                 self.editingTask = invalidTask
             }
-            
             let errorMessage: String
             if invalidTask.uiCategory == "Routine" {
                 errorMessage = L.voice.errorMissingTime

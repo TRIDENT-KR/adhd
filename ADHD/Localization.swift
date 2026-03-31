@@ -238,6 +238,10 @@ struct VoiceStrings {
     var a11yHoldHint: String { t("Press and hold to record, release to send", "길게 눌러 녹음하고, 떼면 전송됩니다", "長押しで録音、離すと送信") }
     var a11yTabBar: String { t("Tab navigation", "탭 내비게이션", "탭 내비게이션") }
     var a11yUndo: String { t("Undo last action", "마지막 작업 되돌리기", "最後の操作を元に戻す") }
+
+    var errorMissingTime: String { t("Please set the time for the routine.", "루틴 시간을 설정해주세요.", "ルーティンの時間を設定してください。") }
+    var errorMissingDate: String { t("Please set the date for the planner.", "플래너 날짜를 설정해주세요.", "プランナーの日付を設定してください。") }
+    var errorMissingAppointmentTime: String { t("Please set the time for the planner.", "플래너 시간을 설정해주세요.", "プランナーの時間を設定してください。") }
 }
 
 struct LoginStrings {
