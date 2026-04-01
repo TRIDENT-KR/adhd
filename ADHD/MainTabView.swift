@@ -1,11 +1,10 @@
 import SwiftUI
 
 struct MainTabView: View {
-    @ObservedObject var langManager = LocalizationManager.shared
     @State var activeTab: TabSelection = .voice
     @EnvironmentObject private var networkMonitor: NetworkMonitor
     @EnvironmentObject private var taskManager: TaskManager
-    @ObservedObject private var alarmManager = AlarmManager.shared
+    @StateObject private var alarmManager = AlarmManager.shared
 
     /// 한 번이라도 방문한 탭을 추적하여 지연 로딩
     @State private var loadedTabs: Set<TabSelection> = [.voice]
@@ -113,6 +112,12 @@ struct UndoSnackbar: View {
     let message: String
     let onUndo: () -> Void
 
+    private static let backgroundColor = Color(UIColor { traits in
+        traits.userInterfaceStyle == .dark
+            ? UIColor(r: 0x30, g: 0x30, b: 0x30)
+            : UIColor(r: 0x3A, g: 0x3A, b: 0x3A)
+    })
+
     var body: some View {
         HStack(spacing: 12) {
             Text(message)
@@ -133,11 +138,7 @@ struct UndoSnackbar: View {
         .padding(.vertical, 14)
         .background(
             RoundedRectangle(cornerRadius: 14)
-                .fill(Color(UIColor { traits in
-                    traits.userInterfaceStyle == .dark
-                        ? UIColor(r: 0x30, g: 0x30, b: 0x30)
-                        : UIColor(r: 0x3A, g: 0x3A, b: 0x3A)
-                }))
+                .fill(Self.backgroundColor)
         )
     }
 }

@@ -6,7 +6,7 @@ import SwiftUI
 struct AlarmOverlayView: View {
     let alarm: AlarmEntry
 
-    @ObservedObject private var alarmManager = AlarmManager.shared
+    @StateObject private var alarmManager = AlarmManager.shared
     @State private var scale: CGFloat = 0.85
     @State private var pulseOpacity: CGFloat = 0.0
     @State private var rippleScale: CGFloat = 1.0
@@ -16,7 +16,6 @@ struct AlarmOverlayView: View {
             // 배경: 블러 + 딥 다크
             Color.black.opacity(0.85)
                 .ignoresSafeArea()
-                .blur(radius: 0)
 
             // 리플 배경 애니메이션
             Circle()
