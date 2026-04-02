@@ -125,10 +125,12 @@ struct WaitWhatApp: App {
                                 taskManager.checkAndResetDailyTasks()
                                 // 위젯에서 토글한 태스크 동기화
                                 taskManager.syncWidgetToggles()
-                                // 위젯 데이터 최신 상태로 갱신
-                                taskManager.writeWidgetSnapshot()
                                 // 위젯 딥링크 처리 (AppIntent 경유)
                                 handlePendingDeepLink()
+                                // 위젯 스냅샷은 화면 렌더링 후 비동기 갱신 (DB fetch + WidgetCenter reload를 핫패스에서 제외)
+                                Task { @MainActor in
+                                    taskManager.writeWidgetSnapshot()
+                                }
                             }
                         }
                 } else {

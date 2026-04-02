@@ -2,10 +2,34 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
 
+// 유저당 분당 최대 호출 횟수 (Gemini 비용 증폭 방지)
+const RATE_LIMIT_MAX = 30;
+const RATE_LIMIT_WINDOW_MS = 60_000;
+
+// 인메모리 rate limit 맵 (Edge Function 인스턴스 내 유효)
+const rateLimitMap = new Map<string, number[]>();
+
+function isRateLimited(userId: string): boolean {
+  const now = Date.now();
+  const windowStart = now - RATE_LIMIT_WINDOW_MS;
+  const timestamps = (rateLimitMap.get(userId) ?? []).filter(t => t > windowStart);
+  if (timestamps.length >= RATE_LIMIT_MAX) return true;
+  timestamps.push(now);
+  rateLimitMap.set(userId, timestamps);
+  return false;
+}
+
 Deno.serve(async (req: Request) => {
-  // CORS 허용 (아이폰 클라이언트 통신용)
+  // iOS 클라이언트 전용 — CORS를 Supabase 프로젝트 도메인으로 제한
+  const origin = req.headers.get('Origin') ?? '';
+  const supabaseProjectOrigin = Deno.env.get('SUPABASE_URL') ?? '';
+  // iOS 클라이언트는 Origin 헤더를 보내지 않음 → Dashboard/웹 테스트 요청만 CORS 검증
+  const corsOrigin = (origin === supabaseProjectOrigin || origin === 'https://supabase.com')
+    ? origin
+    : 'https://supabase.com';
+
   const headers = {
-    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Origin': corsOrigin,
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
     'Content-Type': 'application/json'
   };
@@ -31,14 +55,24 @@ Deno.serve(async (req: Request) => {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), { headers, status: 401 });
     }
 
+    // Rate limiting: 유저당 분당 30회 초과 시 429 반환
+    if (isRateLimited(user.id)) {
+      return new Response(JSON.stringify({ error: 'Rate limit exceeded. Please wait before retrying.' }), { headers, status: 429 });
+    }
+
     const { text, currentTime, language } = await req.json();
     if (!text) throw new Error("음성 텍스트가 없습니다.");
 
     // 전달받은 currentTime이 없으면 서버 현재시간 사용
-    const localTimeStr = currentTime || new Date().toLocaleString("ko-KR", { timeZone: "Asia/Seoul", hour12: false });
+    // 프롬프트 인젝션 방지: 엄격한 datetime 형식(yyyy-MM-dd HH:mm)만 허용
+    const timeRegex = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/;
+    const localTimeStr = (typeof currentTime === "string" && timeRegex.test(currentTime))
+      ? currentTime
+      : new Date().toLocaleString("ko-KR", { timeZone: "Asia/Seoul", hour12: false });
 
-    // 사용자 언어 설정 (클라이언트에서 전달, 기본값 "en")
-    const userLanguage: string = language || "en";
+    // 사용자 언어 설정 — 허용된 값만 사용 (프롬프트 인젝션 방지)
+    const ALLOWED_LANGUAGES = new Set(["en", "ko", "ja"]);
+    const userLanguage: string = ALLOWED_LANGUAGES.has(language) ? language : "en";
 
     // ADHD 타겟 유저를 위한 시스템 프롬프트
     const finalPrompt = `You are an AI Command Router specialized in analyzing rambling, ADHD-style voice transcripts and translating them into precise function calls.
