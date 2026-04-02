@@ -35,6 +35,7 @@ struct WaitWhatApp: App {
     @StateObject private var cloudLLM = CloudLLMManager()
     @StateObject private var authManager = AuthManager()
     @StateObject private var networkMonitor = NetworkMonitor.shared
+    @StateObject private var subscriptionManager = SubscriptionManager()
     @AppStorage("appTheme") private var appTheme: String = "system"
     /// 언어 변경을 감지하여 environment(locale) 전파. .id()는 사용하지 않아 NavigationStack을 보존
     @AppStorage("appLanguage") private var appLanguage: String = "en"
@@ -91,6 +92,7 @@ struct WaitWhatApp: App {
                             .environmentObject(cloudLLM)
                             .environmentObject(authManager)
                             .environmentObject(networkMonitor)
+                            .environmentObject(subscriptionManager)
                             .modelContainer(container)
 
                         // 데이터 로딩 완료 전 스플래시 오버레이

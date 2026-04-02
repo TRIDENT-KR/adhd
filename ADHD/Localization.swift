@@ -115,6 +115,9 @@ struct Strings {
 
     // Recurrence
     var recurrence: RecurrenceStrings { RecurrenceStrings(language: language) }
+
+    // Paywall
+    var paywall: PaywallStrings { PaywallStrings(language: language) }
 }
 
 struct SettingsStrings {
@@ -302,4 +305,50 @@ struct SearchStrings {
     var placeholder: String { t("Search tasks...", "할 일 검색...", "タスクを検索...") }
     var noResults: String { t("No results found", "검색 결과 없음", "結果が見つかりません") }
     var hint: String { t("Search your routines and plans", "루틴과 일정을 검색하세요", "ルーティンと予定を検索") }
+}
+
+struct PaywallStrings {
+    let language: AppLanguage
+    private func t(_ en: String, _ ko: String, _ ja: String) -> String {
+        switch language {
+        case .en: return en
+        case .ko: return ko
+        case .ja: return ja
+        }
+    }
+
+    var title: String { t("Wait, What? Pro", "Wait, What? Pro", "Wait, What? Pro") }
+    var subtitle: String { t("Your AI thoughts companion,\nnow fully unlocked.", "당신의 AI 생각 도우미,\n이제 제한 없이.", "あなたのAI思考パートナー、\nフル解放。") }
+    var choosePlan: String { t("CHOOSE YOUR PLAN", "플랜 선택", "プランを選択") }
+    var planMonthly: String { t("Monthly", "월간", "月額") }
+    var planYearly: String { t("Yearly", "연간", "年額") }
+    var billedMonthly: String { t("Billed monthly", "매월 청구", "毎月請求") }
+    var billedYearly: String { t("Billed annually · $3.00/mo", "연 1회 청구 · 월 $3.00", "年1回請求 · 月$3.00") }
+    var bestValue: String { t("SAVE 40%", "40% 절약", "40%お得") }
+    var subscribe: String { t("Subscribe", "구독하기", "登録する") }
+    var startSubscription: String { t("Start Pro", "Pro 시작하기", "Pro を開始") }
+    var restore: String { t("Restore Purchases", "구매 복원", "購入を復元") }
+    var loadingPlans: String { t("Loading plans...", "플랜 불러오는 중...", "プランを読み込み中...") }
+    var legalNote: String { t(
+        "Subscription renews automatically. Cancel anytime in Settings.",
+        "구독은 자동으로 갱신됩니다. 언제든지 설정에서 취소할 수 있습니다.",
+        "サブスクリプションは自動的に更新されます。設定からいつでも解約できます。"
+    ) }
+
+    var featureVoiceTitle: String { t("Just say it", "그냥 말하면 돼요", "話しかけるだけ") }
+    var featureVoiceDesc: String { t("Speak it out loud. We'll remember it for you.", "입 밖에 내면 끝. 나머지는 제가 기억할게요.", "声に出すだけ。あとは私が覚えておきます。") }
+    var featureAITitle: String { t("AI that just gets it", "알아서 척척", "ちゃんとわかるAI") }
+    var featureAIDesc: String { t("Routine or appointment? AI figures it out so you don't have to.", "루틴인지 일정인지 AI가 알아서 구분해드려요.", "ルーティンか予定か、AIが自動で判断します。") }
+    var featureAlarmsTitle: String { t("Alerts you can't ignore", "못 지나칠 알림", "見逃せないアラーム") }
+    var featureAlarmsDesc: String { t("Full-screen alarms that actually get your attention.", "화면 가득 뜨는 알람으로 절대 놓치지 않아요.", "画面いっぱいのアラームで絶対に気づけます。") }
+    var featureWidgetsTitle: String { t("Always in sight", "항상 눈앞에", "いつも目の前に") }
+    var featureWidgetsDesc: String { t("Check your tasks right from your home screen.", "홈 화면에서 바로 오늘 할 일을 확인하세요.", "ホーム画面からすぐに今日のタスクを確認。") }
+    var featureSyncTitle: String { t("Nothing gets lost", "아무것도 잃지 않아요", "何も失わない") }
+    var featureSyncDesc: String { t("Your data is safely backed up, always.", "소중한 데이터는 언제나 안전하게 보관돼요.", "大切なデータはいつも安全に保管されます。") }
+
+    var subscriptionSection: String { t("Subscription", "구독", "サブスクリプション") }
+    var premiumActive: String { t("Pro · Active", "Pro · 활성", "Pro · 有効") }
+    var premiumInactive: String { t("Free Plan", "무료 플랜", "無料プラン") }
+    var upgradeToPro: String { t("Upgrade to Pro", "Pro로 업그레이드", "Proにアップグレード") }
+    var manageSubscription: String { t("Manage Subscription", "구독 관리", "サブスクリプション管理") }
 }

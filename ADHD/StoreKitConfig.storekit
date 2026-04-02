@@ -1,0 +1,136 @@
+{
+  "identifier" : "F7A9B2C1-3D4E-5F6A-7B8C-9D0E1F2A3B4C",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+
+  ],
+  "settings" : {
+    "_failTransactionsEnabled" : false,
+    "_locale" : "en_US",
+    "_storeKitErrors" : [
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Load Products"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Purchase"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Verification"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "App Store Sync"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Subscription Status"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "App Transaction"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Send Diagnostic Report"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Win-Back Offers"
+      }
+    ]
+  },
+  "subscriptionGroups" : [
+    {
+      "id" : "F1A2B3C4-D5E6-7F8A-9B0C-1D2E3F4A5B6C",
+      "localizations" : [
+
+      ],
+      "name" : "Wait What Pro",
+      "subscriptions" : [
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "2.99",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "A1B2C3D4-E5F6-7A8B-9C0D-1E2F3A4B5C6D",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Unlock all AI features: unlimited voice input, smart analysis, widgets, and more.",
+              "displayName" : "Monthly",
+              "locale" : "en_US"
+            },
+            {
+              "description" : "모든 AI 기능을 잠금 해제하세요: 무제한 음성 입력, 스마트 분석, 위젯 등.",
+              "displayName" : "월간",
+              "locale" : "ko_KR"
+            }
+          ],
+          "productID" : "trident-KR.ADHD.premium.monthly",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "Pro Monthly",
+          "subscriptionGroupID" : "F1A2B3C4-D5E6-7F8A-9B0C-1D2E3F4A5B6C",
+          "type" : "RecurringSubscription",
+          "winBackOffers" : [
+
+          ]
+        },
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "21.99",
+          "familyShareable" : false,
+          "groupNumber" : 2,
+          "internalID" : "B2C3D4E5-F6A7-8B9C-0D1E-2F3A4B5C6D7E",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Unlock all AI features: unlimited voice input, smart analysis, widgets, and more. Save 40% vs monthly.",
+              "displayName" : "Yearly",
+              "locale" : "en_US"
+            },
+            {
+              "description" : "모든 AI 기능을 잠금 해제하세요. 월간 대비 40% 절약.",
+              "displayName" : "연간",
+              "locale" : "ko_KR"
+            }
+          ],
+          "productID" : "trident-KR.ADHD.premium.yearly",
+          "recurringSubscriptionPeriod" : "P1Y",
+          "referenceName" : "Pro Yearly",
+          "subscriptionGroupID" : "F1A2B3C4-D5E6-7F8A-9B0C-1D2E3F4A5B6C",
+          "type" : "RecurringSubscription",
+          "winBackOffers" : [
+
+          ]
+        }
+      ]
+    }
+  ],
+  "version" : {
+    "major" : 2,
+    "minor" : 0
+  }
+}
