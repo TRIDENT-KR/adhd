@@ -4,6 +4,8 @@ import UIKit
 
 @main
 struct WaitWhatApp: App {
+    
+    
     // MARK: - SwiftData Container
     /// 스키마 변경 시 기존 데이터와 호환되지 않으면 저장소를 초기화하여 크래시를 방지합니다.
     private static let sharedContainer: ModelContainer = {

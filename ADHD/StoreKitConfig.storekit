@@ -84,7 +84,7 @@
               "locale" : "ko_KR"
             }
           ],
-          "productID" : "trident-KR.ADHD.premium.monthly",
+          "productID" : "com.TRIDENT.ADHD.monthly",
           "recurringSubscriptionPeriod" : "P1M",
           "referenceName" : "Pro Monthly",
           "subscriptionGroupID" : "F1A2B3C4-D5E6-7F8A-9B0C-1D2E3F4A5B6C",
@@ -117,7 +117,7 @@
               "locale" : "ko_KR"
             }
           ],
-          "productID" : "trident-KR.ADHD.premium.yearly",
+          "productID" : "com.TRIDENT.ADHD.yearly",
           "recurringSubscriptionPeriod" : "P1Y",
           "referenceName" : "Pro Yearly",
           "subscriptionGroupID" : "F1A2B3C4-D5E6-7F8A-9B0C-1D2E3F4A5B6C",
