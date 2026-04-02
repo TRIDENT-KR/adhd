@@ -34,6 +34,10 @@ final class AppTask {
     /// 사용자 지정 정렬 순서 (0 = 미지정, 낮을수록 위에 표시)
     var sortOrder: Int = 0
 
+    /// 이번 주 요일별 완료 여부 (ISO 8601 기준: 0=월, 1=화, 2=수, 3=목, 4=금, 5=토, 6=일)
+    /// Lightweight migration: 기존 레코드는 SwiftData가 기본값([false×7])으로 채움
+    var weeklyCompletions: [Bool] = Array(repeating: false, count: 7)
+
     init(id: UUID = UUID(),
          task: String,
          time: String? = nil,

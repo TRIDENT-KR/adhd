@@ -57,9 +57,6 @@ struct RoutineView: View {
             }
         }
     }
-    @StateObject private var voiceManager = VoiceInputManager()
-    @State private var voiceEditingTaskId: UUID?
-
     var body: some View {
         ZStack(alignment: .bottom) {
             DesignSystem.Colors.background
@@ -71,7 +68,6 @@ struct RoutineView: View {
                     // 제목 + 검색 버튼
                     HStack {
                         Text(verbatim: "Routine")
-                            .onAppear { setupVoiceEditCallback() }
                             .font(DesignSystem.Typography.displayLg)
                             .foregroundColor(DesignSystem.Colors.primary)
                             .tracking(-0.5)
@@ -168,10 +164,10 @@ struct RoutineView: View {
                             let (incomplete, completed) = currentTasks.partitioned { !$0.isCompleted }
                             LazyVStack(spacing: 32) {
                                 ForEach(incomplete) { task in
-                                    TaskRow(task: task, editingTaskId: $editingTaskId, voiceManager: voiceManager, voiceEditingTaskId: $voiceEditingTaskId)
+                                    TaskRow(task: task, editingTaskId: $editingTaskId)
                                 }
                                 ForEach(completed) { task in
-                                    TaskRow(task: task, editingTaskId: $editingTaskId, voiceManager: voiceManager, voiceEditingTaskId: $voiceEditingTaskId)
+                                    TaskRow(task: task, editingTaskId: $editingTaskId)
                                 }
                             }
                         }
@@ -188,36 +184,12 @@ struct RoutineView: View {
         }
     }
 
-    // MARK: - Voice Edit Callback
-    private func setupVoiceEditCallback() {
-        voiceManager.onSpeechFinalized = { [weak voiceManager] text in
-            Task { @MainActor in
-                defer {
-                    voiceEditingTaskId = nil
-                    voiceManager?.isProcessing = false
-                }
-
-                guard !text.isEmpty, let targetId = voiceEditingTaskId else { return }
-
-                // 모든 태스크에서 편집 대상 찾기
-                let allTasks = todayRoutines + todayAppointments
-                guard let target = allTasks.first(where: { $0.id == targetId }) else { return }
-
-                target.task = text
-                taskManager.update(task: target)
-                Haptic.impact(.medium)
-            }
-        }
-    }
 }
 
 // MARK: - Task Row Component
 struct TaskRow: View {
-    /// AppTask는 @Model 참조 타입이므로 직접 참조하여 수정합니다.
     var task: AppTask
     @Binding var editingTaskId: UUID?
-    @ObservedObject var voiceManager: VoiceInputManager
-    @Binding var voiceEditingTaskId: UUID?
 
     @EnvironmentObject private var taskManager: TaskManager
     @Environment(\.modelContext) private var modelContext
@@ -231,18 +203,11 @@ struct TaskRow: View {
 
     var isEditing: Bool { editingTaskId == task.id }
     var isDimmed:  Bool { editingTaskId != nil && editingTaskId != task.id }
-    var isVoiceEditing: Bool { voiceEditingTaskId == task.id && voiceManager.isListening }
 
     var body: some View {
-        HStack(spacing: 20) {
-            // 카테고리 아이콘 앵커 (Visual Anchor)
-            Image(systemName: cachedCategoryIcon)
-                .font(.footnote)
-                .foregroundColor(DesignSystem.Colors.primary.opacity(task.isCompleted ? 0.4 : 0.6))
-                .frame(width: 20)
-                .accessibilityHidden(true)
+        HStack(alignment: .top, spacing: 16) {
 
-            // 체크박스
+            // ── 체크박스 (맨 왼쪽) ──
             Button(action: {
                 withAnimation(.timingCurve(0.4, 0, 0.2, 1, duration: 0.3)) {
                     taskManager.toggleCompletion(of: task)
@@ -253,7 +218,6 @@ struct TaskRow: View {
                     Circle()
                         .stroke(DesignSystem.Colors.onSurfaceVariant.opacity(0.3), lineWidth: 1.5)
                         .frame(width: 32, height: 32)
-
                     if task.isCompleted {
                         Circle()
                             .fill(DesignSystem.Colors.tertiary)
@@ -270,9 +234,9 @@ struct TaskRow: View {
             .accessibilityLabel(task.isCompleted ? "\(task.task), completed" : "\(task.task), not completed")
             .accessibilityHint("Double tap to toggle completion")
 
-            // 텍스트 / 편집 영역
-            VStack(alignment: .leading, spacing: 6) {
-                if isEditing {
+            if isEditing {
+                // ── 편집 모드 ──
+                VStack(alignment: .leading, spacing: 8) {
                     TextField("Task", text: $localTaskName)
                         .focused($isTitleFocused)
                         .font(DesignSystem.Typography.bodyMd)
@@ -280,84 +244,42 @@ struct TaskRow: View {
                         .submitLabel(.done)
                         .onSubmit { finishEditing() }
 
-                    Text(localTime.isEmpty ? "Set Time" : localTime)
-                        .font(DesignSystem.Typography.labelSm)
-                        .padding(.vertical, 4)
-                        .padding(.horizontal, 8)
-                        .background(DesignSystem.Colors.onSurfaceVariant.opacity(0.1))
-                        .cornerRadius(6)
-                        .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
-                        .onTapGesture { showingTimePicker = true }
-                        .sheet(isPresented: $showingTimePicker) {
-                            TimePickerModal(timeString: $localTime, isPresented: $showingTimePicker)
-                        }
-
-                    // urgency 토글
-                    Button(action: {
-                        localUrgency = (localUrgency == .weak) ? .strong : .weak
-                        Haptic.impact(.light)
-                    }) {
-                        HStack(spacing: 3) {
-                            Image(systemName: localUrgency == .strong ? "bolt.fill" : "bolt")
-                                .font(.caption2.weight(.semibold))
-                            Text(localUrgency == .strong ? "Strong" : "Weak")
-                                .font(.caption2.weight(.medium))
-                        }
-                        .foregroundColor(localUrgency == .strong ? .orange : DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
-                        .padding(.vertical, 4)
-                        .padding(.horizontal, 8)
-                        .background((localUrgency == .strong ? Color.orange : DesignSystem.Colors.onSurfaceVariant).opacity(0.12))
-                        .cornerRadius(6)
-                    }
-                    .buttonStyle(NoEffectButtonStyle())
-                } else if isVoiceEditing {
-                    // 음성 편집 중: 실시간 인식 텍스트 표시
-                    Text(voiceManager.recognizedText.isEmpty ? "Listening..." : voiceManager.recognizedText)
-                        .font(DesignSystem.Typography.bodyMd)
-                        .foregroundColor(DesignSystem.Colors.primary)
-                        .animation(.easeInOut, value: voiceManager.recognizedText)
-                } else {
-                    Text(task.task)
-                        .font(DesignSystem.Typography.bodyMd)
-                        .strikethrough(task.isCompleted, color: DesignSystem.Colors.onSurfaceVariant)
-                        .foregroundColor(
-                            task.isCompleted
-                                ? DesignSystem.Colors.onSurfaceVariant.opacity(0.5)
-                                : DesignSystem.Colors.onSurfaceVariant
-                        )
-                        .lineLimit(nil)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    if let time = task.time, !time.isEmpty {
-                        HStack(spacing: 4) {
-                            Text(time)
-                                .font(DesignSystem.Typography.labelSm)
-                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
-                            if let label = task.recurrenceLabel {
-                                Image(systemName: "repeat")
-                                    .font(.caption2)
-                                    .accessibilityHidden(true)
-                                Text(label)
-                                    .font(.caption2)
+                    HStack(spacing: 8) {
+                        Text(localTime.isEmpty ? "Set Time" : localTime)
+                            .font(DesignSystem.Typography.labelSm)
+                            .padding(.vertical, 4)
+                            .padding(.horizontal, 8)
+                            .background(DesignSystem.Colors.onSurfaceVariant.opacity(0.1))
+                            .cornerRadius(6)
+                            .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
+                            .onTapGesture { showingTimePicker = true }
+                            .sheet(isPresented: $showingTimePicker) {
+                                TimePickerModal(timeString: $localTime, isPresented: $showingTimePicker)
                             }
-                            if task.urgency == .strong {
-                                Image(systemName: "bolt.fill")
-                                    .font(.caption2)
-                                    .foregroundColor(.orange.opacity(0.8))
-                                    .accessibilityLabel("High urgency")
+
+                        Button(action: {
+                            localUrgency = (localUrgency == .weak) ? .strong : .weak
+                            Haptic.impact(.light)
+                        }) {
+                            HStack(spacing: 3) {
+                                Image(systemName: localUrgency == .strong ? "bolt.fill" : "bolt")
+                                    .font(.caption2.weight(.semibold))
+                                Text(localUrgency == .strong ? "Strong" : "Weak")
+                                    .font(.caption2.weight(.medium))
                             }
+                            .foregroundColor(localUrgency == .strong ? .orange : DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
+                            .padding(.vertical, 4)
+                            .padding(.horizontal, 8)
+                            .background((localUrgency == .strong ? Color.orange : DesignSystem.Colors.onSurfaceVariant).opacity(0.12))
+                            .cornerRadius(6)
                         }
-                        .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
+                        .buttonStyle(NoEffectButtonStyle())
                     }
                 }
-            }
+                .frame(maxWidth: .infinity, alignment: .leading)
 
-            Spacer()
-
-            // 우측 액션 버튼
-            HStack(spacing: 16) {
-                if isEditing {
-                    // 편집 모드: 삭제 + 완료
+                // 삭제 + 완료
+                HStack(spacing: 4) {
                     Button(action: {
                         withAnimation {
                             taskManager.delete(task: task)
@@ -366,51 +288,86 @@ struct TaskRow: View {
                         Haptic.impact(.medium)
                     }) {
                         Image(systemName: "trash")
-                            .font(.body)
+                            .font(.footnote)
                             .foregroundColor(.red.opacity(0.7))
                             .frame(minWidth: 44, minHeight: 44)
                             .contentShape(Rectangle())
                     }
                     .accessibilityLabel("Delete task")
-                    .accessibilityHint("Double tap to delete \(task.task)")
 
-                    Button(action: {
-                        finishEditing()
-                    }) {
+                    Button(action: { finishEditing() }) {
                         Image(systemName: "checkmark")
-                            .font(.body)
-                            .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.5))
+                            .font(.footnote.weight(.semibold))
+                            .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.4))
                             .frame(minWidth: 44, minHeight: 44)
                             .contentShape(Rectangle())
                     }
                     .accessibilityLabel("Save changes")
-                } else {
-                    // 기본 모드: 마이크 + 편집
-                    Button(action: {
-                        handleVoiceEdit()
-                    }) {
-                        Image(systemName: isVoiceEditing ? "stop.fill" : "mic.fill")
-                            .font(.body)
-                            .foregroundColor(isVoiceEditing ? DesignSystem.Colors.primary : DesignSystem.Colors.onSurfaceVariant.opacity(0.5))
-                            .contentTransition(.symbolEffect(.replace))
-                            .frame(minWidth: 44, minHeight: 44)
-                            .contentShape(Rectangle())
-                    }
-                    .disabled(voiceEditingTaskId != nil && voiceEditingTaskId != task.id)
-                    .accessibilityLabel(isVoiceEditing ? "Stop voice editing" : "Edit with voice")
-
-                    Button(action: {
-                        withAnimation { startEditing() }
-                    }) {
-                        Image(systemName: "pencil")
-                            .font(.body)
-                            .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.5))
-                            .frame(minWidth: 44, minHeight: 44)
-                            .contentShape(Rectangle())
-                    }
-                    .accessibilityLabel("Edit task")
-                    .accessibilityHint("Double tap to edit \(task.task)")
                 }
+
+            } else {
+                // ── 일반 모드 ──
+                VStack(alignment: .leading, spacing: 0) {
+
+                    // 1행: 아이콘 + 제목
+                    HStack(alignment: .top, spacing: 8) {
+                        Image(systemName: cachedCategoryIcon)
+                            .font(.footnote)
+                            .foregroundColor(DesignSystem.Colors.primary.opacity(task.isCompleted ? 0.3 : 0.6))
+                            .frame(width: 18)
+                            .padding(.top, 3)
+                            .accessibilityHidden(true)
+
+                        Text(task.task)
+                            .font(DesignSystem.Typography.bodyMd)
+                            .strikethrough(task.isCompleted, color: DesignSystem.Colors.onSurfaceVariant)
+                            .foregroundColor(
+                                task.isCompleted
+                                    ? DesignSystem.Colors.onSurfaceVariant.opacity(0.5)
+                                    : DesignSystem.Colors.onSurfaceVariant
+                            )
+                            .lineLimit(nil)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    // 2행: 시간 + 반복 + 알림 (아이콘 좌측 정렬)
+                    HStack(spacing: 5) {
+                        if let time = task.time, !time.isEmpty {
+                            if task.isRecurring {
+                                Image(systemName: "repeat")
+                                    .font(.system(size: 8))
+                                    .foregroundColor(DesignSystem.Colors.primary.opacity(0.45))
+                                    .accessibilityHidden(true)
+                            }
+                            Text(time)
+                                .font(DesignSystem.Typography.labelSm)
+                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(
+                                    task.isCompleted ? 0.3 : 0.5))
+                        }
+                        Image(systemName: task.urgency == .strong ? "bolt.fill" : "bolt")
+                            .font(.system(size: 10))
+                            .foregroundColor(task.urgency == .strong
+                                ? .orange.opacity(0.8)
+                                : DesignSystem.Colors.onSurfaceVariant.opacity(0.18))
+                            .accessibilityLabel(task.urgency == .strong ? "High urgency" : "Low urgency")
+                    }
+                    .padding(.top, 5)
+
+                    // 3행: WeeklyBar (Routine만)
+                    if task.category == "Routine" {
+                        WeeklyBar(task: task)
+                            .padding(.top, 14)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    withAnimation { startEditing() }
+                    Haptic.impact(.light)
+                }
+                .accessibilityLabel("Edit \(task.task)")
+                .accessibilityHint("Double tap to edit")
             }
         }
         .padding(.horizontal, 32)
@@ -437,7 +394,6 @@ struct TaskRow: View {
 
     private func finishEditing() {
         guard editingTaskId == task.id else { return }
-        // 변경 내용 AppTask에 반영 후 저장
         task.task    = localTaskName
         task.time    = localTime.isEmpty ? nil : localTime
         task.urgency = localUrgency
@@ -452,17 +408,110 @@ struct TaskRow: View {
         editingTaskId = task.id
         Haptic.impact(.medium)
     }
+}
 
-    private func handleVoiceEdit() {
-        if voiceManager.isListening && voiceEditingTaskId == task.id {
-            // 녹음 중지 → onSpeechFinalized에서 태스크 업데이트
-            voiceManager.stopListening()
-        } else {
-            // 녹음 시작
-            voiceEditingTaskId = task.id
-            voiceManager.startListening()
-            Haptic.impact(.medium)
+// MARK: - Weekly Bar
+/// 루틴 카드 하단에 표시되는 이번 주 완료 현황 (M T W T F S S)
+struct WeeklyBar: View {
+    let task: AppTask
+
+    @EnvironmentObject private var taskManager: TaskManager
+
+    private let dayLabels = ["M", "T", "W", "T", "F", "S", "S"]
+
+    /// ISO 8601 기준 오늘 요일 인덱스 (0=월, 6=일)
+    private var todayIndex: Int {
+        var cal = Calendar(identifier: .iso8601)
+        cal.timeZone = .current
+        return cal.component(.weekday, from: Date()) - 1
+    }
+
+    var body: some View {
+        HStack(spacing: 4) {
+            ForEach(0..<7, id: \.self) { i in
+                VStack(spacing: 6) {
+                    Text(dayLabels[i])
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundColor(
+                            i == todayIndex
+                                ? DesignSystem.Colors.primary
+                                : DesignSystem.Colors.onSurfaceVariant.opacity(0.35)
+                        )
+
+                    dayButton(for: i)
+                }
+                .frame(maxWidth: .infinity)
+            }
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(weeklyAccessibilityLabel)
+    }
+
+    @ViewBuilder
+    private func dayButton(for i: Int) -> some View {
+        if i < todayIndex {
+            // 지난 요일: 탭으로 토글 가능
+            let completed = task.weeklyCompletions.indices.contains(i) && task.weeklyCompletions[i]
+            Button(action: {
+                guard task.weeklyCompletions.indices.contains(i) else { return }
+                task.weeklyCompletions[i].toggle()
+                taskManager.safeSave()
+                Haptic.impact(.light)
+            }) {
+                ZStack {
+                    Circle()
+                        .fill(completed
+                            ? DesignSystem.Colors.tertiary.opacity(0.85)
+                            : DesignSystem.Colors.onSurfaceVariant.opacity(0.08))
+                        .frame(width: 26, height: 26)
+                    if completed {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundColor(.white)
+                    }
+                }
+            }
+            .buttonStyle(NoEffectButtonStyle())
+            .frame(minWidth: 36, minHeight: 36)
+            .contentShape(Rectangle())
+        } else if i == todayIndex {
+            // 오늘: 테두리 강조, isCompleted 실시간 반영 (탭 불가 — 메인 체크박스로)
+            let completed = task.isCompleted
+            ZStack {
+                Circle()
+                    .fill(completed ? DesignSystem.Colors.tertiary : Color.clear)
+                    .frame(width: 26, height: 26)
+                Circle()
+                    .stroke(DesignSystem.Colors.primary, lineWidth: 1.5)
+                    .frame(width: 26, height: 26)
+                if completed {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundColor(.white)
+                }
+            }
+            .frame(width: 36, height: 36)
+        } else {
+            // 미래 요일: 작은 점
+            Circle()
+                .fill(DesignSystem.Colors.onSurfaceVariant.opacity(0.12))
+                .frame(width: 6, height: 6)
+                .frame(width: 36, height: 36)
+        }
+    }
+
+    private var weeklyAccessibilityLabel: String {
+        let days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+        var parts: [String] = []
+        for i in 0..<7 {
+            if i < todayIndex {
+                let done = task.weeklyCompletions.indices.contains(i) && task.weeklyCompletions[i]
+                parts.append("\(days[i]): \(done ? "completed" : "missed")")
+            } else if i == todayIndex {
+                parts.append("\(days[i]): today, \(task.isCompleted ? "completed" : "not completed")")
+            }
+        }
+        return parts.joined(separator: ", ")
     }
 }
 

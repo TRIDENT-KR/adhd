@@ -336,6 +336,9 @@ struct EventCard: View {
     @State private var localTaskName: String = ""
     @State private var localTime: String     = ""
     @State private var localUrgency: Urgency  = .strong
+    @State private var isExpanded = false
+    @State private var isTruncated = false
+    @State private var cachedCategoryIcon: String = "calendar"
 
     var isEditing: Bool { editingTaskId == task.id }
     var isDimmed:  Bool { editingTaskId != nil && editingTaskId != task.id }
@@ -344,174 +347,198 @@ struct EventCard: View {
         VStack(alignment: .leading, spacing: 0) {
             if isEditing {
                 // MARK: 편집 모드
-                VStack(alignment: .leading, spacing: 14) {
-                    // 상단: 시간 선택 + 알림상태 토글 + 삭제 + 저장
-                    HStack(spacing: 8) {
-                        Text(localTime.isEmpty ? "Set Time" : localTime)
-                            .font(DesignSystem.Typography.labelSm)
-                            .padding(.vertical, 4)
-                            .padding(.horizontal, 8)
-                            .background(DesignSystem.Colors.onSurfaceVariant.opacity(0.1))
-                            .cornerRadius(6)
-                            .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
-                            .onTapGesture { showingTimePicker = true }
-                            .sheet(isPresented: $showingTimePicker) {
-                                TimePickerModal(timeString: $localTime, isPresented: $showingTimePicker)
-                            }
-
-                        Button(action: {
-                            localUrgency = (localUrgency == .weak) ? .strong : .weak
-                            Haptic.impact(.light)
-                        }) {
-                            HStack(spacing: 3) {
-                                Image(systemName: localUrgency == .strong ? "bell.fill" : "bell.slash")
-                                    .font(.caption.weight(.semibold))
-                                Text(localUrgency == .strong ? "알림" : "없음")
-                                    .font(.caption.weight(.medium))
-                            }
-                            .foregroundColor(localUrgency == .strong ? .orange : DesignSystem.Colors.onSurfaceVariant.opacity(0.5))
-                            .padding(.vertical, 4)
-                            .padding(.horizontal, 8)
-                            .background((localUrgency == .strong ? Color.orange : DesignSystem.Colors.onSurfaceVariant).opacity(0.12))
-                            .cornerRadius(6)
-                        }
-                        .buttonStyle(NoEffectButtonStyle())
-
-                        Spacer()
-
-                        Button(action: {
-                            withAnimation {
-                                taskManager.delete(task: task)
-                                editingTaskId = nil
-                            }
-                            Haptic.impact(.medium)
-                        }) {
-                            Image(systemName: "trash")
-                                .font(.footnote)
-                                .foregroundColor(.red.opacity(0.7))
-                                .frame(minWidth: 44, minHeight: 44)
-                                .contentShape(Rectangle())
-                        }
-                        .accessibilityLabel("Delete task")
-                        .accessibilityHint("Double tap to delete \(task.task)")
-
-                        Button(action: { finishEditing() }) {
-                            Image(systemName: "checkmark")
-                                .font(.body)
-                                .frame(minWidth: 44, minHeight: 44)
-                                .contentShape(Rectangle())
-                        }
-                        .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.5))
-                        .accessibilityLabel("Save changes")
-                    }
-
-                    // 하단: 제목 입력
+                // 상단: 제목 입력 + 삭제/저장
+                HStack(spacing: 0) {
                     TextField("Title", text: $localTaskName)
                         .focused($isTitleFocused)
                         .font(DesignSystem.Typography.bodyMd)
                         .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
                         .submitLabel(.done)
                         .onSubmit { finishEditing() }
-                        .frame(maxWidth: .infinity)
-                }
-            } else {
-                // MARK: 일반 모드
-                VStack(alignment: .leading, spacing: 12) {
-                    // 상단: 시간 + 반복 + 알림상태 + 수정버튼
-                    HStack(spacing: 6) {
-                        Text(task.time ?? "시간 미정")
-                            .font(DesignSystem.Typography.labelSm)
-                            .tracking(0.3)
-                            .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(task.isCompleted ? 0.4 : 0.7))
 
-                        if task.isRecurring {
-                            Image(systemName: "repeat")
-                                .font(.caption2)
-                                .foregroundColor(DesignSystem.Colors.primary.opacity(0.6))
-                                .accessibilityLabel("Recurring")
+                    Button(action: {
+                        withAnimation {
+                            taskManager.delete(task: task)
+                            editingTaskId = nil
                         }
-
-                        Spacer()
-
-                        // 알림상태
-                        HStack(spacing: 3) {
-                            Image(systemName: task.urgency == .strong ? "bell.fill" : "bell.slash")
-                                .font(.caption)
-                            Text(task.urgency == .strong ? "알림" : "없음")
-                                .font(.caption2.weight(.medium))
-                        }
-                        .foregroundColor(task.urgency == .strong
-                            ? .orange.opacity(0.85)
-                            : DesignSystem.Colors.onSurfaceVariant.opacity(0.3))
-                        .accessibilityLabel(task.urgency == .strong ? "High urgency alarm" : "No alarm")
-
-                        // 수정버튼
-                        Button(action: { withAnimation { startEditing() } }) {
-                            Image(systemName: "pencil")
-                                .font(.body)
-                                .frame(minWidth: 44, minHeight: 44)
-                                .contentShape(Rectangle())
-                        }
-                        .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.5))
-                        .accessibilityLabel("Edit task")
-                    }
-
-                    // 중앙: 체크박스 + 일정 내용 가로로 길게
-                    HStack(spacing: 12) {
-                        Button(action: {
-                            withAnimation(.timingCurve(0.4, 0, 0.2, 1, duration: 0.3)) {
-                                taskManager.toggleCompletion(of: task)
-                            }
-                            Haptic.impact(.medium)
-                        }) {
-                            ZStack {
-                                Circle()
-                                    .stroke(DesignSystem.Colors.onSurfaceVariant.opacity(0.4), lineWidth: 1.5)
-                                    .frame(width: 28, height: 28)
-                                if task.isCompleted {
-                                    Circle()
-                                        .fill(DesignSystem.Colors.tertiary)
-                                        .frame(width: 28, height: 28)
-                                    Image(systemName: "checkmark")
-                                        .font(.caption.weight(.bold))
-                                        .foregroundColor(.white)
-                                }
-                            }
+                        Haptic.impact(.medium)
+                    }) {
+                        Image(systemName: "trash")
+                            .font(.footnote)
+                            .foregroundColor(.red.opacity(0.6))
                             .frame(minWidth: 44, minHeight: 44)
                             .contentShape(Rectangle())
+                    }
+                    .accessibilityLabel("Delete task")
+
+                    Button(action: { finishEditing() }) {
+                        Image(systemName: "checkmark")
+                            .font(.footnote.weight(.semibold))
+                            .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.4))
+                            .frame(minWidth: 44, minHeight: 44)
+                            .contentShape(Rectangle())
+                    }
+                    .accessibilityLabel("Save changes")
+                }
+
+                // 하단: 시간 + 알림 pill
+                HStack(spacing: 8) {
+                    Text(localTime.isEmpty ? "Set Time" : localTime)
+                        .font(DesignSystem.Typography.labelSm)
+                        .padding(.vertical, 5)
+                        .padding(.horizontal, 10)
+                        .background(DesignSystem.Colors.onSurfaceVariant.opacity(0.08))
+                        .cornerRadius(8)
+                        .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.7))
+                        .onTapGesture { showingTimePicker = true }
+                        .sheet(isPresented: $showingTimePicker) {
+                            TimePickerModal(timeString: $localTime, isPresented: $showingTimePicker)
                         }
-                        .accessibilityLabel(task.isCompleted ? "\(task.task), completed" : "\(task.task), not completed")
-                        .accessibilityHint("Double tap to toggle completion")
 
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(task.task)
-                                .font(DesignSystem.Typography.bodyMd)
-                                .strikethrough(task.isCompleted, color: DesignSystem.Colors.onSurfaceVariant)
-                                .foregroundColor(task.isCompleted
-                                    ? DesignSystem.Colors.onSurfaceVariant.opacity(0.5)
-                                    : DesignSystem.Colors.onSurfaceVariant)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .lineLimit(nil)
-                                .fixedSize(horizontal: false, vertical: true)
+                    Button(action: {
+                        localUrgency = (localUrgency == .weak) ? .strong : .weak
+                        Haptic.impact(.light)
+                    }) {
+                        Image(systemName: localUrgency == .strong ? "bell.fill" : "bell.slash")
+                            .font(.caption.weight(.medium))
+                            .foregroundColor(localUrgency == .strong ? .orange : DesignSystem.Colors.onSurfaceVariant.opacity(0.35))
+                            .padding(.vertical, 5)
+                            .padding(.horizontal, 10)
+                            .background((localUrgency == .strong ? Color.orange : DesignSystem.Colors.onSurfaceVariant).opacity(0.1))
+                            .cornerRadius(8)
+                    }
+                    .buttonStyle(NoEffectButtonStyle())
+                }
+                .padding(.top, 12)
 
-                            if let label = task.recurrenceLabel {
-                                Text(label)
-                                    .font(.caption2)
-                                    .foregroundColor(DesignSystem.Colors.primary.opacity(0.6))
+            } else {
+                // MARK: 일반 모드
+                // [체크박스 탭 → 완료토글]  [내용 탭 → 편집]
+                HStack(alignment: .top, spacing: 12) {
+
+                    // 체크박스
+                    Button(action: {
+                        withAnimation(.timingCurve(0.4, 0, 0.2, 1, duration: 0.3)) {
+                            taskManager.toggleCompletion(of: task)
+                        }
+                        Haptic.impact(.medium)
+                    }) {
+                        ZStack {
+                            Circle()
+                                .stroke(DesignSystem.Colors.onSurfaceVariant.opacity(0.3), lineWidth: 1.5)
+                                .frame(width: 26, height: 26)
+                            if task.isCompleted {
+                                Circle()
+                                    .fill(DesignSystem.Colors.tertiary)
+                                    .frame(width: 26, height: 26)
+                                Image(systemName: "checkmark")
+                                    .font(.system(size: 11, weight: .bold))
+                                    .foregroundColor(.white)
                             }
                         }
                     }
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
+                    .accessibilityLabel(task.isCompleted ? "\(task.task), completed" : "\(task.task), not completed")
+                    .accessibilityHint("Double tap to toggle completion")
+
+                    // 아이콘 + 제목 + 메타 (탭 → 편집)
+                    VStack(alignment: .leading, spacing: 0) {
+
+                        // 1행: 아이콘 + 제목
+                        HStack(alignment: .top, spacing: 8) {
+                            Image(systemName: cachedCategoryIcon)
+                                .font(.footnote)
+                                .foregroundColor(DesignSystem.Colors.primary.opacity(task.isCompleted ? 0.3 : 0.55))
+                                .frame(width: 18)
+                                .padding(.top, 3)
+                                .accessibilityHidden(true)
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(task.task)
+                                    .font(DesignSystem.Typography.bodyMd)
+                                    .strikethrough(task.isCompleted, color: DesignSystem.Colors.onSurfaceVariant)
+                                    .foregroundColor(task.isCompleted
+                                        ? DesignSystem.Colors.onSurfaceVariant.opacity(0.4)
+                                        : DesignSystem.Colors.onSurfaceVariant)
+                                    .lineLimit(isExpanded ? nil : 2)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(
+                                        GeometryReader { constrainedGeo in
+                                            Text(task.task)
+                                                .font(DesignSystem.Typography.bodyMd)
+                                                .fixedSize(horizontal: false, vertical: true)
+                                                .hidden()
+                                                .background(
+                                                    GeometryReader { idealGeo in
+                                                        Color.clear.onAppear {
+                                                            isTruncated = idealGeo.size.height > constrainedGeo.size.height + 2
+                                                        }
+                                                    }
+                                                )
+                                        }
+                                    )
+
+                                if isTruncated || isExpanded {
+                                    Button(action: {
+                                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                            isExpanded.toggle()
+                                        }
+                                    }) {
+                                        Image(systemName: isExpanded ? "chevron.compact.up" : "chevron.compact.down")
+                                            .font(.system(size: 12, weight: .medium))
+                                            .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.3))
+                                            .frame(maxWidth: .infinity)
+                                            .frame(height: 16)
+                                            .contentShape(Rectangle())
+                                    }
+                                    .buttonStyle(NoEffectButtonStyle())
+                                }
+                            }
+                        }
+
+                        // 2행: 시간 + 반복 + 알림 (아이콘 좌측 정렬)
+                        HStack(spacing: 5) {
+                            if let time = task.time, !time.isEmpty {
+                                Text(time)
+                                    .font(DesignSystem.Typography.labelSm)
+                                    .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(task.isCompleted ? 0.3 : 0.5))
+                            }
+                            if task.isRecurring {
+                                Image(systemName: "repeat")
+                                    .font(.system(size: 9))
+                                    .foregroundColor(DesignSystem.Colors.primary.opacity(0.5))
+                            }
+                            Image(systemName: task.urgency == .strong ? "bell.fill" : "bell.slash")
+                                .font(.system(size: 10))
+                                .foregroundColor(task.urgency == .strong
+                                    ? .orange.opacity(0.7)
+                                    : DesignSystem.Colors.onSurfaceVariant.opacity(0.25))
+                        }
+                        .padding(.top, 5)
+                        .accessibilityLabel(task.urgency == .strong ? "Alarm on" : "Alarm off")
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        withAnimation { startEditing() }
+                        Haptic.impact(.light)
+                    }
+                    .accessibilityLabel("Edit \(task.task)")
+                    .accessibilityHint("Double tap to edit")
                 }
             }
         }
-        .padding(24)
+        .padding(.horizontal, 20)
+        .padding(.vertical, 16)
         .background(DesignSystem.Colors.primary.opacity(0.05))
-        .cornerRadius(24)
+        .cornerRadius(18)
         .padding(.horizontal, 32)
         .opacity(isDimmed ? 0.3 : 1.0)
         .onAppear {
             localTaskName = task.task
             localTime     = task.time ?? ""
+            cachedCategoryIcon = CategoryIconResolver.resolveIcon(for: task.task, category: task.category, urgency: task.urgency)
         }
         .onChange(of: editingTaskId) { oldValue, newValue in
             if newValue == task.id {

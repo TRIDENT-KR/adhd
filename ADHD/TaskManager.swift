@@ -47,39 +47,75 @@ class TaskManager: ObservableObject {
         }
     }
 
-    // MARK: - Daily Reset Logic
+    // MARK: - Daily / Weekly Reset Logic
     private let lastResetKey = "lastResetDate"
 
+    /// ISO 8601 기준 캘린더 (주 시작: 월요일). 타임존은 기기 로컬 자동 적용.
+    private var isoCalendar: Calendar {
+        var cal = Calendar(identifier: .iso8601)
+        cal.timeZone = .current
+        return cal
+    }
+
+    /// ISO 8601 weekday 컴포넌트 → 0=월, 1=화, … 6=일
+    private func isoWeekdayIndex(of date: Date) -> Int {
+        isoCalendar.component(.weekday, from: date) - 1   // iso8601: 1=Mon … 7=Sun
+    }
+
+    /// 두 날짜가 서로 다른 ISO 주(週)에 속하는지 확인
+    private func isDifferentISOWeek(_ a: Date, _ b: Date) -> Bool {
+        let cal = isoCalendar
+        let weekA = cal.component(.weekOfYear,       from: a)
+        let weekB = cal.component(.weekOfYear,       from: b)
+        let yearA = cal.component(.yearForWeekOfYear, from: a)
+        let yearB = cal.component(.yearForWeekOfYear, from: b)
+        return weekA != weekB || yearA != yearB
+    }
+
     /// 날짜가 바뀌었는지 확인하고 루틴/반복 일정을 초기화합니다.
+    /// - 매일: 리셋 전 어제 완료 여부를 weeklyCompletions에 기록
+    /// - 주 경계(일→월): weeklyCompletions 전체 초기화
     func checkAndResetDailyTasks() {
         guard let context = modelContext else { return }
         let now = Date()
         let lastReset = UserDefaults.standard.object(forKey: lastResetKey) as? Date
 
-        // 마지막 초기화 날짜가 오늘이 아니면 실행
-        if lastReset == nil || !Calendar.current.isDate(lastReset!, inSameDayAs: now) {
-            print("🌅 새로운 날 발견: 일일 태스크 초기화 중...")
-            do {
-                let descriptor = FetchDescriptor<AppTask>()
-                let allTasks = try context.fetch(descriptor)
+        guard lastReset == nil || !Calendar.current.isDate(lastReset!, inSameDayAs: now) else { return }
 
-                var resetCount = 0
-                for task in allTasks {
-                    // 루틴이거나 반복 설정이 있는 경우만 리셋
-                    if task.category == "Routine" || task.isRecurring {
-                        if task.isCompleted {
-                            task.isCompleted = false
-                            resetCount += 1
-                        }
-                    }
+        print("🌅 새로운 날 발견: 일일 태스크 초기화 중...")
+        do {
+            let allTasks = try context.fetch(FetchDescriptor<AppTask>())
+            let routineTasks = allTasks.filter { $0.category == "Routine" || $0.isRecurring }
+
+            // 1) 어제(lastReset) 요일에 완료 여부 기록
+            if let lastReset {
+                let dayIndex = isoWeekdayIndex(of: lastReset)
+                for task in routineTasks {
+                    task.weeklyCompletions[dayIndex] = task.isCompleted
                 }
-
-                UserDefaults.standard.set(now, forKey: lastResetKey)
-                safeSave()
-                print("✅ \(resetCount)개의 태스크 초기화 완료.")
-            } catch {
-                print("❌ 초기화 실패: \(error.localizedDescription)")
+                print("📅 weeklyCompletions[\(dayIndex)] 업데이트 완료 (\(routineTasks.count)개)")
             }
+
+            // 2) 주 경계 넘으면 weekly 초기화
+            if let lastReset, isDifferentISOWeek(lastReset, now) {
+                for task in routineTasks {
+                    task.weeklyCompletions = Array(repeating: false, count: 7)
+                }
+                print("📆 새로운 주 감지: weeklyCompletions 초기화 완료")
+            }
+
+            // 3) isCompleted 리셋
+            var resetCount = 0
+            for task in routineTasks where task.isCompleted {
+                task.isCompleted = false
+                resetCount += 1
+            }
+
+            UserDefaults.standard.set(now, forKey: lastResetKey)
+            safeSave()
+            print("✅ \(resetCount)개의 태스크 초기화 완료.")
+        } catch {
+            print("❌ 초기화 실패: \(error.localizedDescription)")
         }
     }
 
