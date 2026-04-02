@@ -5,3 +5,4 @@ Build/
 DerivedData/
 Config.plist
 WaitWhat.swiftpm/Config.plist
+.gstack/

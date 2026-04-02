@@ -35,10 +35,15 @@ Deno.serve(async (req: Request) => {
     if (!text) throw new Error("음성 텍스트가 없습니다.");
 
     // 전달받은 currentTime이 없으면 서버 현재시간 사용
-    const localTimeStr = currentTime || new Date().toLocaleString("ko-KR", { timeZone: "Asia/Seoul", hour12: false });
+    // 프롬프트 인젝션 방지: 엄격한 datetime 형식(yyyy-MM-dd HH:mm)만 허용
+    const timeRegex = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/;
+    const localTimeStr = (typeof currentTime === "string" && timeRegex.test(currentTime))
+      ? currentTime
+      : new Date().toLocaleString("ko-KR", { timeZone: "Asia/Seoul", hour12: false });
 
-    // 사용자 언어 설정 (클라이언트에서 전달, 기본값 "en")
-    const userLanguage: string = language || "en";
+    // 사용자 언어 설정 — 허용된 값만 사용 (프롬프트 인젝션 방지)
+    const ALLOWED_LANGUAGES = new Set(["en", "ko", "ja"]);
+    const userLanguage: string = ALLOWED_LANGUAGES.has(language) ? language : "en";
 
     // ADHD 타겟 유저를 위한 시스템 프롬프트
     const finalPrompt = `You are an AI Command Router specialized in analyzing rambling, ADHD-style voice transcripts and translating them into precise function calls.
