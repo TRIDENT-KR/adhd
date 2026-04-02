@@ -151,12 +151,6 @@ struct SettingsView: View {
                 } header: {
                     Text(L.paywall.subscriptionSection)
                 }
-                .sheet(isPresented: $showPaywall) {
-                    NavigationView {
-                        PaywallView()
-                            .environmentObject(subscriptionManager)
-                    }
-                }
 
                 // ── Language ──
                 Section {
@@ -404,6 +398,12 @@ struct SettingsView: View {
                 }
             } message: {
                 Text(L.settings.clearAllConfirm)
+            }
+        }
+        .sheet(isPresented: $showPaywall) {
+            NavigationView {
+                PaywallView()
+                    .environmentObject(subscriptionManager)
             }
         }
         .onChange(of: langManager.currentLanguage) { oldVal, newVal in

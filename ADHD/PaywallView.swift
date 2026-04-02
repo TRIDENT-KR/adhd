@@ -15,7 +15,6 @@ struct PaywallView: View {
 
     var body: some View {
         ZStack {
-            // Background gradient
             LinearGradient(
                 colors: [
                     DesignSystem.Colors.background,
@@ -28,24 +27,19 @@ struct PaywallView: View {
 
             ScrollView {
                 VStack(spacing: 0) {
-                    // ── Header ──
                     headerSection
 
-                    // ── Features ──
-                    featuresSection
-                        .padding(.top, 32)
-
-                    // ── Plan Selection ──
                     planSection
                         .padding(.top, 28)
 
-                    // ── CTA ──
                     ctaSection
                         .padding(.top, 24)
 
-                    // ── Footer ──
+                    featuresSection
+                        .padding(.top, 32)
+
                     footerSection
-                        .padding(.top, 16)
+                        .padding(.top, 24)
                         .padding(.bottom, 40)
                 }
                 .padding(.horizontal, 24)
@@ -76,7 +70,6 @@ struct PaywallView: View {
     // MARK: - Header
     private var headerSection: some View {
         VStack(spacing: 12) {
-            // Icon
             ZStack {
                 Circle()
                     .fill(DesignSystem.Colors.primary.opacity(0.12))
@@ -100,39 +93,6 @@ struct PaywallView: View {
         }
     }
 
-    // MARK: - Features
-    private var featuresSection: some View {
-        VStack(spacing: 12) {
-            ForEach(paywallFeatures, id: \.icon) { feature in
-                HStack(spacing: 14) {
-                    ZStack {
-                        Circle()
-                            .fill(feature.color.opacity(0.15))
-                            .frame(width: 40, height: 40)
-                        Image(systemName: feature.icon)
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(feature.color)
-                    }
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(feature.title)
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
-                        Text(feature.description)
-                            .font(.system(size: 13))
-                            .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.7))
-                    }
-                    Spacer()
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-                .background(
-                    RoundedRectangle(cornerRadius: 14)
-                        .fill(DesignSystem.Colors.surfaceContainerLow)
-                )
-            }
-        }
-    }
-
     // MARK: - Plan Selection
     private var planSection: some View {
         VStack(spacing: 10) {
@@ -142,7 +102,6 @@ struct PaywallView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
 
             if subscriptionManager.products.isEmpty {
-                // 로딩 중
                 HStack {
                     ProgressView()
                         .tint(DesignSystem.Colors.primary)
@@ -209,6 +168,39 @@ struct PaywallView: View {
         }
     }
 
+    // MARK: - Features
+    private var featuresSection: some View {
+        VStack(spacing: 12) {
+            ForEach(paywallFeatures, id: \.icon) { feature in
+                HStack(spacing: 14) {
+                    ZStack {
+                        Circle()
+                            .fill(feature.color.opacity(0.15))
+                            .frame(width: 40, height: 40)
+                        Image(systemName: feature.icon)
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(feature.color)
+                    }
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(feature.title)
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
+                        Text(feature.description)
+                            .font(.system(size: 13))
+                            .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.7))
+                    }
+                    Spacer()
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .background(
+                    RoundedRectangle(cornerRadius: 14)
+                        .fill(DesignSystem.Colors.surfaceContainerLow)
+                )
+            }
+        }
+    }
+
     // MARK: - Footer
     private var footerSection: some View {
         VStack(spacing: 6) {
@@ -235,36 +227,11 @@ struct PaywallView: View {
 
     private var paywallFeatures: [PaywallFeature] {
         [
-            PaywallFeature(
-                icon: "mic.fill",
-                color: DesignSystem.Colors.primary,
-                title: L.paywall.featureVoiceTitle,
-                description: L.paywall.featureVoiceDesc
-            ),
-            PaywallFeature(
-                icon: "brain",
-                color: DesignSystem.Colors.tertiary,
-                title: L.paywall.featureAITitle,
-                description: L.paywall.featureAIDesc
-            ),
-            PaywallFeature(
-                icon: "bell.badge.fill",
-                color: Color.orange,
-                title: L.paywall.featureAlarmsTitle,
-                description: L.paywall.featureAlarmsDesc
-            ),
-            PaywallFeature(
-                icon: "square.grid.2x2.fill",
-                color: Color.purple,
-                title: L.paywall.featureWidgetsTitle,
-                description: L.paywall.featureWidgetsDesc
-            ),
-            PaywallFeature(
-                icon: "icloud.fill",
-                color: Color.blue,
-                title: L.paywall.featureSyncTitle,
-                description: L.paywall.featureSyncDesc
-            ),
+            PaywallFeature(icon: "waveform",        color: DesignSystem.Colors.primary,          title: L.paywall.featureVoiceTitle,   description: L.paywall.featureVoiceDesc),
+            PaywallFeature(icon: "sparkles",        color: DesignSystem.Colors.primary,          title: L.paywall.featureAITitle,      description: L.paywall.featureAIDesc),
+            PaywallFeature(icon: "alarm",           color: DesignSystem.Colors.tertiary,         title: L.paywall.featureAlarmsTitle,  description: L.paywall.featureAlarmsDesc),
+            PaywallFeature(icon: "apps.iphone",     color: DesignSystem.Colors.tertiary,         title: L.paywall.featureWidgetsTitle, description: L.paywall.featureWidgetsDesc),
+            PaywallFeature(icon: "arrow.clockwise", color: DesignSystem.Colors.onSurfaceVariant, title: L.paywall.featureSyncTitle,    description: L.paywall.featureSyncDesc),
         ]
     }
 }
@@ -279,7 +246,6 @@ private struct PlanCard: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 14) {
-                // Selection indicator
                 ZStack {
                     Circle()
                         .strokeBorder(

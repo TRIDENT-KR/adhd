@@ -318,13 +318,13 @@ struct PaywallStrings {
     }
 
     var title: String { t("Wait, What? Pro", "Wait, What? Pro", "Wait, What? Pro") }
-    var subtitle: String { t("Unlock AI-powered task management\nfor your ADHD brain.", "AI 기반 태스크 관리로\nADHD를 극복하세요.", "AIによるタスク管理で\nADHDを克服しましょう。") }
+    var subtitle: String { t("Your AI thoughts companion,\nnow fully unlocked.", "당신의 AI 생각 도우미,\n이제 제한 없이.", "あなたのAI思考パートナー、\nフル解放。") }
     var choosePlan: String { t("CHOOSE YOUR PLAN", "플랜 선택", "プランを選択") }
     var planMonthly: String { t("Monthly", "월간", "月額") }
     var planYearly: String { t("Yearly", "연간", "年額") }
     var billedMonthly: String { t("Billed monthly", "매월 청구", "毎月請求") }
-    var billedYearly: String { t("Billed annually · Save 40%", "연 1회 청구 · 40% 절약", "年1回請求 · 40%節約") }
-    var bestValue: String { t("BEST VALUE", "최고 가성비", "おすすめ") }
+    var billedYearly: String { t("Billed annually · $3.00/mo", "연 1회 청구 · 월 $3.00", "年1回請求 · 月$3.00") }
+    var bestValue: String { t("SAVE 40%", "40% 절약", "40%お得") }
     var subscribe: String { t("Subscribe", "구독하기", "登録する") }
     var startSubscription: String { t("Start Pro", "Pro 시작하기", "Pro を開始") }
     var restore: String { t("Restore Purchases", "구매 복원", "購入を復元") }
@@ -335,16 +335,16 @@ struct PaywallStrings {
         "サブスクリプションは自動的に更新されます。設定からいつでも解約できます。"
     ) }
 
-    var featureVoiceTitle: String { t("Unlimited Voice Input", "무제한 음성 입력", "無制限音声入力") }
-    var featureVoiceDesc: String { t("Speak your thoughts, AI handles the rest.", "생각을 말하면 AI가 자동으로 정리해드려요.", "考えを話すと、AIが自動で整理します。") }
-    var featureAITitle: String { t("Smart AI Analysis", "스마트 AI 분석", "スマートAI分析") }
-    var featureAIDesc: String { t("Auto-categorize tasks into routines & plans.", "루틴과 일정을 자동으로 분류해드려요.", "ルーティンと予定を自動分類します。") }
-    var featureAlarmsTitle: String { t("Smart Alarms", "스마트 알람", "スマートアラーム") }
-    var featureAlarmsDesc: String { t("Full-screen alerts so you never miss a task.", "전화면 알람으로 절대 놓치지 않아요.", "全画面アラームで絶対に見逃しません。") }
-    var featureWidgetsTitle: String { t("Home & Lock Screen Widgets", "홈/잠금화면 위젯", "ホーム/ロック画面ウィジェット") }
-    var featureWidgetsDesc: String { t("Glance at tasks without opening the app.", "앱을 열지 않고도 일정을 확인하세요.", "アプリを開かずにタスクを確認。") }
-    var featureSyncTitle: String { t("Cloud Backup", "클라우드 백업", "クラウドバックアップ") }
-    var featureSyncDesc: String { t("Your data safely backed up and restored.", "데이터를 안전하게 백업하고 복원해드려요.", "データを安全にバックアップ・復元。") }
+    var featureVoiceTitle: String { t("Just say it", "그냥 말하면 돼요", "話しかけるだけ") }
+    var featureVoiceDesc: String { t("Speak it out loud. We'll remember it for you.", "입 밖에 내면 끝. 나머지는 제가 기억할게요.", "声に出すだけ。あとは私が覚えておきます。") }
+    var featureAITitle: String { t("AI that just gets it", "알아서 척척", "ちゃんとわかるAI") }
+    var featureAIDesc: String { t("Routine or appointment? AI figures it out so you don't have to.", "루틴인지 일정인지 AI가 알아서 구분해드려요.", "ルーティンか予定か、AIが自動で判断します。") }
+    var featureAlarmsTitle: String { t("Alerts you can't ignore", "못 지나칠 알림", "見逃せないアラーム") }
+    var featureAlarmsDesc: String { t("Full-screen alarms that actually get your attention.", "화면 가득 뜨는 알람으로 절대 놓치지 않아요.", "画面いっぱいのアラームで絶対に気づけます。") }
+    var featureWidgetsTitle: String { t("Always in sight", "항상 눈앞에", "いつも目の前に") }
+    var featureWidgetsDesc: String { t("Check your tasks right from your home screen.", "홈 화면에서 바로 오늘 할 일을 확인하세요.", "ホーム画面からすぐに今日のタスクを確認。") }
+    var featureSyncTitle: String { t("Nothing gets lost", "아무것도 잃지 않아요", "何も失わない") }
+    var featureSyncDesc: String { t("Your data is safely backed up, always.", "소중한 데이터는 언제나 안전하게 보관돼요.", "大切なデータはいつも安全に保管されます。") }
 
     var subscriptionSection: String { t("Subscription", "구독", "サブスクリプション") }
     var premiumActive: String { t("Pro · Active", "Pro · 활성", "Pro · 有効") }

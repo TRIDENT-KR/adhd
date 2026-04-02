@@ -1,4 +1,5 @@
 import StoreKit
+import Combine
 import SwiftUI
 
 // MARK: - Subscription Product IDs
@@ -34,7 +35,6 @@ class SubscriptionManager: ObservableObject {
         do {
             let ids = SubscriptionProductID.allCases.map(\.rawValue)
             let fetched = try await Product.products(for: ids)
-            // monthly → yearly 순서 유지
             products = fetched.sorted { lhs, rhs in
                 let order = SubscriptionProductID.allCases.map(\.rawValue)
                 let li = order.firstIndex(of: lhs.id) ?? 0
