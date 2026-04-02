@@ -219,12 +219,9 @@ struct TaskRow: View {
                         .stroke(DesignSystem.Colors.onSurfaceVariant.opacity(0.3), lineWidth: 1.5)
                         .frame(width: 32, height: 32)
                     if task.isCompleted {
-                        Circle()
-                            .fill(DesignSystem.Colors.tertiary)
-                            .frame(width: 32, height: 32)
                         Image(systemName: "checkmark")
-                            .font(.footnote.weight(.bold))
-                            .foregroundColor(.white)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.45))
                     }
                 }
             }
@@ -320,10 +317,9 @@ struct TaskRow: View {
 
                         Text(task.task)
                             .font(DesignSystem.Typography.bodyMd)
-                            .strikethrough(task.isCompleted, color: DesignSystem.Colors.onSurfaceVariant)
                             .foregroundColor(
                                 task.isCompleted
-                                    ? DesignSystem.Colors.onSurfaceVariant.opacity(0.5)
+                                    ? DesignSystem.Colors.onSurfaceVariant.opacity(0.38)
                                     : DesignSystem.Colors.onSurfaceVariant
                             )
                             .lineLimit(nil)

@@ -213,7 +213,7 @@ class TaskManager: ObservableObject {
         guard let context = modelContext else { return }
         do {
             let all = try context.fetch(FetchDescriptor<AppTask>())
-            for task in all where task.isCompleted {
+            for task in all where task.isCompleted && task.category != "Routine" {
                 context.delete(task)
             }
             safeSave()
