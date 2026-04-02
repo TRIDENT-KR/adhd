@@ -16,10 +16,50 @@ class SubscriptionManager: ObservableObject {
     @Published var purchaseError: String? = nil
     @Published var isLoading: Bool = false
     @Published var productsLoadFailed: Bool = false
+    @Published var dailyAIUsageCount: Int = 0
+
+    static let freeAILimit = 3
+    private static let aiUsageCountKey = "dailyAIUsageCount"
+    private static let aiUsageDateKey = "dailyAIUsageDate"
 
     private var transactionListenerTask: Task<Void, Never>?
 
+    var canUseAI: Bool {
+        isPremium || dailyAIUsageCount < Self.freeAILimit
+    }
+
+    var remainingAIUsage: Int {
+        max(0, Self.freeAILimit - dailyAIUsageCount)
+    }
+
+    func incrementAIUsage() {
+        resetDailyCountIfNeeded()
+        dailyAIUsageCount += 1
+        UserDefaults.standard.set(dailyAIUsageCount, forKey: Self.aiUsageCountKey)
+    }
+
+    private func resetDailyCountIfNeeded() {
+        let today = Calendar.current.startOfDay(for: Date())
+        let storedDate = UserDefaults.standard.object(forKey: Self.aiUsageDateKey) as? Date ?? .distantPast
+        if Calendar.current.startOfDay(for: storedDate) < today {
+            dailyAIUsageCount = 0
+            UserDefaults.standard.set(0, forKey: Self.aiUsageCountKey)
+            UserDefaults.standard.set(today, forKey: Self.aiUsageDateKey)
+        }
+    }
+
     init() {
+        // 일일 사용량 복원
+        let today = Calendar.current.startOfDay(for: Date())
+        let storedDate = UserDefaults.standard.object(forKey: Self.aiUsageDateKey) as? Date ?? .distantPast
+        if Calendar.current.startOfDay(for: storedDate) < today {
+            dailyAIUsageCount = 0
+            UserDefaults.standard.set(0, forKey: Self.aiUsageCountKey)
+            UserDefaults.standard.set(today, forKey: Self.aiUsageDateKey)
+        } else {
+            dailyAIUsageCount = UserDefaults.standard.integer(forKey: Self.aiUsageCountKey)
+        }
+
         transactionListenerTask = listenForTransactions()
         Task {
             await loadProducts()
