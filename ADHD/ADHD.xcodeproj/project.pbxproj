@@ -17,8 +17,12 @@
 		AA000007000000000000001A /* SearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000008000000000000001A /* SearchView.swift */; };
 		BB00000100000000000000A1 /* WidgetTaskSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB00000200000000000000A1 /* WidgetTaskSnapshot.swift */; };
 		BB00000300000000000000A1 /* WidgetDataStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB00000400000000000000A1 /* WidgetDataStore.swift */; };
+		CC000001000000000000AA01 /* AlarmManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000002000000000000AA01 /* AlarmManager.swift */; };
+		CC000003000000000000AA01 /* AlarmOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000004000000000000AA01 /* AlarmOverlayView.swift */; };
+		CC000005000000000000AA01 /* SmoothTaskReorderList.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000006000000000000AA01 /* SmoothTaskReorderList.swift */; };
 		F3D9E4B02F74D07100DA9A5A /* AuthManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3D9E4A22F74CF5C00DA9A5A /* AuthManager.swift */; };
 		F3D9E4B12F74D07100DA9A5A /* CloudLLMManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3D9E4A32F74CF5C00DA9A5A /* CloudLLMManager.swift */; };
+		F3D9E4B22F74D07100DA9A5A /* Config.plist in Resources */ = {isa = PBXBuildFile; fileRef = F3D9E4A42F74CF5C00DA9A5A /* Config.plist */; };
 		F3D9E4B32F74D07100DA9A5A /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3D9E4A52F74CF5C00DA9A5A /* ContentView.swift */; };
 		F3D9E4B42F74D07100DA9A5A /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3D9E4A62F74CF5C00DA9A5A /* LoginView.swift */; };
 		F3D9E4B52F74D07100DA9A5A /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3D9E4A72F74CF5C00DA9A5A /* MainTabView.swift */; };
@@ -79,7 +83,6 @@
 		};
 /* End PBXCopyFilesBuildPhase section */
 
-		F3D9E4B22F74D07100DA9A5A /* Config.plist in Resources */ = {isa = PBXBuildFile; fileRef = F3D9E4A42F74CF5C00DA9A5A /* Config.plist */; };
 /* Begin PBXFileReference section */
 		99526AD82F7A3EB2000CD3EE /* ADHDWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ADHDWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		99526AD92F7A3EB2000CD3EE /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
@@ -92,6 +95,9 @@
 		BB00000200000000000000A1 /* WidgetTaskSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetTaskSnapshot.swift; sourceTree = "<group>"; };
 		BB00000400000000000000A1 /* WidgetDataStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetDataStore.swift; sourceTree = "<group>"; };
 		BF1CC5EA265049FBB8EE3A58 /* Localization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Localization.swift; sourceTree = "<group>"; };
+		CC000002000000000000AA01 /* AlarmManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlarmManager.swift; sourceTree = "<group>"; };
+		CC000004000000000000AA01 /* AlarmOverlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlarmOverlayView.swift; sourceTree = "<group>"; };
+		CC000006000000000000AA01 /* SmoothTaskReorderList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmoothTaskReorderList.swift; sourceTree = "<group>"; };
 		F3D9E4782F74CF5200DA9A5A /* ADHD.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ADHD.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		F3D9E4852F74CF5200DA9A5A /* ADHDTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ADHDTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		F3D9E48F2F74CF5200DA9A5A /* ADHDUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ADHDUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -378,6 +384,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				F3D9E4AF2F74CFAD00DA9A5A /* XCRemoteSwiftPackageReference "supabase-swift" */,
+				F3A1C1692F7E590800FC011B /* XCRemoteSwiftPackageReference "purchases-ios-spm" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = F3D9E4792F74CF5200DA9A5A /* Products */;
@@ -898,6 +905,14 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		F3A1C1692F7E590800FC011B /* XCRemoteSwiftPackageReference "purchases-ios-spm" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/RevenueCat/purchases-ios-spm.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 5.67.0;
+			};
+		};
 		F3D9E4AF2F74CFAD00DA9A5A /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/supabase/supabase-swift.git";
