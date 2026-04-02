@@ -31,6 +31,7 @@ struct LoginView: View {
                 if authManager.isProcessing {
                     ProgressView()
                         .tint(DesignSystem.Colors.primary)
+                        .accessibilityLabel("Signing in")
                 } else {
                     SignInWithAppleButton { request in
                         authManager.prepareAppleSignInRequest(request)
@@ -51,7 +52,7 @@ struct LoginView: View {
                     Text(L.login.tosSuffix)
                 }
                 .font(DesignSystem.Typography.labelSm)
-                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
+                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.7))
                 .padding(.bottom, 24)
             }
         }

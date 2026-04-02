@@ -41,7 +41,7 @@ struct SearchView: View {
                 // Search bar
                 HStack(spacing: 12) {
                     Image(systemName: "magnifyingglass")
-                        .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.4))
+                        .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
 
                     TextField(L.search.placeholder, text: $searchText)
                         .focused($isSearchFocused)
@@ -52,8 +52,11 @@ struct SearchView: View {
                     if !searchText.isEmpty {
                         Button(action: { searchText = "" }) {
                             Image(systemName: "xmark.circle.fill")
-                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.3))
+                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.5))
+                                .frame(minWidth: 44, minHeight: 44)
+                                .contentShape(Rectangle())
                         }
+                        .accessibilityLabel("Clear search")
                     }
                 }
                 .padding(.horizontal, 16)
@@ -70,9 +73,10 @@ struct SearchView: View {
                         Image(systemName: "magnifyingglass")
                             .font(.system(size: 40))
                             .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.15))
+                            .accessibilityHidden(true)
                         Text(L.search.hint)
                             .font(DesignSystem.Typography.bodyMd)
-                            .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.4))
+                            .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
                     }
                     Spacer()
                 } else if filteredTasks.isEmpty {
@@ -82,9 +86,10 @@ struct SearchView: View {
                         Image(systemName: "doc.text.magnifyingglass")
                             .font(.system(size: 40))
                             .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.15))
+                            .accessibilityHidden(true)
                         Text(L.search.noResults)
                             .font(DesignSystem.Typography.bodyMd)
-                            .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.4))
+                            .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
                     }
                     Spacer()
                 } else {
@@ -137,8 +142,8 @@ struct SearchView: View {
 
     private func sectionHeader(_ title: String) -> some View {
         Text(title)
-            .font(.system(size: 13, weight: .semibold))
-            .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.5))
+            .font(.caption.weight(.semibold))
+            .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.7))
             .textCase(.uppercase)
             .tracking(0.5)
             .padding(.horizontal, 24)
@@ -157,14 +162,14 @@ struct SearchResultRow: View {
             // Completion indicator
             ZStack {
                 Circle()
-                    .stroke(DesignSystem.Colors.onSurfaceVariant.opacity(0.2), lineWidth: 1.5)
+                    .stroke(DesignSystem.Colors.onSurfaceVariant.opacity(0.4), lineWidth: 1.5)
                     .frame(width: 24, height: 24)
                 if task.isCompleted {
                     Circle()
                         .fill(DesignSystem.Colors.tertiary)
                         .frame(width: 24, height: 24)
                     Image(systemName: "checkmark")
-                        .font(.system(size: 11, weight: .bold))
+                        .font(.caption2.weight(.bold))
                         .foregroundColor(.white)
                 }
             }
@@ -188,23 +193,27 @@ struct SearchResultRow: View {
                     if task.isRecurring, let label = task.recurrenceLabel {
                         HStack(spacing: 2) {
                             Image(systemName: "repeat")
-                                .font(.system(size: 9))
+                                .font(.caption2)
                             Text(label)
-                                .font(.system(size: 11))
+                                .font(.caption2)
                         }
                     }
                 }
-                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.4))
+                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
             }
 
             Spacer()
 
             Image(systemName: "chevron.right")
-                .font(.system(size: 12))
-                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.2))
+                .font(.caption)
+                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.4))
+                .accessibilityHidden(true)
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 12)
         .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(task.task)\(task.isCompleted ? ", completed" : "")\(task.time.map { ", \($0)" } ?? "")")
+        .accessibilityHint("Double tap to navigate to this task")
     }
 }

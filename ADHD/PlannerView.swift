@@ -11,7 +11,7 @@ struct PlannerView: View {
 
     @EnvironmentObject private var taskManager: TaskManager
     @ObservedObject var langManager = LocalizationManager.shared
-
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @Binding var activeTab: TabSelection
     @State private var editingTaskId: UUID?
@@ -63,36 +63,43 @@ struct PlannerView: View {
                         Spacer()
 
                         Button(action: {
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            let anim: Animation? = reduceMotion ? .none : .spring(response: 0.3, dampingFraction: 0.8)
+                            withAnimation(anim) {
                                 isReordering.toggle()
                                 if isReordering { editingTaskId = nil }
                             }
                         }) {
                             Image(systemName: isReordering ? "checkmark.circle.fill" : "arrow.up.arrow.down")
-                                .font(.system(size: 18, weight: .light))
-                                .foregroundColor(isReordering ? DesignSystem.Colors.tertiary : DesignSystem.Colors.onSurfaceVariant.opacity(0.4))
+                                .font(.body.weight(.light))
+                                .foregroundColor(isReordering ? DesignSystem.Colors.tertiary : DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
                                 .padding(8)
                                 .contentShape(Circle())
                         }
                         .buttonStyle(NoEffectButtonStyle())
+                        .accessibilityLabel(isReordering ? "Finish reordering" : "Reorder tasks")
+                        .frame(minWidth: 44, minHeight: 44)
 
                         Button(action: { showSearch = true }) {
                             Image(systemName: "magnifyingglass")
-                                .font(.system(size: 20, weight: .light))
-                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.4))
+                                .font(.title3.weight(.light))
+                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
                                 .padding(8)
                                 .contentShape(Circle())
                         }
                         .buttonStyle(NoEffectButtonStyle())
+                        .accessibilityLabel("Search tasks")
+                        .frame(minWidth: 44, minHeight: 44)
 
                         Button(action: { isCalendarPresented.toggle() }) {
                             Image(systemName: "calendar")
-                                .font(.system(size: 24, weight: .light))
-                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.4))
+                                .font(.title2.weight(.light))
+                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
                                 .padding(12)
                                 .contentShape(Circle())
                         }
                         .buttonStyle(NoEffectButtonStyle())
+                        .accessibilityLabel("Open calendar")
+                        .accessibilityHint("Double tap to pick a date")
                     }
                     .padding(.top, 16)
                     .padding(.leading, 32)
@@ -107,15 +114,18 @@ struct PlannerView: View {
                             VStack(spacing: 20) {
                                 Image(systemName: "mic.fill")
                                     .font(.system(size: 48))
-                                    .foregroundColor(DesignSystem.Colors.primary.opacity(0.3))
+                                    .foregroundColor(DesignSystem.Colors.primary.opacity(0.5))
+                                    .accessibilityHidden(true)
                                 Text(L.plannerEmpty)
                                     .font(DesignSystem.Typography.bodyMd)
-                                    .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
+                                    .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.7))
                             }
                             .frame(width: geo.size.width, height: geo.size.height)
                             .onTapGesture {
-                                withAnimation(.spring()) { activeTab = .voice }
+                                if reduceMotion { activeTab = .voice } else { withAnimation(.spring()) { activeTab = .voice } }
                             }
+                            .accessibilityLabel("No appointments. Tap to add with voice")
+                            .accessibilityAddTraits(.isButton)
                         }
                         .frame(minHeight: ((UIApplication.shared.connectedScenes.first as? UIWindowScene)?.screen.bounds.height ?? 800) * 0.4)
                     } else if isReordering {
@@ -223,11 +233,12 @@ struct PlannerView: View {
             }) {
                 VStack(spacing: 4) {
                     Text(weekdayFormatter.string(from: today))
-                        .font(.system(size: 13, weight: .bold))
+                        .font(.caption.weight(.bold))
                         .foregroundColor(isTodaySelected ? .white : DesignSystem.Colors.primary)
                     Text(dayFormatter.string(from: today))
-                        .font(.system(size: 24, weight: .bold))
+                        .font(.title2.weight(.bold))
                         .foregroundColor(isTodaySelected ? .white : DesignSystem.Colors.primary)
+                        .minimumScaleFactor(0.8)
                 }
                 .frame(width: 56, height: 68)
                 .overlay(alignment: .bottom) {
@@ -265,11 +276,12 @@ struct PlannerView: View {
                             }) {
                                 VStack(spacing: 4) {
                                     Text(weekdayFormatter.string(from: date))
-                                        .font(.system(size: 11, weight: .medium))
-                                        .foregroundColor(isSelected ? .white : DesignSystem.Colors.onSurfaceVariant.opacity(0.5))
+                                        .font(.caption2.weight(.medium))
+                                        .foregroundColor(isSelected ? .white : DesignSystem.Colors.onSurfaceVariant.opacity(0.7))
                                     Text(dayFormatter.string(from: date))
-                                        .font(.system(size: 22, weight: isSelected ? .bold : .semibold))
+                                        .font(.title3.weight(isSelected ? .bold : .semibold))
                                         .foregroundColor(isSelected ? .white : DesignSystem.Colors.onSurfaceVariant)
+                                        .minimumScaleFactor(0.8)
                                 }
                                 .frame(width: 50, height: 64)
                                 .overlay(alignment: .bottom) {
@@ -351,18 +363,22 @@ struct EventCard: View {
                 }) {
                     ZStack {
                         Circle()
-                            .stroke(DesignSystem.Colors.onSurfaceVariant.opacity(0.3), lineWidth: 1.5)
+                            .stroke(DesignSystem.Colors.onSurfaceVariant.opacity(0.4), lineWidth: 1.5)
                             .frame(width: 28, height: 28)
                         if task.isCompleted {
                             Circle()
                                 .fill(DesignSystem.Colors.tertiary)
                                 .frame(width: 28, height: 28)
                             Image(systemName: "checkmark")
-                                .font(.system(size: 12, weight: .bold))
+                                .font(.caption.weight(.bold))
                                 .foregroundColor(.white)
                         }
                     }
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
                 }
+                .accessibilityLabel(task.isCompleted ? "\(task.task), completed" : "\(task.task), not completed")
+                .accessibilityHint("Double tap to toggle completion")
             }
 
             if isEditing {
@@ -385,11 +401,11 @@ struct EventCard: View {
                 }) {
                     HStack(spacing: 3) {
                         Image(systemName: localUrgency == .strong ? "bolt.fill" : "bolt")
-                            .font(.system(size: 12, weight: .semibold))
+                            .font(.caption.weight(.semibold))
                         Text(localUrgency == .strong ? "Strong" : "Weak")
-                            .font(.system(size: 12, weight: .medium))
+                            .font(.caption.weight(.medium))
                     }
-                    .foregroundColor(localUrgency == .strong ? .orange : DesignSystem.Colors.onSurfaceVariant.opacity(0.5))
+                    .foregroundColor(localUrgency == .strong ? .orange : DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
                     .padding(.vertical, 4)
                     .padding(.horizontal, 8)
                     .background((localUrgency == .strong ? Color.orange : DesignSystem.Colors.onSurfaceVariant).opacity(0.12))
@@ -408,11 +424,12 @@ struct EventCard: View {
                     Text(task.time ?? "시간 미정")
                         .font(DesignSystem.Typography.labelSm)
                         .tracking(0.3)
-                        .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(task.isCompleted ? 0.3 : 0.6))
+                        .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(task.isCompleted ? 0.5 : 0.7))
                     if task.isRecurring {
                         Image(systemName: "repeat")
-                            .font(.system(size: 10))
-                            .foregroundColor(DesignSystem.Colors.primary.opacity(0.5))
+                            .font(.caption2)
+                            .foregroundColor(DesignSystem.Colors.primary.opacity(0.6))
+                            .accessibilityLabel("Recurring")
                     }
                 }
                 .frame(width: task.isRecurring ? 80 : 64, alignment: .leading)
@@ -422,12 +439,14 @@ struct EventCard: View {
                         .font(DesignSystem.Typography.bodyMd)
                         .strikethrough(task.isCompleted, color: DesignSystem.Colors.onSurfaceVariant)
                         .foregroundColor(task.isCompleted
-                            ? DesignSystem.Colors.onSurfaceVariant.opacity(0.4)
+                            ? DesignSystem.Colors.onSurfaceVariant.opacity(0.5)
                             : DesignSystem.Colors.onSurfaceVariant)
+                        .lineLimit(nil)
+                        .fixedSize(horizontal: false, vertical: true)
                     if let label = task.recurrenceLabel {
                         Text(label)
-                            .font(.system(size: 11))
-                            .foregroundColor(DesignSystem.Colors.primary.opacity(0.5))
+                            .font(.caption2)
+                            .foregroundColor(DesignSystem.Colors.primary.opacity(0.6))
                     }
                 }
             }
@@ -437,8 +456,9 @@ struct EventCard: View {
             HStack(spacing: 14) {
                 if !isEditing && task.urgency == .strong {
                     Image(systemName: "bolt.fill")
-                        .font(.system(size: 12))
-                        .foregroundColor(.orange.opacity(0.7))
+                        .font(.caption)
+                        .foregroundColor(.orange.opacity(0.8))
+                        .accessibilityLabel("High urgency")
                 }
                 if isEditing {
                     Button(action: {
@@ -449,18 +469,25 @@ struct EventCard: View {
                         Haptic.impact(.medium)
                     }) {
                         Image(systemName: "trash")
-                            .font(.system(size: 14))
-                            .foregroundColor(.red.opacity(0.6))
+                            .font(.footnote)
+                            .foregroundColor(.red.opacity(0.7))
+                            .frame(minWidth: 44, minHeight: 44)
+                            .contentShape(Rectangle())
                     }
+                    .accessibilityLabel("Delete task")
+                    .accessibilityHint("Double tap to delete \(task.task)")
                 }
 
                 Button(action: {
                     if isEditing { finishEditing() } else { withAnimation { startEditing() } }
                 }) {
                     Image(systemName: isEditing ? "checkmark" : "pencil")
-                        .font(.system(size: 16))
+                        .font(.body)
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
                 }
-                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.3))
+                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.5))
+                .accessibilityLabel(isEditing ? "Save changes" : "Edit task")
             }
         }
         .padding(24)

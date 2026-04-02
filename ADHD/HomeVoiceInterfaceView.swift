@@ -9,6 +9,7 @@ struct HomeVoiceInterfaceView: View {
     
     @ObservedObject var langManager = LocalizationManager.shared
     @StateObject private var voiceManager = VoiceInputManager()
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isBreathing = false
     @State private var showSuccessCheck = false
     @State private var showSettings = false
@@ -43,7 +44,8 @@ struct HomeVoiceInterfaceView: View {
                 HStack {
                     // 텍스트 입력 토글
                     Button(action: {
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                        let anim: Animation? = reduceMotion ? .none : .spring(response: 0.3, dampingFraction: 0.8)
+                        withAnimation(anim) {
                             showTextInput.toggle()
                             if showTextInput {
                                 isTextInputFocused = true
@@ -51,18 +53,24 @@ struct HomeVoiceInterfaceView: View {
                         }
                     }) {
                         Image(systemName: showTextInput ? "mic.fill" : "keyboard")
-                            .font(.system(size: 20, weight: .medium))
+                            .font(.title3.weight(.medium))
                             .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
+                            .frame(minWidth: 44, minHeight: 44)
+                            .contentShape(Rectangle())
                     }
+                    .accessibilityLabel(showTextInput ? "Switch to voice input" : "Switch to text input")
 
                     Spacer()
 
                     Button(action: { showSettings = true }) {
                         Image(systemName: "gearshape")
-                            .font(.system(size: 20, weight: .medium))
+                            .font(.title3.weight(.medium))
                             .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
+                            .frame(minWidth: 44, minHeight: 44)
+                            .contentShape(Rectangle())
                     }
                     .accessibilityLabel(L.settings.title)
+                    .accessibilityHint("Double tap to open settings")
                 }
                 .padding(.horizontal, 24)
                 .padding(.top, 16)
@@ -75,10 +83,11 @@ struct HomeVoiceInterfaceView: View {
                         Image(systemName: "keyboard")
                             .font(.system(size: 40))
                             .foregroundColor(DesignSystem.Colors.primary.opacity(0.4))
+                            .accessibilityHidden(true)
 
                         HStack(spacing: 12) {
                             TextField(L.voice.textInputPlaceholder, text: $textInputValue)
-                                .font(.system(size: 16, weight: .medium))
+                                .font(.body.weight(.medium))
                                 .padding(.horizontal, 16)
                                 .padding(.vertical, 14)
                                 .background(
@@ -92,12 +101,16 @@ struct HomeVoiceInterfaceView: View {
 
                             Button(action: { sendTextInput() }) {
                                 Image(systemName: "arrow.up.circle.fill")
-                                    .font(.system(size: 36))
+                                    .font(.title.weight(.medium))
                                     .foregroundColor(textInputValue.trimmingCharacters(in: .whitespaces).isEmpty
-                                        ? DesignSystem.Colors.onSurfaceVariant.opacity(0.2)
+                                        ? DesignSystem.Colors.onSurfaceVariant.opacity(0.4)
                                         : DesignSystem.Colors.primary)
+                                    .frame(minWidth: 44, minHeight: 44)
+                                    .contentShape(Rectangle())
                             }
                             .disabled(textInputValue.trimmingCharacters(in: .whitespaces).isEmpty || cloudLLM.isProcessing)
+                            .accessibilityLabel("Send text input")
+                            .accessibilityHint("Double tap to analyze the entered text")
                         }
                         .padding(.horizontal, 24)
 
@@ -127,15 +140,16 @@ struct HomeVoiceInterfaceView: View {
                             : (isBreathing ? 0.4 : 0.15)
 
                         Circle()
-                            .fill(DesignSystem.Colors.primaryFixedDim.opacity(pulseOpacity))
+                            .fill(DesignSystem.Colors.primaryFixedDim.opacity(reduceMotion ? 0.3 : pulseOpacity))
                             .frame(width: 180, height: 180)
-                            .scaleEffect(pulseScale)
+                            .scaleEffect(reduceMotion ? 1.0 : pulseScale)
                             .animation(
-                                voiceManager.isListening
+                                reduceMotion ? .none : (voiceManager.isListening
                                     ? .easeOut(duration: 0.1)
-                                    : .easeInOut(duration: 2.0).repeatForever(autoreverses: true),
+                                    : .easeInOut(duration: 2.0).repeatForever(autoreverses: true)),
                                 value: pulseScale
                             )
+                            .accessibilityHidden(true)
 
                         // ── 녹음 진행률 원형 프로그레스 ──
                         if voiceManager.isListening {
@@ -147,7 +161,8 @@ struct HomeVoiceInterfaceView: View {
                                 )
                                 .frame(width: 140, height: 140)
                                 .rotationEffect(.degrees(-90))
-                                .animation(.linear(duration: 0.5), value: voiceManager.recordingDuration)
+                                .animation(reduceMotion ? .none : .linear(duration: 0.5), value: voiceManager.recordingDuration)
+                                .accessibilityHidden(true)
                         }
 
                         // Mic button with Hold-to-Talk or Tap gesture
@@ -166,13 +181,13 @@ struct HomeVoiceInterfaceView: View {
                     if voiceManager.isListening {
                         VStack(spacing: 6) {
                             Text(formatDuration(voiceManager.recordingDuration))
-                                .font(.system(size: 16, weight: .medium, design: .monospaced))
-                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
+                                .font(.callout.weight(.medium).monospaced())
+                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.7))
 
                             // 침묵 카운트다운 표시
                             if voiceManager.silenceCountdown > 0 {
                                 Text("\(L.voice.silenceCountdown) \(voiceManager.silenceCountdown)...")
-                                    .font(.system(size: 13, weight: .semibold))
+                                    .font(.caption.weight(.semibold))
                                     .foregroundColor(DesignSystem.Colors.primary)
                                     .transition(.scale.combined(with: .opacity))
                             }
@@ -189,7 +204,8 @@ struct HomeVoiceInterfaceView: View {
                             Image(systemName: "checkmark.circle.fill")
                                 .font(.system(size: 48))
                                 .foregroundColor(DesignSystem.Colors.tertiary)
-                                .transition(.scale.combined(with: .opacity))
+                                .transition(reduceMotion ? .opacity : .scale.combined(with: .opacity))
+                                .accessibilityLabel("Task saved successfully")
                         } else if cloudLLM.isProcessing || voiceManager.isProcessing {
                             Text(L.voiceAnalyzing)
                                 .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
@@ -263,25 +279,29 @@ struct HomeVoiceInterfaceView: View {
 
                     HStack(spacing: 12) {
                         Image(systemName: "exclamationmark.circle.fill")
-                            .font(.system(size: 18))
+                            .font(.body)
                             .foregroundColor(.white.opacity(0.9))
 
                         Text(errorToastMessage)
-                            .font(.system(size: 14, weight: .medium))
+                            .font(.footnote.weight(.medium))
                             .foregroundColor(.white)
 
                         Spacer()
 
                         Button(action: {
-                            withAnimation(.easeOut(duration: 0.2)) {
+                            withAnimation(reduceMotion ? .none : .easeOut(duration: 0.2)) {
                                 showErrorToast = false
                             }
                             handleMicTap()
                         }) {
                             Text(L.voice.tryAgain)
-                                .font(.system(size: 13, weight: .semibold))
+                                .font(.caption.weight(.semibold))
                                 .foregroundColor(DesignSystem.Colors.primaryFixedDim)
+                                .frame(minWidth: 44, minHeight: 44)
+                                .contentShape(Rectangle())
                         }
+                        .accessibilityLabel("Try again")
+                        .accessibilityHint("Double tap to retry voice input")
                     }
                     .padding(.horizontal, 16)
                     .padding(.vertical, 14)
@@ -626,17 +646,21 @@ struct VoiceConfirmationSheet: View {
             HStack {
                 let titleText = editingTask == nil ? (isOffTopic ? "알림" : L.voice.confirmTitle) : L.voice.editTaskTitle
                 Text(titleText)
-                    .font(.system(size: 20, weight: .bold))
+                    .font(.title3.weight(.bold))
                     .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
                 
                 Spacer()
                 
                 Button(action: onCancel) {
                     Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 24))
-                        .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.3))
+                        .font(.title3)
+                        .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.5))
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(PlainButtonStyle())
+                .accessibilityLabel("Close")
+                .accessibilityHint("Double tap to cancel")
             }
             .padding(.horizontal, 20)
             .padding(.top, 24)
@@ -657,8 +681,8 @@ struct VoiceConfirmationSheet: View {
                             // Task Name Bubble
                             VStack(alignment: .leading, spacing: 6) {
                                 Text(L.voice.fieldName)
-                                    .font(.system(size: 13, weight: .semibold))
-                                    .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.7))
                                 
                                 TextField(L.voice.fieldName, text: $editName)
                                     .padding(14)
@@ -669,8 +693,8 @@ struct VoiceConfirmationSheet: View {
                             // Time Bubble (Minimalist Picker)
                             HStack {
                                 Text(L.voice.fieldTime)
-                                    .font(.system(size: 13, weight: .semibold))
-                                    .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.7))
                                 Spacer()
                                 DatePicker("", selection: $editDateTime, displayedComponents: editCategory == "Appointment" ? [.date, .hourAndMinute] : [.hourAndMinute])
                                     .labelsHidden()
@@ -688,7 +712,7 @@ struct VoiceConfirmationSheet: View {
                             Button(L.voice.cancel) {
                                 withAnimation(.spring()) { editingTask = nil }
                             }
-                            .font(.system(size: 15, weight: .bold))
+                            .font(.subheadline.weight(.bold))
                             .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 14)
@@ -755,7 +779,7 @@ struct VoiceConfirmationSheet: View {
                                         let useCalendar = isPlanner && task.urgency == .strong
                                         Label(isPlanner ? L.voice.confirmAppointment : L.voice.confirmRoutine,
                                               systemImage: useCalendar ? "calendar" : (isPlanner ? "clock" : "repeat"))
-                                            .font(.system(size: 12, weight: .bold))
+                                            .font(.caption.weight(.bold))
                                             .foregroundColor(isPlanner ? DesignSystem.Colors.tertiary : DesignSystem.Colors.primary)
                                             .padding(.horizontal, 10)
                                             .padding(.vertical, 6)
@@ -766,7 +790,7 @@ struct VoiceConfirmationSheet: View {
                                         
                                         if task.uiAction != "add" {
                                             Text(task.uiActionLabel)
-                                                .font(.system(size: 11, weight: .black))
+                                                .font(.caption2.weight(.black))
                                                 .padding(.horizontal, 8)
                                                 .padding(.vertical, 4)
                                                 .background(task.uiAction == "delete" ? Color.red.opacity(0.15) : Color.blue.opacity(0.15))
@@ -778,16 +802,17 @@ struct VoiceConfirmationSheet: View {
 
                                 // Large Task Title
                                 Text(task.uiTaskName)
-                                    .font(.system(size: 19, weight: .bold))
+                                    .font(.body.weight(.bold))
                                     .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
                                 
                                 let smartDateTimeStr = task.uiSmartDateTime
                                 if !smartDateTimeStr.isEmpty {
                                     HStack(spacing: 6) {
                                         Image(systemName: "clock.fill")
-                                            .font(.system(size: 12))
+                                            .font(.caption)
+                                            .accessibilityHidden(true)
                                         Text(smartDateTimeStr)
-                                            .font(.system(size: 14, weight: .semibold))
+                                            .font(.footnote.weight(.semibold))
                                         
                                         Spacer()
                                         
@@ -801,9 +826,9 @@ struct VoiceConfirmationSheet: View {
                                             } label: {
                                                 HStack(spacing: 4) {
                                                     Image(systemName: isStrong ? "bolt.fill" : "bolt")
-                                                        .font(.system(size: 10, weight: .bold))
+                                                        .font(.caption2.weight(.bold))
                                                     Text(isStrong ? L.voice.urgencyStrong : L.voice.urgencyWeak)
-                                                        .font(.system(size: 11, weight: .bold))
+                                                        .font(.caption2.weight(.bold))
                                                 }
                                                 .padding(.horizontal, 10)
                                                 .padding(.vertical, 6)
@@ -940,9 +965,10 @@ struct VoiceGuideSheet: View {
                 Image(systemName: "mic.circle.fill")
                     .font(.system(size: 48))
                     .foregroundColor(DesignSystem.Colors.primary)
+                    .accessibilityHidden(true)
 
                 Text(L.voice.guideTitle)
-                    .font(.system(size: 22, weight: .semibold))
+                    .font(.title2.weight(.semibold))
                     .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
             }
             .padding(.top, 24)
@@ -951,12 +977,12 @@ struct VoiceGuideSheet: View {
                 ForEach(Array(examples.enumerated()), id: \.offset) { _, example in
                     HStack(spacing: 16) {
                         Image(systemName: example.icon)
-                            .font(.system(size: 24))
+                            .font(.title3)
                             .foregroundColor(example.color)
                             .frame(width: 36)
 
                         Text(example.text)
-                            .font(.system(size: 17, weight: .medium))
+                            .font(.body.weight(.medium))
                             .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
 
                         Spacer()
