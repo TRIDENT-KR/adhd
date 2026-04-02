@@ -1,6 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
+const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
 
 // 유저당 분당 최대 호출 횟수 (Gemini 비용 증폭 방지)
 const RATE_LIMIT_MAX = 30;
@@ -12,7 +12,9 @@ const rateLimitMap = new Map<string, number[]>();
 function isRateLimited(userId: string): boolean {
   const now = Date.now();
   const windowStart = now - RATE_LIMIT_WINDOW_MS;
-  const timestamps = (rateLimitMap.get(userId) ?? []).filter(t => t > windowStart);
+  const timestamps = (rateLimitMap.get(userId) ?? []).filter((t) =>
+    t > windowStart
+  );
   if (timestamps.length >= RATE_LIMIT_MAX) return true;
   timestamps.push(now);
   rateLimitMap.set(userId, timestamps);
@@ -21,66 +23,91 @@ function isRateLimited(userId: string): boolean {
 
 Deno.serve(async (req: Request) => {
   // iOS 클라이언트 전용 — CORS를 Supabase 프로젝트 도메인으로 제한
-  const origin = req.headers.get('Origin') ?? '';
-  const supabaseProjectOrigin = Deno.env.get('SUPABASE_URL') ?? '';
+  const origin = req.headers.get("Origin") ?? "";
+  const supabaseProjectOrigin = Deno.env.get("SUPABASE_URL") ?? "";
   // iOS 클라이언트는 Origin 헤더를 보내지 않음 → Dashboard/웹 테스트 요청만 CORS 검증
-  const corsOrigin = (origin === supabaseProjectOrigin || origin === 'https://supabase.com')
-    ? origin
-    : 'https://supabase.com';
+  const corsOrigin =
+    (origin === supabaseProjectOrigin || origin === "https://supabase.com")
+      ? origin
+      : "https://supabase.com";
 
   const headers = {
-    'Access-Control-Allow-Origin': corsOrigin,
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-    'Content-Type': 'application/json'
+    "Access-Control-Allow-Origin": corsOrigin,
+    "Access-Control-Allow-Headers":
+      "authorization, x-client-info, apikey, content-type",
+    "Content-Type": "application/json",
   };
 
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers });
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers });
   }
 
   try {
     // JWT 인증 검증
-    const authHeader = req.headers.get('Authorization');
+    const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'Missing authorization header' }), { headers, status: 401 });
+      return new Response(
+        JSON.stringify({ error: "Missing authorization header" }),
+        { headers, status: 401 },
+      );
     }
 
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader } },
     });
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), { headers, status: 401 });
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        headers,
+        status: 401,
+      });
     }
 
     // Rate limiting: 유저당 분당 30회 초과 시 429 반환
     if (isRateLimited(user.id)) {
-      return new Response(JSON.stringify({ error: 'Rate limit exceeded. Please wait before retrying.' }), { headers, status: 429 });
+      return new Response(
+        JSON.stringify({
+          error: "Rate limit exceeded. Please wait before retrying.",
+        }),
+        { headers, status: 429 },
+      );
     }
 
     const { text, currentTime, language } = await req.json();
     if (!text) throw new Error("음성 텍스트가 없습니다.");
-    // 입력 길이 제한 — 음성 인식 결과는 최대 2000자를 초과하지 않음
+    // 입력 길이 제한 — 음성 인식 결과는 최대 1000자를 초과하지 않음
     // 초과 시 Gemini API 토큰 비용 증폭 방지
-    if (text.length > 2000) {
-      return new Response(JSON.stringify({ error: 'Input too long. Maximum 2000 characters allowed.' }), { headers, status: 400 });
+    if (text.length > 1000) {
+      return new Response(
+        JSON.stringify({
+          error: "Input too long. Maximum 2000 characters allowed.",
+        }),
+        { headers, status: 400 },
+      );
     }
 
     // 전달받은 currentTime이 없으면 서버 현재시간 사용
     // 프롬프트 인젝션 방지: 엄격한 datetime 형식(yyyy-MM-dd HH:mm)만 허용
     const timeRegex = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/;
-    const localTimeStr = (typeof currentTime === "string" && timeRegex.test(currentTime))
-      ? currentTime
-      : new Date().toLocaleString("ko-KR", { timeZone: "Asia/Seoul", hour12: false });
+    const localTimeStr =
+      (typeof currentTime === "string" && timeRegex.test(currentTime))
+        ? currentTime
+        : new Date().toLocaleString("ko-KR", {
+          timeZone: "Asia/Seoul",
+          hour12: false,
+        });
 
     // 사용자 언어 설정 — 허용된 값만 사용 (프롬프트 인젝션 방지)
     const ALLOWED_LANGUAGES = new Set(["en", "ko", "ja"]);
-    const userLanguage: string = ALLOWED_LANGUAGES.has(language) ? language : "en";
+    const userLanguage: string = ALLOWED_LANGUAGES.has(language)
+      ? language
+      : "en";
 
     // ADHD 타겟 유저를 위한 시스템 프롬프트
-    const finalPrompt = `You are an AI Command Router specialized in analyzing rambling, ADHD-style voice transcripts and translating them into precise function calls.
+    const finalPrompt =
+      `You are an AI Command Router specialized in analyzing rambling, ADHD-style voice transcripts and translating them into precise function calls.
 Users may change their minds mid-sentence, repeat themselves, or give multiple disparate instructions. Your job is to extract their FINAL INTENT and map it to specific functions.
 
 Return a JSON array of objects. Each object represents a function call with exactly two keys: "function_name" and "parameters".
@@ -182,24 +209,26 @@ Output: [{"function_name": "handle_off_topic_chat", "parameters": {"message": "�
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
       {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           system_instruction: { parts: [{ text: finalPrompt }] },
-          contents: [{ role: 'user', parts: [{ text }] }],
+          contents: [{ role: "user", parts: [{ text }] }],
           generationConfig: {
-            response_mime_type: 'application/json',
-            temperature: 0.1
-          }
-        })
-      }
+            response_mime_type: "application/json",
+            temperature: 0.1,
+          },
+        }),
+      },
     );
 
     const data = await response.json();
 
     if (!response.ok) {
       console.error("🔥 Gemini API Error:", data);
-      throw new Error(`Gemini API Error: ${data.error?.message || response.status}`);
+      throw new Error(
+        `Gemini API Error: ${data.error?.message || response.status}`,
+      );
     }
 
     if (!data.candidates || data.candidates.length === 0) {
@@ -212,7 +241,8 @@ Output: [{"function_name": "handle_off_topic_chat", "parameters": {"message": "�
     console.log("🌐 사용자 언어:", userLanguage);
     console.log("🤖 Gemini Raw Response:", responseText);
 
-    const cleanedText = responseText.replace(/```json/g, "").replace(/```/g, "").trim();
+    const cleanedText = responseText.replace(/```json/g, "").replace(/```/g, "")
+      .trim();
     let parsedData = JSON.parse(cleanedText);
 
     // 1. 배열이 아닌 단일 객체인 경우 배열로 감싸기 (방어 코드)
@@ -223,42 +253,59 @@ Output: [{"function_name": "handle_off_topic_chat", "parameters": {"message": "�
     // 2. 각 항목 정규화
     parsedData = parsedData.map((item: any) => {
       if (!item.function_name) {
-        item.function_name = 'add_single_task';
+        item.function_name = "add_single_task";
       }
       if (!item.parameters) {
         item.parameters = {};
       }
 
       // handle_off_topic_chat 방어 로직
-      if (item.function_name === 'handle_off_topic_chat') {
-        if (!item.parameters.message || typeof item.parameters.message !== 'string') {
-          if (userLanguage === 'ko') {
-            item.parameters.message = "앱의 핵심 기능과 관련된 내용만 도움을 드릴 수 있어요! 😊 할 일을 말씀해 주세요.";
-          } else if (userLanguage === 'ja') {
-            item.parameters.message = "タスク管理に関することのみお手伝いできます！😊 何か追加しましょうか？";
+      if (item.function_name === "handle_off_topic_chat") {
+        if (
+          !item.parameters.message ||
+          typeof item.parameters.message !== "string"
+        ) {
+          if (userLanguage === "ko") {
+            item.parameters.message =
+              "앱의 핵심 기능과 관련된 내용만 도움을 드릴 수 있어요! 😊 할 일을 말씀해 주세요.";
+          } else if (userLanguage === "ja") {
+            item.parameters.message =
+              "タスク管理に関することのみお手伝いできます！😊 何か追加しましょうか？";
           } else {
-            item.parameters.message = "I can only help with tasks and routines! 😊 What shall we add to your list?";
+            item.parameters.message =
+              "I can only help with tasks and routines! 😊 What shall we add to your list?";
           }
         }
         return item;
       }
 
       // add_single_task 필수 파라미터 방어 로직
-      if (item.function_name === 'add_single_task') {
+      if (item.function_name === "add_single_task") {
         if (!item.parameters.task_name) {
-          item.parameters.task_name = text.length > 20 ? text.substring(0, 20) + "..." : (text || "할 일 확인 필요");
+          item.parameters.task_name = text.length > 20
+            ? text.substring(0, 20) + "..."
+            : (text || "할 일 확인 필요");
         }
 
-        if (item.parameters.category !== 'Routine' && item.parameters.category !== 'Appointment') {
-          item.parameters.category = 'Appointment';
+        if (
+          item.parameters.category !== "Routine" &&
+          item.parameters.category !== "Appointment"
+        ) {
+          item.parameters.category = "Appointment";
         }
 
-        if (item.parameters.date && !/^\d{4}-\d{2}-\d{2}$/.test(item.parameters.date)) {
+        if (
+          item.parameters.date &&
+          !/^\d{4}-\d{2}-\d{2}$/.test(item.parameters.date)
+        ) {
           item.parameters.date = null;
         }
 
-        const validRecurrence = ['weekly', 'biweekly', 'monthly', 'yearly'];
-        if (item.parameters.recurrence && !validRecurrence.includes(item.parameters.recurrence)) {
+        const validRecurrence = ["weekly", "biweekly", "monthly", "yearly"];
+        if (
+          item.parameters.recurrence &&
+          !validRecurrence.includes(item.parameters.recurrence)
+        ) {
           item.parameters.recurrence = null;
         }
       }
@@ -269,6 +316,9 @@ Output: [{"function_name": "handle_off_topic_chat", "parameters": {"message": "�
     // 3. 배열 전체 반환
     return new Response(JSON.stringify(parsedData), { headers, status: 200 });
   } catch (error: any) {
-    return new Response(JSON.stringify({ error: error.message }), { headers, status: 400 });
+    return new Response(JSON.stringify({ error: error.message }), {
+      headers,
+      status: 400,
+    });
   }
 });
