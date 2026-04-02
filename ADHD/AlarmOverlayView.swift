@@ -7,6 +7,7 @@ struct AlarmOverlayView: View {
     let alarm: AlarmEntry
 
     @StateObject private var alarmManager = AlarmManager.shared
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var scale: CGFloat = 0.85
     @State private var pulseOpacity: CGFloat = 0.0
     @State private var rippleScale: CGFloat = 1.0
@@ -18,25 +19,29 @@ struct AlarmOverlayView: View {
                 .ignoresSafeArea()
 
             // 리플 배경 애니메이션
-            Circle()
-                .fill(Color.red.opacity(0.15))
-                .frame(width: 300, height: 300)
-                .scaleEffect(rippleScale)
-                .opacity(pulseOpacity)
-                .animation(
-                    .easeOut(duration: 1.4).repeatForever(autoreverses: false),
-                    value: rippleScale
-                )
+            if !reduceMotion {
+                Circle()
+                    .fill(Color.red.opacity(0.15))
+                    .frame(width: 300, height: 300)
+                    .scaleEffect(rippleScale)
+                    .opacity(pulseOpacity)
+                    .animation(
+                        .easeOut(duration: 1.4).repeatForever(autoreverses: false),
+                        value: rippleScale
+                    )
+                    .accessibilityHidden(true)
 
-            Circle()
-                .fill(Color.red.opacity(0.1))
-                .frame(width: 200, height: 200)
-                .scaleEffect(rippleScale * 0.8)
-                .opacity(pulseOpacity * 0.8)
-                .animation(
-                    .easeOut(duration: 1.4).delay(0.35).repeatForever(autoreverses: false),
-                    value: rippleScale
-                )
+                Circle()
+                    .fill(Color.red.opacity(0.1))
+                    .frame(width: 200, height: 200)
+                    .scaleEffect(rippleScale * 0.8)
+                    .opacity(pulseOpacity * 0.8)
+                    .animation(
+                        .easeOut(duration: 1.4).delay(0.35).repeatForever(autoreverses: false),
+                        value: rippleScale
+                    )
+                    .accessibilityHidden(true)
+            }
 
             // 메인 카드
             VStack(spacing: 36) {
@@ -57,23 +62,25 @@ struct AlarmOverlayView: View {
                             .shadow(color: Color.red.opacity(0.5), radius: 20, x: 0, y: 8)
 
                         Image(systemName: "bell.badge.fill")
-                            .font(.system(size: 42, weight: .semibold))
+                            .font(.largeTitle.weight(.semibold))
                             .foregroundColor(.white)
-                            .symbolEffect(.bounce, options: .repeating)
+                            .symbolEffect(.bounce, options: reduceMotion ? .nonRepeating : .repeating)
                     }
+                    .accessibilityHidden(true)
 
                     VStack(spacing: 8) {
                         Text(alarm.taskName)
-                            .font(.system(size: 32, weight: .bold, design: .rounded))
+                            .font(.title.weight(.bold))
                             .foregroundColor(.white)
                             .multilineTextAlignment(.center)
                             .padding(.horizontal, 32)
-                            .lineLimit(2)
+                            .lineLimit(nil)
+                            .minimumScaleFactor(0.7)
                             .shadow(color: .black.opacity(0.4), radius: 6, x: 0, y: 3)
-                        
+
                         Text("지금 바로 확인하고 완료하세요")
-                            .font(.system(size: 15, weight: .medium, design: .rounded))
-                            .foregroundColor(.white.opacity(0.6))
+                            .font(.subheadline.weight(.medium))
+                            .foregroundColor(.white.opacity(0.75))
                     }
                 }
 
@@ -86,13 +93,13 @@ struct AlarmOverlayView: View {
                 }) {
                     HStack(spacing: 12) {
                         Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 22, weight: .semibold))
+                            .font(.title3.weight(.semibold))
                         Text("확인")
-                            .font(.system(size: 20, weight: .bold, design: .rounded))
+                            .font(.title3.weight(.bold))
                     }
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 64)
+                    .frame(minHeight: 64)
                     .background(
                         LinearGradient(
                             colors: [Color.red, Color.orange],
@@ -105,26 +112,35 @@ struct AlarmOverlayView: View {
                     .padding(.horizontal, 40)
                 }
                 .buttonStyle(AlarmDismissButtonStyle())
+                .accessibilityLabel("알람 확인")
+                .accessibilityHint("탭하여 \(alarm.taskName) 알람을 끕니다")
 
                 // 스와이프 힌트
                 HStack(spacing: 6) {
                     Image(systemName: "hand.tap")
-                        .font(.system(size: 12))
+                        .font(.caption)
                     Text("탭하여 알람 끄기")
-                        .font(.system(size: 13, design: .rounded))
+                        .font(.caption)
                 }
-                .foregroundColor(.white.opacity(0.35))
+                .foregroundColor(.white.opacity(0.5))
                 .padding(.bottom, 40)
+                .accessibilityHidden(true)
             }
         }
         .scaleEffect(scale)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("알람: \(alarm.taskName). 지금 바로 확인하고 완료하세요")
         .onAppear {
-            withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
+            if reduceMotion {
                 scale = 1.0
+            } else {
+                withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
+                    scale = 1.0
+                }
+                // 리플 애니메이션 시작
+                pulseOpacity = 0.8
+                rippleScale = 2.2
             }
-            // 리플 애니메이션 시작
-            pulseOpacity = 0.8
-            rippleScale = 2.2
             // 강한 햅틱 루프 (3회)
             for i in 0...2 {
                 DispatchQueue.main.asyncAfter(deadline: .now() + Double(i) * 0.8) {
@@ -137,9 +153,11 @@ struct AlarmOverlayView: View {
 
 // MARK: - Dismiss Button Style
 private struct AlarmDismissButtonStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .scaleEffect(configuration.isPressed ? 0.96 : 1.0)
-            .animation(.easeInOut(duration: 0.15), value: configuration.isPressed)
+            .animation(reduceMotion ? .none : .easeInOut(duration: 0.15), value: configuration.isPressed)
     }
 }

@@ -5,6 +5,8 @@ struct MainTabView: View {
     @EnvironmentObject private var networkMonitor: NetworkMonitor
     @EnvironmentObject private var taskManager: TaskManager
     @StateObject private var alarmManager = AlarmManager.shared
+    @ObservedObject private var langManager = LocalizationManager.shared
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// 한 번이라도 방문한 탭을 추적하여 지연 로딩
     @State private var loadedTabs: Set<TabSelection> = [.voice]
@@ -47,6 +49,7 @@ struct MainTabView: View {
                     loadedTabs.insert(newTab)
                 }
             }
+            .accessibilityElement(children: .contain)
 
             // 3. 글로벌 바텀 바
             CustomBottomBar(activeTab: $activeTab)
@@ -54,7 +57,7 @@ struct MainTabView: View {
                 .accessibilityLabel(L.voice.a11yTabBar)
                 .blur(radius: isVoiceModalVisible ? 12 : 0)
                 .opacity(isVoiceModalVisible ? 0.6 : 1)
-                .animation(.spring(response: 0.4, dampingFraction: 0.7), value: isVoiceModalVisible)
+                .animation(reduceMotion ? .none : .spring(response: 0.4, dampingFraction: 0.7), value: isVoiceModalVisible)
         }
         // 4. 오프라인 / Back Online 배너
         .overlay(alignment: .top) {
@@ -67,7 +70,7 @@ struct MainTabView: View {
             }
         }
         .animation(
-            .spring(response: 0.4, dampingFraction: 0.75),
+            reduceMotion ? .none : .spring(response: 0.4, dampingFraction: 0.75),
             value: networkMonitor.bannerState
         )
         // 5. Undo 스낵바
@@ -83,7 +86,7 @@ struct MainTabView: View {
             }
         }
         .animation(
-            .spring(response: 0.4, dampingFraction: 0.7),
+            reduceMotion ? .none : .spring(response: 0.4, dampingFraction: 0.7),
             value: taskManager.showUndoSnackbar
         )
         .onReceive(NotificationCenter.default.publisher(for: .widgetDeepLink)) { notification in
@@ -121,18 +124,22 @@ struct UndoSnackbar: View {
     var body: some View {
         HStack(spacing: 12) {
             Text(message)
-                .font(.system(size: 14, weight: .medium))
+                .font(.footnote.weight(.medium))
                 .foregroundColor(.white)
-                .lineLimit(1)
+                .lineLimit(2)
+                .minimumScaleFactor(0.8)
 
             Spacer()
 
             Button(action: onUndo) {
                 Text(L.voice.undoButton)
-                    .font(.system(size: 14, weight: .bold))
+                    .font(.footnote.weight(.bold))
                     .foregroundColor(DesignSystem.Colors.primaryFixedDim)
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
             }
             .accessibilityLabel(L.voice.a11yUndo)
+            .accessibilityHint("Double tap to undo the last action")
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
@@ -148,7 +155,7 @@ private struct OfflineBanner: View {
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: "wifi.slash")
-                .font(.system(size: 14, weight: .semibold))
+                .font(.footnote.weight(.semibold))
             // Task 2: 영어 문구로 교체 (DesignSystem.Strings.offlineAlertText)
             Text(DesignSystem.Strings.offlineAlertText)
                 .font(DesignSystem.Typography.labelSm)
@@ -164,6 +171,9 @@ private struct OfflineBanner: View {
         )
         .padding(.horizontal, 24)
         .padding(.top, 56) // 노치/Dynamic Island 회피
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(DesignSystem.Strings.offlineAlertText)
+        .accessibilityAddTraits(.isStaticText)
     }
 }
 
@@ -172,7 +182,7 @@ private struct BackOnlineBanner: View {
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: "wifi")
-                .font(.system(size: 14, weight: .semibold))
+                .font(.footnote.weight(.semibold))
             Text(L.network.backOnline)
                 .font(DesignSystem.Typography.labelSm)
         }
@@ -185,6 +195,9 @@ private struct BackOnlineBanner: View {
         )
         .padding(.horizontal, 24)
         .padding(.top, 56)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(L.network.backOnline)
+        .accessibilityAddTraits(.isStaticText)
     }
 }
 

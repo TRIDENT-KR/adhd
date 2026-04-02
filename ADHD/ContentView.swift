@@ -4,21 +4,22 @@ import SwiftUI
 struct CustomBottomBar: View {
     @Binding var activeTab: TabSelection
     @ObservedObject var langManager = LocalizationManager.shared
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
 
     var body: some View {
         HStack(spacing: 0) {
             Spacer()
-            TabBarItem(iconName: "square.grid.2x2", label: "Routine", isActive: activeTab == .routine) {
-                withAnimation(.spring()) { activeTab = .routine }
+            TabBarItem(iconName: "square.grid.2x2", label: "Routine", isActive: activeTab == .routine, reduceMotion: reduceMotion) {
+                if reduceMotion { activeTab = .routine } else { withAnimation(.spring()) { activeTab = .routine } }
             }
             Spacer()
-            TabBarItem(iconName: "mic.fill", label: "Voice", isActive: activeTab == .voice) {
-                withAnimation(.spring()) { activeTab = .voice }
+            TabBarItem(iconName: "mic.fill", label: "Voice", isActive: activeTab == .voice, reduceMotion: reduceMotion) {
+                if reduceMotion { activeTab = .voice } else { withAnimation(.spring()) { activeTab = .voice } }
             }
             Spacer()
-            TabBarItem(iconName: "calendar", label: "Planner", isActive: activeTab == .planner) {
-                withAnimation(.spring()) { activeTab = .planner }
+            TabBarItem(iconName: "calendar", label: "Planner", isActive: activeTab == .planner, reduceMotion: reduceMotion) {
+                if reduceMotion { activeTab = .planner } else { withAnimation(.spring()) { activeTab = .planner } }
             }
             Spacer()
         }
@@ -34,6 +35,7 @@ struct TabBarItem: View {
     let iconName: String
     let label:    String
     let isActive: Bool
+    var reduceMotion: Bool = false
     let action:   () -> Void
 
     var body: some View {
@@ -43,13 +45,13 @@ struct TabBarItem: View {
         }) {
             VStack(spacing: 6) {
                 Image(systemName: iconName)
-                    .font(.system(size: 26, weight: isActive ? .bold : .medium))
+                    .font(.title3.weight(isActive ? .bold : .medium))
                     .scaleEffect(isActive ? 1.15 : 1.0)
 
                 Text(verbatim: label)
                     .font(DesignSystem.Typography.labelSm)
                     .fontWeight(isActive ? .semibold : .regular)
-                    .opacity(isActive ? 1 : 0.6)
+                    .opacity(isActive ? 1 : 0.7)
 
                 // Active Dot Indicator
                 Circle()
@@ -59,12 +61,15 @@ struct TabBarItem: View {
                     .offset(y: 2)
             }
             .foregroundColor(
-                isActive ? DesignSystem.Colors.primary : DesignSystem.Colors.onSurfaceVariant.opacity(0.3)
+                isActive ? DesignSystem.Colors.primary : DesignSystem.Colors.onSurfaceVariant.opacity(0.5)
             )
             .frame(width: 80, height: 56)
             .contentShape(Rectangle())
-            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isActive)
+            .animation(reduceMotion ? .none : .spring(response: 0.3, dampingFraction: 0.7), value: isActive)
         }
         .buttonStyle(PlainButtonStyle())
+        .accessibilityLabel("\(label) tab")
+        .accessibilityHint(isActive ? "Currently selected" : "Double tap to switch to \(label)")
+        .accessibilityAddTraits(isActive ? .isSelected : [])
     }
 }

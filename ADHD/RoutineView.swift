@@ -40,7 +40,7 @@ struct RoutineView: View {
     @Environment(\.modelContext) private var modelContext
 
     @ObservedObject var langManager = LocalizationManager.shared
-
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @Binding var activeTab: TabSelection
     @State private var editingTaskId: UUID?
@@ -80,12 +80,14 @@ struct RoutineView: View {
                         Spacer()
                         Button(action: { showSearch = true }) {
                             Image(systemName: "magnifyingglass")
-                                .font(.system(size: 20, weight: .light))
-                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.4))
+                                .font(.title3.weight(.light))
+                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
                                 .padding(12)
                                 .contentShape(Circle())
                         }
                         .buttonStyle(NoEffectButtonStyle())
+                        .accessibilityLabel("Search tasks")
+                        .frame(minWidth: 44, minHeight: 44)
                     }
                     .padding(.top, 16)
                     .padding(.leading, 32)
@@ -96,7 +98,8 @@ struct RoutineView: View {
                         ForEach(RoutineSection.allCases, id: \.self) { section in
                             let isSelected = selectedSection == section
                             Button(action: {
-                                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                let anim: Animation? = reduceMotion ? .none : .spring(response: 0.3, dampingFraction: 0.8)
+                                withAnimation(anim) {
                                     selectedSection = section
                                     isReordering = false
                                 }
@@ -112,20 +115,25 @@ struct RoutineView: View {
                                     )
                             }
                             .buttonStyle(PlainButtonStyle())
+                            .accessibilityAddTraits(isSelected ? .isSelected : [])
                         }
                         Spacer()
 
                         // 정렬 모드 토글
                         Button(action: {
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            let anim: Animation? = reduceMotion ? .none : .spring(response: 0.3, dampingFraction: 0.8)
+                            withAnimation(anim) {
                                 isReordering.toggle()
                                 if isReordering { editingTaskId = nil }
                             }
                         }) {
                             Image(systemName: isReordering ? "checkmark.circle.fill" : "arrow.up.arrow.down")
-                                .font(.system(size: 16, weight: .medium))
-                                .foregroundColor(isReordering ? DesignSystem.Colors.tertiary : DesignSystem.Colors.onSurfaceVariant.opacity(0.4))
+                                .font(.body.weight(.medium))
+                                .foregroundColor(isReordering ? DesignSystem.Colors.tertiary : DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
+                                .frame(minWidth: 44, minHeight: 44)
+                                .contentShape(Rectangle())
                         }
+                        .accessibilityLabel(isReordering ? "Finish reordering" : "Reorder tasks")
                     }
                     .padding(.horizontal, 32)
 
@@ -138,20 +146,23 @@ struct RoutineView: View {
                             VStack(spacing: 20) {
                                 Image(systemName: "mic.fill")
                                     .font(.system(size: 48))
-                                    .foregroundColor(DesignSystem.Colors.primary.opacity(0.3))
+                                    .foregroundColor(DesignSystem.Colors.primary.opacity(0.5))
+                                    .accessibilityHidden(true)
 
                                 Text(selectedSection == .routines
                                      ? L.routineEmptyRoutine
                                      : L.routineEmptyTask)
                                     .font(DesignSystem.Typography.bodyMd)
-                                    .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
+                                    .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.7))
                             }
                             .frame(maxWidth: .infinity)
-                            .frame(height: 300)
+                            .frame(minHeight: 300)
                             .contentShape(Rectangle())
                             .onTapGesture {
-                                withAnimation(.spring()) { activeTab = .voice }
+                                if reduceMotion { activeTab = .voice } else { withAnimation(.spring()) { activeTab = .voice } }
                             }
+                            .accessibilityLabel("No tasks yet. Tap to add tasks with voice")
+                            .accessibilityAddTraits(.isButton)
                         } else if isReordering {
                             // 정렬 모드: 드래그 앤 드롭
                             LazyVStack(spacing: 16) {
@@ -237,9 +248,10 @@ struct TaskRow: View {
         HStack(spacing: 20) {
             // 카테고리 아이콘 앵커 (Visual Anchor)
             Image(systemName: cachedCategoryIcon)
-                .font(.system(size: 14))
-                .foregroundColor(DesignSystem.Colors.primary.opacity(task.isCompleted ? 0.2 : 0.5))
+                .font(.footnote)
+                .foregroundColor(DesignSystem.Colors.primary.opacity(task.isCompleted ? 0.4 : 0.6))
                 .frame(width: 20)
+                .accessibilityHidden(true)
 
             // 체크박스
             Button(action: {
@@ -258,11 +270,13 @@ struct TaskRow: View {
                             .fill(DesignSystem.Colors.tertiary)
                             .frame(width: 32, height: 32)
                         Image(systemName: "checkmark")
-                            .font(.system(size: 14, weight: .bold))
+                            .font(.footnote.weight(.bold))
                             .foregroundColor(.white)
                     }
                 }
             }
+            .frame(minWidth: 44, minHeight: 44)
+            .contentShape(Rectangle())
             .disabled(isEditing)
             .accessibilityLabel(task.isCompleted ? "\(task.task), completed" : "\(task.task), not completed")
             .accessibilityHint("Double tap to toggle completion")
@@ -296,11 +310,11 @@ struct TaskRow: View {
                     }) {
                         HStack(spacing: 3) {
                             Image(systemName: localUrgency == .strong ? "bolt.fill" : "bolt")
-                                .font(.system(size: 11, weight: .semibold))
+                                .font(.caption2.weight(.semibold))
                             Text(localUrgency == .strong ? "Strong" : "Weak")
-                                .font(.system(size: 11, weight: .medium))
+                                .font(.caption2.weight(.medium))
                         }
-                        .foregroundColor(localUrgency == .strong ? .orange : DesignSystem.Colors.onSurfaceVariant.opacity(0.5))
+                        .foregroundColor(localUrgency == .strong ? .orange : DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
                         .padding(.vertical, 4)
                         .padding(.horizontal, 8)
                         .background((localUrgency == .strong ? Color.orange : DesignSystem.Colors.onSurfaceVariant).opacity(0.12))
@@ -319,28 +333,32 @@ struct TaskRow: View {
                         .strikethrough(task.isCompleted, color: DesignSystem.Colors.onSurfaceVariant)
                         .foregroundColor(
                             task.isCompleted
-                                ? DesignSystem.Colors.onSurfaceVariant.opacity(0.4)
+                                ? DesignSystem.Colors.onSurfaceVariant.opacity(0.5)
                                 : DesignSystem.Colors.onSurfaceVariant
                         )
+                        .lineLimit(nil)
+                        .fixedSize(horizontal: false, vertical: true)
 
                     if let time = task.time, !time.isEmpty {
                         HStack(spacing: 4) {
                             Text(time)
                                 .font(DesignSystem.Typography.labelSm)
-                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.4))
+                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
                             if let label = task.recurrenceLabel {
                                 Image(systemName: "repeat")
-                                    .font(.system(size: 9))
+                                    .font(.caption2)
+                                    .accessibilityHidden(true)
                                 Text(label)
-                                    .font(.system(size: 11))
+                                    .font(.caption2)
                             }
                             if task.urgency == .strong {
                                 Image(systemName: "bolt.fill")
-                                    .font(.system(size: 9))
-                                    .foregroundColor(.orange.opacity(0.7))
+                                    .font(.caption2)
+                                    .foregroundColor(.orange.opacity(0.8))
+                                    .accessibilityLabel("High urgency")
                             }
                         }
-                        .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.4))
+                        .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
                     }
                 }
             }
@@ -359,36 +377,50 @@ struct TaskRow: View {
                         Haptic.impact(.medium)
                     }) {
                         Image(systemName: "trash")
-                            .font(.system(size: 16))
-                            .foregroundColor(.red.opacity(0.6))
+                            .font(.body)
+                            .foregroundColor(.red.opacity(0.7))
+                            .frame(minWidth: 44, minHeight: 44)
+                            .contentShape(Rectangle())
                     }
+                    .accessibilityLabel("Delete task")
+                    .accessibilityHint("Double tap to delete \(task.task)")
 
                     Button(action: {
                         finishEditing()
                     }) {
                         Image(systemName: "checkmark")
-                            .font(.system(size: 18))
-                            .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.2))
+                            .font(.body)
+                            .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.5))
+                            .frame(minWidth: 44, minHeight: 44)
+                            .contentShape(Rectangle())
                     }
+                    .accessibilityLabel("Save changes")
                 } else {
                     // 기본 모드: 마이크 + 편집
                     Button(action: {
                         handleVoiceEdit()
                     }) {
                         Image(systemName: isVoiceEditing ? "stop.fill" : "mic.fill")
-                            .font(.system(size: 18))
-                            .foregroundColor(isVoiceEditing ? DesignSystem.Colors.primary : DesignSystem.Colors.onSurfaceVariant.opacity(0.2))
+                            .font(.body)
+                            .foregroundColor(isVoiceEditing ? DesignSystem.Colors.primary : DesignSystem.Colors.onSurfaceVariant.opacity(0.5))
                             .contentTransition(.symbolEffect(.replace))
+                            .frame(minWidth: 44, minHeight: 44)
+                            .contentShape(Rectangle())
                     }
                     .disabled(voiceEditingTaskId != nil && voiceEditingTaskId != task.id)
+                    .accessibilityLabel(isVoiceEditing ? "Stop voice editing" : "Edit with voice")
 
                     Button(action: {
                         withAnimation { startEditing() }
                     }) {
                         Image(systemName: "pencil")
-                            .font(.system(size: 18))
-                            .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.2))
+                            .font(.body)
+                            .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.5))
+                            .frame(minWidth: 44, minHeight: 44)
+                            .contentShape(Rectangle())
                     }
+                    .accessibilityLabel("Edit task")
+                    .accessibilityHint("Double tap to edit \(task.task)")
                 }
             }
         }
@@ -491,7 +523,7 @@ struct TimePickerModal: View {
                 timeString  = Self.timeFormatter.string(from: selectedDate)
                 isPresented = false
             }
-            .font(.system(size: 16, weight: .semibold))
+            .font(.body.weight(.semibold))
             .foregroundColor(.white)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 16)
@@ -526,7 +558,7 @@ struct SwipeToDeleteModifier: ViewModifier {
                         }
                     }) {
                         Image(systemName: "trash.fill")
-                            .font(.system(size: 18))
+                            .font(.body)
                             .foregroundColor(.white)
                             .frame(width: 60, height: 50)
                             .background(RoundedRectangle(cornerRadius: 12).fill(Color.red.opacity(0.8)))
@@ -582,13 +614,14 @@ struct ReorderRow: View {
         HStack(spacing: 16) {
             // 드래그 핸들
             Image(systemName: "line.3.horizontal")
-                .font(.system(size: 16, weight: .medium))
-                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.3))
+                .font(.body.weight(.medium))
+                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.5))
+                .accessibilityLabel("Drag handle")
 
             // 완료 표시
             Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
-                .font(.system(size: 16))
-                .foregroundColor(task.isCompleted ? DesignSystem.Colors.tertiary : DesignSystem.Colors.onSurfaceVariant.opacity(0.25))
+                .font(.body)
+                .foregroundColor(task.isCompleted ? DesignSystem.Colors.tertiary : DesignSystem.Colors.onSurfaceVariant.opacity(0.5))
 
             // 태스크 이름
             VStack(alignment: .leading, spacing: 2) {
@@ -599,7 +632,7 @@ struct ReorderRow: View {
                 if let time = task.time, !time.isEmpty {
                     Text(time)
                         .font(DesignSystem.Typography.labelSm)
-                        .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.4))
+                        .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
                 }
             }
 

@@ -52,10 +52,10 @@ struct DesignSystem {
     }
 
     struct Typography {
-        static let displayLg = Font.system(size: 34, weight: .semibold, design: .default)
-        static let titleSm   = Font.system(size: 20, weight: .medium,   design: .default)
-        static let bodyMd    = Font.system(size: 16, weight: .regular,  design: .default)
-        static let labelSm   = Font.system(size: 12, weight: .medium,   design: .default)
+        static let displayLg = Font.title.weight(.semibold)
+        static let titleSm   = Font.title3.weight(.medium)
+        static let bodyMd    = Font.body
+        static let labelSm   = Font.caption.weight(.medium)
     }
 
     // MARK: - Strings
@@ -85,7 +85,7 @@ struct SatisfyingButtonStyle: BoolButtonStyle {
     
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 16, weight: .bold))
+            .font(.body.weight(.bold))
             .foregroundColor(isDestructive ? DesignSystem.Colors.onSurfaceVariant : .white)
             .padding(.vertical, 14)
             .padding(.horizontal, 28)
