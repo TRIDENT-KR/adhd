@@ -2,10 +2,34 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
 
+// 유저당 분당 최대 호출 횟수 (Gemini 비용 증폭 방지)
+const RATE_LIMIT_MAX = 30;
+const RATE_LIMIT_WINDOW_MS = 60_000;
+
+// 인메모리 rate limit 맵 (Edge Function 인스턴스 내 유효)
+const rateLimitMap = new Map<string, number[]>();
+
+function isRateLimited(userId: string): boolean {
+  const now = Date.now();
+  const windowStart = now - RATE_LIMIT_WINDOW_MS;
+  const timestamps = (rateLimitMap.get(userId) ?? []).filter(t => t > windowStart);
+  if (timestamps.length >= RATE_LIMIT_MAX) return true;
+  timestamps.push(now);
+  rateLimitMap.set(userId, timestamps);
+  return false;
+}
+
 Deno.serve(async (req: Request) => {
-  // CORS 허용 (아이폰 클라이언트 통신용)
+  // iOS 클라이언트 전용 — CORS를 Supabase 프로젝트 도메인으로 제한
+  const allowedOrigins = new Set([
+    `https://${Deno.env.get('SUPABASE_URL')?.replace('https://', '') ?? ''}`,
+    'https://supabase.com', // Dashboard 테스트용
+  ]);
+  const origin = req.headers.get('Origin') ?? '';
+  const corsOrigin = allowedOrigins.has(origin) ? origin : allowedOrigins.values().next().value;
+
   const headers = {
-    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Origin': corsOrigin,
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
     'Content-Type': 'application/json'
   };
@@ -29,6 +53,11 @@ Deno.serve(async (req: Request) => {
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), { headers, status: 401 });
+    }
+
+    // Rate limiting: 유저당 분당 30회 초과 시 429 반환
+    if (isRateLimited(user.id)) {
+      return new Response(JSON.stringify({ error: 'Rate limit exceeded. Please wait before retrying.' }), { headers, status: 429 });
     }
 
     const { text, currentTime, language } = await req.json();

@@ -1,8 +1,16 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 Deno.serve(async (req: Request) => {
+  // iOS 클라이언트 전용 — CORS를 Supabase 프로젝트 도메인으로 제한
+  const allowedOrigins = new Set([
+    `https://${Deno.env.get('SUPABASE_URL')?.replace('https://', '') ?? ''}`,
+    'https://supabase.com', // Dashboard 테스트용
+  ]);
+  const origin = req.headers.get('Origin') ?? '';
+  const corsOrigin = allowedOrigins.has(origin) ? origin : allowedOrigins.values().next().value;
+
   const headers = {
-    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Origin": corsOrigin,
     "Access-Control-Allow-Headers":
       "authorization, x-client-info, apikey, content-type",
     "Content-Type": "application/json",
