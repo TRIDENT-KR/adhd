@@ -70,6 +70,7 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
     private var micModeObserver: AnyCancellable?
 
     // Audio power downsampling: 4프레임당 1회만 계산
+    private let audioFrameLock = NSLock()
     private var audioFrameCount: Int = 0
     private static let audioPowerSampleRate = 4
 
@@ -159,8 +160,10 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
                 case .authorized:
                     AVAudioApplication.requestRecordPermission { granted in
                         if !granted {
-                            self.errorMessage = L.voice.errorPermission
-                            self.lastError = .permissionDenied
+                            DispatchQueue.main.async {
+                                self.errorMessage = L.voice.errorPermission
+                                self.lastError = .permissionDenied
+                            }
                         }
                     }
                 case .denied, .restricted, .notDetermined:
@@ -207,7 +210,7 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
         recordingDuration = 0
         silenceCountdown = 0
         lastSpeechTime = Date()
-        audioFrameCount = 0
+        audioFrameLock.withLock { audioFrameCount = 0 }
         startRecordingTimer()
         startSilenceDetection()
         
@@ -256,7 +259,9 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
             }
 
             if error != nil || isFinal {
-                self?.stopHandling()
+                DispatchQueue.main.async {
+                    self?.stopHandling()
+                }
             }
         }
         
@@ -265,8 +270,11 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
             self?.recognitionRequest?.append(buffer)
             // 다운샘플링: 4프레임당 1회만 오디오 파워 계산
             guard let self else { return }
-            self.audioFrameCount += 1
-            if self.audioFrameCount % Self.audioPowerSampleRate == 0 {
+            let shouldUpdate: Bool = self.audioFrameLock.withLock {
+                self.audioFrameCount += 1
+                return self.audioFrameCount % Self.audioPowerSampleRate == 0
+            }
+            if shouldUpdate {
                 self.updateAudioPower(buffer: buffer)
             }
         }

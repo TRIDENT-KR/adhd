@@ -42,15 +42,16 @@ struct SettingsView: View {
                 Section {
                     HStack {
                         Image(systemName: "person.circle.fill")
-                            .font(.system(size: 32))
-                            .foregroundColor(DesignSystem.Colors.primary.opacity(0.6))
+                            .font(.title)
+                            .foregroundColor(DesignSystem.Colors.primary.opacity(0.7))
+                            .accessibilityHidden(true)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(authManager.userEmail ?? "User")
                                 .font(DesignSystem.Typography.bodyMd)
                                 .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
                             Text("Apple ID")
                                 .font(DesignSystem.Typography.labelSm)
-                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.5))
+                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.7))
                         }
                     }
                     .padding(.vertical, 4)
@@ -58,18 +59,22 @@ struct SettingsView: View {
                     Button(action: { showLogoutConfirm = true }) {
                         HStack {
                             Image(systemName: "rectangle.portrait.and.arrow.right")
+                                .accessibilityHidden(true)
                             Text(L.settings.logOut)
                         }
                         .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
                     }
+                    .accessibilityHint("Double tap to log out")
 
                     Button(action: { showDeleteConfirm = true }) {
                         HStack {
                             Image(systemName: "trash")
+                                .accessibilityHidden(true)
                             Text(L.settings.deleteAccount)
                         }
                         .foregroundColor(.red.opacity(0.7))
                     }
+                    .accessibilityHint("Double tap to delete your account")
                 } header: {
                     Text(L.settings.account)
                 }
@@ -199,18 +204,22 @@ struct SettingsView: View {
                         HStack {
                             Image(systemName: "checkmark.circle")
                                 .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.5))
+                                .accessibilityHidden(true)
                             Text(L.settings.clearCompleted)
                                 .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
                         }
                     }
+                    .accessibilityHint("Double tap to clear completed tasks")
 
                     Button(action: { showClearAllConfirm = true }) {
                         HStack {
                             Image(systemName: "trash.circle")
+                                .accessibilityHidden(true)
                             Text(L.settings.clearAll)
                         }
                         .foregroundColor(.red.opacity(0.7))
                     }
+                    .accessibilityHint("Double tap to clear all tasks")
                 } header: {
                     Text(L.settings.dataManagement)
                 }
@@ -234,8 +243,9 @@ struct SettingsView: View {
                                 .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
                             Spacer()
                             Image(systemName: "arrow.up.right")
-                                .font(.system(size: 12))
-                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.3))
+                                .font(.caption)
+                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.5))
+                                .accessibilityHidden(true)
                         }
                     }
 
@@ -247,8 +257,9 @@ struct SettingsView: View {
                                 .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
                             Spacer()
                             Image(systemName: "arrow.up.right")
-                                .font(.system(size: 12))
-                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.3))
+                                .font(.caption)
+                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.5))
+                                .accessibilityHidden(true)
                         }
                     }
 
@@ -260,8 +271,9 @@ struct SettingsView: View {
                                 .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
                             Spacer()
                             Image(systemName: "arrow.up.right")
-                                .font(.system(size: 12))
-                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.3))
+                                .font(.caption)
+                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.5))
+                                .accessibilityHidden(true)
                         }
                     }
                 } header: {

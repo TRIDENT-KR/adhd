@@ -19,7 +19,10 @@ final class AlarmManager: NSObject, ObservableObject, UNUserNotificationCenterDe
 
     /// non-nil이면 AlarmOverlayView를 화면에 표시
     @Published var activeAlarm: AlarmEntry? = nil
-    
+
+    /// 현재 알람 처리 중 도착한 대기 알람 큐
+    private var pendingAlarms: [AlarmEntry] = []
+
     /// 알람 확인 시 호출될 클로저 (Task를 완료 상태로 변경하는 등의 용도)
     var onTaskConfirmed: ((UUID) -> Void)?
 
@@ -40,7 +43,12 @@ final class AlarmManager: NSObject, ObservableObject, UNUserNotificationCenterDe
                let taskIdStr = userInfo["taskId"] as? String,
                let taskId = UUID(uuidString: taskIdStr) {
                 DispatchQueue.main.async {
-                    self.activeAlarm = AlarmEntry(id: taskId, taskName: taskName)
+                    let entry = AlarmEntry(id: taskId, taskName: taskName)
+                    if self.activeAlarm == nil {
+                        self.activeAlarm = entry
+                    } else {
+                        self.pendingAlarms.append(entry)
+                    }
                 }
             }
             // 포그라운드에서는 시스템 배너를 띄우지 않고 오버레이로 처리
@@ -66,7 +74,12 @@ final class AlarmManager: NSObject, ObservableObject, UNUserNotificationCenterDe
            let taskIdStr = userInfo["taskId"] as? String,
            let taskId = UUID(uuidString: taskIdStr) {
             DispatchQueue.main.async {
-                self.activeAlarm = AlarmEntry(id: taskId, taskName: taskName)
+                let entry = AlarmEntry(id: taskId, taskName: taskName)
+                if self.activeAlarm == nil {
+                    self.activeAlarm = entry
+                } else {
+                    self.pendingAlarms.append(entry)
+                }
             }
         }
         completionHandler()
@@ -74,13 +87,18 @@ final class AlarmManager: NSObject, ObservableObject, UNUserNotificationCenterDe
 
     // MARK: - Dismiss
     func dismiss() {
-        if let alarm = activeAlarm {
-            // 확인 시 자동 체크 실행
-            onTaskConfirmed?(alarm.id)
-        }
+        guard let alarm = activeAlarm else { return }
+        let alarmId = alarm.id
         DispatchQueue.main.async {
+            // onTaskConfirmed와 activeAlarm 변경을 같은 async 블록에서 처리해
+            // 사이에 다른 alarm set이 끼어드는 race를 방지
+            self.onTaskConfirmed?(alarmId)
             withAnimation(.easeInOut(duration: 0.4)) {
-                self.activeAlarm = nil
+                if self.pendingAlarms.isEmpty {
+                    self.activeAlarm = nil
+                } else {
+                    self.activeAlarm = self.pendingAlarms.removeFirst()
+                }
             }
         }
     }
