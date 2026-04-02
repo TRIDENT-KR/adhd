@@ -77,6 +77,7 @@
 		};
 /* End PBXCopyFilesBuildPhase section */
 
+		F3D9E4B22F74D07100DA9A5A /* Config.plist in Resources */ = {isa = PBXBuildFile; fileRef = F3D9E4A42F74CF5C00DA9A5A /* Config.plist */; };
 /* Begin PBXFileReference section */
 		99526AD82F7A3EB2000CD3EE /* ADHDWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ADHDWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		99526AD92F7A3EB2000CD3EE /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
@@ -395,6 +396,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				F3D9E4B22F74D07100DA9A5A /* Config.plist in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
