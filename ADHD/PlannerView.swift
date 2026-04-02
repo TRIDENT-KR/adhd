@@ -352,142 +352,167 @@ struct EventCard: View {
     var isDimmed:  Bool { editingTaskId != nil && editingTaskId != task.id }
 
     var body: some View {
-        HStack(spacing: 20) {
-            // Completion checkbox (#25)
-            if !isEditing {
-                Button(action: {
-                    withAnimation(.timingCurve(0.4, 0, 0.2, 1, duration: 0.3)) {
-                        taskManager.toggleCompletion(of: task)
-                    }
-                    Haptic.impact(.medium)
-                }) {
-                    ZStack {
-                        Circle()
-                            .stroke(DesignSystem.Colors.onSurfaceVariant.opacity(0.4), lineWidth: 1.5)
-                            .frame(width: 28, height: 28)
-                        if task.isCompleted {
-                            Circle()
-                                .fill(DesignSystem.Colors.tertiary)
-                                .frame(width: 28, height: 28)
-                            Image(systemName: "checkmark")
-                                .font(.caption.weight(.bold))
-                                .foregroundColor(.white)
-                        }
-                    }
-                    .frame(minWidth: 44, minHeight: 44)
-                    .contentShape(Rectangle())
-                }
-                .accessibilityLabel(task.isCompleted ? "\(task.task), completed" : "\(task.task), not completed")
-                .accessibilityHint("Double tap to toggle completion")
-            }
-
+        VStack(alignment: .leading, spacing: 0) {
             if isEditing {
-                Text(localTime.isEmpty ? "Set Time" : localTime)
-                    .font(DesignSystem.Typography.labelSm)
-                    .padding(.vertical, 4)
-                    .padding(.horizontal, 8)
-                    .background(DesignSystem.Colors.onSurfaceVariant.opacity(0.1))
-                    .cornerRadius(6)
-                    .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
-                    .onTapGesture { showingTimePicker = true }
-                    .sheet(isPresented: $showingTimePicker) {
-                        TimePickerModal(timeString: $localTime, isPresented: $showingTimePicker)
-                    }
+                // MARK: 편집 모드
+                VStack(alignment: .leading, spacing: 14) {
+                    // 상단: 시간 선택 + 알림상태 토글 + 삭제 + 저장
+                    HStack(spacing: 8) {
+                        Text(localTime.isEmpty ? "Set Time" : localTime)
+                            .font(DesignSystem.Typography.labelSm)
+                            .padding(.vertical, 4)
+                            .padding(.horizontal, 8)
+                            .background(DesignSystem.Colors.onSurfaceVariant.opacity(0.1))
+                            .cornerRadius(6)
+                            .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
+                            .onTapGesture { showingTimePicker = true }
+                            .sheet(isPresented: $showingTimePicker) {
+                                TimePickerModal(timeString: $localTime, isPresented: $showingTimePicker)
+                            }
 
-                // urgency 토글
-                Button(action: {
-                    localUrgency = (localUrgency == .weak) ? .strong : .weak
-                    Haptic.impact(.light)
-                }) {
-                    HStack(spacing: 3) {
-                        Image(systemName: localUrgency == .strong ? "bolt.fill" : "bolt")
-                            .font(.caption.weight(.semibold))
-                        Text(localUrgency == .strong ? "Strong" : "Weak")
-                            .font(.caption.weight(.medium))
-                    }
-                    .foregroundColor(localUrgency == .strong ? .orange : DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
-                    .padding(.vertical, 4)
-                    .padding(.horizontal, 8)
-                    .background((localUrgency == .strong ? Color.orange : DesignSystem.Colors.onSurfaceVariant).opacity(0.12))
-                    .cornerRadius(6)
-                }
-                .buttonStyle(NoEffectButtonStyle())
-
-                TextField("Title", text: $localTaskName)
-                    .focused($isTitleFocused)
-                    .font(DesignSystem.Typography.bodyMd)
-                    .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
-                    .submitLabel(.done)
-                    .onSubmit { finishEditing() }
-            } else {
-                HStack(spacing: 4) {
-                    Text(task.time ?? "시간 미정")
-                        .font(DesignSystem.Typography.labelSm)
-                        .tracking(0.3)
-                        .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(task.isCompleted ? 0.5 : 0.7))
-                    if task.isRecurring {
-                        Image(systemName: "repeat")
-                            .font(.caption2)
-                            .foregroundColor(DesignSystem.Colors.primary.opacity(0.6))
-                            .accessibilityLabel("Recurring")
-                    }
-                }
-                .frame(width: task.isRecurring ? 80 : 64, alignment: .leading)
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(task.task)
-                        .font(DesignSystem.Typography.bodyMd)
-                        .strikethrough(task.isCompleted, color: DesignSystem.Colors.onSurfaceVariant)
-                        .foregroundColor(task.isCompleted
-                            ? DesignSystem.Colors.onSurfaceVariant.opacity(0.5)
-                            : DesignSystem.Colors.onSurfaceVariant)
-                        .lineLimit(nil)
-                        .fixedSize(horizontal: false, vertical: true)
-                    if let label = task.recurrenceLabel {
-                        Text(label)
-                            .font(.caption2)
-                            .foregroundColor(DesignSystem.Colors.primary.opacity(0.6))
-                    }
-                }
-            }
-
-            Spacer()
-
-            HStack(spacing: 14) {
-                if !isEditing && task.urgency == .strong {
-                    Image(systemName: "bolt.fill")
-                        .font(.caption)
-                        .foregroundColor(.orange.opacity(0.8))
-                        .accessibilityLabel("High urgency")
-                }
-                if isEditing {
-                    Button(action: {
-                        withAnimation {
-                            taskManager.delete(task: task)
-                            editingTaskId = nil
+                        Button(action: {
+                            localUrgency = (localUrgency == .weak) ? .strong : .weak
+                            Haptic.impact(.light)
+                        }) {
+                            HStack(spacing: 3) {
+                                Image(systemName: localUrgency == .strong ? "bell.fill" : "bell.slash")
+                                    .font(.caption.weight(.semibold))
+                                Text(localUrgency == .strong ? "알림" : "없음")
+                                    .font(.caption.weight(.medium))
+                            }
+                            .foregroundColor(localUrgency == .strong ? .orange : DesignSystem.Colors.onSurfaceVariant.opacity(0.5))
+                            .padding(.vertical, 4)
+                            .padding(.horizontal, 8)
+                            .background((localUrgency == .strong ? Color.orange : DesignSystem.Colors.onSurfaceVariant).opacity(0.12))
+                            .cornerRadius(6)
                         }
-                        Haptic.impact(.medium)
-                    }) {
-                        Image(systemName: "trash")
-                            .font(.footnote)
-                            .foregroundColor(.red.opacity(0.7))
+                        .buttonStyle(NoEffectButtonStyle())
+
+                        Spacer()
+
+                        Button(action: {
+                            withAnimation {
+                                taskManager.delete(task: task)
+                                editingTaskId = nil
+                            }
+                            Haptic.impact(.medium)
+                        }) {
+                            Image(systemName: "trash")
+                                .font(.footnote)
+                                .foregroundColor(.red.opacity(0.7))
+                                .frame(minWidth: 44, minHeight: 44)
+                                .contentShape(Rectangle())
+                        }
+                        .accessibilityLabel("Delete task")
+                        .accessibilityHint("Double tap to delete \(task.task)")
+
+                        Button(action: { finishEditing() }) {
+                            Image(systemName: "checkmark")
+                                .font(.body)
+                                .frame(minWidth: 44, minHeight: 44)
+                                .contentShape(Rectangle())
+                        }
+                        .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.5))
+                        .accessibilityLabel("Save changes")
+                    }
+
+                    // 하단: 제목 입력
+                    TextField("Title", text: $localTaskName)
+                        .focused($isTitleFocused)
+                        .font(DesignSystem.Typography.bodyMd)
+                        .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
+                        .submitLabel(.done)
+                        .onSubmit { finishEditing() }
+                        .frame(maxWidth: .infinity)
+                }
+            } else {
+                // MARK: 일반 모드
+                VStack(alignment: .leading, spacing: 12) {
+                    // 상단: 시간 + 반복 + 알림상태 + 수정버튼
+                    HStack(spacing: 6) {
+                        Text(task.time ?? "시간 미정")
+                            .font(DesignSystem.Typography.labelSm)
+                            .tracking(0.3)
+                            .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(task.isCompleted ? 0.4 : 0.7))
+
+                        if task.isRecurring {
+                            Image(systemName: "repeat")
+                                .font(.caption2)
+                                .foregroundColor(DesignSystem.Colors.primary.opacity(0.6))
+                                .accessibilityLabel("Recurring")
+                        }
+
+                        Spacer()
+
+                        // 알림상태
+                        HStack(spacing: 3) {
+                            Image(systemName: task.urgency == .strong ? "bell.fill" : "bell.slash")
+                                .font(.caption)
+                            Text(task.urgency == .strong ? "알림" : "없음")
+                                .font(.caption2.weight(.medium))
+                        }
+                        .foregroundColor(task.urgency == .strong
+                            ? .orange.opacity(0.85)
+                            : DesignSystem.Colors.onSurfaceVariant.opacity(0.3))
+                        .accessibilityLabel(task.urgency == .strong ? "High urgency alarm" : "No alarm")
+
+                        // 수정버튼
+                        Button(action: { withAnimation { startEditing() } }) {
+                            Image(systemName: "pencil")
+                                .font(.body)
+                                .frame(minWidth: 44, minHeight: 44)
+                                .contentShape(Rectangle())
+                        }
+                        .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.5))
+                        .accessibilityLabel("Edit task")
+                    }
+
+                    // 중앙: 체크박스 + 일정 내용 가로로 길게
+                    HStack(spacing: 12) {
+                        Button(action: {
+                            withAnimation(.timingCurve(0.4, 0, 0.2, 1, duration: 0.3)) {
+                                taskManager.toggleCompletion(of: task)
+                            }
+                            Haptic.impact(.medium)
+                        }) {
+                            ZStack {
+                                Circle()
+                                    .stroke(DesignSystem.Colors.onSurfaceVariant.opacity(0.4), lineWidth: 1.5)
+                                    .frame(width: 28, height: 28)
+                                if task.isCompleted {
+                                    Circle()
+                                        .fill(DesignSystem.Colors.tertiary)
+                                        .frame(width: 28, height: 28)
+                                    Image(systemName: "checkmark")
+                                        .font(.caption.weight(.bold))
+                                        .foregroundColor(.white)
+                                }
+                            }
                             .frame(minWidth: 44, minHeight: 44)
                             .contentShape(Rectangle())
-                    }
-                    .accessibilityLabel("Delete task")
-                    .accessibilityHint("Double tap to delete \(task.task)")
-                }
+                        }
+                        .accessibilityLabel(task.isCompleted ? "\(task.task), completed" : "\(task.task), not completed")
+                        .accessibilityHint("Double tap to toggle completion")
 
-                Button(action: {
-                    if isEditing { finishEditing() } else { withAnimation { startEditing() } }
-                }) {
-                    Image(systemName: isEditing ? "checkmark" : "pencil")
-                        .font(.body)
-                        .frame(minWidth: 44, minHeight: 44)
-                        .contentShape(Rectangle())
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(task.task)
+                                .font(DesignSystem.Typography.bodyMd)
+                                .strikethrough(task.isCompleted, color: DesignSystem.Colors.onSurfaceVariant)
+                                .foregroundColor(task.isCompleted
+                                    ? DesignSystem.Colors.onSurfaceVariant.opacity(0.5)
+                                    : DesignSystem.Colors.onSurfaceVariant)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .lineLimit(nil)
+                                .fixedSize(horizontal: false, vertical: true)
+
+                            if let label = task.recurrenceLabel {
+                                Text(label)
+                                    .font(.caption2)
+                                    .foregroundColor(DesignSystem.Colors.primary.opacity(0.6))
+                            }
+                        }
+                    }
                 }
-                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.5))
-                .accessibilityLabel(isEditing ? "Save changes" : "Edit task")
             }
         }
         .padding(24)
