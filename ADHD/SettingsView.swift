@@ -4,14 +4,16 @@ import SwiftUI
 struct SettingsView: View {
     @EnvironmentObject var authManager: AuthManager
     @EnvironmentObject var taskManager: TaskManager
+    @EnvironmentObject var subscriptionManager: SubscriptionManager
     @Environment(\.dismiss) private var dismiss
-    
+
     @ObservedObject var langManager = LocalizationManager.shared
-    
+
     @State private var showLogoutConfirm = false
     @State private var showDeleteConfirm = false
     @State private var showClearCompletedConfirm = false
     @State private var showClearAllConfirm = false
+    @State private var showPaywall = false
 
     // Notifications
     @State private var routineReminders: Bool = !UserDefaults.standard.bool(forKey: "routineRemindersDisabled")
@@ -77,6 +79,83 @@ struct SettingsView: View {
                     .accessibilityHint("Double tap to delete your account")
                 } header: {
                     Text(L.settings.account)
+                }
+
+                // ── Subscription ──
+                Section {
+                    HStack {
+                        ZStack {
+                            Circle()
+                                .fill(subscriptionManager.isPremium
+                                      ? DesignSystem.Colors.primary.opacity(0.15)
+                                      : DesignSystem.Colors.onSurfaceVariant.opacity(0.1))
+                                .frame(width: 36, height: 36)
+                            Image(systemName: subscriptionManager.isPremium ? "crown.fill" : "crown")
+                                .font(.system(size: 16))
+                                .foregroundColor(subscriptionManager.isPremium
+                                                 ? DesignSystem.Colors.primary
+                                                 : DesignSystem.Colors.onSurfaceVariant.opacity(0.5))
+                        }
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(subscriptionManager.isPremium
+                                 ? L.paywall.premiumActive
+                                 : L.paywall.premiumInactive)
+                                .font(DesignSystem.Typography.bodyMd)
+                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
+                            if subscriptionManager.isPremium {
+                                Text("Wait, What? Pro")
+                                    .font(DesignSystem.Typography.labelSm)
+                                    .foregroundColor(DesignSystem.Colors.primary.opacity(0.8))
+                            }
+                        }
+                        Spacer()
+                        if subscriptionManager.isPremium {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(DesignSystem.Colors.primary)
+                        }
+                    }
+                    .padding(.vertical, 2)
+
+                    if subscriptionManager.isPremium {
+                        Button {
+                            if let url = URL(string: "https://apps.apple.com/account/subscriptions") {
+                                UIApplication.shared.open(url)
+                            }
+                        } label: {
+                            HStack {
+                                Image(systemName: "arrow.up.right.square")
+                                    .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.5))
+                                    .accessibilityHidden(true)
+                                Text(L.paywall.manageSubscription)
+                                    .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
+                            }
+                        }
+                    } else {
+                        Button {
+                            showPaywall = true
+                        } label: {
+                            HStack {
+                                Image(systemName: "sparkles")
+                                    .foregroundColor(DesignSystem.Colors.primary)
+                                    .accessibilityHidden(true)
+                                Text(L.paywall.upgradeToPro)
+                                    .foregroundColor(DesignSystem.Colors.primary)
+                                    .fontWeight(.semibold)
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.caption)
+                                    .foregroundColor(DesignSystem.Colors.primary.opacity(0.6))
+                            }
+                        }
+                    }
+                } header: {
+                    Text(L.paywall.subscriptionSection)
+                }
+                .sheet(isPresented: $showPaywall) {
+                    NavigationView {
+                        PaywallView()
+                            .environmentObject(subscriptionManager)
+                    }
                 }
 
                 // ── Language ──
