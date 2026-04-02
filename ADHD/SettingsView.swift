@@ -308,7 +308,7 @@ struct SettingsView: View {
                             .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.5))
                     }
 
-                    Link(destination: URL(string: "https://waitwhat.app/privacy")!) {
+                    Link(destination: URL(string: "https://trident-kr.github.io/waitwhat-site/privacy")!) {
                         HStack {
                             Image(systemName: "hand.raised")
                                 .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.5))
@@ -322,7 +322,7 @@ struct SettingsView: View {
                         }
                     }
 
-                    Link(destination: URL(string: "https://waitwhat.app/terms")!) {
+                    Link(destination: URL(string: "https://trident-kr.github.io/waitwhat-site/terms")!) {
                         HStack {
                             Image(systemName: "doc.text")
                                 .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.5))
@@ -336,7 +336,7 @@ struct SettingsView: View {
                         }
                     }
 
-                    Link(destination: URL(string: "mailto:support@waitwhat.app")!) {
+                    Link(destination: URL(string: "mailto:trident1398@gmail.com")!) {
                         HStack {
                             Image(systemName: "envelope")
                                 .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.5))
