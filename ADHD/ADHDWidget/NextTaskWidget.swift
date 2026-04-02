@@ -100,7 +100,7 @@ struct NextTaskSmallView: View {
             .containerBackground(for: .widget) {
                 WDS.Colors.background
             }
-            .widgetURL(URL(string: "waitwhat://tab/voice"))
+            .widgetURL(URL(string: "mora://tab/voice"))
         } else {
             // 모든 태스크 완료
             VStack(spacing: 10) {
@@ -116,7 +116,7 @@ struct NextTaskSmallView: View {
             .containerBackground(for: .widget) {
                 WDS.Colors.background
             }
-            .widgetURL(URL(string: "waitwhat://tab/voice"))
+            .widgetURL(URL(string: "mora://tab/voice"))
         }
     }
 }
@@ -143,7 +143,7 @@ struct NextTaskMediumView: View {
             .containerBackground(for: .widget) {
                 WDS.Colors.background
             }
-            .widgetURL(URL(string: "waitwhat://tab/voice"))
+            .widgetURL(URL(string: "mora://tab/voice"))
         } else {
             VStack(alignment: .leading, spacing: 0) {
                 // 헤더
@@ -214,7 +214,7 @@ struct NextTaskMediumView: View {
             .containerBackground(for: .widget) {
                 WDS.Colors.background
             }
-            .widgetURL(URL(string: "waitwhat://tab/voice"))
+            .widgetURL(URL(string: "mora://tab/voice"))
         }
     }
 }

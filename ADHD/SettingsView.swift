@@ -103,7 +103,7 @@ struct SettingsView: View {
                                 .font(DesignSystem.Typography.bodyMd)
                                 .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
                             if subscriptionManager.isPremium {
-                                Text("Wait, What? Pro")
+                                Text("Mora Pro")
                                     .font(DesignSystem.Typography.labelSm)
                                     .foregroundColor(DesignSystem.Colors.primary.opacity(0.8))
                             }

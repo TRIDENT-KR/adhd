@@ -102,7 +102,7 @@ struct DailyOverviewWidgetView: View {
         .containerBackground(for: .widget) {
             WDS.Colors.background
         }
-        .widgetURL(URL(string: "waitwhat://tab/routine"))
+        .widgetURL(URL(string: "mora://tab/routine"))
     }
 
     // MARK: - Date Header

@@ -56,7 +56,7 @@ struct TodayRoutinesSmallView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .containerBackground(for: .widget) { WDS.Colors.background }
-            .widgetURL(URL(string: "waitwhat://tab/routine"))
+            .widgetURL(URL(string: "mora://tab/routine"))
         } else {
             VStack(spacing: 8) {
                 // 진행률 링
@@ -89,7 +89,7 @@ struct TodayRoutinesSmallView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .containerBackground(for: .widget) { WDS.Colors.background }
-            .widgetURL(URL(string: "waitwhat://tab/routine"))
+            .widgetURL(URL(string: "mora://tab/routine"))
         }
     }
 }
@@ -130,7 +130,7 @@ struct TodayRoutinesMediumView: View {
             .containerBackground(for: .widget) {
                 WDS.Colors.background
             }
-            .widgetURL(URL(string: "waitwhat://tab/routine"))
+            .widgetURL(URL(string: "mora://tab/routine"))
         }
     }
 
@@ -224,7 +224,7 @@ struct TodayRoutinesMediumView: View {
         .containerBackground(for: .widget) {
             WDS.Colors.background
         }
-        .widgetURL(URL(string: "waitwhat://tab/routine"))
+        .widgetURL(URL(string: "mora://tab/routine"))
     }
 }
 

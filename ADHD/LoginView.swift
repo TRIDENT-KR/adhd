@@ -15,7 +15,7 @@ struct LoginView: View {
 
                 // Minimalist Branding
                 VStack(spacing: 16) {
-                    Text("WaitWhat")
+                    Text("Mora")
                         .font(DesignSystem.Typography.displayLg)
                         .foregroundColor(DesignSystem.Colors.primary)
                         .tracking(-1.5)
@@ -47,7 +47,7 @@ struct LoginView: View {
                 // ToS with clickable link (#22)
                 HStack(spacing: 0) {
                     Text(L.login.tosPrefix)
-                    Link(L.login.tosLink, destination: URL(string: "https://waitwhat.app/terms")!)
+                    Link(L.login.tosLink, destination: URL(string: "https://trident-kr.github.io/waitwhat-site/terms")!)
                         .underline()
                     Text(L.login.tosSuffix)
                 }

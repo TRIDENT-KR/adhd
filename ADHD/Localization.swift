@@ -317,7 +317,7 @@ struct PaywallStrings {
         }
     }
 
-    var title: String { t("Wait, What? Pro", "Wait, What? Pro", "Wait, What? Pro") }
+    var title: String { t("Mora Pro", "Mora Pro", "Mora Pro") }
     var subtitle: String { t("Your AI thoughts companion,\nnow fully unlocked.", "당신의 AI 생각 도우미,\n이제 제한 없이.", "あなたのAI思考パートナー、\nフル解放。") }
     var choosePlan: String { t("CHOOSE YOUR PLAN", "플랜 선택", "プランを選択") }
     var planMonthly: String { t("Monthly", "월간", "月額") }
@@ -329,6 +329,8 @@ struct PaywallStrings {
     var startSubscription: String { t("Start Pro", "Pro 시작하기", "Pro を開始") }
     var restore: String { t("Restore Purchases", "구매 복원", "購入を復元") }
     var loadingPlans: String { t("Loading plans...", "플랜 불러오는 중...", "プランを読み込み中...") }
+    var loadPlansFailed: String { t("Failed to load plans.", "플랜을 불러오지 못했어요.", "プランの読み込みに失敗しました。") }
+    var retry: String { t("Retry", "다시 시도", "再試行") }
     var legalNote: String { t(
         "Subscription renews automatically. Cancel anytime in Settings.",
         "구독은 자동으로 갱신됩니다. 언제든지 설정에서 취소할 수 있습니다.",
