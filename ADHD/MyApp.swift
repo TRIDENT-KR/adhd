@@ -3,7 +3,7 @@ import SwiftData
 import UIKit
 
 @main
-struct WaitWhatApp: App {
+struct MoraApp: App {
     // MARK: - SwiftData Container
     /// 스키마 변경 시 기존 데이터와 호환되지 않으면 저장소를 초기화하여 크래시를 방지합니다.
     private static let sharedContainer: ModelContainer = {
@@ -51,7 +51,7 @@ struct WaitWhatApp: App {
 
     // MARK: - Widget Deep Link Handling
     private func handleWidgetDeepLink(_ url: URL) {
-        guard url.scheme == "waitwhat", url.host == "tab" else { return }
+        guard url.scheme == "mora", url.host == "tab" else { return }
         let tabName = url.lastPathComponent
         let tab: TabSelection
         switch tabName {
@@ -155,7 +155,7 @@ private struct SplashView: View {
             DesignSystem.Colors.background
                 .ignoresSafeArea()
             VStack(spacing: 16) {
-                Text("Wait, What?")
+                Text("Mora")
                     .font(.system(size: 32, weight: .bold, design: .rounded))
                     .foregroundColor(DesignSystem.Colors.primary)
                 ProgressView()

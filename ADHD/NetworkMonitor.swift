@@ -23,7 +23,7 @@ final class NetworkMonitor: ObservableObject {
 
     // MARK: - Private
     private let monitor = NWPathMonitor()
-    private let queue   = DispatchQueue(label: "com.waitwhat.networkmonitor", qos: .utility)
+    private let queue   = DispatchQueue(label: "com.mora.networkmonitor", qos: .utility)
     /// 배너를 숨기는 타이머 작업 — 새 이벤트 발생 시 이전 타이머를 무효화합니다.
     private var bannerWorkItem: DispatchWorkItem?
 

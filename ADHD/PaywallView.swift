@@ -102,15 +102,32 @@ struct PaywallView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
 
             if subscriptionManager.products.isEmpty {
-                HStack {
-                    ProgressView()
-                        .tint(DesignSystem.Colors.primary)
-                    Text(L.paywall.loadingPlans)
-                        .font(DesignSystem.Typography.labelSm)
-                        .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
+                if subscriptionManager.productsLoadFailed {
+                    VStack(spacing: 12) {
+                        Text(L.paywall.loadPlansFailed)
+                            .font(DesignSystem.Typography.labelSm)
+                            .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
+                        Button {
+                            Task { await subscriptionManager.loadProducts() }
+                        } label: {
+                            Text(L.paywall.retry)
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundColor(DesignSystem.Colors.primary)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 24)
+                } else {
+                    HStack {
+                        ProgressView()
+                            .tint(DesignSystem.Colors.primary)
+                        Text(L.paywall.loadingPlans)
+                            .font(DesignSystem.Typography.labelSm)
+                            .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 24)
                 }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 24)
             } else {
                 ForEach(subscriptionManager.products, id: \.id) { product in
                     PlanCard(

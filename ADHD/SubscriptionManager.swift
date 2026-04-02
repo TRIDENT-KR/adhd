@@ -15,6 +15,7 @@ class SubscriptionManager: ObservableObject {
     @Published var products: [Product] = []
     @Published var purchaseError: String? = nil
     @Published var isLoading: Bool = false
+    @Published var productsLoadFailed: Bool = false
 
     private var transactionListenerTask: Task<Void, Never>?
 
@@ -32,6 +33,7 @@ class SubscriptionManager: ObservableObject {
 
     // MARK: - Load Products
     func loadProducts() async {
+        productsLoadFailed = false
         do {
             let ids = SubscriptionProductID.allCases.map(\.rawValue)
             let fetched = try await Product.products(for: ids)
@@ -41,8 +43,12 @@ class SubscriptionManager: ObservableObject {
                 let ri = order.firstIndex(of: rhs.id) ?? 0
                 return li < ri
             }
+            if products.isEmpty {
+                productsLoadFailed = true
+            }
         } catch {
             print("⚠️ StoreKit products 로드 실패: \(error)")
+            productsLoadFailed = true
         }
     }
 

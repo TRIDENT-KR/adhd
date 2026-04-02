@@ -11,7 +11,7 @@
 			<string>trident-KR.ADHD</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>waitwhat</string>
+				<string>mora</string>
 			</array>
 		</dict>
 	</array>
