@@ -715,7 +715,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = wait..what;
+				INFOPLIST_KEY_CFBundleDisplayName = Mora;
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "This app requires microphone access to record audio for its features.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "This app uses speech recognition to convert your voice into text for better interaction.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -753,7 +753,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = wait..what;
+				INFOPLIST_KEY_CFBundleDisplayName = Mora;
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "This app requires microphone access to record audio for its features.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "This app uses speech recognition to convert your voice into text for better interaction.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;

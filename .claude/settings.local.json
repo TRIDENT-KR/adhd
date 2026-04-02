@@ -1,13 +1,36 @@
 {
   "permissions": {
     "allow": [
-      "Bash(find /Users/garden/Desktop/adhd/adhd -type f -name \"*.swift\" -exec wc -l {} +)",
-      "Bash(xcodebuild -project ADHD/ADHD.xcodeproj -scheme ADHD -destination 'platform=iOS Simulator,name=iPhone 16' build)",
-      "Bash(xcodebuild -project ADHD/ADHD.xcodeproj -scheme ADHD -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build)",
+      "Bash(git clone:*)",
+      "Skill(review)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(gh pr:*)",
+      "Bash(xcodebuild -scheme ADHD -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16' build)",
+      "Bash(xcodebuild -project /Users/garden/Desktop/adhd/adhd/ADHD/ADHD.xcodeproj -scheme ADHD -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16' build)",
+      "Bash(xcodebuild -project /Users/garden/Desktop/adhd/adhd/ADHD/ADHD.xcodeproj -scheme ADHD -sdk iphonesimulator build)",
+      "Bash(find /Users/garden/Desktop/adhd/adhd -name \"*.resolved\" -exec cat {} \\\\;)",
       "Bash(git checkout:*)",
-      "Bash(git push:*)"
+      "Bash(git pull:*)",
+      "Bash(chmod +x:*)",
+      "Bash(bash /Users/garden/.claude/notify.sh)",
+      "WebSearch",
+      "WebFetch(domain:support.claude.com)",
+      "Bash(wc -l /Users/garden/Desktop/adhd/adhd/ADHD/*.swift)",
+      "Bash(xcodebuild -scheme ADHD -destination 'platform=iOS Simulator,name=iPhone 16' build)",
+      "Bash(xcodebuild -project ADHD.xcodeproj -scheme ADHD -destination 'platform=iOS Simulator,name=iPhone 16' build)",
+      "Bash(xcrun simctl:*)",
+      "Bash(xcodebuild -project ADHD.xcodeproj -scheme ADHD -destination 'platform=iOS Simulator,id=F058A7DD-44CA-49E1-9DF9-CD06D20FC7BF' build)",
+      "Bash(xcodebuild -project ADHD.xcodeproj -scheme ADHD -sdk iphonesimulator build)",
+      "Bash(git stash:*)",
+      "Skill(ship)",
+      "mcp__claude_ai_Notion__notion-search",
+      "mcp__claude_ai_Notion__notion-fetch",
+      "mcp__claude_ai_Notion__notion-create-pages",
+      "Bash(gh api:*)",
+      "Bash(gh repo:*)",
+      "Bash(grep -l \"SubscriptionManager\\\\|PaywallView\" ADHD/*.swift)"
     ]
   }
 }
