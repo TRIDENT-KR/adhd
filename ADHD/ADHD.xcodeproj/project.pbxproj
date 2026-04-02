@@ -17,8 +17,17 @@
 		AA000007000000000000001A /* SearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000008000000000000001A /* SearchView.swift */; };
 		BB00000100000000000000A1 /* WidgetTaskSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB00000200000000000000A1 /* WidgetTaskSnapshot.swift */; };
 		BB00000300000000000000A1 /* WidgetDataStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB00000400000000000000A1 /* WidgetDataStore.swift */; };
+		CC000001000000000000AA01 /* AlarmManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000002000000000000AA01 /* AlarmManager.swift */; };
+		CC000003000000000000AA01 /* AlarmOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000004000000000000AA01 /* AlarmOverlayView.swift */; };
+		CC000005000000000000AA01 /* SmoothTaskReorderList.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000006000000000000AA01 /* SmoothTaskReorderList.swift */; };
+		DD000001000000000000001A /* SubscriptionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD000002000000000000001A /* SubscriptionManager.swift */; };
+		DD000003000000000000001A /* PaywallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD000004000000000000001A /* PaywallView.swift */; };
+		F3A1C1992F7E615B00FC011B /* StoreKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F3A1C1982F7E615B00FC011B /* StoreKit.framework */; };
+		F3A1C19D2F7E6AB800FC011B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F3A1C19C2F7E6AB800FC011B /* Assets.xcassets */; };
+		F3A1C1A12F7E74AF00FC011B /* Storekit.storekit in Resources */ = {isa = PBXBuildFile; fileRef = F3A1C1A02F7E74AF00FC011B /* Storekit.storekit */; };
 		F3D9E4B02F74D07100DA9A5A /* AuthManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3D9E4A22F74CF5C00DA9A5A /* AuthManager.swift */; };
 		F3D9E4B12F74D07100DA9A5A /* CloudLLMManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3D9E4A32F74CF5C00DA9A5A /* CloudLLMManager.swift */; };
+		F3D9E4B22F74D07100DA9A5A /* Config.plist in Resources */ = {isa = PBXBuildFile; fileRef = F3D9E4A42F74CF5C00DA9A5A /* Config.plist */; };
 		F3D9E4B32F74D07100DA9A5A /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3D9E4A52F74CF5C00DA9A5A /* ContentView.swift */; };
 		F3D9E4B42F74D07100DA9A5A /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3D9E4A62F74CF5C00DA9A5A /* LoginView.swift */; };
 		F3D9E4B52F74D07100DA9A5A /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3D9E4A72F74CF5C00DA9A5A /* MainTabView.swift */; };
@@ -34,11 +43,6 @@
 		F3D9E4C62F74DA1800DA9A5A /* AppTask.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3D9E4C12F74DA1800DA9A5A /* AppTask.swift */; };
 		F3FCA0732F79479E00193607 /* LLMFunctionCall.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3FCA0702F79479E00193607 /* LLMFunctionCall.swift */; };
 		F3FCA0742F79479E00193607 /* TaskManager+LLM.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3FCA0712F79479E00193607 /* TaskManager+LLM.swift */; };
-		CC000001000000000000AA01 /* AlarmManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000002000000000000AA01 /* AlarmManager.swift */; };
-		CC000003000000000000AA01 /* AlarmOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000004000000000000AA01 /* AlarmOverlayView.swift */; };
-		CC000005000000000000AA01 /* SmoothTaskReorderList.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000006000000000000AA01 /* SmoothTaskReorderList.swift */; };
-		DD000001000000000000001A /* SubscriptionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD000002000000000000001A /* SubscriptionManager.swift */; };
-		DD000003000000000000001A /* PaywallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD000004000000000000001A /* PaywallView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -79,7 +83,6 @@
 		};
 /* End PBXCopyFilesBuildPhase section */
 
-		F3D9E4B22F74D07100DA9A5A /* Config.plist in Resources */ = {isa = PBXBuildFile; fileRef = F3D9E4A42F74CF5C00DA9A5A /* Config.plist */; };
 /* Begin PBXFileReference section */
 		99526AD82F7A3EB2000CD3EE /* ADHDWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ADHDWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		99526AD92F7A3EB2000CD3EE /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
@@ -92,6 +95,15 @@
 		BB00000200000000000000A1 /* WidgetTaskSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetTaskSnapshot.swift; sourceTree = "<group>"; };
 		BB00000400000000000000A1 /* WidgetDataStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetDataStore.swift; sourceTree = "<group>"; };
 		BF1CC5EA265049FBB8EE3A58 /* Localization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Localization.swift; sourceTree = "<group>"; };
+		CC000002000000000000AA01 /* AlarmManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlarmManager.swift; sourceTree = "<group>"; };
+		CC000004000000000000AA01 /* AlarmOverlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlarmOverlayView.swift; sourceTree = "<group>"; };
+		CC000006000000000000AA01 /* SmoothTaskReorderList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmoothTaskReorderList.swift; sourceTree = "<group>"; };
+		DD000002000000000000001A /* SubscriptionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionManager.swift; sourceTree = "<group>"; };
+		DD000004000000000000001A /* PaywallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallView.swift; sourceTree = "<group>"; };
+		DD000006000000000000001A /* StoreKitConfig.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = StoreKitConfig.storekit; sourceTree = "<group>"; };
+		F3A1C1982F7E615B00FC011B /* StoreKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = StoreKit.framework; path = System/Library/Frameworks/StoreKit.framework; sourceTree = SDKROOT; };
+		F3A1C19C2F7E6AB800FC011B /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		F3A1C1A02F7E74AF00FC011B /* Storekit.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = Storekit.storekit; sourceTree = "<group>"; };
 		F3D9E4782F74CF5200DA9A5A /* ADHD.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ADHD.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		F3D9E4852F74CF5200DA9A5A /* ADHDTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ADHDTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		F3D9E48F2F74CF5200DA9A5A /* ADHDUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ADHDUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -113,12 +125,6 @@
 		F3D9E4C32F74DA1800DA9A5A /* NotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManager.swift; sourceTree = "<group>"; };
 		F3FCA0702F79479E00193607 /* LLMFunctionCall.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMFunctionCall.swift; sourceTree = "<group>"; };
 		F3FCA0712F79479E00193607 /* TaskManager+LLM.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TaskManager+LLM.swift"; sourceTree = "<group>"; };
-		CC000002000000000000AA01 /* AlarmManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlarmManager.swift; sourceTree = "<group>"; };
-		CC000004000000000000AA01 /* AlarmOverlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlarmOverlayView.swift; sourceTree = "<group>"; };
-		CC000006000000000000AA01 /* SmoothTaskReorderList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmoothTaskReorderList.swift; sourceTree = "<group>"; };
-		DD000002000000000000001A /* SubscriptionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionManager.swift; sourceTree = "<group>"; };
-		DD000004000000000000001A /* PaywallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallView.swift; sourceTree = "<group>"; };
-		DD000006000000000000001A /* StoreKitConfig.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = StoreKitConfig.storekit; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -157,6 +163,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				F3D9E4BD2F74D19200DA9A5A /* Supabase in Frameworks */,
+				F3A1C1992F7E615B00FC011B /* StoreKit.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -189,6 +196,8 @@
 		F3D9E46F2F74CF5200DA9A5A = {
 			isa = PBXGroup;
 			children = (
+				F3A1C1A02F7E74AF00FC011B /* Storekit.storekit */,
+				F3A1C19C2F7E6AB800FC011B /* Assets.xcassets */,
 				99526AFE2F7A411E000CD3EE /* ADHDWidgetExtension.entitlements */,
 				F3D9E4BE2F74D25900DA9A5A /* ADHD.entitlements */,
 				99526ADD2F7A3EB2000CD3EE /* ADHDWidget */,
@@ -239,6 +248,7 @@
 		F3D9E4BB2F74D19200DA9A5A /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				F3A1C1982F7E615B00FC011B /* StoreKit.framework */,
 				99526AD92F7A3EB2000CD3EE /* WidgetKit.framework */,
 				99526ADB2F7A3EB2000CD3EE /* SwiftUI.framework */,
 			);
@@ -378,6 +388,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				F3D9E4AF2F74CFAD00DA9A5A /* XCRemoteSwiftPackageReference "supabase-swift" */,
+				F3A1C1692F7E590800FC011B /* XCRemoteSwiftPackageReference "purchases-ios-spm" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = F3D9E4792F74CF5200DA9A5A /* Products */;
@@ -404,6 +415,8 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				F3A1C1A12F7E74AF00FC011B /* Storekit.storekit in Resources */,
+				F3A1C19D2F7E6AB800FC011B /* Assets.xcassets in Resources */,
 				F3D9E4B22F74D07100DA9A5A /* Config.plist in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -694,9 +707,10 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = ADHD.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = 5S3Y6973X6;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -731,9 +745,10 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = ADHD.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = 5S3Y6973X6;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -898,6 +913,14 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		F3A1C1692F7E590800FC011B /* XCRemoteSwiftPackageReference "purchases-ios-spm" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/RevenueCat/purchases-ios-spm.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 5.67.0;
+			};
+		};
 		F3D9E4AF2F74CFAD00DA9A5A /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/supabase/supabase-swift.git";
