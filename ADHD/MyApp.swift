@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import UIKit
 
 @main
 struct WaitWhatApp: App {
@@ -146,7 +147,6 @@ struct WaitWhatApp: App {
 // MARK: - Splash Screen
 private struct SplashView: View {
     @State private var pulse = false
-    @FocusState private var warmUpFocus: Bool
 
     var body: some View {
         ZStack {
@@ -167,17 +167,44 @@ private struct SplashView: View {
                 }
             }
 
-            // 키보드 사전 로딩 (보이지 않는 TextField로 iOS 키보드 캐시 워밍)
-            TextField("", text: .constant(""))
-                .focused($warmUpFocus)
-                .frame(width: 0, height: 0)
-                .opacity(0)
-                .task {
-                    try? await Task.sleep(nanoseconds: 200_000_000)
-                    warmUpFocus = true
-                    try? await Task.sleep(nanoseconds: 100_000_000)
-                    warmUpFocus = false
-                }
+            // UIKit 기반 키보드 사전 로딩 (opacity:0 TextField는 iOS가 실제 키보드를 캐시하지 않음)
+            KeyboardWarmupView()
+                .frame(width: 1, height: 1)
+                .opacity(0.01)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+
+            // UIDatePicker(.wheel) 사전 로딩 (첫 시간 설정 sheet 지연 방지)
+            DatePicker("", selection: .constant(Date()), displayedComponents: .hourAndMinute)
+                .datePickerStyle(.wheel)
+                .labelsHidden()
+                .frame(width: 1, height: 1)
+                .clipped()
+                .opacity(0.01)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
+    }
+}
+
+// MARK: - UIKit Keyboard Warm-up
+/// SwiftUI의 opacity:0 TextField는 iOS가 키보드를 실제로 초기화하지 않음.
+/// UITextField를 직접 firstResponder로 만들어야 키보드 스택이 캐시됨.
+private struct KeyboardWarmupView: UIViewRepresentable {
+    func makeUIView(context: Context) -> UITextField {
+        let tf = UITextField()
+        tf.isHidden = false
+        tf.autocorrectionType = .no
+        tf.spellCheckingType = .no
+        return tf
+    }
+
+    func updateUIView(_ tf: UITextField, context: Context) {
+        // 뷰가 윈도우에 붙은 직후에 포커스 → 즉시 resign (키보드 UI는 보이지 않음)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            guard tf.window != nil else { return }
+            tf.becomeFirstResponder()
+            tf.resignFirstResponder()
         }
     }
 }
