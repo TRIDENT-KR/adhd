@@ -57,7 +57,7 @@ Deno.serve(async (req: Request) => {
     if (deleteError) {
       console.error("❌ Failed to delete user:", deleteError);
       return new Response(
-        JSON.stringify({ error: `Failed to delete account: ${deleteError.message}` }),
+        JSON.stringify({ error: "Account deletion failed. Please contact support." }),
         { headers, status: 500 }
       );
     }
@@ -70,7 +70,7 @@ Deno.serve(async (req: Request) => {
   } catch (error: any) {
     console.error("❌ Unexpected error:", error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: "An unexpected error occurred. Please contact support." }),
       { headers, status: 500 }
     );
   }

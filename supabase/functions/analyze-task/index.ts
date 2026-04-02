@@ -62,6 +62,11 @@ Deno.serve(async (req: Request) => {
 
     const { text, currentTime, language } = await req.json();
     if (!text) throw new Error("음성 텍스트가 없습니다.");
+    // 입력 길이 제한 — 음성 인식 결과는 최대 2000자를 초과하지 않음
+    // 초과 시 Gemini API 토큰 비용 증폭 방지
+    if (text.length > 2000) {
+      return new Response(JSON.stringify({ error: 'Input too long. Maximum 2000 characters allowed.' }), { headers, status: 400 });
+    }
 
     // 전달받은 currentTime이 없으면 서버 현재시간 사용
     // 프롬프트 인젝션 방지: 엄격한 datetime 형식(yyyy-MM-dd HH:mm)만 허용
