@@ -4,8 +4,8 @@ import SwiftUI
 
 // MARK: - Subscription Product IDs
 enum SubscriptionProductID: String, CaseIterable {
-    case monthly = "trident-KR.ADHD.premium.monthly"
-    case yearly  = "trident-KR.ADHD.premium.yearly"
+    case monthly = "com.TRIDENT.ADHD.monthly"
+    case yearly  = "com.TRIDENT.ADHD.yearly"
 }
 
 // MARK: - Subscription Manager
