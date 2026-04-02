@@ -318,7 +318,7 @@ struct PaywallStrings {
     }
 
     var title: String { t("Mora Pro", "Mora Pro", "Mora Pro") }
-    var subtitle: String { t("Your AI thoughts companion,\nnow fully unlocked.", "당신의 AI 생각 도우미,\n이제 제한 없이.", "あなたのAI思考パートナー、\nフル解放。") }
+    var subtitle: String { t("Unlimited AI voice input\nand all premium features.", "AI 음성 입력 무제한\n그리고 모든 프리미엄 기능.", "AI音声入力を無制限に\nすべてのプレミアム機能を。") }
     var choosePlan: String { t("CHOOSE YOUR PLAN", "플랜 선택", "プランを選択") }
     var planMonthly: String { t("Monthly", "월간", "月額") }
     var planYearly: String { t("Yearly", "연간", "年額") }
@@ -337,16 +337,16 @@ struct PaywallStrings {
         "サブスクリプションは自動的に更新されます。設定からいつでも解約できます。"
     ) }
 
-    var featureVoiceTitle: String { t("Just say it", "그냥 말하면 돼요", "話しかけるだけ") }
-    var featureVoiceDesc: String { t("Speak it out loud. We'll remember it for you.", "입 밖에 내면 끝. 나머지는 제가 기억할게요.", "声に出すだけ。あとは私が覚えておきます。") }
-    var featureAITitle: String { t("AI that just gets it", "알아서 척척", "ちゃんとわかるAI") }
-    var featureAIDesc: String { t("Routine or appointment? AI figures it out so you don't have to.", "루틴인지 일정인지 AI가 알아서 구분해드려요.", "ルーティンか予定か、AIが自動で判断します。") }
-    var featureAlarmsTitle: String { t("Alerts you can't ignore", "못 지나칠 알림", "見逃せないアラーム") }
-    var featureAlarmsDesc: String { t("Full-screen alarms that actually get your attention.", "화면 가득 뜨는 알람으로 절대 놓치지 않아요.", "画面いっぱいのアラームで絶対に気づけます。") }
-    var featureWidgetsTitle: String { t("Always in sight", "항상 눈앞에", "いつも目の前に") }
-    var featureWidgetsDesc: String { t("Check your tasks right from your home screen.", "홈 화면에서 바로 오늘 할 일을 확인하세요.", "ホーム画面からすぐに今日のタスクを確認。") }
-    var featureSyncTitle: String { t("Nothing gets lost", "아무것도 잃지 않아요", "何も失わない") }
-    var featureSyncDesc: String { t("Your data is safely backed up, always.", "소중한 데이터는 언제나 안전하게 보관돼요.", "大切なデータはいつも安全に保管されます。") }
+    var featureVoiceTitle: String { t("Unlimited voice & AI", "무제한 음성 & AI", "無制限の音声 & AI") }
+    var featureVoiceDesc: String { t("Free users get 3 AI inputs per day. Pro removes the limit entirely.", "무료는 하루 3회, Pro는 제한 없이 음성·텍스트 AI를 사용할 수 있어요.", "無料は1日3回、Proなら回数制限なしで音声・テキストAIを使えます。") }
+    var featureAITitle: String { t("Smart task sorting", "AI 자동 분류", "AIが自動で分類") }
+    var featureAIDesc: String { t("AI tells apart routines, tasks, and appointments automatically.", "루틴인지, 할 일인지, 일정인지 AI가 알아서 구분해요.", "ルーティンか、タスクか、予定か、AIが自動で判断します。") }
+    var featureAlarmsTitle: String { t("Full-screen alarms", "전체 화면 알람", "フルスクリーンアラーム") }
+    var featureAlarmsDesc: String { t("Can't-miss alarms that fill the whole screen.", "화면 가득 뜨는 알람으로 절대 놓치지 않아요.", "画面いっぱいのアラームで絶対に見逃しません。") }
+    var featureWidgetsTitle: String { t("Home screen widgets", "홈 화면 위젯", "ホーム画面ウィジェット") }
+    var featureWidgetsDesc: String { t("See today's tasks and routines without opening the app.", "앱을 열지 않아도 오늘 할 일과 루틴을 바로 확인하세요.", "アプリを開かなくても今日のタスクとルーティンを確認。") }
+    var featureSyncTitle: String { t("Cloud backup", "클라우드 백업", "クラウドバックアップ") }
+    var featureSyncDesc: String { t("Your data stays safe across devices. (Coming soon)", "기기를 바꿔도 데이터가 안전하게 유지돼요. (출시 예정)", "機種変更してもデータは安全に保管されます。(近日公開)") }
 
     var subscriptionSection: String { t("Subscription", "구독", "サブスクリプション") }
     var premiumActive: String { t("Pro · Active", "Pro · 활성", "Pro · 有効") }

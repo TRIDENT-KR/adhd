@@ -81,29 +81,22 @@ struct MoraApp: App {
         WindowGroup {
             Group {
                 if !authManager.isSessionLoaded {
-                    // 세션 확인 중 — 스플래시 화면 표시
-                    SplashView()
+                    // 세션 확인 중
+                    ProgressView()
+                        .tint(DesignSystem.Colors.primary)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(DesignSystem.Colors.background.ignoresSafeArea())
                         .preferredColorScheme(colorScheme)
                 } else if authManager.session != nil {
-                    ZStack {
-                        MainTabView()
-                            .environment(\.locale, Locale(identifier: appLanguage))
-                            .environmentObject(taskManager)
-                            .environmentObject(cloudLLM)
-                            .environmentObject(authManager)
-                            .environmentObject(networkMonitor)
-                            .environmentObject(subscriptionManager)
-                            .modelContainer(container)
-
-                        // 데이터 로딩 완료 전 스플래시 오버레이
-                        if !taskManager.isReady {
-                            SplashView()
-                                .transition(.opacity)
-                                .zIndex(1)
-                        }
-                    }
-                    .animation(.easeOut(duration: 0.4), value: taskManager.isReady)
-                    .preferredColorScheme(colorScheme)
+                    MainTabView()
+                        .environment(\.locale, Locale(identifier: appLanguage))
+                        .environmentObject(taskManager)
+                        .environmentObject(cloudLLM)
+                        .environmentObject(authManager)
+                        .environmentObject(networkMonitor)
+                        .environmentObject(subscriptionManager)
+                        .modelContainer(container)
+                        .preferredColorScheme(colorScheme)
                     .task {
                         // ModelContext 주입 (TaskManager → SwiftData)
                         taskManager.configure(context: container.mainContext)
@@ -146,67 +139,3 @@ struct MoraApp: App {
     }
 }
 
-// MARK: - Splash Screen
-private struct SplashView: View {
-    @State private var pulse = false
-
-    var body: some View {
-        ZStack {
-            DesignSystem.Colors.background
-                .ignoresSafeArea()
-            VStack(spacing: 16) {
-                Text("Mora")
-                    .font(.system(size: 32, weight: .bold, design: .rounded))
-                    .foregroundColor(DesignSystem.Colors.primary)
-                ProgressView()
-                    .tint(DesignSystem.Colors.primary)
-            }
-            .scaleEffect(pulse ? 1.02 : 0.98)
-            .opacity(pulse ? 1.0 : 0.7)
-            .onAppear {
-                withAnimation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true)) {
-                    pulse = true
-                }
-            }
-
-            // UIKit 기반 키보드 사전 로딩 (opacity:0 TextField는 iOS가 실제 키보드를 캐시하지 않음)
-            KeyboardWarmupView()
-                .frame(width: 1, height: 1)
-                .opacity(0.01)
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
-
-            // UIDatePicker(.wheel) 사전 로딩 (첫 시간 설정 sheet 지연 방지)
-            DatePicker("", selection: .constant(Date()), displayedComponents: .hourAndMinute)
-                .datePickerStyle(.wheel)
-                .labelsHidden()
-                .frame(width: 1, height: 1)
-                .clipped()
-                .opacity(0.01)
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
-        }
-    }
-}
-
-// MARK: - UIKit Keyboard Warm-up
-/// SwiftUI의 opacity:0 TextField는 iOS가 키보드를 실제로 초기화하지 않음.
-/// UITextField를 직접 firstResponder로 만들어야 키보드 스택이 캐시됨.
-private struct KeyboardWarmupView: UIViewRepresentable {
-    func makeUIView(context: Context) -> UITextField {
-        let tf = UITextField()
-        tf.isHidden = false
-        tf.autocorrectionType = .no
-        tf.spellCheckingType = .no
-        return tf
-    }
-
-    func updateUIView(_ tf: UITextField, context: Context) {
-        // 뷰가 윈도우에 붙은 직후에 포커스 → 즉시 resign (키보드 UI는 보이지 않음)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            guard tf.window != nil else { return }
-            tf.becomeFirstResponder()
-            tf.resignFirstResponder()
-        }
-    }
-}

@@ -6,6 +6,7 @@ struct HomeVoiceInterfaceView: View {
     @EnvironmentObject var taskManager: TaskManager
     @EnvironmentObject var authManager: AuthManager
     @EnvironmentObject var networkMonitor: NetworkMonitor
+    @EnvironmentObject var subscriptionManager: SubscriptionManager
     
     @ObservedObject var langManager = LocalizationManager.shared
     @StateObject private var voiceManager = VoiceInputManager()
@@ -28,6 +29,7 @@ struct HomeVoiceInterfaceView: View {
     
     // Binding to pass modal state up to parent (MainTabView)
     @Binding var isModalVisible: Bool
+    @State private var showPaywall = false
 
     // Text input state
     @State private var showTextInput = false
@@ -61,6 +63,26 @@ struct HomeVoiceInterfaceView: View {
                     .accessibilityLabel(showTextInput ? "Switch to voice input" : "Switch to text input")
 
                     Spacer()
+
+                    if !subscriptionManager.isPremium {
+                        Button(action: { showPaywall = true }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "sparkles")
+                                    .font(.system(size: 12, weight: .semibold))
+                                Text("\(subscriptionManager.remainingAIUsage)/\(SubscriptionManager.freeAILimit)")
+                                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                            }
+                            .foregroundColor(subscriptionManager.canUseAI ? DesignSystem.Colors.primary : .red.opacity(0.8))
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(
+                                Capsule()
+                                    .fill(subscriptionManager.canUseAI
+                                          ? DesignSystem.Colors.primary.opacity(0.1)
+                                          : Color.red.opacity(0.1))
+                            )
+                        }
+                    }
 
                     Button(action: { showSettings = true }) {
                         Image(systemName: "gearshape")
@@ -326,6 +348,13 @@ struct HomeVoiceInterfaceView: View {
             SettingsView()
                 .environmentObject(authManager)
                 .environmentObject(taskManager)
+                .environmentObject(subscriptionManager)
+        }
+        .sheet(isPresented: $showPaywall) {
+            NavigationView {
+                PaywallView()
+                    .environmentObject(subscriptionManager)
+            }
         }
         .sheet(isPresented: $showVoiceGuide, onDismiss: {
             if !hasSeenVoiceOnboarding { hasSeenVoiceOnboarding = true }
@@ -391,13 +420,6 @@ struct HomeVoiceInterfaceView: View {
                             }
                         }
                 )
-                .simultaneousGesture(
-                    LongPressGesture(minimumDuration: 1.5)
-                        .onEnded { _ in
-                            Haptic.impact(.light)
-                            showVoiceGuide = true
-                        }
-                )
         } else {
             // Tap-to-Toggle (기본)
             Button(action: { handleMicTap() }) {
@@ -405,13 +427,6 @@ struct HomeVoiceInterfaceView: View {
             }
             .buttonStyle(SquishyButtonStyle())
             .disabled(cloudLLM.isProcessing || voiceManager.isProcessing)
-            .simultaneousGesture(
-                LongPressGesture(minimumDuration: 0.5)
-                    .onEnded { _ in
-                        Haptic.impact(.light)
-                        showVoiceGuide = true
-                    }
-            )
         }
     }
 
@@ -420,12 +435,18 @@ struct HomeVoiceInterfaceView: View {
         let text = textInputValue.trimmingCharacters(in: .whitespaces)
         guard !text.isEmpty else { return }
 
+        if !subscriptionManager.canUseAI {
+            showPaywall = true
+            return
+        }
+
         Haptic.impact(.medium)
         textInputValue = ""
         isTextInputFocused = false
 
         Task {
             do {
+                subscriptionManager.incrementAIUsage()
                 let parsedTasks = try await cloudLLM.analyzeText(text: text)
                 print("⌨️ 텍스트 입력 파싱 결과: \(parsedTasks)")
 
@@ -459,6 +480,12 @@ struct HomeVoiceInterfaceView: View {
 
     // MARK: - Mic Button Handler
     private func handleMicTap() {
+        // 녹음 중이 아닐 때만 제한 체크 (녹음 중지는 항상 허용)
+        if !voiceManager.isListening && !subscriptionManager.canUseAI {
+            Haptic.notification(.warning)
+            showPaywall = true
+            return
+        }
         if !networkMonitor.isConnected && !voiceManager.isListening {
             networkMonitor.showOfflineBannerTemporarily()
             return
@@ -570,6 +597,15 @@ struct HomeVoiceInterfaceView: View {
 
             Task {
                 do {
+                    if !subscriptionManager.canUseAI {
+                        await MainActor.run {
+                            voiceManager.recognizedText = ""
+                            voiceManager.isProcessing = false
+                            showPaywall = true
+                        }
+                        return
+                    }
+                    subscriptionManager.incrementAIUsage()
                     let parsedTasks = try await cloudLLM.analyzeText(text: text)
                     print("🤖 Gemini 파싱 결과: \(parsedTasks)")
 
