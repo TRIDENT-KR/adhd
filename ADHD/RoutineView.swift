@@ -1,6 +1,5 @@
 import SwiftUI
 import SwiftData
-import UniformTypeIdentifiers
 
 struct RoutineView: View {
     // MARK: - SwiftData Queries
@@ -47,7 +46,6 @@ struct RoutineView: View {
     @State private var selectedSection: RoutineSection = .routines
     @State private var showSearch = false
     @State private var isReordering = false
-    @State private var draggingTask: AppTask?
 
     enum RoutineSection: CaseIterable {
         case routines, tasks
@@ -153,17 +151,8 @@ struct RoutineView: View {
                                 withAnimation(.spring()) { activeTab = .voice }
                             }
                         } else if isReordering {
-                            // 정렬 모드: 드래그 앤 드롭
-                            LazyVStack(spacing: 16) {
-                                ForEach(currentTasks) { task in
-                                    ReorderRow(task: task, allTasks: currentTasks, taskManager: taskManager, draggingTask: $draggingTask)
-                                        .onDrag {
-                                            self.draggingTask = task
-                                            return NSItemProvider(object: task.id.uuidString as NSString)
-                                        }
-                                        .onDrop(of: [.text], delegate: TaskDropDelegate(item: task, tasks: currentTasks, draggingItem: $draggingTask, taskManager: taskManager))
-                                }
-                            }
+                            // 정렬 모드: 부드러운 드래그 리오더
+                            SmoothTaskReorderList(tasks: currentTasks, taskManager: taskManager)
                         } else {
                             let (incomplete, completed) = currentTasks.partitioned { !$0.isCompleted }
                             LazyVStack(spacing: 32) {
@@ -567,109 +556,17 @@ extension View {
     }
 }
 
-// MARK: - Reorder Row Component
-struct ReorderRow: View {
-    var task: AppTask
-    let allTasks: [AppTask]
-    let taskManager: TaskManager
-    @Binding var draggingTask: AppTask?
-
-    private var currentIndex: Int {
-        allTasks.firstIndex(where: { $0.id == task.id }) ?? 0
-    }
-
-    var body: some View {
-        HStack(spacing: 16) {
-            // 드래그 핸들
-            Image(systemName: "line.3.horizontal")
-                .font(.system(size: 16, weight: .medium))
-                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.3))
-
-            // 완료 표시
-            Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
-                .font(.system(size: 16))
-                .foregroundColor(task.isCompleted ? DesignSystem.Colors.tertiary : DesignSystem.Colors.onSurfaceVariant.opacity(0.25))
-
-            // 태스크 이름
-            VStack(alignment: .leading, spacing: 2) {
-                Text(task.task)
-                    .font(DesignSystem.Typography.bodyMd)
-                    .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
-                    .lineLimit(1)
-                if let time = task.time, !time.isEmpty {
-                    Text(time)
-                        .font(DesignSystem.Typography.labelSm)
-                        .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.4))
-                }
-            }
-
-            Spacer()
-        }
-        .padding(.vertical, 12)
-        .padding(.horizontal, 32)
-        .background(DesignSystem.Colors.surfaceContainerLow.opacity(0.5))
-        .cornerRadius(12)
-        .padding(.horizontal, 24)
-        .scaleEffect(draggingTask?.id == task.id ? 1.05 : 1.0)
-        .opacity(draggingTask?.id == task.id ? 0.6 : 1.0)
-    }
-}
-
-// MARK: - Drag & Drop Delegate
-struct TaskDropDelegate: DropDelegate {
-    let item: AppTask
-    let tasks: [AppTask]
-    @Binding var draggingItem: AppTask?
-    let taskManager: TaskManager
-
-    func performDrop(info: DropInfo) -> Bool {
-        draggingItem = nil
-        return true
-    }
-
-    func dropEntered(info: DropInfo) {
-        guard let draggingItem = draggingItem,
-              draggingItem.id != item.id,
-              let fromIndex = tasks.firstIndex(where: { $0.id == draggingItem.id }),
-              let toIndex = tasks.firstIndex(where: { $0.id == item.id }) else { return }
-
-        // 순서 변경 적용
-        if fromIndex != toIndex {
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                // sortOrder 값을 재배정
-                let fromOrder = draggingItem.sortOrder
-                let toOrder = item.sortOrder
-                
-                draggingItem.sortOrder = toOrder
-                item.sortOrder = fromOrder
-                
-                // 만약 동일한 값이면 미세하게 조정
-                if draggingItem.sortOrder == item.sortOrder {
-                    // 전체 리스트의 순서를 재할당
-                    for (i, t) in tasks.sorted(by: { $0.sortOrder < $1.sortOrder }).enumerated() {
-                        t.sortOrder = (i + 1) * 10
-                    }
-                }
-                
-                taskManager.safeSave()
-            }
-        }
-    }
-}
-
 // MARK: - Array Partition Helper
 private extension Array {
-    /// Single-pass partition into (matching, non-matching) — avoids two separate .filter() calls.
+    /// Single-pass partition into (matching, non-matching)
     func partitioned(by predicate: (Element) -> Bool) -> ([Element], [Element]) {
         var matching: [Element] = []
         var rest: [Element] = []
         for element in self {
-            if predicate(element) {
-                matching.append(element)
-            } else {
-                rest.append(element)
-            }
+            if predicate(element) { matching.append(element) }
+            else { rest.append(element) }
         }
         return (matching, rest)
     }
 }
+

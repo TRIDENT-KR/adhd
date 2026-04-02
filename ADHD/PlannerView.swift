@@ -1,6 +1,5 @@
 import SwiftUI
 import SwiftData
-import UniformTypeIdentifiers
 
 struct PlannerView: View {
     // MARK: - SwiftData Query
@@ -29,7 +28,6 @@ struct PlannerView: View {
     }()
 
     @State private var isReordering = false
-    @State private var draggingTask: AppTask?
 
     /// 선택된 날짜와 같은 날의 약속만 반환 (반복 일정 포함), 사용자 정렬 > 시간순
     private var filteredAppointments: [AppTask] {
@@ -119,17 +117,8 @@ struct PlannerView: View {
                         }
                         .frame(minHeight: ((UIApplication.shared.connectedScenes.first as? UIWindowScene)?.screen.bounds.height ?? 800) * 0.4)
                     } else if isReordering {
-                        // 정렬 모드: 드래그 앤 드롭
-                        LazyVStack(spacing: 16) {
-                            ForEach(filteredAppointments) { task in
-                                ReorderRow(task: task, allTasks: filteredAppointments, taskManager: taskManager, draggingTask: $draggingTask)
-                                    .onDrag {
-                                        self.draggingTask = task
-                                        return NSItemProvider(object: task.id.uuidString as NSString)
-                                    }
-                                    .onDrop(of: [.text], delegate: TaskDropDelegate(item: task, tasks: filteredAppointments, draggingItem: $draggingTask, taskManager: taskManager))
-                            }
-                        }
+                        // 정렬 모드: 부드러운 드래그 리오더
+                        SmoothTaskReorderList(tasks: filteredAppointments, taskManager: taskManager)
                     } else {
                         LazyVStack(spacing: 32) {
                             ForEach(filteredAppointments) { task in

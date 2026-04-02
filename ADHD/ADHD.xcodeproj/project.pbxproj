@@ -37,6 +37,7 @@
 		F3FCA0742F79479E00193607 /* TaskManager+LLM.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3FCA0712F79479E00193607 /* TaskManager+LLM.swift */; };
 		CC000001000000000000AA01 /* AlarmManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000002000000000000AA01 /* AlarmManager.swift */; };
 		CC000003000000000000AA01 /* AlarmOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000004000000000000AA01 /* AlarmOverlayView.swift */; };
+		CC000005000000000000AA01 /* SmoothTaskReorderList.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000006000000000000AA01 /* SmoothTaskReorderList.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -112,6 +113,7 @@
 		F3FCA0712F79479E00193607 /* TaskManager+LLM.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TaskManager+LLM.swift"; sourceTree = "<group>"; };
 		CC000002000000000000AA01 /* AlarmManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlarmManager.swift; sourceTree = "<group>"; };
 		CC000004000000000000AA01 /* AlarmOverlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlarmOverlayView.swift; sourceTree = "<group>"; };
+		CC000006000000000000AA01 /* SmoothTaskReorderList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmoothTaskReorderList.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -201,6 +203,7 @@
 				F3D9E4C12F74DA1800DA9A5A /* AppTask.swift */,
 				CC000002000000000000AA01 /* AlarmManager.swift */,
 				CC000004000000000000AA01 /* AlarmOverlayView.swift */,
+				CC000006000000000000AA01 /* SmoothTaskReorderList.swift */,
 				F3FCA0722F79479E00193607 /* Functions */,
 				F3D9E4C22F74DA1800DA9A5A /* NetworkMonitor.swift */,
 				F3D9E4C32F74DA1800DA9A5A /* NotificationManager.swift */,
@@ -450,6 +453,7 @@
 				BB00000300000000000000A1 /* WidgetDataStore.swift in Sources */,
 				CC000001000000000000AA01 /* AlarmManager.swift in Sources */,
 				CC000003000000000000AA01 /* AlarmOverlayView.swift in Sources */,
+				CC000005000000000000AA01 /* SmoothTaskReorderList.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

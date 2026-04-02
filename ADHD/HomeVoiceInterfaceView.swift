@@ -159,6 +159,8 @@ struct HomeVoiceInterfaceView: View {
                     .onAppear {
                         isBreathing = true
                         setupSpeechCallback()
+                        // SFSpeechRecognizer + AVAudioSession 사전 초기화 (첫 탭 렉 방지)
+                        voiceManager.warmUp()
                     }
 
 

@@ -122,6 +122,17 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
         requestPermissions()
     }
 
+    /// 뷰 등장 시 미리 호출해 첫 탭 렉을 방지합니다.
+    /// SFSpeechRecognizer 초기화 + AVAudioSession 카테고리 사전 설정 (activate는 하지 않음)
+    func warmUp() {
+        prepareIfNeeded()
+        Task.detached(priority: .utility) {
+            try? AVAudioSession.sharedInstance().setCategory(
+                .record, mode: .measurement, options: .duckOthers
+            )
+        }
+    }
+
     /// 활성화된 언어 목록 내에서 다음 언어로 순환 전환
     func cycleLanguage() {
         let locales = Self.enabledLocales
