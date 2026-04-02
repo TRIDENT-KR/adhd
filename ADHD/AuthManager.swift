@@ -21,6 +21,12 @@ class AuthManager: NSObject, ObservableObject {
 
     override init() {
         super.init()
+        // 키체인 캐시에서 즉시 복원 (네트워크 없이) → 스플래시 즉시 해제
+        if let cached = supabase.auth.currentSession {
+            self.session = cached
+            self.isSessionLoaded = true
+        }
+        // 백그라운드에서 세션 갱신 (만료 시 토큰 재발급)
         Task {
             await checkSession()
         }
