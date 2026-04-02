@@ -1,13 +1,10 @@
 import SwiftUI
 import SwiftData
 import UIKit
-import RevenueCat
 
 @main
 struct WaitWhatApp: App {
-    init() {  // 👈 추가
-            Purchases.configure(withAPIKey: "test_fzcl0AAWlLkEykdpPPmrlDxtMTA")
-    }
+    
     
     // MARK: - SwiftData Container
     /// 스키마 변경 시 기존 데이터와 호환되지 않으면 저장소를 초기화하여 크래시를 방지합니다.
