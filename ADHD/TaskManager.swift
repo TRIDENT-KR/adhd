@@ -40,9 +40,11 @@ class TaskManager: ObservableObject {
     /// App.swift에서 modelContext를 주입합니다.
     func configure(context: ModelContext) {
         self.modelContext = context
-        // 앱 구동 시 초기화 체크
-        checkAndResetDailyTasks()
+        // 스플래시를 즉시 해제한 뒤 daily reset 실행 (UI 렌더링 우선)
         isReady = true
+        Task { @MainActor in
+            checkAndResetDailyTasks()
+        }
     }
 
     // MARK: - Daily Reset Logic
