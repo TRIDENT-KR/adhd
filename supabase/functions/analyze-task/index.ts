@@ -203,7 +203,7 @@ Output: [{"function_name": "handle_off_topic_chat", "parameters": {"message": "�
     }
 
     const responseText = data.candidates[0].content.parts[0].text;
-    console.log("🎤 아이폰에서 들어온 음성 텍스트:", text);
+    console.log("🎤 음성 입력 수신 (길이:", text.length, "자)");
     console.log("🌐 사용자 언어:", userLanguage);
     console.log("🤖 Gemini Raw Response:", responseText);
 
