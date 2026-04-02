@@ -35,10 +35,18 @@
   - 빽빽한 월간 달력 대신 **오늘 기준 + 6일(총 7일)**만 노출되는 가로형 주간 캘린더 배치.
   - 하단에는 해당 날짜의 주요 약속(Appointments) 리스트만 넉넉한 여백과 함께 노출.
 
+### 📍 Tab 4: Settings
+- **목적**: 알림, 언어(한/영/일), 앱 외관, 계정 관리, 구독 결제를 한 곳에서 설정.
+- **주요 기능**: 알림 권한 관리, 다국어 즉시 전환(앱 재시작 불필요), 다크모드 지원, 계정 삭제, 구독 플랜 관리.
+
 ## 5. Tech Stack & Architecture (기술 스택)
 - **Frontend**: Native iOS (SwiftUI)
-- **UI Automation**: Google Stitch & Antigravity MCP (디자인 시스템 추출 및 UI 스캐폴딩)
-- **Architecture Note**: 향후 앱 내부에 **온디바이스(On-device) SLM(소형 언어 모델)**을 탑재할 예정입니다. 크로스 플랫폼이 아닌 Swift 네이티브 구성을 통해 Apple의 Neural Engine(NPU)을 100% 활용하고, 자연어 처리(NLP) 추론 레이턴시를 최소화하여 매끄러운 UX를 제공하기 위함입니다.
+- **Local Storage**: SwiftData (오프라인 퍼시스턴스 + 로컬 알림)
+- **Backend**: Supabase (Auth — Apple Sign-in, PostgreSQL, Edge Functions)
+- **AI**: Google Gemini 2.0 Flash (Supabase Edge Function `analyze-task`를 통해 음성 텍스트를 구조화된 함수 호출로 변환)
+- **Security**: Edge Function에 JWT 인증, CORS 제한, Rate Limiting(분당 30회), 입력 길이 제한(1,000자), PII 로그 차단 적용
+- **Monetization**: StoreKit 2 기반 구독 결제 (PaywallView + SubscriptionManager)
+- **Architecture Note (Roadmap)**: 향후 온디바이스(On-device) SLM 탑재를 검토 중입니다. Apple Neural Engine 활용 시 레이턴시 개선 및 오프라인 AI 처리가 가능합니다.
 
 ## 6. Team Collaboration (협업 컨벤션)
 빠르고 애자일한 개발을 위해 **GitHub Flow** 방식을 채택합니다.
