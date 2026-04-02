@@ -211,8 +211,8 @@ struct PaywallView: View {
                 .lineSpacing(3)
 
             HStack(spacing: 16) {
-                Link(L.settings.privacyPolicy, destination: URL(string: "https://waitwhat.app/privacy")!)
-                Link(L.settings.termsOfService, destination: URL(string: "https://waitwhat.app/terms")!)
+                Link(L.settings.privacyPolicy, destination: URL(string: "https://trident-kr.github.io/waitwhat-site/privacy")!)
+                Link(L.settings.termsOfService, destination: URL(string: "https://trident-kr.github.io/waitwhat-site/terms")!)
             }
             .font(.system(size: 11))
             .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.45))
