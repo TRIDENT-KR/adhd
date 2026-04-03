@@ -376,6 +376,9 @@ struct HomeVoiceInterfaceView: View {
         }
         .onAppear {
             isModalVisible = showConfirmation
+            if !hasSeenVoiceOnboarding {
+                showVoiceGuide = true
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: .didReceiveOffTopicChat)) { notification in
             if let message = notification.userInfo?["message"] as? String {
@@ -682,7 +685,7 @@ struct VoiceConfirmationSheet: View {
         VStack(spacing: 0) {
             // Header
             HStack {
-                let titleText = editingTask == nil ? (isOffTopic ? "알림" : L.voice.confirmTitle) : L.voice.editTaskTitle
+                let titleText = editingTask == nil ? (isOffTopic ? L.voice.offTopicTitle : L.voice.confirmTitle) : L.voice.editTaskTitle
                 Text(titleText)
                     .font(.title3.weight(.bold))
                     .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
@@ -901,7 +904,7 @@ struct VoiceConfirmationSheet: View {
                     Button(action: isOffTopic ? onCancel : onConfirm) {
                         HStack(spacing: 8) {
                             Image(systemName: "sparkles")
-                            Text(isOffTopic ? "다시 질문하기" : L.voice.confirmButton)
+                            Text(isOffTopic ? L.voice.offTopicAskAgain : L.voice.confirmButton)
                         }
                         .frame(maxWidth: .infinity)
                     }
@@ -1035,7 +1038,17 @@ struct VoiceGuideSheet: View {
             }
             .padding(.horizontal, 24)
 
-            Spacer()
+            Button(action: { dismiss() }) {
+                Text(L.voice.guideStart)
+                    .font(.body.weight(.semibold))
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+                    .background(Capsule().fill(DesignSystem.Colors.primary))
+                    .padding(.horizontal, 24)
+            }
+            .buttonStyle(NoEffectButtonStyle())
+            .padding(.bottom, 32)
         }
         .background(DesignSystem.Colors.background)
     }

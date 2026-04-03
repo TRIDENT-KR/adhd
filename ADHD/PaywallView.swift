@@ -52,8 +52,8 @@ struct PaywallView: View {
                     .foregroundColor(DesignSystem.Colors.primary)
             }
         }
-        .alert("구매 오류", isPresented: $showError) {
-            Button("확인", role: .cancel) { subscriptionManager.purchaseError = nil }
+        .alert(L.paywall.purchaseErrorTitle, isPresented: $showError) {
+            Button(L.voice.confirmButton, role: .cancel) { subscriptionManager.purchaseError = nil }
         } message: {
             Text(subscriptionManager.purchaseError ?? "")
         }
