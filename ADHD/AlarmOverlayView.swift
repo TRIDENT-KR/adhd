@@ -78,7 +78,7 @@ struct AlarmOverlayView: View {
                             .minimumScaleFactor(0.7)
                             .shadow(color: .black.opacity(0.4), radius: 6, x: 0, y: 3)
 
-                        Text("지금 바로 확인하고 완료하세요")
+                        Text(L.alarm.subtitle)
                             .font(.subheadline.weight(.medium))
                             .foregroundColor(.white.opacity(0.75))
                     }
@@ -94,7 +94,7 @@ struct AlarmOverlayView: View {
                     HStack(spacing: 12) {
                         Image(systemName: "checkmark.circle.fill")
                             .font(.title3.weight(.semibold))
-                        Text("확인")
+                        Text(L.alarm.dismiss)
                             .font(.title3.weight(.bold))
                     }
                     .foregroundColor(.white)
@@ -112,14 +112,14 @@ struct AlarmOverlayView: View {
                     .padding(.horizontal, 40)
                 }
                 .buttonStyle(AlarmDismissButtonStyle())
-                .accessibilityLabel("알람 확인")
-                .accessibilityHint("탭하여 \(alarm.taskName) 알람을 끕니다")
+                .accessibilityLabel(L.alarm.a11yDismiss())
+                .accessibilityHint(L.alarm.a11yHint(alarm.taskName))
 
                 // 스와이프 힌트
                 HStack(spacing: 6) {
                     Image(systemName: "hand.tap")
                         .font(.caption)
-                    Text("탭하여 알람 끄기")
+                    Text(L.alarm.tapHint)
                         .font(.caption)
                 }
                 .foregroundColor(.white.opacity(0.5))
@@ -129,7 +129,7 @@ struct AlarmOverlayView: View {
         }
         .scaleEffect(scale)
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("알람: \(alarm.taskName). 지금 바로 확인하고 완료하세요")
+        .accessibilityLabel(L.alarm.a11yLabel(alarm.taskName))
         .onAppear {
             if reduceMotion {
                 scale = 1.0
