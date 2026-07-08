@@ -15,13 +15,30 @@ struct AlarmEntry: Identifiable {
 enum AlarmCompletionRelay {
     static let queueKey = "pendingAlarmCompletions"
 
-    static func enqueue(taskID: String) {
-        let defaults = UserDefaults(suiteName: appGroupID)
-        var queue = defaults?.stringArray(forKey: queueKey) ?? []
-        queue.append(taskID)
-        defaults?.set(queue, forKey: queueKey)
+    /// 인텐트(비메인 스레드 실행 가능)와 앱(메인)이 같은 큐를 읽고-수정-쓰기 하므로
+    /// 락으로 직렬화하지 않으면 동시 enqueue/drain 시 완료 요청이 유실된다.
+    private nonisolated static let lock = NSLock()
+
+    nonisolated static func enqueue(taskID: String) {
+        lock.withLock {
+            let defaults = UserDefaults(suiteName: appGroupID)
+            var queue = defaults?.stringArray(forKey: queueKey) ?? []
+            queue.append(taskID)
+            defaults?.set(queue, forKey: queueKey)
+        }
         DispatchQueue.main.async {
             NotificationCenter.default.post(name: .alarmTaskCompleted, object: nil)
+        }
+    }
+
+    /// 큐를 원자적으로 읽고 비웁니다 — 읽기와 삭제 사이에 enqueue가 끼어들어
+    /// 처리되지 않은 완료가 함께 지워지는 것을 방지합니다.
+    nonisolated static func drain() -> [String] {
+        lock.withLock {
+            guard let defaults = UserDefaults(suiteName: appGroupID) else { return [] }
+            let queue = defaults.stringArray(forKey: queueKey) ?? []
+            if !queue.isEmpty { defaults.removeObject(forKey: queueKey) }
+            return queue
         }
     }
 }

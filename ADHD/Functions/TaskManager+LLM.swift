@@ -99,7 +99,7 @@ extension TaskManager {
             return
         }
         
-        let previousState = (task: matchingTask.task, time: matchingTask.time, date: matchingTask.date, category: matchingTask.category, recurrenceRule: matchingTask.recurrenceRule)
+        let previousState = (task: matchingTask.task, time: matchingTask.time, date: matchingTask.date, category: matchingTask.category, recurrenceRule: matchingTask.recurrenceRule, urgency: matchingTask.urgency)
         
         // 기존 알림 취소 (시간/날짜 등이 변경될 수 있으므로)
         NotificationManager.shared.cancelNotification(for: matchingTask)
@@ -126,7 +126,8 @@ extension TaskManager {
         // 알림 재설정
         NotificationManager.shared.scheduleNotification(for: matchingTask)
         
-        setUndoAction(.deleted([previousState]), message: "\(matchingTask.task) 일정이 업데이트되었습니다.") // Undo는 복잡하여 단순 삭제처리로 갈음하거나 메시지만 띄움
+        // 기존 .deleted 방식은 언두 시 수정본+원본이 중복 생성되는 버그 — 필드 복원 방식으로 교체
+        setUndoAction(.updated(matchingTask, previous: previousState), message: L.voice.undoUpdated(matchingTask.task))
     }
     
     // MARK: - 3. Delete Specific Task
@@ -156,7 +157,7 @@ extension TaskManager {
         do {
             let allTasks = try context.fetch(FetchDescriptor<AppTask>())
             var deletedCount = 0
-            var deletedSnapshots: [(task: String, time: String?, date: Date?, category: String, recurrenceRule: String?)] = []
+            var deletedSnapshots: [(task: String, time: String?, date: Date?, category: String, recurrenceRule: String?, urgency: Urgency)] = []
             
             for task in allTasks {
                 // 1) 날짜 조건 검사 ("all" 이면 무조건 참, 아니면 해당 날짜에 해당하는지)
@@ -168,7 +169,7 @@ extension TaskManager {
                 let shouldDelete = dateMatches && categoryMatches
                 
                 if shouldDelete {
-                    deletedSnapshots.append((task: task.task, time: task.time, date: task.date, category: task.category, recurrenceRule: task.recurrenceRule))
+                    deletedSnapshots.append((task: task.task, time: task.time, date: task.date, category: task.category, recurrenceRule: task.recurrenceRule, urgency: task.urgency))
                     NotificationManager.shared.cancelNotification(for: task)
                     context.delete(task)
                     deletedCount += 1
@@ -198,18 +199,21 @@ extension TaskManager {
             
             for task in allTasks {
                 if let taskDate = task.date, Calendar.current.isDate(taskDate, inSameDayAs: fromDate) {
+                    // D23: 반복 일정은 회차 예외 모델이 없으므로 연기 대상에서 제외 (일회성만 이동)
+                    guard task.recurrenceRule == nil else { continue }
                     NotificationManager.shared.cancelNotification(for: task)
                     task.date = toDate
                     NotificationManager.shared.scheduleNotification(for: task)
                     postponedCount += 1
                 }
             }
-            
-            if postponedCount > 0 {
-                undoSnackbarMessage = "\(postponedCount)개의 일정이 연기되었습니다."
-                withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                    showUndoSnackbar = true
-                }
+
+            // 0건이어도 스낵바 표시 — "왜 아무 일도 없지?" 무응답 상태 제거 (D23)
+            undoSnackbarMessage = postponedCount > 0
+                ? L.voice.postponeResult(postponedCount)
+                : L.voice.postponeNone
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                showUndoSnackbar = true
             }
         } catch {
             print("❌ [postponeAllTasks] 예외 발생: \(error)")
@@ -225,6 +229,10 @@ extension TaskManager {
         
         let previousState = matchingTask.isCompleted
         matchingTask.isCompleted = true
+        // UI 토글과 동일하게 알림 정리 (일회성은 전부 취소, 반복은 파생만) — 누락 시 완료된 태스크의 알람이 계속 울림
+        if !previousState {
+            clearNotificationsAfterCompletion(of: matchingTask)
+        }
         setUndoAction(.toggled(matchingTask, previousState), message: L.voice.undoCompleted)
     }
     

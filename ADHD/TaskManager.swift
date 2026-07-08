@@ -11,7 +11,8 @@ import WidgetKit
 struct UndoableAction {
     enum ActionType {
         case added([AppTask])
-        case deleted([(task: String, time: String?, date: Date?, category: String, recurrenceRule: String?)])
+        case deleted([(task: String, time: String?, date: Date?, category: String, recurrenceRule: String?, urgency: Urgency)])
+        case updated(AppTask, previous: (task: String, time: String?, date: Date?, category: String, recurrenceRule: String?, urgency: Urgency))
         case toggled(AppTask, Bool) // task, previousState
     }
     let type: ActionType
@@ -146,7 +147,7 @@ class TaskManager: ObservableObject {
     /// 반복 태스크(루틴/반복 일정)는 본체 스케줄을 살려두고 파생(팔로업/스누즈)만 제거 —
     /// 기존처럼 전부 취소하면 다음 회차 알림이 영구히 죽는 버그가 있었음.
     /// 일회성은 본체+파생+AlarmKit 전부 취소.
-    private func clearNotificationsAfterCompletion(of task: AppTask) {
+    func clearNotificationsAfterCompletion(of task: AppTask) {
         let isRepeating = task.isRecurring || task.date == nil
         if isRepeating {
             NotificationManager.shared.cancelFollowUps(taskIdString: task.id.uuidString)
@@ -158,10 +159,8 @@ class TaskManager: ObservableObject {
     /// 알림 액션/AlarmKit Stop이 App Group 큐에 적재한 완료 요청을 일괄 처리합니다.
     /// (scenePhase active 및 .alarmTaskCompleted 수신 시 호출)
     func processPendingAlarmCompletions() {
-        guard let defaults = UserDefaults(suiteName: "group.trident-KR.ADHD") else { return }
-        let queue = defaults.stringArray(forKey: AlarmCompletionRelay.queueKey) ?? []
+        let queue = AlarmCompletionRelay.drain()
         guard !queue.isEmpty else { return }
-        defaults.removeObject(forKey: AlarmCompletionRelay.queueKey)
 
         for idString in queue {
             guard let uuid = UUID(uuidString: idString) else { continue }
@@ -182,6 +181,20 @@ class TaskManager: ObservableObject {
             }
         } catch {
             print("❌ rescheduleAllStrongTasks 실패: \(error.localizedDescription)")
+        }
+    }
+
+    /// 삭제된 태스크의 고아 알림/알람을 회수합니다.
+    /// 등록(비동기)-삭제 경합이나 과거 버전이 남긴 잔재가 있어도
+    /// 포그라운드 진입 시 실존 태스크 기준으로 자가치유됩니다.
+    func cleanupOrphanedNotifications() {
+        guard let context = modelContext else { return }
+        do {
+            let validIds = Set(try context.fetch(FetchDescriptor<AppTask>()).map(\.id))
+            NotificationManager.shared.removeOrphanedNotifications(validIds: validIds)
+            SystemAlarmScheduler.shared.cancelOrphans(keeping: validIds)
+        } catch {
+            print("❌ cleanupOrphanedNotifications 실패: \(error.localizedDescription)")
         }
     }
 
@@ -216,7 +229,7 @@ class TaskManager: ObservableObject {
     // MARK: - Delete (by reference)
     func delete(task: AppTask) {
         guard let context = modelContext else { return }
-        let snapshot = (task: task.task, time: task.time, date: task.date, category: task.category, recurrenceRule: task.recurrenceRule)
+        let snapshot = (task: task.task, time: task.time, date: task.date, category: task.category, recurrenceRule: task.recurrenceRule, urgency: task.urgency)
         NotificationManager.shared.cancelNotification(for: task)
         context.delete(task)
         safeSave()
@@ -243,11 +256,25 @@ class TaskManager: ObservableObject {
                     time: snapshot.time,
                     date: snapshot.date,
                     category: snapshot.category,
-                    recurrenceRule: snapshot.recurrenceRule
+                    recurrenceRule: snapshot.recurrenceRule,
+                    urgency: snapshot.urgency
                 )
                 insertBatch(restored)
                 NotificationManager.shared.scheduleNotification(for: restored)
             }
+            safeSave()
+
+        case .updated(let task, let previous):
+            guard !task.isDeleted else { break }   // 이미 삭제된 객체 필드 변경으로 인한 크래시 방지
+            task.task = previous.task
+            task.time = previous.time
+            task.date = previous.date
+            task.category = previous.category
+            task.recurrenceRule = previous.recurrenceRule
+            task.urgency = previous.urgency
+            // 복원된 time이 nil이면 schedule이 조기 반환하므로 명시적 취소가 선행되어야 함
+            NotificationManager.shared.cancelNotification(for: task)
+            NotificationManager.shared.scheduleNotification(for: task)
             safeSave()
 
         case .toggled(let task, let previousState):
@@ -277,6 +304,8 @@ class TaskManager: ObservableObject {
         do {
             let all = try context.fetch(FetchDescriptor<AppTask>())
             for task in all where task.isCompleted && task.category != "Routine" {
+                // 반복 일정은 완료 시 본체 알림을 살려두므로 삭제 시 반드시 취소해야 함
+                NotificationManager.shared.cancelNotification(for: task)
                 context.delete(task)
             }
             safeSave()
@@ -329,10 +358,10 @@ class TaskManager: ObservableObject {
     /// 이름 기반 AppTask 삭제 (배치, save 호출 안함)
     /// 매칭 전략: 정확 매칭 > 태스크명에 검색어 포함 (단, 검색어 2글자 이상일 때만)
     /// 기존 양방향 contains 제거 — "a"가 모든 태스크를 삭제하는 문제 해결
-    func deleteByNameBatch(containing name: String, category: String? = nil, dateString: String? = nil) -> [(task: String, time: String?, date: Date?, category: String, recurrenceRule: String?)] {
+    func deleteByNameBatch(containing name: String, category: String? = nil, dateString: String? = nil) -> [(task: String, time: String?, date: Date?, category: String, recurrenceRule: String?, urgency: Urgency)] {
         guard let context = modelContext else { return [] }
         let descriptor = FetchDescriptor<AppTask>()
-        var deleted: [(task: String, time: String?, date: Date?, category: String, recurrenceRule: String?)] = []
+        var deleted: [(task: String, time: String?, date: Date?, category: String, recurrenceRule: String?, urgency: Urgency)] = []
 
         let query = name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard query.count >= 2 else { return [] } // 1글자 검색어는 무시 (안전장치)
@@ -372,7 +401,7 @@ class TaskManager: ObservableObject {
             }
 
             for item in matched {
-                deleted.append((task: item.task, time: item.time, date: item.date, category: item.category, recurrenceRule: item.recurrenceRule))
+                deleted.append((task: item.task, time: item.time, date: item.date, category: item.category, recurrenceRule: item.recurrenceRule, urgency: item.urgency))
                 NotificationManager.shared.cancelNotification(for: item)
                 context.delete(item)
             }
