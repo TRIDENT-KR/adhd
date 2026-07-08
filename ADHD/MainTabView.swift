@@ -4,7 +4,7 @@ struct MainTabView: View {
     @State var activeTab: TabSelection = .voice
     @EnvironmentObject private var networkMonitor: NetworkMonitor
     @EnvironmentObject private var taskManager: TaskManager
-    @StateObject private var alarmManager = AlarmManager.shared
+    @StateObject private var alarmManager = AlarmCoordinator.shared
     @ObservedObject private var langManager = LocalizationManager.shared
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 

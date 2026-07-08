@@ -118,6 +118,47 @@ struct Strings {
 
     // Paywall
     var paywall: PaywallStrings { PaywallStrings(language: language) }
+
+    // Alarm / Notification
+    var alarm: AlarmStrings { AlarmStrings(language: language) }
+}
+
+struct AlarmStrings {
+    let language: AppLanguage
+    private func t(_ en: String, _ ko: String, _ ja: String) -> String {
+        switch language {
+        case .en: return en
+        case .ko: return ko
+        case .ja: return ja
+        }
+    }
+
+    // 알림 콘텐츠
+    var notifSubtitleStrong: String { t("⚠️ Needs your attention now", "⚠️ 긴급 확인이 필요합니다", "⚠️ 今すぐ確認が必要です") }
+    var notifSubtitleWeak: String { t("One small step today", "오늘의 한 걸음", "今日の一歩") }
+    var notifSubtitleFollowUp: String { t("Still waiting on this", "아직 완료되지 않았어요", "まだ完了していません") }
+
+    // 알림 액션
+    var completeAction: String { t("Done", "완료", "完了") }
+    var snoozeAction: String { t("Snooze 5 min", "5분 뒤 다시", "5分後に再通知") }
+
+    // AlarmKit 스누즈 카운트다운 타이틀
+    var countdownTitle: String { t("Snoozed", "다시 알림", "再通知") }
+
+    // 풀스크린 오버레이 (Pro 폴백 UI)
+    var overlaySubtitle: String { t("Check it off right now", "지금 바로 확인하고 완료하세요", "今すぐ確認して完了しましょう") }
+    var overlayConfirm: String { t("Done", "확인", "確認") }
+    var overlayHint: String { t("Tap to dismiss", "탭하여 알람 끄기", "タップしてアラームを消す") }
+    func overlayA11yLabel(_ name: String) -> String {
+        t("Alarm: \(name). Check it off right now",
+          "알람: \(name). 지금 바로 확인하고 완료하세요",
+          "アラーム: \(name)。今すぐ確認して完了しましょう")
+    }
+    func overlayA11yHint(_ name: String) -> String {
+        t("Double tap to dismiss the alarm for \(name)",
+          "탭하여 \(name) 알람을 끕니다",
+          "タップして\(name)のアラームを消します")
+    }
 }
 
 struct SettingsStrings {

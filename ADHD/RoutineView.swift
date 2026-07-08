@@ -261,7 +261,7 @@ struct TaskRow: View {
                             HStack(spacing: 3) {
                                 Image(systemName: localUrgency == .strong ? "bolt.fill" : "bolt")
                                     .font(.caption2.weight(.semibold))
-                                Text(localUrgency == .strong ? "Strong" : "Weak")
+                                Text(localUrgency == .strong ? L.voice.urgencyStrong : L.voice.urgencyWeak)
                                     .font(.caption2.weight(.medium))
                             }
                             .foregroundColor(localUrgency == .strong ? .orange : DesignSystem.Colors.onSurfaceVariant.opacity(0.6))

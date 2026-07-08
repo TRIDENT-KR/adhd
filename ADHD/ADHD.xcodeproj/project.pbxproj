@@ -8,6 +8,10 @@
 
 /* Begin PBXBuildFile section */
 		09A02A8B9E43463FABAA10AD /* Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF1CC5EA265049FBB8EE3A58 /* Localization.swift */; };
+		EE0000010000000000000001 /* SystemAlarmScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE0000020000000000000001 /* SystemAlarmScheduler.swift */; };
+		EE0000030000000000000001 /* MoraAlarmMetadata.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE0000040000000000000001 /* MoraAlarmMetadata.swift */; };
+		EE0000050000000000000001 /* MoraAlarmMetadata.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE0000040000000000000001 /* MoraAlarmMetadata.swift */; };
+		EE0000060000000000000001 /* UrgencyClassificationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE0000070000000000000001 /* UrgencyClassificationTests.swift */; };
 		99526ADA2F7A3EB2000CD3EE /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 99526AD92F7A3EB2000CD3EE /* WidgetKit.framework */; };
 		99526ADC2F7A3EB2000CD3EE /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 99526ADB2F7A3EB2000CD3EE /* SwiftUI.framework */; };
 		99526AEB2F7A3EB4000CD3EE /* ADHDWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 99526AD82F7A3EB2000CD3EE /* ADHDWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -95,6 +99,9 @@
 		BB00000200000000000000A1 /* WidgetTaskSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetTaskSnapshot.swift; sourceTree = "<group>"; };
 		BB00000400000000000000A1 /* WidgetDataStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetDataStore.swift; sourceTree = "<group>"; };
 		BF1CC5EA265049FBB8EE3A58 /* Localization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Localization.swift; sourceTree = "<group>"; };
+		EE0000020000000000000001 /* SystemAlarmScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemAlarmScheduler.swift; sourceTree = "<group>"; };
+		EE0000040000000000000001 /* MoraAlarmMetadata.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoraAlarmMetadata.swift; sourceTree = "<group>"; };
+		EE0000070000000000000001 /* UrgencyClassificationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UrgencyClassificationTests.swift; sourceTree = "<group>"; };
 		CC000002000000000000AA01 /* AlarmManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlarmManager.swift; sourceTree = "<group>"; };
 		CC000004000000000000AA01 /* AlarmOverlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlarmOverlayView.swift; sourceTree = "<group>"; };
 		CC000006000000000000AA01 /* SmoothTaskReorderList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmoothTaskReorderList.swift; sourceTree = "<group>"; };
@@ -184,11 +191,20 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		EE0000080000000000000001 /* ADHDTests */ = {
+			isa = PBXGroup;
+			children = (
+				EE0000070000000000000001 /* UrgencyClassificationTests.swift */,
+			);
+			path = ADHDTests;
+			sourceTree = "<group>";
+		};
 		BB00000500000000000000A1 /* Shared */ = {
 			isa = PBXGroup;
 			children = (
 				BB00000200000000000000A1 /* WidgetTaskSnapshot.swift */,
 				BB00000400000000000000A1 /* WidgetDataStore.swift */,
+				EE0000040000000000000001 /* MoraAlarmMetadata.swift */,
 			);
 			path = Shared;
 			sourceTree = "<group>";
@@ -217,6 +233,7 @@
 				F3D9E4C12F74DA1800DA9A5A /* AppTask.swift */,
 				CC000002000000000000AA01 /* AlarmManager.swift */,
 				CC000004000000000000AA01 /* AlarmOverlayView.swift */,
+				EE0000020000000000000001 /* SystemAlarmScheduler.swift */,
 				CC000006000000000000AA01 /* SmoothTaskReorderList.swift */,
 				DD000002000000000000001A /* SubscriptionManager.swift */,
 				DD000004000000000000001A /* PaywallView.swift */,
@@ -230,6 +247,7 @@
 				F3D9E4AD2F74CF5C00DA9A5A /* TaskManager.swift */,
 				F3D9E4AE2F74CF5C00DA9A5A /* VoiceInputManager.swift */,
 				BB00000500000000000000A1 /* Shared */,
+				EE0000080000000000000001 /* ADHDTests */,
 				F3D9E4BB2F74D19200DA9A5A /* Frameworks */,
 			);
 			sourceTree = "<group>";
@@ -442,6 +460,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				EE0000050000000000000001 /* MoraAlarmMetadata.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -473,6 +492,8 @@
 				BB00000100000000000000A1 /* WidgetTaskSnapshot.swift in Sources */,
 				BB00000300000000000000A1 /* WidgetDataStore.swift in Sources */,
 				CC000001000000000000AA01 /* AlarmManager.swift in Sources */,
+				EE0000010000000000000001 /* SystemAlarmScheduler.swift in Sources */,
+				EE0000030000000000000001 /* MoraAlarmMetadata.swift in Sources */,
 				CC000003000000000000AA01 /* AlarmOverlayView.swift in Sources */,
 				CC000005000000000000AA01 /* SmoothTaskReorderList.swift in Sources */,
 				DD000001000000000000001A /* SubscriptionManager.swift in Sources */,
@@ -484,6 +505,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				EE0000060000000000000001 /* UrgencyClassificationTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

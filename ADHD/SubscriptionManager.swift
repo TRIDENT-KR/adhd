@@ -22,6 +22,9 @@ class SubscriptionManager: ObservableObject {
     private static let aiUsageCountKey = "dailyAIUsageCount"
     private static let aiUsageDateKey = "dailyAIUsageDate"
 
+    /// D13/D14: 알림·알람 게이팅용 Pro 플래그 (App Group — 델리게이트/알람 스케줄러가 읽음)
+    static let premiumFlagKey = "isPremiumUser"
+
     private var transactionListenerTask: Task<Void, Never>?
 
     var canUseAI: Bool {
@@ -142,6 +145,15 @@ class SubscriptionManager: ObservableObject {
             }
         }
         isPremium = hasPremium
+
+        // App Group에 플래그 공유 — 값이 바뀌었을 때만 기록·브로드캐스트
+        // (strong 알람 백엔드 이관 트리거: AlarmKit ↔ UN)
+        let defaults = UserDefaults(suiteName: appGroupID)
+        let previous = defaults?.bool(forKey: Self.premiumFlagKey) ?? false
+        if previous != hasPremium {
+            defaults?.set(hasPremium, forKey: Self.premiumFlagKey)
+            NotificationCenter.default.post(name: .premiumStatusChanged, object: nil)
+        }
     }
 
     // MARK: - Transaction Listener

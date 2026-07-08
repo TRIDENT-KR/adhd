@@ -166,6 +166,31 @@ struct WidgetL {
         }
     }
 
+    // MARK: - Alarm Live Activity Strings
+    static var alarmNow: String {
+        switch currentLang {
+        case "ko": return "지금 할 시간!"
+        case "ja": return "今すぐ!"
+        default:   return "Time now!"
+        }
+    }
+
+    static var alarmSnoozed: String {
+        switch currentLang {
+        case "ko": return "다시 알림"
+        case "ja": return "再通知"
+        default:   return "Snoozed"
+        }
+    }
+
+    static var alarmPaused: String {
+        switch currentLang {
+        case "ko": return "일시정지"
+        case "ja": return "一時停止"
+        default:   return "Paused"
+        }
+    }
+
     private static var currentLang: String {
         UserDefaults.standard.string(forKey: "appLanguage") ?? "en"
     }

@@ -20,5 +20,8 @@ struct ADHDWidgetBundle: WidgetBundle {
         RoutineProgressWidget()
         NextTaskLockWidget()
         TaskCountInlineWidget()
+
+        // AlarmKit Live Activity (강한 알람 스누즈 카운트다운)
+        AlarmLiveActivity()
     }
 }
