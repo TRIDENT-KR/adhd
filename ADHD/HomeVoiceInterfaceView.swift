@@ -682,7 +682,7 @@ struct VoiceConfirmationSheet: View {
         VStack(spacing: 0) {
             // Header
             HStack {
-                let titleText = editingTask == nil ? (isOffTopic ? "알림" : L.voice.confirmTitle) : L.voice.editTaskTitle
+                let titleText = editingTask == nil ? (isOffTopic ? L.voice.offTopicTitle : L.voice.confirmTitle) : L.voice.editTaskTitle
                 Text(titleText)
                     .font(.title3.weight(.bold))
                     .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
@@ -901,7 +901,7 @@ struct VoiceConfirmationSheet: View {
                     Button(action: isOffTopic ? onCancel : onConfirm) {
                         HStack(spacing: 8) {
                             Image(systemName: "sparkles")
-                            Text(isOffTopic ? "다시 질문하기" : L.voice.confirmButton)
+                            Text(isOffTopic ? L.voice.askAgain : L.voice.confirmButton)
                         }
                         .frame(maxWidth: .infinity)
                     }
@@ -923,69 +923,6 @@ struct VoiceConfirmationSheet: View {
     }
 }
 
-// MARK: - Task Edit Sheet
-struct TaskEditSheet: View {
-    @Binding var pendingCall: PendingLLMCall
-    @Environment(\.dismiss) var dismiss
-
-    @State private var taskName: String = ""
-    @State private var time: String = ""
-    @State private var category: String = "Routine"
-    @State private var date: String = ""
-
-    var body: some View {
-        NavigationView {
-            Form {
-                Section(header: Text(L.voice.fieldName)) {
-                    TextField(L.voice.fieldName, text: $taskName)
-                }
-                
-                Section(header: Text(L.voice.fieldTime)) {
-                    TextField(L.voice.fieldTime + " (e.g. 10:00 AM)", text: $time)
-                }
-                
-                Section(header: Text(L.voice.fieldCategory)) {
-                    Picker(L.voice.fieldCategory, selection: $category) {
-                        Text(L.voice.confirmAppointment).tag("Appointment")
-                        Text(L.voice.confirmRoutine).tag("Routine")
-                    }
-                    .pickerStyle(.segmented)
-                }
-            }
-            .navigationTitle(L.voice.editTaskTitle)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button(L.voice.cancel) { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(L.voice.save) {
-                        pendingCall.call.updateFields(
-                            taskName: taskName,
-                            time: time.isEmpty ? nil : time,
-                            date: date.isEmpty ? nil : date,
-                            category: category
-                        )
-                        dismiss()
-                    }
-                    .fontWeight(.bold)
-                }
-            }
-            .onAppear {
-                taskName = pendingCall.call.uiTaskName
-                time = pendingCall.call.uiTime ?? ""
-                category = pendingCall.call.uiCategory
-                
-                // Get original date if possible (though date editing is limited in this simplified UI)
-                if case .addSingleTask(let p) = pendingCall.call {
-                    date = p.date ?? ""
-                } else if case .updateTask(let p) = pendingCall.call {
-                    date = p.new_date ?? ""
-                }
-            }
-        }
-    }
-}
 
 // MARK: - Voice Guide Sheet (온보딩 + 예시 명령어)
 struct VoiceGuideSheet: View {
