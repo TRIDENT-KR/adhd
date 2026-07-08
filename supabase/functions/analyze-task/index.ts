@@ -142,15 +142,19 @@ Do NOT use "add_single_task", "request_clarification", or any other task functio
 AVAILABLE FUNCTIONS:
 
 1. "add_single_task"
-   - parameters: { "task_name": string, "time": string | null, "date": string | null, "category": "Routine" | "Appointment", "recurrence": "weekly" | "biweekly" | "monthly" | "yearly" | null }
+   - parameters: { "task_name": string, "time": string | null, "date": string | null, "category": "Routine" | "Appointment", "recurrence": "weekly" | "biweekly" | "monthly" | "yearly" | null, "urgency": "strong" | "weak" | null }
    - Rules:
      - "time" must be "hh:mm AM/PM" or null. (e.g. "03:00 PM")
      - IMPORTANT: If the user does NOT explicitly mention a specific time, "time" MUST be null. Do NOT guess or infer a default time. Only set "time" when the user clearly states a time (e.g. "at 3", "10 o'clock", "1시간 후", "오후 2시").
      - "date" must be "yyyy-MM-dd" or null. Use the calculated date for immediate actions.
      - "category": Choose one of: "Appointment", "Routine".
-       * "Appointment": Use for ANY one-time specific goal, task, or event, including ones occurring TODAY (e.g., "Take medicine at 11:30 oggi", "Meeting tomorrow at 2 PM", "Do laundry tonight"). If it has a specific time or is meant to happen on a specific date (including today), it MUST be an "Appointment". 
+       * "Appointment": Use for ANY one-time specific goal, task, or event, including ones occurring TODAY (e.g., "Take medicine at 11:30 oggi", "Meeting tomorrow at 2 PM", "Do laundry tonight"). If it has a specific time or is meant to happen on a specific date (including today), it MUST be an "Appointment".
        * "Routine": Use ONLY for repeating daily/weekly habits or general non-specific resolutions (e.g., "Stretch every morning", "Drink more water"). Do NOT use Routine for one-time tasks.
      - "recurrence": Use only for non-daily repeating appointments ("monthly", "weekly"). Routines are implicitly daily, so their recurrence is null.
+     - "urgency": How critical is it that the user does NOT miss this exact moment?
+       * "strong": time-critical or irreversible if missed — medication/pills, departures/transport/flights, meetings/interviews, deadlines, hospital/clinic visits, picking someone up — OR the user emphasizes importance ("꼭", "절대", "반드시", "까먹으면 안 돼", "must", "don't let me forget", "important", "絶対", "必ず", "忘れないで").
+       * "weak": flexible habits and self-care where the exact minute doesn't matter — drink water, stretch, journal, read, tidy up.
+       * null: when genuinely unsure. Do NOT guess.
 
 2. "update_task"
    - parameters: { "target_task_name": string, "new_time": string | null, "new_date": string | null, "new_task_name": string | null, "new_category": "Routine" | "Appointment" | null, "new_recurrence": string | null }
@@ -189,10 +193,13 @@ AVAILABLE FUNCTIONS:
 --- EXAMPLES ---
 
 Input: "오늘 10시 영양제 먹어야지" (Current time: "2026-03-29 08:00")
-Output: [{"function_name": "add_single_task", "parameters": {"task_name": "영양제 먹기", "time": "10:00 AM", "date": "2026-03-29", "category": "Appointment", "recurrence": null}}]
+Output: [{"function_name": "add_single_task", "parameters": {"task_name": "영양제 먹기", "time": "10:00 AM", "date": "2026-03-29", "category": "Appointment", "recurrence": null, "urgency": "strong"}}]
 
 Input: "지금부터 1시간 후에 미팅" (Current time: "2026-03-29 14:00")
-Output: [{"function_name": "add_single_task", "parameters": {"task_name": "미팅", "time": "03:00 PM", "date": "2026-03-29", "category": "Appointment", "recurrence": null}}]
+Output: [{"function_name": "add_single_task", "parameters": {"task_name": "미팅", "time": "03:00 PM", "date": "2026-03-29", "category": "Appointment", "recurrence": null, "urgency": "strong"}}]
+
+Input: "자기 전에 스트레칭 하기" (Current time: "2026-03-29 14:00")
+Output: [{"function_name": "add_single_task", "parameters": {"task_name": "스트레칭", "time": null, "date": null, "category": "Routine", "recurrence": null, "urgency": "weak"}}]
 
 Input: "2일에 있는 플랜을 3일로 옮겨줘" (Current time: "2026-03-29 14:00")
 Output: [{"function_name": "update_task", "parameters": {"target_task_name": "플랜", "new_date": "2026-04-03", "new_time": null, "new_task_name": null, "new_category": null, "new_recurrence": null}}]
@@ -307,6 +314,14 @@ Output: [{"function_name": "handle_off_topic_chat", "parameters": {"message": "�
           !validRecurrence.includes(item.parameters.recurrence)
         ) {
           item.parameters.recurrence = null;
+        }
+
+        // urgency 화이트리스트 — 이상값은 null (클라이언트 휴리스틱이 처리)
+        if (
+          item.parameters.urgency !== "strong" &&
+          item.parameters.urgency !== "weak"
+        ) {
+          item.parameters.urgency = null;
         }
       }
 

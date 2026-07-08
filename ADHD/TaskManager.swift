@@ -122,7 +122,7 @@ class TaskManager: ObservableObject {
     // Process logic moved to TaskManager+LLM.swift (execute method)
     
     // MARK: - Core Actions
-    /// 특정 ID의 태스크를 '완료' 상태로 직접 설정 (알람 확인 시 사용)
+    /// 특정 ID의 태스크를 '완료' 상태로 직접 설정 (알람 확인/완료 액션 시 사용)
     func completeTask(id: UUID) {
         guard let context = modelContext else { return }
         let descriptor = FetchDescriptor<AppTask>(predicate: #Predicate { $0.id == id })
@@ -134,7 +134,7 @@ class TaskManager: ObservableObject {
                     print("✅ [TaskManager] 알람 확인으로 태스크 완료 처리: \(task.task)")
                     // 위젯 및 알림 갱신
                     writeWidgetSnapshot()
-                    NotificationManager.shared.cancelNotification(for: task)
+                    clearNotificationsAfterCompletion(of: task)
                 }
             }
         } catch {
@@ -142,10 +142,67 @@ class TaskManager: ObservableObject {
         }
     }
 
+    /// 완료 시 알림 정리:
+    /// 반복 태스크(루틴/반복 일정)는 본체 스케줄을 살려두고 파생(팔로업/스누즈)만 제거 —
+    /// 기존처럼 전부 취소하면 다음 회차 알림이 영구히 죽는 버그가 있었음.
+    /// 일회성은 본체+파생+AlarmKit 전부 취소.
+    private func clearNotificationsAfterCompletion(of task: AppTask) {
+        let isRepeating = task.isRecurring || task.date == nil
+        if isRepeating {
+            NotificationManager.shared.cancelFollowUps(taskIdString: task.id.uuidString)
+        } else {
+            NotificationManager.shared.cancelNotification(for: task)
+        }
+    }
+
+    /// 알림 액션/AlarmKit Stop이 App Group 큐에 적재한 완료 요청을 일괄 처리합니다.
+    /// (scenePhase active 및 .alarmTaskCompleted 수신 시 호출)
+    func processPendingAlarmCompletions() {
+        guard let defaults = UserDefaults(suiteName: "group.trident-KR.ADHD") else { return }
+        let queue = defaults.stringArray(forKey: AlarmCompletionRelay.queueKey) ?? []
+        guard !queue.isEmpty else { return }
+        defaults.removeObject(forKey: AlarmCompletionRelay.queueKey)
+
+        for idString in queue {
+            guard let uuid = UUID(uuidString: idString) else { continue }
+            completeTask(id: uuid)
+        }
+        print("✅ 알람 완료 큐 \(queue.count)건 처리")
+    }
+
+    /// 모든 미완료 strong 태스크를 재스케줄합니다.
+    /// 백엔드 이관 트리거(구독 상태 변경 / AlarmKit 권한 획득)와
+    /// biweekly·monthly·yearly 고정 알람의 재무장(포그라운드 진입)에 공용으로 사용.
+    func rescheduleAllStrongTasks() {
+        guard let context = modelContext else { return }
+        do {
+            let all = try context.fetch(FetchDescriptor<AppTask>())
+            for task in all where task.urgency == .strong && !task.isCompleted {
+                NotificationManager.shared.scheduleNotification(for: task)
+            }
+        } catch {
+            print("❌ rescheduleAllStrongTasks 실패: \(error.localizedDescription)")
+        }
+    }
+
+    /// Pro + AlarmKit 허용 상태에서만 재무장 (매 포그라운드 호출용 가드)
+    func rescheduleStrongTasksIfNeeded() {
+        let premium = UserDefaults(suiteName: "group.trident-KR.ADHD")?
+            .bool(forKey: SubscriptionManager.premiumFlagKey) ?? false
+        guard premium, SystemAlarmScheduler.shared.isAuthorized else { return }
+        rescheduleAllStrongTasks()
+    }
+
     // MARK: - Toggle Completion
     func toggleCompletion(of task: AppTask) {
         let previousState = task.isCompleted
         task.isCompleted.toggle()
+        if task.isCompleted {
+            clearNotificationsAfterCompletion(of: task)
+        } else {
+            // 완료 해제 → 알림 재무장
+            NotificationManager.shared.scheduleNotification(for: task)
+        }
         safeSave()
         setUndoAction(.toggled(task, previousState), message: task.isCompleted ? L.voice.undoCompleted : L.voice.undoUncompleted)
     }
@@ -194,7 +251,13 @@ class TaskManager: ObservableObject {
             safeSave()
 
         case .toggled(let task, let previousState):
+            guard !task.isDeleted else { break }   // 이미 삭제된 객체 필드 변경으로 인한 크래시 방지
             task.isCompleted = previousState
+            if previousState {
+                clearNotificationsAfterCompletion(of: task)
+            } else {
+                NotificationManager.shared.scheduleNotification(for: task)
+            }
             safeSave()
         }
 

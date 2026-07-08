@@ -2,11 +2,11 @@ import SwiftUI
 
 // MARK: - AlarmOverlayView
 /// 강한 알림 발생 시 화면 전체를 덮는 풀스크린 알람 UI.
-/// AlarmManager.shared.activeAlarm이 non-nil일 때 MainTabView 위에 표시됩니다.
+/// AlarmCoordinator.shared.activeAlarm이 non-nil일 때 MainTabView 위에 표시됩니다.
 struct AlarmOverlayView: View {
     let alarm: AlarmEntry
 
-    @StateObject private var alarmManager = AlarmManager.shared
+    @StateObject private var alarmManager = AlarmCoordinator.shared
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var scale: CGFloat = 0.85
     @State private var pulseOpacity: CGFloat = 0.0
@@ -78,7 +78,7 @@ struct AlarmOverlayView: View {
                             .minimumScaleFactor(0.7)
                             .shadow(color: .black.opacity(0.4), radius: 6, x: 0, y: 3)
 
-                        Text("지금 바로 확인하고 완료하세요")
+                        Text(L.alarm.overlaySubtitle)
                             .font(.subheadline.weight(.medium))
                             .foregroundColor(.white.opacity(0.75))
                     }
@@ -94,7 +94,7 @@ struct AlarmOverlayView: View {
                     HStack(spacing: 12) {
                         Image(systemName: "checkmark.circle.fill")
                             .font(.title3.weight(.semibold))
-                        Text("확인")
+                        Text(L.alarm.overlayConfirm)
                             .font(.title3.weight(.bold))
                     }
                     .foregroundColor(.white)
@@ -112,14 +112,14 @@ struct AlarmOverlayView: View {
                     .padding(.horizontal, 40)
                 }
                 .buttonStyle(AlarmDismissButtonStyle())
-                .accessibilityLabel("알람 확인")
-                .accessibilityHint("탭하여 \(alarm.taskName) 알람을 끕니다")
+                .accessibilityLabel(L.alarm.overlayConfirm)
+                .accessibilityHint(L.alarm.overlayA11yHint(alarm.taskName))
 
                 // 스와이프 힌트
                 HStack(spacing: 6) {
                     Image(systemName: "hand.tap")
                         .font(.caption)
-                    Text("탭하여 알람 끄기")
+                    Text(L.alarm.overlayHint)
                         .font(.caption)
                 }
                 .foregroundColor(.white.opacity(0.5))
@@ -129,7 +129,7 @@ struct AlarmOverlayView: View {
         }
         .scaleEffect(scale)
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("알람: \(alarm.taskName). 지금 바로 확인하고 완료하세요")
+        .accessibilityLabel(L.alarm.overlayA11yLabel(alarm.taskName))
         .onAppear {
             if reduceMotion {
                 scale = 1.0

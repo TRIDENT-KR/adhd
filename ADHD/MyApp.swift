@@ -102,7 +102,7 @@ struct MoraApp: App {
                         taskManager.configure(context: container.mainContext)
 
                         // 알람 확인 시 자동 완료 연동
-                        AlarmManager.shared.onTaskConfirmed = { taskId in
+                        AlarmCoordinator.shared.onTaskConfirmed = { taskId in
                             taskManager.completeTask(id: taskId)
                         }
                     }
@@ -120,6 +120,10 @@ struct MoraApp: App {
                                 taskManager.checkAndResetDailyTasks()
                                 // 위젯에서 토글한 태스크 동기화
                                 taskManager.syncWidgetToggles()
+                                // 알림 액션/AlarmKit Stop이 큐에 남긴 완료 요청 처리
+                                taskManager.processPendingAlarmCompletions()
+                                // biweekly/monthly/yearly 고정 알람 재무장 (Pro + AlarmKit 허용 시)
+                                taskManager.rescheduleStrongTasksIfNeeded()
                                 // 위젯 딥링크 처리 (AppIntent 경유)
                                 handlePendingDeepLink()
                                 // 위젯 스냅샷은 화면 렌더링 후 비동기 갱신 (DB fetch + WidgetCenter reload를 핫패스에서 제외)
@@ -127,6 +131,17 @@ struct MoraApp: App {
                                     taskManager.writeWidgetSnapshot()
                                 }
                             }
+                        }
+                        .onReceive(NotificationCenter.default.publisher(for: .alarmTaskCompleted)) { _ in
+                            taskManager.processPendingAlarmCompletions()
+                        }
+                        .onReceive(NotificationCenter.default.publisher(for: .premiumStatusChanged)) { _ in
+                            // 구독 상태 변경 → strong 태스크 백엔드 재라우팅 (AlarmKit ↔ UN)
+                            taskManager.rescheduleAllStrongTasks()
+                        }
+                        .onReceive(NotificationCenter.default.publisher(for: .alarmBackendChanged)) { _ in
+                            // AlarmKit 권한 최초 획득 → 기존 strong 태스크를 시스템 알람으로 이관
+                            taskManager.rescheduleAllStrongTasks()
                         }
                 } else {
                     LoginView()

@@ -399,15 +399,20 @@ struct EventCard: View {
                         localUrgency = (localUrgency == .weak) ? .strong : .weak
                         Haptic.impact(.light)
                     }) {
-                        Image(systemName: localUrgency == .strong ? "bell.fill" : "bell.slash")
-                            .font(.caption.weight(.medium))
-                            .foregroundColor(localUrgency == .strong ? .orange : DesignSystem.Colors.onSurfaceVariant.opacity(0.35))
-                            .padding(.vertical, 5)
-                            .padding(.horizontal, 10)
-                            .background((localUrgency == .strong ? Color.orange : DesignSystem.Colors.onSurfaceVariant).opacity(0.1))
-                            .cornerRadius(8)
+                        HStack(spacing: 3) {
+                            Image(systemName: localUrgency == .strong ? "bolt.fill" : "bolt")
+                                .font(.caption2.weight(.semibold))
+                            Text(localUrgency == .strong ? L.voice.urgencyStrong : L.voice.urgencyWeak)
+                                .font(.caption2.weight(.medium))
+                        }
+                        .foregroundColor(localUrgency == .strong ? .orange : DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
+                        .padding(.vertical, 5)
+                        .padding(.horizontal, 10)
+                        .background((localUrgency == .strong ? Color.orange : DesignSystem.Colors.onSurfaceVariant).opacity(0.1))
+                        .cornerRadius(8)
                     }
                     .buttonStyle(NoEffectButtonStyle())
+                    .accessibilityLabel(localUrgency == .strong ? L.voice.urgencyStrong : L.voice.urgencyWeak)
                 }
                 .padding(.top, 12)
 
@@ -509,14 +514,14 @@ struct EventCard: View {
                                     .font(.system(size: 9))
                                     .foregroundColor(DesignSystem.Colors.primary.opacity(0.5))
                             }
-                            Image(systemName: task.urgency == .strong ? "bell.fill" : "bell.slash")
+                            Image(systemName: task.urgency == .strong ? "bolt.fill" : "bolt")
                                 .font(.system(size: 10))
                                 .foregroundColor(task.urgency == .strong
-                                    ? .orange.opacity(0.7)
-                                    : DesignSystem.Colors.onSurfaceVariant.opacity(0.25))
+                                    ? .orange.opacity(0.8)
+                                    : DesignSystem.Colors.onSurfaceVariant.opacity(0.18))
                         }
                         .padding(.top, 5)
-                        .accessibilityLabel(task.urgency == .strong ? "Alarm on" : "Alarm off")
+                        .accessibilityLabel(task.urgency == .strong ? L.voice.urgencyStrong : L.voice.urgencyWeak)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .contentShape(Rectangle())

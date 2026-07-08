@@ -5,7 +5,24 @@ import SwiftUI
 struct PendingLLMCall: Identifiable {
     let id = UUID()
     var call: LLMFunctionCall
-    var urgency: Urgency = .strong
+    var urgency: Urgency
+
+    init(call: LLMFunctionCall) {
+        self.call = call
+        self.urgency = Self.defaultUrgency(for: call)
+    }
+
+    /// 하이브리드 urgency 분류:
+    /// 1) LLM이 판단한 urgency가 있으면 그대로 채택
+    /// 2) 없거나 이상값이면 휴리스틱 — Appointment(일회성 약속)=strong, Routine(습관)=weak
+    /// 3) 최종 오버라이드는 확인 카드의 bolt 토글 (사용자)
+    static func defaultUrgency(for call: LLMFunctionCall) -> Urgency {
+        guard case .addSingleTask(let params) = call else { return .strong }
+        if let raw = params.urgency, let parsed = Urgency(rawValue: raw) {
+            return parsed
+        }
+        return params.category == "Appointment" ? .strong : .weak
+    }
 
     // UI Helpers pass-through to simplify views
     var uiAction: String { call.uiAction }
@@ -28,6 +45,8 @@ struct AddSingleTaskParams: Codable {
     var date: String?
     var category: String
     var recurrence: String?
+    /// LLM이 판단한 알림 강도: "strong" | "weak" | nil (하이브리드 분류 1단계)
+    var urgency: String?
 }
 
 struct UpdateTaskParams: Codable {
