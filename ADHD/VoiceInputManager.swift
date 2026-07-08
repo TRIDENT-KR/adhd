@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import UIKit
 import Combine
 import AVFoundation
 import Speech
@@ -68,6 +69,7 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
         MicInputMode(rawValue: UserDefaults.standard.string(forKey: "micInputMode") ?? "tap") ?? .tapToggle
     }()
     private var micModeObserver: AnyCancellable?
+    private var backgroundObserver: AnyCancellable?
 
     // Audio power downsampling: 4프레임당 1회만 계산
     private let audioFrameLock = NSLock()
@@ -82,18 +84,6 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
 
     /// UserDefaults Keys
     static let speechLocaleKey = "speechLocale"
-    static let enabledLocalesKey = "enabledLocales"
-
-    /// 설정에서 활성화한 언어 목록
-    static var enabledLocales: [String] {
-        get {
-            let saved = UserDefaults.standard.stringArray(forKey: enabledLocalesKey)
-            return (saved?.isEmpty == false) ? saved! : ["ko-KR"]
-        }
-        set {
-            UserDefaults.standard.set(newValue, forKey: enabledLocalesKey)
-        }
-    }
 
     override init() {
         super.init()
@@ -112,6 +102,30 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
             .sink { [weak self] newMode in
                 self?.micMode = newMode
             }
+
+        // 백그라운드 진입 시 세션을 해제하지 않으면 다른 앱의 미디어 재생이 계속 차단됨
+        backgroundObserver = NotificationCenter.default
+            .publisher(for: UIApplication.didEnterBackgroundNotification)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.handleDidEnterBackground()
+            }
+    }
+
+    private func handleDidEnterBackground() {
+        guard didPrepare else { return }
+        if audioEngine.isRunning {
+            recognitionTask?.cancel()
+            stopHandling()
+        } else {
+            deactivateAudioSession()
+        }
+    }
+
+    /// 녹음 종료 후 반드시 세션을 해제해야 다른 앱의 오디오가 재개된다.
+    /// (.record는 비혼합 카테고리라 활성 상태로 남으면 타 앱 미디어 재생을 막음)
+    private func deactivateAudioSession() {
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
 
     /// 첫 녹음 시작 전 한 번만 호출되는 무거운 초기화
@@ -134,25 +148,6 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
         }
     }
 
-    /// 활성화된 언어 목록 내에서 다음 언어로 순환 전환
-    func cycleLanguage() {
-        let locales = Self.enabledLocales
-        guard locales.count > 1 else { return }
-        let currentIndex = locales.firstIndex(of: currentLocaleId) ?? 0
-        let nextIndex = (currentIndex + 1) % locales.count
-        let nextLocale = locales[nextIndex]
-        setLocale(nextLocale)
-    }
-
-    /// 특정 locale로 전환
-    func setLocale(_ localeId: String) {
-        currentLocaleId = localeId
-        UserDefaults.standard.set(localeId, forKey: Self.speechLocaleKey)
-        speechRecognizer = SFSpeechRecognizer(locale: Locale(identifier: localeId))
-        speechRecognizer?.delegate = self
-        didPrepare = true
-    }
-    
     func requestPermissions() {
         SFSpeechRecognizer.requestAuthorization { authStatus in
             DispatchQueue.main.async {
@@ -237,6 +232,7 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
             self.errorMessage = L.voice.errorRecognitionFailed
             self.lastError = .recognitionFailed
             self.isListening = false
+            self.deactivateAudioSession()
             return
         }
         
@@ -267,7 +263,9 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
         
         let recordingFormat = inputNode.outputFormat(forBus: 0)
         inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { [weak self] (buffer, when) in
-            self?.recognitionRequest?.append(buffer)
+            // 오디오 스레드에서 실행됨 — 메인 스레드가 self.recognitionRequest를 nil로 바꾸는 것과
+            // 경쟁하지 않도록 guard-let 로컬 상수를 사용 (종료된 request에 append는 무해)
+            recognitionRequest.append(buffer)
             // 다운샘플링: 4프레임당 1회만 오디오 파워 계산
             guard let self else { return }
             let shouldUpdate: Bool = self.audioFrameLock.withLock {
@@ -286,7 +284,9 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
         } catch {
             self.errorMessage = L.voice.errorRecognitionFailed
             self.lastError = .recognitionFailed
-            self.stopListening()
+            // 엔진이 시작되지 못했으므로 stopListening()은 no-op — 직접 정리해야 세션이 해제됨
+            self.recognitionTask?.cancel()
+            self.stopHandling()
         }
     }
     
@@ -341,6 +341,7 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
         silenceCountdown = 0
         stopRecordingTimer()
         stopSilenceDetection()
+        deactivateAudioSession()
     }
 
     private func finalizeAndProceed() {

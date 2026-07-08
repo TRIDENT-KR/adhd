@@ -82,7 +82,7 @@ Deno.serve(async (req: Request) => {
     if (text.length > 1000) {
       return new Response(
         JSON.stringify({
-          error: "Input too long. Maximum 2000 characters allowed.",
+          error: "Input too long. Maximum 1000 characters allowed.",
         }),
         { headers, status: 400 },
       );
@@ -171,6 +171,7 @@ AVAILABLE FUNCTIONS:
 
 5. "postpone_all_tasks"
    - parameters: { "from_date": "yyyy-MM-dd", "to_date": "yyyy-MM-dd" }
+   - Rules: Only ONE-TIME appointments on from_date are moved. Recurring appointments (weekly/biweekly/monthly/yearly) are NEVER postponed by this function.
 
 6. "mark_task_complete"
    - parameters: { "target_task_name": string }

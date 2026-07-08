@@ -7,6 +7,44 @@
 
 ---
 
+## ⚠️ 구현 현황 로그 (2026-07-09 갱신 — 브랜치 `feat/urgency-alarm-system`)
+
+이 문서는 2026-07-07 `main`(fec2f53) 기준으로 작성되었으나, 이후 **알림 시스템 리워크(1c031db)와 후속 수정이 문서의 일부 지시를 선반영**했다. 아래 완료 항목은 재구현하지 말 것. **문서 내 모든 라인 번호는 밀렸으므로 반드시 주변 코드로 재탐색.**
+
+### 선반영 완료 (재작업 금지)
+
+| 문서 위치 | 상태 |
+|---|---|
+| §3.6 버그①(weak urgency userInfo)·버그②(criticalAlert)·알림 문구 L화 | ✅ 1c031db에서 완료. 단 알림 액션은 Confirm 단일이 아니라 **Done("완료")+Snooze("5분 뒤 다시")** 2종으로 진화 (`L.alarm.completeAction`/`snoozeAction`) |
+| §3.7 오버레이 Pro 게이팅(D14) | ✅ 완료. **`AlarmManager`는 `AlarmCoordinator`로 리네임됨** (AlarmKit.AlarmManager 이름 충돌 회피). 파일명은 `AlarmManager.swift` 유지 |
+| §3.8 AlarmOverlayView L화 | ✅ 완료 (`L.alarm.overlaySubtitle/overlayConfirm/overlayHint` 존재) |
+| §3.9 premium 플래그 App Group 기록 | ✅ `SubscriptionManager.premiumFlagKey` 존재, NotificationManager·AlarmCoordinator가 이미 읽음. WidgetCenter 리로드 연동만 F4에서 확인할 것 |
+| §8.2 알림 매트릭스 | ⚠️ **부분 대체됨**: strong×Pro는 이제 UN 알림이 아니라 **AlarmKit 시스템 알람**(`SystemAlarmScheduler.swift`, 앱 종료 상태에서도 풀스크린)으로 승격. UN 경로는 폴백. 일회성 strong에 +5/+10분 팔로업 체인, 스누즈 존재. §8.2는 UN 폴백 경로의 명세로만 유효 |
+| §3.13 `.toggled` 언두 `isDeleted` 가드 | ✅ 이미 존재 |
+| §3.13/§3.14 언두 스냅샷 urgency | ✅ `.deleted` 튜플에 `urgency: Urgency` 추가됨(07-09). `.updated`의 previous 튜플도 `urgencyRaw: String`이 아닌 **`urgency: Urgency`로 통일**할 것 (F5⑤ 구현 시) |
+| §7.3 `mark_task_complete` | ✅ 완료 시 알림 정리(`clearNotificationsAfterCompletion`) 추가됨(07-09) — 언두는 여전히 `.toggled` |
+
+### 문서 범위 밖 신규 수정 (2026-07-09 — 충돌 주의)
+
+NotificationManager/TaskManager/VoiceInputManager를 수정할 때 아래 코드를 되돌리거나 우회하지 말 것:
+
+- **오디오 세션 해제**: `VoiceInputManager`가 녹음 종료·백그라운드 진입 시 `deactivateAudioSession()` 호출 (미해제 시 타 앱 미디어 차단 버그)
+- **고아 알림 자가치유**: `TaskManager.cleanupOrphanedNotifications()`가 매 포그라운드마다 실존 태스크와 대조해 UN 알림+AlarmKit 알람 회수 (MyApp scenePhase 훅)
+- **등록-삭제 경합 차단**: `NotificationManager.cancelledIds` 레지스트리 — 비동기 등록이 완료 직전 취소 여부를 확인
+- **`AlarmCompletionRelay`**: NSLock 직렬화 + 원자적 `drain()` — 직접 UserDefaults 읽기/삭제로 되돌리지 말 것
+- `deleteCompleted()`에 알림 취소 추가됨
+
+### 남은 작업 (이 문서 기준)
+
+- **Phase 1 잔여**: 버그⑤(`.updated` 언두)·⑥(OOV 2곳·Paywall alert)·⑦(Edge Fn 문구)·⑨(postpone)·⑩(TaskEditSheet·cycleLanguage 계열·DesignSystem.Strings·Untitled.swift)·⑪(UndoSnackbar 웜 톤)·F8
+- **Phase 2**: F4 위젯 잠금 전체 + 버그③(위젯 언어) + 페이월 딥링크/카피 — 알람 게이팅(D14)은 완료됨
+- **Phase 3**: F3 QuickAddSheet 전체
+- **Phase 4**: F1 온보딩 + F2 가이드 재연결 전체
+- **Phase 5**: F7 테스트 + 문서 마감
+- Edge Function 수정분은 **배포가 별도 필요** (`supabase functions deploy analyze-task` — 07-08 기준 미배포 상태)
+
+---
+
 ## 목차
 
 1. [Executive Summary](#1-executive-summary)
@@ -163,7 +201,7 @@ Mora(구 Wait, What?)는 **이미 대부분 완성된 앱**이다. 3개 탭(Home
 | [F3][D9] + 버튼 | 헤더 HStack(55-101행)의 아이콘 클러스터 **맨 왼쪽**(리오더 버튼 앞)에 RoutineView와 동일 스펙의 + 버튼 추가. 액션: `showQuickAdd = true` |
 | [F3] 시트 연결 | `@State private var showQuickAdd = false` 추가. `.sheet(isPresented: $showQuickAdd) { QuickAddSheet(mode: .appointment(selectedDate)) }` |
 
-### 3.6 `ADHD/NotificationManager.swift`
+### 3.6 `ADHD/NotificationManager.swift` — ✅ 전체 완료 (1c031db, 재작업 금지)
 
 | 변경 | 내용 |
 |---|---|
@@ -171,7 +209,7 @@ Mora(구 Wait, What?)는 **이미 대부분 완성된 앱**이다. 3개 탭(Home
 | [버그②] criticalAlert 제거 | 50행 `options: [.alert, .sound, .badge, .criticalAlert]` → `options: [.alert, .sound, .badge]` (criticalAlert는 Apple 특별 엔타이틀먼트 필요 — 미보유 상태 요청은 실패/심사 리스크) |
 | [버그⑥] 하드코딩 L화 | 107행 `"⚠️ 긴급 확인이 필요합니다"` → `L.alarm.notifSubtitleStrong` / 109행 `"오늘의 한 걸음"` → `L.alarm.notifSubtitleWeak` / 61행 confirmAction title `"확인하기(지금 당장!)"` → `L.alarm.confirmAction`. 문자열 키는 §3.11 표에 정의. **참고**: 알림 콘텐츠는 스케줄 시점 언어로 고정됨(발화 시점 언어 아님) — §9.6에 알려진 제한으로 기록 |
 
-### 3.7 `ADHD/AlarmManager.swift`
+### 3.7 `ADHD/AlarmManager.swift` — ✅ 전체 완료 (1c031db, 클래스명은 `AlarmCoordinator`)
 
 | 변경 | 내용 |
 |---|---|
@@ -179,7 +217,7 @@ Mora(구 Wait, What?)는 **이미 대부분 완성된 앱**이다. 3개 탭(Home
 
 변경 전: urgency == .strong이면 무조건 오버레이. 변경 후: strong **AND** Pro일 때만 오버레이. 알림 자체(time-sensitive, 링톤)는 무료도 그대로 수신(D14).
 
-### 3.8 `ADHD/AlarmOverlayView.swift`
+### 3.8 `ADHD/AlarmOverlayView.swift` — ✅ 전체 완료 (1c031db)
 
 | 변경 | 내용 |
 |---|---|
@@ -247,14 +285,14 @@ Mora(구 Wait, What?)는 **이미 대부분 완성된 앱**이다. 3개 탭(Home
 
 | 변경 | 내용 |
 |---|---|
-| [버그⑤] `.updated` 언두 케이스 신설 | `UndoableAction.ActionType`(12-16행)에 케이스 추가: `case updated(AppTask, previous: (task: String, time: String?, date: Date?, category: String, recurrenceRule: String?, urgencyRaw: String))`. `undo()`(170-209행)에 처리 추가: 대상 AppTask가 `isDeleted == false`인 경우에만 이전 필드 전체 복원 → `NotificationManager.shared.cancelNotification(for:)` → `scheduleNotification(for:)` → `safeSave()`. `isDeleted == true`면 아무것도 하지 않고 다음 스택 메시지로 진행 (§9.5) |
+| [버그⑤] `.updated` 언두 케이스 신설 | `UndoableAction.ActionType`(12-16행)에 케이스 추가: `case updated(AppTask, previous: (task: String, time: String?, date: Date?, category: String, recurrenceRule: String?, urgency: Urgency))` — `.deleted` 튜플(07-09에 urgency 추가됨)과 동일 형태. `undo()`(170-209행)에 처리 추가: 대상 AppTask가 `isDeleted == false`인 경우에만 이전 필드 전체 복원 → `NotificationManager.shared.cancelNotification(for:)` → `scheduleNotification(for:)` → `safeSave()`. `isDeleted == true`면 아무것도 하지 않고 다음 스택 메시지로 진행 (§9.5) |
 | [버그⑤ 방어] toggled 언두 가드 | `undo()`의 `.toggled` 분기(196-199행)에도 `guard !task.isDeleted else { break }` 가드 추가 (삭제된 객체 필드 변경으로 인한 SwiftData 크래시 방지) |
 
 ### 3.14 `ADHD/Functions/TaskManager+LLM.swift`
 
 | 변경 | 내용 |
 |---|---|
-| [버그⑤] updateTask 언두 교체 | 129행 `setUndoAction(.deleted([previousState]), message: "...(하드코딩 한국어)")` → previousState 튜플에 `urgencyRaw: matchingTask.urgencyRaw`를 추가로 캡처(**필드 변경 전에** 캡처)한 뒤 `setUndoAction(.updated(matchingTask, previous: previousState), message: L.voice.undoUpdated(matchingTask.task))`. 기존 방식은 언두 시 원본 재삽입으로 **수정본+원본 중복 생성** 버그 |
+| [버그⑤] updateTask 언두 교체 | 129행 `setUndoAction(.deleted([previousState]), message: "...(하드코딩 한국어)")` → `setUndoAction(.updated(matchingTask, previous: previousState), message: L.voice.undoUpdated(matchingTask.task))` — previousState 튜플에는 urgency가 이미 포함됨(07-09). 기존 방식은 언두 시 원본 재삽입으로 **수정본+원본 중복 생성** 버그 |
 | [버그⑨][D23] postpone 반복 제외+피드백 | `postponeAllTasks`(187-217행): 이동 루프에 `guard task.recurrenceRule == nil else { continue }` 추가(반복 일정 제외). 209행 하드코딩 스낵바 → `postponedCount > 0 ? L.voice.postponeResult(postponedCount) : L.voice.postponeNone` — **0건일 때도** 스낵바 표시(사용자가 "왜 아무 일도 없지?" 하는 무응답 상태 제거) |
 
 ### 3.15 `ADHD/DesignSystem.swift`

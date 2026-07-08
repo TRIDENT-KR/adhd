@@ -115,10 +115,11 @@ struct UndoSnackbar: View {
     let message: String
     let onUndo: () -> Void
 
+    // D24: 중성 회색 금지(디자인 금기 #1) — 에러 토스트와 동일 계열의 웜 브라운
     private static let backgroundColor = Color(UIColor { traits in
         traits.userInterfaceStyle == .dark
-            ? UIColor(r: 0x30, g: 0x30, b: 0x30)
-            : UIColor(r: 0x3A, g: 0x3A, b: 0x3A)
+            ? UIColor(r: 0x3A, g: 0x2A, b: 0x22)
+            : UIColor(r: 0x4A, g: 0x30, b: 0x25)
     })
 
     var body: some View {
@@ -156,8 +157,7 @@ private struct OfflineBanner: View {
         HStack(spacing: 10) {
             Image(systemName: "wifi.slash")
                 .font(.footnote.weight(.semibold))
-            // Task 2: 영어 문구로 교체 (DesignSystem.Strings.offlineAlertText)
-            Text(DesignSystem.Strings.offlineAlertText)
+            Text(L.offlineText)
                 .font(DesignSystem.Typography.labelSm)
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
@@ -172,7 +172,7 @@ private struct OfflineBanner: View {
         .padding(.horizontal, 24)
         .padding(.top, 56) // 노치/Dynamic Island 회피
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(DesignSystem.Strings.offlineAlertText)
+        .accessibilityLabel(L.offlineText)
         .accessibilityAddTraits(.isStaticText)
     }
 }

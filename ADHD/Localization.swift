@@ -270,6 +270,11 @@ struct VoiceStrings {
     func undoDeletedSingle(_ name: String) -> String { t("\"\(name)\" deleted", "\"\(name)\" 삭제됨", "\"\(name)\"를 삭제") }
     var undoCompleted: String { t("Marked as done", "완료 처리됨", "完了にしました") }
     var undoUncompleted: String { t("Marked as not done", "미완료 처리됨", "未完了にしました") }
+    func undoUpdated(_ name: String) -> String { t("\"\(name)\" updated", "\"\(name)\" 수정됨", "「\(name)」を更新") }
+    func postponeResult(_ count: Int) -> String { t("\(count) task(s) postponed", "\(count)개 일정 연기됨", "\(count)件延期しました") }
+    var postponeNone: String { t("No tasks to postpone", "연기할 일정이 없어요", "延期する予定はありません") }
+    var offTopicTitle: String { t("Heads up", "알림", "お知らせ") }
+    var askAgain: String { t("Ask me differently", "다시 질문하기", "もう一度話す") }
 
     var textInputPlaceholder: String { t("Type a task...", "할 일을 입력...", "タスクを入力...") }
     var textInputSend: String { t("Send", "전송", "送信") }
@@ -360,6 +365,8 @@ struct PaywallStrings {
 
     var title: String { t("Mora Pro", "Mora Pro", "Mora Pro") }
     var subtitle: String { t("Unlimited AI voice input\nand all premium features.", "AI 음성 입력 무제한\n그리고 모든 프리미엄 기능.", "AI音声入力を無制限に\nすべてのプレミアム機能を。") }
+    var purchaseErrorTitle: String { t("Purchase Error", "구매 오류", "購入エラー") }
+    var ok: String { t("OK", "확인", "OK") }
     var choosePlan: String { t("CHOOSE YOUR PLAN", "플랜 선택", "プランを選択") }
     var planMonthly: String { t("Monthly", "월간", "月額") }
     var planYearly: String { t("Yearly", "연간", "年額") }

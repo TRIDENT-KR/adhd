@@ -30,7 +30,10 @@
       "mcp__claude_ai_Notion__notion-create-pages",
       "Bash(gh api:*)",
       "Bash(gh repo:*)",
-      "Bash(grep -l \"SubscriptionManager\\\\|PaywallView\" ADHD/*.swift)"
+      "Bash(grep -l \"SubscriptionManager\\\\|PaywallView\" ADHD/*.swift)",
+      "Bash(git restore:*)",
+      "Bash(ls -la /Users/gimgihong/Desktop/TRIDENT/adhd/ADHD/*.swift)",
+      "Bash(git -C /Users/gimgihong/Desktop/TRIDENT/adhd log --oneline -25)"
     ]
   }
 }

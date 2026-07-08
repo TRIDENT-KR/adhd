@@ -129,6 +129,8 @@ struct MoraApp: App {
                                 // 위젯 스냅샷은 화면 렌더링 후 비동기 갱신 (DB fetch + WidgetCenter reload를 핫패스에서 제외)
                                 Task { @MainActor in
                                     taskManager.writeWidgetSnapshot()
+                                    // 삭제된 태스크의 고아 알림/알람 회수 (등록-삭제 경합·과거 잔재 자가치유)
+                                    taskManager.cleanupOrphanedNotifications()
                                 }
                             }
                         }

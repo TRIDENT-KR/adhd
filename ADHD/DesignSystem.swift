@@ -57,11 +57,6 @@ struct DesignSystem {
         static let bodyMd    = Font.body
         static let labelSm   = Font.caption.weight(.medium)
     }
-
-    // MARK: - Strings
-    struct Strings {
-        static var offlineAlertText: String { L.offlineText }
-    }
 }
 
 // MARK: - Tab Selection

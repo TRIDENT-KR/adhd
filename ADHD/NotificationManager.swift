@@ -15,6 +15,12 @@ final class NotificationManager {
 
     private let center = UNUserNotificationCenter.current()
 
+    /// 취소된 태스크 id 레지스트리.
+    /// strong×Pro 등록은 async(권한 확인 await 포함)라서, await 중에 태스크가 삭제되면
+    /// 취소가 먼저 실행되고 등록이 나중에 완료되어 고아 알람이 부활하는 경합이 있다.
+    /// 등록 완료 직전에 이 집합을 확인해 삭제된 태스크의 등록을 무산시킨다. (메인 스레드 전용)
+    private var cancelledIds = Set<UUID>()
+
     // MARK: - Identifiers
     static let strongCategoryID = "STRONG_ALARM"
     static let weakCategoryID   = "WEAK_REMINDER"
@@ -117,6 +123,8 @@ final class NotificationManager {
     /// AppTask를 받아 urgency·요금제·권한에 따라 AlarmKit 또는 UN에 등록합니다.
     /// 기존 알림이 있으면 덮어씁니다(동일 id 사용).
     func scheduleNotification(for task: AppTask) {
+        cancelledIds.remove(task.id)   // 재등록이므로 이전 취소 기록 해제
+
         // 카테고리별 토글 확인
         if task.category == "Routine" && !routineRemindersEnabled { return }
         if task.category == "Appointment" && !appointmentRemindersEnabled { return }
@@ -142,6 +150,7 @@ final class NotificationManager {
             )
             Task { @MainActor in
                 if await SystemAlarmScheduler.shared.ensureAuthorized() {
+                    guard !self.cancelledIds.contains(spec.id) else { return }  // await 중 삭제됨
                     self.removeAllUserNotifications(for: spec.id.uuidString)  // UN 흔적 제거 (백엔드 이관)
                     await SystemAlarmScheduler.shared.schedule(spec)
                 } else {
@@ -161,6 +170,7 @@ final class NotificationManager {
     /// UN 알림 본체 + (일회성 strong) 팔로업 체인을 등록합니다.
     /// AlarmKit schedule 실패 시의 폴백 진입점이기도 합니다.
     func scheduleUserNotification(_ spec: AlarmSpec) {
+        guard !cancelledIds.contains(spec.id) else { return }  // AlarmKit 폴백 도중 삭제됨
         let (components, repeats) = triggerComponents(for: spec)
         // 반복 알림은 기준시각이 과거여도 다음 발생에 매칭되므로 통과 (일회성만 미래 요구)
         guard repeats || spec.fireDate > Date() else { return }
@@ -247,8 +257,34 @@ final class NotificationManager {
     // MARK: - Cancel
     /// 본체 + 파생(팔로업/스누즈) + AlarmKit까지 전부 취소 (삭제/일회성 완료 시)
     func cancelNotification(for task: AppTask) {
+        cancelledIds.insert(task.id)   // 진행 중인 async 등록이 있으면 무산시킴
         removeAllUserNotifications(for: task.id.uuidString)
         SystemAlarmScheduler.shared.cancel(id: task.id)
+    }
+
+    // MARK: - Orphan Sweep
+    /// 존재하지 않는 태스크의 pending 알림을 회수합니다 (본체 + 파생 suffix 전부).
+    /// 등록-삭제 경합이나 과거 버전이 남긴 알림이 있어도 포그라운드마다 자가치유됩니다.
+    func removeOrphanedNotifications(validIds: Set<UUID>) {
+        center.getPendingNotificationRequests { requests in
+            let orphaned = requests.filter { request in
+                guard let taskId = Self.baseTaskId(fromIdentifier: request.identifier)
+                        ?? (request.content.userInfo["taskId"] as? String).flatMap(UUID.init)
+                else { return false }   // 이 앱 체계 밖의 알림은 건드리지 않음
+                return !validIds.contains(taskId)
+            }.map(\.identifier)
+            guard !orphaned.isEmpty else { return }
+            self.center.removePendingNotificationRequests(withIdentifiers: orphaned)
+            print("🧹 고아 알림 \(orphaned.count)건 회수")
+        }
+    }
+
+    /// "uuid" / "uuid-f1" / "uuid-f2" / "uuid-snooze" → uuid
+    private static func baseTaskId(fromIdentifier identifier: String) -> UUID? {
+        for follow in followUpIdentifiers(for: "") where identifier.hasSuffix(follow) {
+            return UUID(uuidString: String(identifier.dropLast(follow.count)))
+        }
+        return UUID(uuidString: identifier)
     }
 
     /// 본체(반복 스케줄)는 유지하고 파생 알림만 제거 — 반복 태스크의 오늘 완료 시 사용

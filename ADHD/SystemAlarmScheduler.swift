@@ -48,7 +48,11 @@ struct MarkTaskDoneIntent: LiveActivityIntent {
 
     func perform() async throws -> some IntentResult {
         AlarmCompletionRelay.enqueue(taskID: taskID)
-        NotificationManager.shared.cancelFollowUps(taskIdString: taskID)
+        // NotificationManager는 메인 액터 격리 — 비격리 인텐트 컨텍스트에서 직접 호출하면 데이터 레이스
+        let id = taskID
+        await MainActor.run {
+            NotificationManager.shared.cancelFollowUps(taskIdString: id)
+        }
         return .result()
     }
 }
@@ -166,6 +170,15 @@ final class SystemAlarmScheduler: Sendable {
 
     func cancel(id: UUID) {
         try? AlarmKit.AlarmManager.shared.cancel(id: id)
+    }
+
+    /// 존재하지 않는 태스크의 시스템 알람을 회수합니다 (고아 스윕).
+    func cancelOrphans(keeping validIds: Set<UUID>) {
+        guard let alarms = try? AlarmKit.AlarmManager.shared.alarms else { return }
+        for alarm in alarms where !validIds.contains(alarm.id) {
+            try? AlarmKit.AlarmManager.shared.cancel(id: alarm.id)
+            print("🧹 [AlarmKit] 고아 알람 회수: \(alarm.id)")
+        }
     }
 
     // MARK: - Helpers
