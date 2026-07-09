@@ -36,12 +36,19 @@ NotificationManager/TaskManager/VoiceInputManager를 수정할 때 아래 코드
 
 ### 남은 작업 (이 문서 기준)
 
-- **Phase 1 잔여**: 버그⑤(`.updated` 언두)·⑥(OOV 2곳·Paywall alert)·⑦(Edge Fn 문구)·⑨(postpone)·⑩(TaskEditSheet·cycleLanguage 계열·DesignSystem.Strings·Untitled.swift)·⑪(UndoSnackbar 웜 톤)·F8
-- **Phase 2**: F4 위젯 잠금 전체 + 버그③(위젯 언어) + 페이월 딥링크/카피 — 알람 게이팅(D14)은 완료됨
-- **Phase 3**: F3 QuickAddSheet 전체
-- **Phase 4**: F1 온보딩 + F2 가이드 재연결 전체
-- **Phase 5**: F7 테스트 + 문서 마감
-- Edge Function 수정분은 **배포가 별도 필요** (`supabase functions deploy analyze-task` — 07-08 기준 미배포 상태)
+**✅ 전 Phase 구현 완료 (2026-07-09)** — Phase 1(PR #59로 main 머지), Phase 2~5(브랜치 `feat/mora-phase2-pro-gating`).
+
+- Phase 2: 위젯 6종 잠금(`WidgetLockedView`) + 버그③(위젯 언어 App Group) + `mora://paywall` 딥링크 + 카피 일치화
+- Phase 3: `QuickAddSheet` 3모드 + Routine/Planner + 버튼 (pbxproj 수동 등록 — 앱 타깃은 동기화 그룹 아님)
+- Phase 4: `OnboardingView` 3장(D21/D22 플래그 로직) + ? 가이드 버튼 + guideHint 삭제
+- Phase 5: 테스트 5파일 전부 green (`checkAndResetDailyTasks`는 now/defaults 주입형으로 리팩터링),
+  README 주간 셀렉터 정정, DESIGN.md 확정 차이 Appendix 추가.
+  추가 발견 수정: 빈 `ADHDUITests` 타깃이 스킴 Test 액션에 포함되어 `xcodebuild test`가 항상 실패하던
+  문제 — 스킴에서 제거 (D19: UI 테스트 범위 제외)
+
+**남은 것 (코드 밖)**
+- Edge Function 배포: `supabase functions deploy analyze-task` (07-08 기준 미배포)
+- §12 수동 QA 체크리스트 수행 (실기기, 언어×테마×요금제 매트릭스)
 
 ---
 

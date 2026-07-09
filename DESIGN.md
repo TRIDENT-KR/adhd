@@ -82,3 +82,19 @@ A central, circular element for voice interaction. Use `primary-fixed-dim` with 
 *   **No "Hard" Grays:** Never use #000000 or standard neutral grays. Use our tinted `on-surface` (#1A1C1B) to keep the palette warm.
 *   **No 1px Lines:** Do not use dividers to separate routine steps. Use vertical spacing (`spacing-12`).
 *   **No Information Density:** Never put more than three actionable items on a single screen. If a routine has more, use a progressive disclosure pattern (one step at a time).
+
+---
+
+## Appendix: Implementation Deviations (2026-07-09 확정)
+
+아래 항목은 구현 과정에서 코드 현행 값을 공식 스펙으로 채택한 것이다 (근거: `MORA_IMPLEMENTATION_PLAN.md` §13.2, 결정 D15·D24).
+이 문서의 본문과 충돌할 경우 아래 표가 우선한다.
+
+| 항목 | 본문 (원안) | 확정 스펙 (코드 채택) |
+|---|---|---|
+| 폰트 | Manrope + Inter | 시스템 폰트 — 라틴 전용 폰트라 ko/ja에서 효과 없음 (D15) |
+| 카드 radius | xl (3rem ≈ 48px) | 18~24pt |
+| Glass | surface-lowest 80% + 20px blur | ultraThinMaterial 기반 `glassStyle` |
+| display-lg | 3.5rem | `Font.title.semibold` (≈28pt) |
+| 주간 뷰 | — | 오늘 고정 + 선택일 ±7일 스크롤 (월간 시트는 점프용 예외 — D11) |
+| Shadow=Glow | onSurfaceVariant 5%/40px/y10 | 확인 카드: primary 15%/40px/y15 + onSurfaceVariant 5%/10px/y5 이중 글로우 |

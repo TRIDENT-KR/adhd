@@ -1,6 +1,7 @@
 import StoreKit
 import Combine
 import SwiftUI
+import WidgetKit
 
 // MARK: - Subscription Product IDs
 enum SubscriptionProductID: String, CaseIterable {
@@ -153,6 +154,8 @@ class SubscriptionManager: ObservableObject {
         if previous != hasPremium {
             defaults?.set(hasPremium, forKey: Self.premiumFlagKey)
             NotificationCenter.default.post(name: .premiumStatusChanged, object: nil)
+            // D13: 위젯 잠금↔해제 즉시 전환 — 값이 바뀔 때만 리로드 (위젯 예산 보호)
+            WidgetCenter.shared.reloadAllTimelines()
         }
     }
 

@@ -64,6 +64,14 @@ struct RoutineProgressView: View {
     let entry: LockScreenEntry
 
     var body: some View {
+        if !WidgetDataStore.isPremium {
+            WidgetLockedView(family: .accessoryCircular)   // D13
+        } else {
+            unlockedContent
+        }
+    }
+
+    private var unlockedContent: some View {
         Gauge(value: entry.routineProgress) {
             // center label
             VStack(spacing: -1) {
@@ -97,6 +105,15 @@ struct NextTaskLockView: View {
     let entry: LockScreenEntry
 
     var body: some View {
+        if !WidgetDataStore.isPremium {
+            WidgetLockedView(family: .accessoryRectangular)   // D13
+        } else {
+            unlockedContent
+        }
+    }
+
+    @ViewBuilder
+    private var unlockedContent: some View {
         if let taskName = entry.nextTaskName {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 4) {
@@ -156,6 +173,15 @@ struct TaskCountInlineView: View {
     let entry: LockScreenEntry
 
     var body: some View {
+        if !WidgetDataStore.isPremium {
+            WidgetLockedView(family: .accessoryInline)   // D13
+        } else {
+            unlockedContent
+        }
+    }
+
+    @ViewBuilder
+    private var unlockedContent: some View {
         if entry.pendingCount > 0 {
             Label {
                 Text("\(entry.pendingCount) \(WidgetL.tasksRemaining)")

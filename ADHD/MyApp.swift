@@ -39,6 +39,7 @@ struct MoraApp: App {
     @AppStorage("appTheme") private var appTheme: String = "system"
     /// 언어 변경을 감지하여 environment(locale) 전파. .id()는 사용하지 않아 NavigationStack을 보존
     @AppStorage("appLanguage") private var appLanguage: String = "en"
+    @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     @Environment(\.scenePhase) private var scenePhase
 
     private var colorScheme: ColorScheme? {
@@ -51,15 +52,23 @@ struct MoraApp: App {
 
     // MARK: - Widget Deep Link Handling
     private func handleWidgetDeepLink(_ url: URL) {
-        guard url.scheme == "mora", url.host == "tab" else { return }
-        let tabName = url.lastPathComponent
-        let tab: TabSelection
-        switch tabName {
-        case "routine": tab = .routine
-        case "planner": tab = .planner
-        default:        tab = .voice
+        guard url.scheme == "mora" else { return }
+        switch url.host {
+        case "tab":
+            let tabName = url.lastPathComponent
+            let tab: TabSelection
+            switch tabName {
+            case "routine": tab = .routine
+            case "planner": tab = .planner
+            default:        tab = .voice
+            }
+            NotificationCenter.default.post(name: .widgetDeepLink, object: tab)
+        case "paywall":
+            // D13: 무료 사용자가 잠금 위젯 탭 → 앱 내 페이월 시트
+            NotificationCenter.default.post(name: .openPaywall, object: nil)
+        default:
+            break
         }
-        NotificationCenter.default.post(name: .widgetDeepLink, object: tab)
     }
 
     private func handlePendingDeepLink() {
@@ -87,6 +96,12 @@ struct MoraApp: App {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .background(DesignSystem.Colors.background.ignoresSafeArea())
                         .preferredColorScheme(colorScheme)
+                } else if authManager.session != nil && !hasCompletedOnboarding {
+                    // F1/D18: 로그인 직후 경량 온보딩 (기존 사용자는 뷰 내부에서 자동 통과 — D22)
+                    OnboardingView()
+                        .modelContainer(container)
+                        .preferredColorScheme(colorScheme)
+                        .environment(\.locale, Locale(identifier: appLanguage))
                 } else if authManager.session != nil {
                     MainTabView()
                         .environment(\.locale, Locale(identifier: appLanguage))

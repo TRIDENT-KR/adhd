@@ -15,6 +15,7 @@ struct PlannerView: View {
     @Binding var activeTab: TabSelection
     @State private var editingTaskId: UUID?
     @State private var selectedDate: Date = Calendar.current.startOfDay(for: Date())
+    @State private var showQuickAdd = false
     @State private var isCalendarPresented: Bool = false
     @State private var showSearch: Bool = false
 
@@ -59,6 +60,17 @@ struct PlannerView: View {
                             .tracking(-0.5)
 
                         Spacer()
+
+                        Button(action: { showQuickAdd = true }) {
+                            Image(systemName: "plus")
+                                .font(.title3.weight(.light))
+                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
+                                .padding(8)
+                                .contentShape(Circle())
+                        }
+                        .buttonStyle(NoEffectButtonStyle())
+                        .accessibilityLabel(L.quickAdd.title)
+                        .frame(minWidth: 44, minHeight: 44)
 
                         Button(action: {
                             let anim: Animation? = reduceMotion ? .none : .spring(response: 0.3, dampingFraction: 0.8)
@@ -185,6 +197,9 @@ struct PlannerView: View {
             // colorScheme follows system setting for dark mode support
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
+        }
+        .sheet(isPresented: $showQuickAdd) {
+            QuickAddSheet(mode: .appointment(selectedDate))
         }
         .sheet(isPresented: $showSearch) {
             SearchView { date in

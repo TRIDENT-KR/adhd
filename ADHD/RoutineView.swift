@@ -45,6 +45,7 @@ struct RoutineView: View {
     @State private var editingTaskId: UUID?
     @State private var selectedSection: RoutineSection = .routines
     @State private var showSearch = false
+    @State private var showQuickAdd = false
     @State private var isReordering = false
 
     enum RoutineSection: CaseIterable {
@@ -72,6 +73,16 @@ struct RoutineView: View {
                             .foregroundColor(DesignSystem.Colors.primary)
                             .tracking(-0.5)
                         Spacer()
+                        Button(action: { showQuickAdd = true }) {
+                            Image(systemName: "plus")
+                                .font(.title3.weight(.light))
+                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
+                                .padding(12)
+                                .contentShape(Circle())
+                        }
+                        .buttonStyle(NoEffectButtonStyle())
+                        .accessibilityLabel(L.quickAdd.title)
+                        .frame(minWidth: 44, minHeight: 44)
                         Button(action: { showSearch = true }) {
                             Image(systemName: "magnifyingglass")
                                 .font(.title3.weight(.light))
@@ -181,6 +192,9 @@ struct RoutineView: View {
         }
         .sheet(isPresented: $showSearch) {
             SearchView()
+        }
+        .sheet(isPresented: $showQuickAdd) {
+            QuickAddSheet(mode: selectedSection == .routines ? .routine : .todayTask)
         }
     }
 
