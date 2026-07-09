@@ -62,6 +62,16 @@ struct HomeVoiceInterfaceView: View {
                     }
                     .accessibilityLabel(showTextInput ? "Switch to voice input" : "Switch to text input")
 
+                    // F2/D7: 음성 가이드 상시 진입점
+                    Button(action: { showVoiceGuide = true }) {
+                        Image(systemName: "questionmark.circle")
+                            .font(.title3.weight(.medium))
+                            .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
+                            .frame(minWidth: 44, minHeight: 44)
+                            .contentShape(Rectangle())
+                    }
+                    .accessibilityLabel(L.voice.guideTitle)
+
                     Spacer()
 
                     if !subscriptionManager.isPremium {
@@ -198,6 +208,8 @@ struct HomeVoiceInterfaceView: View {
                         setupSpeechCallback()
                         // SFSpeechRecognizer + AVAudioSession 사전 초기화 (첫 탭 렉 방지)
                         voiceManager.warmUp()
+                        // D21: 온보딩 스킵자에게만 가이드 자동 1회 (완료자는 플래그가 이미 true)
+                        if !hasSeenVoiceOnboarding { showVoiceGuide = true }
                     }
 
 
@@ -247,16 +259,8 @@ struct HomeVoiceInterfaceView: View {
                             Text(L.voiceListening)
                                 .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
                         } else {
-                            VStack(spacing: 8) {
-                                Text(L.voicePlaceholder)
-                                    .foregroundColor(DesignSystem.Colors.primary)
-
-                                if !hasSeenVoiceOnboarding {
-                                    Text(L.voice.guideHint)
-                                        .font(DesignSystem.Typography.labelSm)
-                                        .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.4))
-                                }
-                            }
+                            Text(L.voicePlaceholder)
+                                .foregroundColor(DesignSystem.Colors.primary)
                         }
                     }
                     .font(DesignSystem.Typography.titleSm)

@@ -67,6 +67,14 @@ struct DailyOverviewWidgetView: View {
     }
 
     var body: some View {
+        if !WidgetDataStore.isPremium {
+            WidgetLockedView(family: .systemLarge)   // D13: 위젯은 Pro 전용
+        } else {
+            unlockedContent
+        }
+    }
+
+    private var unlockedContent: some View {
         VStack(alignment: .leading, spacing: 0) {
             // ── 헤더 ──
             dateHeader

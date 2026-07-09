@@ -9,9 +9,16 @@
 /* Begin PBXBuildFile section */
 		09A02A8B9E43463FABAA10AD /* Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF1CC5EA265049FBB8EE3A58 /* Localization.swift */; };
 		EE0000010000000000000001 /* SystemAlarmScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE0000020000000000000001 /* SystemAlarmScheduler.swift */; };
+		AA0000010000000000000001 /* QuickAddSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000020000000000000001 /* QuickAddSheet.swift */; };
+		AB0000010000000000000001 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000020000000000000001 /* OnboardingView.swift */; };
 		EE0000030000000000000001 /* MoraAlarmMetadata.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE0000040000000000000001 /* MoraAlarmMetadata.swift */; };
 		EE0000050000000000000001 /* MoraAlarmMetadata.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE0000040000000000000001 /* MoraAlarmMetadata.swift */; };
 		EE0000060000000000000001 /* UrgencyClassificationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE0000070000000000000001 /* UrgencyClassificationTests.swift */; };
+		AC0000010000000000000001 /* AppTaskOccursOnTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC0000020000000000000001 /* AppTaskOccursOnTests.swift */; };
+		AC0000030000000000000001 /* SortableTimeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC0000040000000000000001 /* SortableTimeTests.swift */; };
+		AC0000050000000000000001 /* DailyResetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC0000060000000000000001 /* DailyResetTests.swift */; };
+		AC0000070000000000000001 /* LLMFunctionCallDecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC0000080000000000000001 /* LLMFunctionCallDecodingTests.swift */; };
+		AC0000090000000000000001 /* DeleteByNameBatchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC00000100000000000000001 /* DeleteByNameBatchTests.swift */; };
 		99526ADA2F7A3EB2000CD3EE /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 99526AD92F7A3EB2000CD3EE /* WidgetKit.framework */; };
 		99526ADC2F7A3EB2000CD3EE /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 99526ADB2F7A3EB2000CD3EE /* SwiftUI.framework */; };
 		99526AEB2F7A3EB4000CD3EE /* ADHDWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 99526AD82F7A3EB2000CD3EE /* ADHDWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -100,8 +107,15 @@
 		BB00000400000000000000A1 /* WidgetDataStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetDataStore.swift; sourceTree = "<group>"; };
 		BF1CC5EA265049FBB8EE3A58 /* Localization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Localization.swift; sourceTree = "<group>"; };
 		EE0000020000000000000001 /* SystemAlarmScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemAlarmScheduler.swift; sourceTree = "<group>"; };
+		AA0000020000000000000001 /* QuickAddSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAddSheet.swift; sourceTree = "<group>"; };
+		AB0000020000000000000001 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		EE0000040000000000000001 /* MoraAlarmMetadata.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoraAlarmMetadata.swift; sourceTree = "<group>"; };
 		EE0000070000000000000001 /* UrgencyClassificationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UrgencyClassificationTests.swift; sourceTree = "<group>"; };
+		AC0000020000000000000001 /* AppTaskOccursOnTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTaskOccursOnTests.swift; sourceTree = "<group>"; };
+		AC0000040000000000000001 /* SortableTimeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SortableTimeTests.swift; sourceTree = "<group>"; };
+		AC0000060000000000000001 /* DailyResetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyResetTests.swift; sourceTree = "<group>"; };
+		AC0000080000000000000001 /* LLMFunctionCallDecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMFunctionCallDecodingTests.swift; sourceTree = "<group>"; };
+		AC00000100000000000000001 /* DeleteByNameBatchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeleteByNameBatchTests.swift; sourceTree = "<group>"; };
 		CC000002000000000000AA01 /* AlarmManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlarmManager.swift; sourceTree = "<group>"; };
 		CC000004000000000000AA01 /* AlarmOverlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlarmOverlayView.swift; sourceTree = "<group>"; };
 		CC000006000000000000AA01 /* SmoothTaskReorderList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmoothTaskReorderList.swift; sourceTree = "<group>"; };
@@ -195,6 +209,11 @@
 			isa = PBXGroup;
 			children = (
 				EE0000070000000000000001 /* UrgencyClassificationTests.swift */,
+				AC0000020000000000000001 /* AppTaskOccursOnTests.swift */,
+				AC0000040000000000000001 /* SortableTimeTests.swift */,
+				AC0000060000000000000001 /* DailyResetTests.swift */,
+				AC0000080000000000000001 /* LLMFunctionCallDecodingTests.swift */,
+				AC00000100000000000000001 /* DeleteByNameBatchTests.swift */,
 			);
 			path = ADHDTests;
 			sourceTree = "<group>";
@@ -234,6 +253,8 @@
 				CC000002000000000000AA01 /* AlarmManager.swift */,
 				CC000004000000000000AA01 /* AlarmOverlayView.swift */,
 				EE0000020000000000000001 /* SystemAlarmScheduler.swift */,
+				AA0000020000000000000001 /* QuickAddSheet.swift */,
+				AB0000020000000000000001 /* OnboardingView.swift */,
 				CC000006000000000000AA01 /* SmoothTaskReorderList.swift */,
 				DD000002000000000000001A /* SubscriptionManager.swift */,
 				DD000004000000000000001A /* PaywallView.swift */,
@@ -493,6 +514,8 @@
 				BB00000300000000000000A1 /* WidgetDataStore.swift in Sources */,
 				CC000001000000000000AA01 /* AlarmManager.swift in Sources */,
 				EE0000010000000000000001 /* SystemAlarmScheduler.swift in Sources */,
+				AA0000010000000000000001 /* QuickAddSheet.swift in Sources */,
+				AB0000010000000000000001 /* OnboardingView.swift in Sources */,
 				EE0000030000000000000001 /* MoraAlarmMetadata.swift in Sources */,
 				CC000003000000000000AA01 /* AlarmOverlayView.swift in Sources */,
 				CC000005000000000000AA01 /* SmoothTaskReorderList.swift in Sources */,
@@ -506,6 +529,11 @@
 			buildActionMask = 2147483647;
 			files = (
 				EE0000060000000000000001 /* UrgencyClassificationTests.swift in Sources */,
+				AC0000010000000000000001 /* AppTaskOccursOnTests.swift in Sources */,
+				AC0000030000000000000001 /* SortableTimeTests.swift in Sources */,
+				AC0000050000000000000001 /* DailyResetTests.swift in Sources */,
+				AC0000070000000000000001 /* LLMFunctionCallDecodingTests.swift in Sources */,
+				AC0000090000000000000001 /* DeleteByNameBatchTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

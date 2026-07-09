@@ -225,13 +225,17 @@ struct NextTaskWidgetView: View {
     let entry: NextTaskEntry
 
     var body: some View {
-        switch family {
-        case .systemSmall:
-            NextTaskSmallView(entry: entry)
-        case .systemMedium:
-            NextTaskMediumView(entry: entry)
-        default:
-            NextTaskSmallView(entry: entry)
+        if !WidgetDataStore.isPremium {
+            WidgetLockedView(family: family)   // D13: 위젯은 Pro 전용
+        } else {
+            switch family {
+            case .systemSmall:
+                NextTaskSmallView(entry: entry)
+            case .systemMedium:
+                NextTaskMediumView(entry: entry)
+            default:
+                NextTaskSmallView(entry: entry)
+            }
         }
     }
 }

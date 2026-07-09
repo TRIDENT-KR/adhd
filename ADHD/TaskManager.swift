@@ -76,10 +76,10 @@ class TaskManager: ObservableObject {
     /// 날짜가 바뀌었는지 확인하고 루틴/반복 일정을 초기화합니다.
     /// - 매일: 리셋 전 어제 완료 여부를 weeklyCompletions에 기록
     /// - 주 경계(일→월): weeklyCompletions 전체 초기화
-    func checkAndResetDailyTasks() {
+    /// now/defaults 파라미터는 단위 테스트 주입용 (기존 무인자 호출은 그대로 유효)
+    func checkAndResetDailyTasks(now: Date = Date(), defaults: UserDefaults = .standard) {
         guard let context = modelContext else { return }
-        let now = Date()
-        let lastReset = UserDefaults.standard.object(forKey: lastResetKey) as? Date
+        let lastReset = defaults.object(forKey: lastResetKey) as? Date
 
         guard lastReset == nil || !Calendar.current.isDate(lastReset!, inSameDayAs: now) else { return }
 
@@ -112,7 +112,7 @@ class TaskManager: ObservableObject {
                 resetCount += 1
             }
 
-            UserDefaults.standard.set(now, forKey: lastResetKey)
+            defaults.set(now, forKey: lastResetKey)
             safeSave()
             print("✅ \(resetCount)개의 태스크 초기화 완료.")
         } catch {

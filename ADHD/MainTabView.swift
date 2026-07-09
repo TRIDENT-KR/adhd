@@ -10,8 +10,10 @@ struct MainTabView: View {
 
     /// 한 번이라도 방문한 탭을 추적하여 지연 로딩
     @State private var loadedTabs: Set<TabSelection> = [.voice]
-    /// HomeVoiceInterfaceView에서 모달이 열려 있는지 여부 
+    /// HomeVoiceInterfaceView에서 모달이 열려 있는지 여부
     @State private var isVoiceModalVisible = false
+    /// 위젯 잠금 딥링크(mora://paywall)로 열리는 페이월 시트 (D13)
+    @State private var showPaywall = false
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -102,12 +104,21 @@ struct MainTabView: View {
             AlarmOverlayView(alarm: alarm)
                 .interactiveDismissDisabled(true)
         }
+        // 7. 위젯 잠금 탭 → 페이월 (D13)
+        .onReceive(NotificationCenter.default.publisher(for: .openPaywall)) { _ in
+            showPaywall = true
+        }
+        .sheet(isPresented: $showPaywall) {
+            NavigationView { PaywallView() }
+        }
     }
 }
 
 // MARK: - Widget Deep Link Notification
 extension Notification.Name {
     static let widgetDeepLink = Notification.Name("widgetDeepLink")
+    /// 위젯 잠금 뷰 탭(mora://paywall) → 앱 내 페이월 시트 오픈 (D13)
+    static let openPaywall = Notification.Name("openPaywall")
 }
 
 // MARK: - Undo Snackbar

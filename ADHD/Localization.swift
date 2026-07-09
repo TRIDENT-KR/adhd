@@ -1,6 +1,7 @@
 import Foundation
 import Combine
 import SwiftUI
+import WidgetKit
 
 // MARK: - Localization Manager
 class LocalizationManager: ObservableObject {
@@ -9,12 +10,17 @@ class LocalizationManager: ObservableObject {
     @Published var currentLanguage: AppLanguage {
         didSet {
             UserDefaults.standard.set(currentLanguage.rawValue, forKey: "appLanguage")
+            // 버그③: 위젯은 App Group만 읽을 수 있음 — 복제 기록 후 즉시 리로드
+            UserDefaults(suiteName: appGroupID)?.set(currentLanguage.rawValue, forKey: "appLanguage")
+            WidgetCenter.shared.reloadAllTimelines()
         }
     }
-    
+
     private init() {
         let saved = UserDefaults.standard.string(forKey: "appLanguage") ?? "en"
         self.currentLanguage = AppLanguage(rawValue: saved) ?? .en
+        // 앱 업데이트 직후에도 위젯이 언어를 즉시 읽을 수 있도록 App Group에 1회 시딩
+        UserDefaults(suiteName: appGroupID)?.set(self.currentLanguage.rawValue, forKey: "appLanguage")
     }
     
     var strings: Strings {
@@ -118,6 +124,8 @@ struct Strings {
 
     // Paywall
     var paywall: PaywallStrings { PaywallStrings(language: language) }
+    var quickAdd: QuickAddStrings { QuickAddStrings(language: language) }
+    var onboarding: OnboardingStrings { OnboardingStrings(language: language) }
 
     // Alarm / Notification
     var alarm: AlarmStrings { AlarmStrings(language: language) }
@@ -234,7 +242,6 @@ struct VoiceStrings {
     func actionUnknown(_ cmd: String) -> String { t("Unknown command (\(cmd))", "알 수 없는 명령 (\(cmd))", "不明なコマンド (\(cmd))") }
 
     var guideTitle: String { t("Try saying...", "이렇게 말해보세요...", "こう言ってみてください...") }
-    var guideHint: String { t("Long press mic for examples", "마이크를 길게 눌러 예시를 확인", "마이크를 길게 눌러서 예를 표시") }
 
     var exampleAdd: String { t("\"Take medicine at 9 AM\"", "\"오전 9시에 약 먹기\"", "\"午前9時に薬を飲む\"") }
     var exampleAppointment: String { t("\"Meeting tomorrow at 3 PM\"", "\"내일 오후 3시에 회의\"", "\"明日午後3時に会議\"") }
@@ -353,6 +360,39 @@ struct SearchStrings {
     var hint: String { t("Search your routines and plans", "루틴과 일정을 검색하세요", "ルーティンと予定を検索") }
 }
 
+struct OnboardingStrings {
+    let language: AppLanguage
+    private func t(_ en: String, _ ko: String, _ ja: String) -> String {
+        switch language {
+        case .en: return en
+        case .ko: return ko
+        case .ja: return ja
+        }
+    }
+
+    var page1Title: String { t("Just say it", "말하면 끝", "話すだけ") }
+    var page1Body: String { t("One mic for every routine, task, and plan.", "마이크 하나로 루틴, 할 일, 일정까지 전부.", "マイクひとつでルーティンも予定もすべて。") }
+    var page3Title: String { t("You're all set", "준비 끝", "準備完了") }
+    var page3Body: String { t("Start with your first word.", "첫 마디로 시작해보세요.", "最初のひと言から始めましょう。") }
+    var start: String { t("Start", "시작하기", "はじめる") }
+    var next: String { t("Next", "다음", "次へ") }
+    var skip: String { t("Skip", "건너뛰기", "スキップ") }
+}
+
+struct QuickAddStrings {
+    let language: AppLanguage
+    private func t(_ en: String, _ ko: String, _ ja: String) -> String {
+        switch language {
+        case .en: return en
+        case .ko: return ko
+        case .ja: return ja
+        }
+    }
+
+    var title: String { t("Quick Add", "빠른 추가", "クイック追加") }
+    var save: String { t("Add", "추가", "追加") }
+}
+
 struct PaywallStrings {
     let language: AppLanguage
     private func t(_ en: String, _ ko: String, _ ja: String) -> String {
@@ -390,9 +430,9 @@ struct PaywallStrings {
     var featureAITitle: String { t("Smart task sorting", "AI 자동 분류", "AIが自動で分類") }
     var featureAIDesc: String { t("AI tells apart routines, tasks, and appointments automatically.", "루틴인지, 할 일인지, 일정인지 AI가 알아서 구분해요.", "ルーティンか、タスクか、予定か、AIが自動で判断します。") }
     var featureAlarmsTitle: String { t("Full-screen alarms", "전체 화면 알람", "フルスクリーンアラーム") }
-    var featureAlarmsDesc: String { t("Can't-miss alarms that fill the whole screen.", "화면 가득 뜨는 알람으로 절대 놓치지 않아요.", "画面いっぱいのアラームで絶対に見逃しません。") }
+    var featureAlarmsDesc: String { t("Pro-only full-screen alarms you can't miss.", "절대 놓칠 수 없는 풀스크린 알람 — Pro 전용.", "絶対に見逃せないフルスクリーンアラーム — Pro限定。") }
     var featureWidgetsTitle: String { t("Home screen widgets", "홈 화면 위젯", "ホーム画面ウィジェット") }
-    var featureWidgetsDesc: String { t("See today's tasks and routines without opening the app.", "앱을 열지 않아도 오늘 할 일과 루틴을 바로 확인하세요.", "アプリを開かなくても今日のタスクとルーティンを確認。") }
+    var featureWidgetsDesc: String { t("Pro-only widgets for your Home & Lock Screen.", "홈·잠금 화면 위젯 — Pro 전용.", "ホーム・ロック画面ウィジェット — Pro限定。") }
     var featureSyncTitle: String { t("Cloud backup", "클라우드 백업", "クラウドバックアップ") }
     var featureSyncDesc: String { t("Your data stays safe across devices. (Coming soon)", "기기를 바꿔도 데이터가 안전하게 유지돼요. (출시 예정)", "機種変更してもデータは安全に保管されます。(近日公開)") }
 

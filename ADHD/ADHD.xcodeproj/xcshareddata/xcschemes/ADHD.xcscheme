@@ -41,17 +41,6 @@
                ReferencedContainer = "container:ADHD.xcodeproj">
             </BuildableReference>
          </TestableReference>
-         <TestableReference
-            skipped = "NO"
-            parallelizable = "YES">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "F3D9E48E2F74CF5200DA9A5A"
-               BuildableName = "ADHDUITests.xctest"
-               BlueprintName = "ADHDUITests"
-               ReferencedContainer = "container:ADHD.xcodeproj">
-            </BuildableReference>
-         </TestableReference>
       </Testables>
    </TestAction>
    <LaunchAction

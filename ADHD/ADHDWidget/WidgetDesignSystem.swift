@@ -191,7 +191,25 @@ struct WidgetL {
         }
     }
 
+    static var proLocked: String {
+        switch currentLang {
+        case "ko": return "위젯은 Pro 기능이에요"
+        case "ja": return "ウィジェットはPro機能です"
+        default:   return "Widgets are a Pro feature"
+        }
+    }
+
+    static var proCTA: String {
+        switch currentLang {
+        case "ko": return "탭해서 업그레이드"
+        case "ja": return "タップしてアップグレード"
+        default:   return "Tap to upgrade"
+        }
+    }
+
+    // 버그③: 위젯은 별도 프로세스라 standard defaults를 읽으면 항상 영어로 표시됨
+    // — 메인 앱이 App Group에 복제한 언어를 읽어야 한다 (LocalizationManager didSet과 한 쌍)
     private static var currentLang: String {
-        UserDefaults.standard.string(forKey: "appLanguage") ?? "en"
+        UserDefaults(suiteName: appGroupID)?.string(forKey: "appLanguage") ?? "en"
     }
 }

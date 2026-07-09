@@ -28,4 +28,10 @@ struct WidgetDataStore {
         }
         return try? JSONDecoder().decode(WidgetDataPayload.self, from: data)
     }
+
+    /// D13: 메인 앱이 App Group에 기록한 Pro 여부 (위젯 잠금 게이팅)
+    /// 키 부재(업데이트 직후 미기록) 시 false=잠금 — 메인 앱 1회 실행으로 해소
+    static var isPremium: Bool {
+        UserDefaults(suiteName: appGroupID)?.bool(forKey: "isPremiumUser") ?? false
+    }
 }

@@ -234,13 +234,17 @@ struct TodayRoutinesWidgetView: View {
     let entry: TodayRoutinesEntry
 
     var body: some View {
-        switch family {
-        case .systemSmall:
-            TodayRoutinesSmallView(entry: entry)
-        case .systemMedium:
-            TodayRoutinesMediumView(entry: entry)
-        default:
-            TodayRoutinesMediumView(entry: entry)
+        if !WidgetDataStore.isPremium {
+            WidgetLockedView(family: family)   // D13: 위젯은 Pro 전용
+        } else {
+            switch family {
+            case .systemSmall:
+                TodayRoutinesSmallView(entry: entry)
+            case .systemMedium:
+                TodayRoutinesMediumView(entry: entry)
+            default:
+                TodayRoutinesMediumView(entry: entry)
+            }
         }
     }
 }
