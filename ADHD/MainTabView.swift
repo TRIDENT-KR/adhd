@@ -14,6 +14,7 @@ struct MainTabView: View {
     @State private var isVoiceModalVisible = false
     /// 위젯 잠금 딥링크(mora://paywall)로 열리는 페이월 시트 (D13)
     @State private var showPaywall = false
+    @State private var isPlayingPresentationDemo = false
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -110,6 +111,16 @@ struct MainTabView: View {
         }
         .sheet(isPresented: $showPaywall) {
             NavigationView { PaywallView() }
+        }
+        .task {
+            guard MoraApp.presentationDemoMode, !isPlayingPresentationDemo else { return }
+            isPlayingPresentationDemo = true
+            try? await Task.sleep(nanoseconds: 5_000_000_000)
+            withAnimation { activeTab = .routine }
+            try? await Task.sleep(nanoseconds: 5_000_000_000)
+            withAnimation { activeTab = .planner }
+            try? await Task.sleep(nanoseconds: 5_000_000_000)
+            withAnimation { activeTab = .voice }
         }
     }
 }

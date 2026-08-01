@@ -207,9 +207,13 @@ struct HomeVoiceInterfaceView: View {
                         isBreathing = true
                         setupSpeechCallback()
                         // SFSpeechRecognizer + AVAudioSession 사전 초기화 (첫 탭 렉 방지)
-                        voiceManager.warmUp()
+                        if !MoraApp.presentationDemoMode {
+                            voiceManager.warmUp()
+                        }
                         // D21: 온보딩 스킵자에게만 가이드 자동 1회 (완료자는 플래그가 이미 true)
-                        if !hasSeenVoiceOnboarding { showVoiceGuide = true }
+                        if !hasSeenVoiceOnboarding && !MoraApp.presentationDemoMode {
+                            showVoiceGuide = true
+                        }
                     }
 
 

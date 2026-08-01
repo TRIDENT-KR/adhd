@@ -4,11 +4,19 @@ import UIKit
 
 @main
 struct MoraApp: App {
+    static let presentationDemoMode: Bool = {
+        #if DEBUG
+        ProcessInfo.processInfo.arguments.contains("-moraPresentationDemo")
+        #else
+        false
+        #endif
+    }()
+
     // MARK: - SwiftData Container
     /// 스키마 변경 시 기존 데이터와 호환되지 않으면 저장소를 초기화하여 크래시를 방지합니다.
     private static let sharedContainer: ModelContainer = {
         let schema = Schema([AppTask.self])
-        let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+        let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: presentationDemoMode)
         do {
             return try ModelContainer(for: schema, configurations: [config])
         } catch {
@@ -21,7 +29,7 @@ struct MoraApp: App {
             }
             do {
                 // 실패한 config 재사용 불가 — 새 인스턴스 생성
-                let freshConfig = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+                let freshConfig = ModelConfiguration(schema: schema, isStoredInMemoryOnly: presentationDemoMode)
                 return try ModelContainer(for: schema, configurations: [freshConfig])
             } catch {
                 fatalError("SwiftData 복구 불가: \(error)")
@@ -41,6 +49,11 @@ struct MoraApp: App {
     @AppStorage("appLanguage") private var appLanguage: String = "en"
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     @Environment(\.scenePhase) private var scenePhase
+    @State private var hasSeededPresentationDemo = false
+
+    private var isPresentationDemoMode: Bool {
+        Self.presentationDemoMode
+    }
 
     private var colorScheme: ColorScheme? {
         switch appTheme {
@@ -102,7 +115,7 @@ struct MoraApp: App {
                         .modelContainer(container)
                         .preferredColorScheme(colorScheme)
                         .environment(\.locale, Locale(identifier: appLanguage))
-                } else if authManager.session != nil {
+                } else if authManager.session != nil || isPresentationDemoMode {
                     MainTabView()
                         .environment(\.locale, Locale(identifier: appLanguage))
                         .environmentObject(taskManager)
@@ -115,6 +128,10 @@ struct MoraApp: App {
                     .task {
                         // ModelContext 주입 (TaskManager → SwiftData)
                         taskManager.configure(context: container.mainContext)
+                        if isPresentationDemoMode && !hasSeededPresentationDemo {
+                            seedPresentationDemoData()
+                            hasSeededPresentationDemo = true
+                        }
 
                         // 알람 확인 시 자동 완료 연동
                         AlarmCoordinator.shared.onTaskConfirmed = { taskId in
@@ -123,8 +140,10 @@ struct MoraApp: App {
                     }
                     .task {
                         // 알림 권한 요청 — 초기 렌더링 완료 후 지연 실행
-                        try? await Task.sleep(nanoseconds: 500_000_000)
-                        NotificationManager.shared.requestAuthorization()
+                        if !isPresentationDemoMode {
+                            try? await Task.sleep(nanoseconds: 500_000_000)
+                            NotificationManager.shared.requestAuthorization()
+                        }
                     }
                         .onOpenURL { url in
                             handleWidgetDeepLink(url)
@@ -169,5 +188,20 @@ struct MoraApp: App {
             }
         }
     }
-}
 
+    private func seedPresentationDemoData() {
+        let context = container.mainContext
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: .now)
+        let tomorrow = calendar.date(byAdding: .day, value: 1, to: today)
+        let tasks = [
+            AppTask(task: "Morning medication", time: "09:00 AM", category: "Routine", urgency: .strong),
+            AppTask(task: "20-minute walk", time: "12:30 PM", category: "Routine", urgency: .weak),
+            AppTask(task: "Wind down", time: "10:30 PM", category: "Routine", urgency: .weak),
+            AppTask(task: "Design review", time: "02:00 PM", date: today, category: "Appointment", urgency: .strong),
+            AppTask(task: "Dentist appointment", time: "03:30 PM", date: tomorrow, category: "Appointment", urgency: .strong),
+        ]
+        tasks.forEach(context.insert)
+        try? context.save()
+    }
+}
