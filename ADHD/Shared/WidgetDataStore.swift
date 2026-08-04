@@ -7,7 +7,8 @@ struct WidgetDataStore {
 
     /// 메인 앱에서 호출: 오늘의 태스크 스냅샷을 공유 저장소에 기록
     static func write(_ payload: WidgetDataPayload) {
-        guard let defaults = UserDefaults(suiteName: appGroupID) else {
+        guard payload.accountScope == WidgetAccountScope.active,
+              let defaults = UserDefaults(suiteName: appGroupID) else {
             print("⚠️ WidgetDataStore: App Group 접근 실패")
             return
         }
@@ -16,7 +17,7 @@ struct WidgetDataStore {
             defaults.set(data, forKey: key)
             print("📦 위젯 데이터 동기화 완료 (루틴 \(payload.routines.count)개, 일정 \(payload.appointments.count)개)")
         } catch {
-            print("❌ WidgetDataStore 인코딩 실패: \(error.localizedDescription)")
+            print("widget_snapshot_encode_failed")
         }
     }
 
@@ -26,12 +27,20 @@ struct WidgetDataStore {
               let data = defaults.data(forKey: key) else {
             return nil
         }
-        return try? JSONDecoder().decode(WidgetDataPayload.self, from: data)
+        guard let payload = try? JSONDecoder().decode(WidgetDataPayload.self, from: data),
+              let activeScope = WidgetAccountScope.active,
+              payload.accountScope == activeScope else { return nil }
+        return payload
     }
 
     /// D13: 메인 앱이 App Group에 기록한 Pro 여부 (위젯 잠금 게이팅)
     /// 키 부재(업데이트 직후 미기록) 시 false=잠금 — 메인 앱 1회 실행으로 해소
     static var isPremium: Bool {
-        UserDefaults(suiteName: appGroupID)?.bool(forKey: "isPremiumUser") ?? false
+        guard let defaults = UserDefaults(suiteName: appGroupID),
+              let activeScope = WidgetAccountScope.active,
+              defaults.string(forKey: WidgetAccountScope.premiumScopeKey) == activeScope else {
+            return false
+        }
+        return defaults.bool(forKey: "isPremiumUser")
     }
 }

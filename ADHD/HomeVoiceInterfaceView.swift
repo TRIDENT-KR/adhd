@@ -11,6 +11,7 @@ struct HomeVoiceInterfaceView: View {
     @ObservedObject var langManager = LocalizationManager.shared
     @StateObject private var voiceManager = VoiceInputManager()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
     @State private var isBreathing = false
     @State private var showSuccessCheck = false
     @State private var showSettings = false
@@ -20,20 +21,25 @@ struct HomeVoiceInterfaceView: View {
     @State private var showErrorToast = false
     @State private var errorToastMessage = ""
     @AppStorage("hasSeenVoiceOnboarding") private var hasSeenVoiceOnboarding = false
-    @AppStorage("confirmBeforeSave") private var confirmBeforeSave = true
+    @State private var confirmBeforeSave = true
 
     // Confirmation card state
     @State private var pendingTasks: [PendingLLMCall] = []
+    @State private var pendingSubmittedDraft: String?
     @State private var showConfirmation = false
     @State private var editingTask: PendingLLMCall? = nil
     
     // Binding to pass modal state up to parent (MainTabView)
+    @Binding var activeTab: TabSelection
     @Binding var isModalVisible: Bool
     @State private var showPaywall = false
 
     // Text input state
     @State private var showTextInput = false
     @State private var textInputValue = ""
+    @State private var activeAnalysisID: UUID?
+    @State private var analysisTask: Task<Void, Never>?
+    @State private var successPresentationID: UUID?
     @FocusState private var isTextInputFocused: Bool
 
     var body: some View {
@@ -46,9 +52,18 @@ struct HomeVoiceInterfaceView: View {
                 HStack {
                     // 텍스트 입력 토글
                     Button(action: {
+                        let shouldShowTextInput = !showTextInput
+                        if shouldShowTextInput {
+                            let isFinalizingSpeech = voiceManager.isListening || voiceManager.isProcessing
+                            preserveSpeechDraftAndStopListening()
+                            if isFinalizingSpeech {
+                                // 최종 STT가 초안으로 publish된 뒤 텍스트 모드와 키보드를 엽니다.
+                                return
+                            }
+                        }
                         let anim: Animation? = reduceMotion ? .none : .spring(response: 0.3, dampingFraction: 0.8)
                         withAnimation(anim) {
-                            showTextInput.toggle()
+                            showTextInput = shouldShowTextInput
                             if showTextInput {
                                 isTextInputFocused = true
                             }
@@ -134,19 +149,23 @@ struct HomeVoiceInterfaceView: View {
                             Button(action: { sendTextInput() }) {
                                 Image(systemName: "arrow.up.circle.fill")
                                     .font(.title.weight(.medium))
-                                    .foregroundColor(textInputValue.trimmingCharacters(in: .whitespaces).isEmpty
+                                    .foregroundColor(textInputValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                                         ? DesignSystem.Colors.onSurfaceVariant.opacity(0.4)
                                         : DesignSystem.Colors.primary)
                                     .frame(minWidth: 44, minHeight: 44)
                                     .contentShape(Rectangle())
                             }
-                            .disabled(textInputValue.trimmingCharacters(in: .whitespaces).isEmpty || cloudLLM.isProcessing)
-                            .accessibilityLabel("Send text input")
-                            .accessibilityHint("Double tap to analyze the entered text")
+                            .disabled(
+                                textInputValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                                    || activeAnalysisID != nil
+                                    || cloudLLM.isProcessing
+                            )
+                            .accessibilityLabel(L.voice.analyzeDraft)
+                            .accessibilityHint(L.voice.analyzeDraftHint)
                         }
                         .padding(.horizontal, 24)
 
-                        if cloudLLM.isProcessing {
+                        if activeAnalysisID != nil {
                             Text(L.voiceAnalyzing)
                                 .font(DesignSystem.Typography.bodyMd)
                                 .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
@@ -246,8 +265,11 @@ struct HomeVoiceInterfaceView: View {
                                 .foregroundColor(DesignSystem.Colors.tertiary)
                                 .transition(reduceMotion ? .opacity : .scale.combined(with: .opacity))
                                 .accessibilityLabel("Task saved successfully")
-                        } else if cloudLLM.isProcessing || voiceManager.isProcessing {
+                        } else if activeAnalysisID != nil {
                             Text(L.voiceAnalyzing)
+                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
+                        } else if voiceManager.isProcessing {
+                            Text(L.voice.preparingDraft)
                                 .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
                         } else if voiceManager.isListening && !voiceManager.recognizedText.isEmpty {
                             // 실시간 텍스트 + 블링킹 커서
@@ -324,7 +346,12 @@ struct HomeVoiceInterfaceView: View {
                             withAnimation(reduceMotion ? .none : .easeOut(duration: 0.2)) {
                                 showErrorToast = false
                             }
-                            handleMicTap()
+                            if textInputValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                handleMicTap()
+                            } else {
+                                showTextInput = true
+                                sendTextInput()
+                            }
                         }) {
                             Text(L.voice.tryAgain)
                                 .font(.caption.weight(.semibold))
@@ -384,6 +411,46 @@ struct HomeVoiceInterfaceView: View {
         }
         .onAppear {
             isModalVisible = showConfirmation
+            loadConfirmBeforeSavePreference()
+        }
+        .onDisappear {
+            preserveSpeechDraftAndStopListening()
+            cancelActiveAnalysis()
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase != .active {
+                preserveSpeechDraftAndStopListening()
+                cancelActiveAnalysis()
+            }
+        }
+        .onChange(of: activeTab) { _, newTab in
+            if newTab != .voice {
+                preserveSpeechDraftAndStopListening()
+                cancelActiveAnalysis()
+            }
+        }
+        .onChange(of: showSettings) { _, isVisible in
+            if isVisible {
+                preserveSpeechDraftAndStopListening()
+                cancelActiveAnalysis()
+            } else {
+                loadConfirmBeforeSavePreference()
+            }
+        }
+        .onChange(of: authManager.accessState) { _, _ in
+            loadConfirmBeforeSavePreference()
+        }
+        .onChange(of: showPaywall) { _, isVisible in
+            if isVisible {
+                preserveSpeechDraftAndStopListening()
+                cancelActiveAnalysis()
+            }
+        }
+        .onChange(of: showVoiceGuide) { _, isVisible in
+            if isVisible {
+                preserveSpeechDraftAndStopListening()
+                cancelActiveAnalysis()
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: .didReceiveOffTopicChat)) { notification in
             if let message = notification.userInfo?["message"] as? String {
@@ -393,6 +460,20 @@ struct HomeVoiceInterfaceView: View {
                     showConfirmation = true
                 }
             }
+        }
+        .onReceive(
+            NotificationCenter.default.publisher(for: .accountSessionSensitiveStateReset)
+        ) { _ in
+            cancelActiveAnalysis()
+            voiceManager.discardAccountSensitiveState()
+            textInputValue = ""
+            pendingSubmittedDraft = nil
+            pendingTasks = []
+            editingTask = nil
+            showConfirmation = false
+            showTextInput = false
+            showErrorToast = false
+            isTextInputFocused = false
         }
     }
 
@@ -418,7 +499,10 @@ struct HomeVoiceInterfaceView: View {
                 .gesture(
                     DragGesture(minimumDistance: 0)
                         .onChanged { _ in
-                            if !voiceManager.isListening && !cloudLLM.isProcessing && !voiceManager.isProcessing {
+                            if !voiceManager.isListening
+                                && activeAnalysisID == nil
+                                && !cloudLLM.isProcessing
+                                && !voiceManager.isProcessing {
                                 handleMicTap()
                             }
                         }
@@ -434,14 +518,19 @@ struct HomeVoiceInterfaceView: View {
                 buttonContent
             }
             .buttonStyle(SquishyButtonStyle())
-            .disabled(cloudLLM.isProcessing || voiceManager.isProcessing)
+            .disabled(activeAnalysisID != nil || cloudLLM.isProcessing || voiceManager.isProcessing)
         }
     }
 
     // MARK: - Text Input Handler
     private func sendTextInput() {
-        let text = textInputValue.trimmingCharacters(in: .whitespaces)
-        guard !text.isEmpty else { return }
+        let text = textInputValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty, activeAnalysisID == nil, !cloudLLM.isProcessing else { return }
+
+        guard networkMonitor.isConnected else {
+            networkMonitor.showOfflineBannerTemporarily()
+            return
+        }
 
         if !subscriptionManager.canUseAI {
             showPaywall = true
@@ -449,55 +538,114 @@ struct HomeVoiceInterfaceView: View {
         }
 
         Haptic.impact(.medium)
-        textInputValue = ""
         isTextInputFocused = false
+        showSuccessCheck = false
+        successPresentationID = nil
 
-        Task {
+        let analysisID = UUID()
+        activeAnalysisID = analysisID
+
+        analysisTask = Task {
             do {
-                subscriptionManager.incrementAIUsage()
                 let parsedTasks = try await cloudLLM.analyzeText(text: text)
-                print("⌨️ 텍스트 입력 파싱 결과: \(parsedTasks)")
+                let shouldHideSuccess = await MainActor.run {
+                    guard activeAnalysisID == analysisID else { return false }
+                    let shouldHide = handleSuccessfulAnalysis(parsedTasks, submittedText: text)
+                    activeAnalysisID = nil
+                    analysisTask = nil
+                    if shouldHide {
+                        successPresentationID = analysisID
+                    }
+                    return shouldHide
+                }
 
+                if shouldHideSuccess {
+                    try? await Task.sleep(nanoseconds: 1_500_000_000)
+                    await MainActor.run {
+                        guard successPresentationID == analysisID else { return }
+                        showSuccessCheck = false
+                        successPresentationID = nil
+                    }
+                }
+            } catch is CancellationError {
                 await MainActor.run {
-                        if confirmBeforeSave {
-                            pendingTasks = parsedTasks.map { PendingLLMCall(call: $0) }
-                            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                                showConfirmation = true
-                            }
-                        } else {
-                            taskManager.execute(llmCalls: parsedTasks)
-                            if !parsedTasks.contains(where: { $0.isOffTopic }) {
-                                showSuccessCheck = true
-                                Haptic.notification(.success)
-                            }
-                        }
-                    }
-
-                    if !confirmBeforeSave && !parsedTasks.contains(where: { $0.isOffTopic }) {
-                        try? await Task.sleep(nanoseconds: 1_500_000_000)
-                        await MainActor.run { showSuccessCheck = false }
-                    }
+                    guard activeAnalysisID == analysisID else { return }
+                    activeAnalysisID = nil
+                    analysisTask = nil
+                }
+            } catch CloudLLMError.quotaExhausted {
+                await MainActor.run {
+                    guard activeAnalysisID == analysisID else { return }
+                    activeAnalysisID = nil
+                    analysisTask = nil
+                    showPaywall = true
+                }
             } catch {
-                print("❌ Text input API error: \(error.localizedDescription)")
+                print("ai_analysis_failed")
                 await MainActor.run {
+                    guard activeAnalysisID == analysisID else { return }
+                    activeAnalysisID = nil
+                    analysisTask = nil
                     triggerErrorFeedback(message: L.voice.errorApi)
                 }
             }
         }
     }
 
+    /// 서버가 검증·확정한 분석과 quota 스냅샷만 화면과 실행 단계에 반영합니다.
+    @MainActor
+    private func handleSuccessfulAnalysis(
+        _ parsedTasks: [LLMFunctionCall],
+        submittedText: String
+    ) -> Bool {
+        guard !parsedTasks.isEmpty,
+              parsedTasks.allSatisfy(\.isExecutionPayloadValid) else {
+            triggerErrorFeedback(message: L.voice.errorApi)
+            return false
+        }
+
+        // 성공 분석의 서버 원장 스냅샷만 UI에 반영합니다. 로컬 추정 차감은 권한 원천이 아닙니다.
+        if let quota = cloudLLM.latestQuota {
+            subscriptionManager.applyServerQuota(quota)
+        }
+
+        let mustConfirm = confirmBeforeSave
+            || LLMConfirmationPolicy.requiresExplicitConfirmation(for: parsedTasks)
+        if mustConfirm {
+            pendingSubmittedDraft = submittedText
+            pendingTasks = taskManager.preparePendingCalls(
+                parsedTasks.map { PendingLLMCall(call: $0) }
+            )
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                showConfirmation = true
+            }
+            return false
+        }
+
+        guard taskManager.execute(llmCalls: parsedTasks) else {
+            triggerErrorFeedback(message: L.voice.errorApi)
+            return false
+        }
+
+        clearDraftIfUnchanged(submittedText)
+
+        guard !parsedTasks.contains(where: \.isOffTopic) else { return false }
+        showSuccessCheck = true
+        Haptic.notification(.success)
+        return true
+    }
+
     // MARK: - Mic Button Handler
     private func handleMicTap() {
-        // 녹음 중이 아닐 때만 제한 체크 (녹음 중지는 항상 허용)
-        if !voiceManager.isListening && !subscriptionManager.canUseAI {
-            Haptic.notification(.warning)
-            showPaywall = true
+        // STT는 초안 작성 단계입니다. 서버 연결과 quota는 명시적 분석 시점에 확인합니다.
+        if !voiceManager.isListening,
+           !textInputValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            showTextInput = true
+            isTextInputFocused = true
+            triggerErrorFeedback(message: L.voice.existingDraftProtected)
             return
         }
-        if !networkMonitor.isConnected && !voiceManager.isListening {
-            networkMonitor.showOfflineBannerTemporarily()
-            return
-        }
+
         Haptic.impact(.medium)
         voiceManager.toggleListening()
     }
@@ -530,13 +678,64 @@ struct HomeVoiceInterfaceView: View {
             triggerErrorFeedback(message: errorMessage)
             return
         }
-        
-        // 알림 강도(Urgency) 정보를 포함하여 실행
-        taskManager.execute(pendingCalls: pendingTasks)
-        
+
+        // 카드 편집으로 승인 대상이 무효화됐다면 최신 UUID/상태로 미리보기만 갱신합니다.
+        // 이 탭에서는 실행하지 않아 사용자가 바뀐 범위와 개수를 한 번 더 확인할 수 있습니다.
+        if pendingTasks.contains(where: {
+            $0.call.requiresPreparedTargets && $0.targetSnapshots == nil
+        }) {
+            pendingTasks = taskManager.preparePendingCalls(pendingTasks).map { pending in
+                var refreshed = pending
+                refreshed.requiresReconfirmation = true
+                return refreshed
+            }
+            triggerErrorFeedback(message: L.voice.reviewUpdatedPreview)
+            return
+        }
+
+        // 알림 강도와 승인 시점 대상 스냅샷을 포함하여 항목별로 실행합니다.
+        let result = taskManager.executeDetailed(
+            pendingCalls: pendingTasks,
+            explicitlyConfirmed: true
+        )
+
+        pendingTasks = result.remainingCalls
+        editingTask = nil
+
+        guard result.hasAnySuccess else {
+            let message: String
+            if result.items.contains(where: {
+                $0.issue == .staleTarget || $0.issue == .previewRequired
+            }) {
+                message = L.voice.reviewUpdatedPreview
+            } else if result.items.contains(where: { $0.issue == .noMatchingTarget }) {
+                message = L.voice.noMatchingTarget
+            } else if result.items.contains(where: {
+                $0.issue == .persistenceFailed
+                    || $0.issue == .notExecutedAfterStoreFailure
+            }) {
+                message = L.voice.saveFailedPreserved
+            } else {
+                message = L.voice.errorApi
+            }
+            triggerErrorFeedback(message: message)
+            return
+        }
+
+        let successID = UUID()
+        successPresentationID = successID
+        clearDraftIfUnchanged(pendingSubmittedDraft)
+        pendingSubmittedDraft = nil
+
+        // 성공 카드는 제거하고 실패/변경 충돌 카드만 남깁니다. 원문 재분석은 하지 않습니다.
+        guard result.remainingCalls.isEmpty else {
+            Haptic.notification(.success)
+            triggerErrorFeedback(message: L.voice.partialSaveResult)
+            return
+        }
+
         withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
             showConfirmation = false
-            pendingTasks = []
             showSuccessCheck = true
         }
         Haptic.notification(.success)
@@ -544,7 +743,9 @@ struct HomeVoiceInterfaceView: View {
         Task {
             try? await Task.sleep(nanoseconds: 1_500_000_000)
             await MainActor.run {
+                guard successPresentationID == successID else { return }
                 showSuccessCheck = false
+                successPresentationID = nil
             }
         }
     }
@@ -553,7 +754,17 @@ struct HomeVoiceInterfaceView: View {
         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
             showConfirmation = false
             pendingTasks = []
+            pendingSubmittedDraft = nil
         }
+    }
+
+    @MainActor
+    private func clearDraftIfUnchanged(_ submittedDraft: String?) {
+        guard let submittedDraft,
+              textInputValue.trimmingCharacters(in: .whitespacesAndNewlines) == submittedDraft else {
+            return
+        }
+        textInputValue = ""
     }
 
     // MARK: - Error Feedback
@@ -590,6 +801,18 @@ struct HomeVoiceInterfaceView: View {
         }
     }
 
+    private func loadConfirmBeforeSavePreference() {
+        guard let userID = authManager.accessState.accountUserID else {
+            confirmBeforeSave = true
+            return
+        }
+        confirmBeforeSave = AccountPreferences.bool(
+            .confirmBeforeSave,
+            default: true,
+            for: userID
+        )
+    }
+
     // MARK: - Duration Formatter
     private func formatDuration(_ duration: TimeInterval) -> String {
         let seconds = Int(duration)
@@ -602,57 +825,49 @@ struct HomeVoiceInterfaceView: View {
         guard voiceManager.onSpeechFinalized == nil else { return }
         voiceManager.onSpeechFinalized = { [weak voiceManager] text in
             guard let voiceManager else { return }
-
-            Task {
-                do {
-                    if !subscriptionManager.canUseAI {
-                        await MainActor.run {
-                            voiceManager.recognizedText = ""
-                            voiceManager.isProcessing = false
-                            showPaywall = true
-                        }
-                        return
-                    }
-                    subscriptionManager.incrementAIUsage()
-                    let parsedTasks = try await cloudLLM.analyzeText(text: text)
-                    print("🤖 Gemini 파싱 결과: \(parsedTasks)")
-
-                    await MainActor.run {
-                        voiceManager.recognizedText = ""
-                        voiceManager.isProcessing   = false
-
-                        if confirmBeforeSave {
-                            // 확인 카드 표시
-                            pendingTasks = parsedTasks.map { PendingLLMCall(call: $0) }
-                            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                                showConfirmation = true
-                            }
-                        } else {
-                            // 바로 저장 (기존 동작)
-                            taskManager.execute(llmCalls: parsedTasks)
-                            if !parsedTasks.contains(where: { $0.isOffTopic }) {
-                                showSuccessCheck = true
-                                Haptic.notification(.success)
-                            }
-                        }
-                    }
-
-                    if !confirmBeforeSave && !parsedTasks.contains(where: { $0.isOffTopic }) {
-                        try? await Task.sleep(nanoseconds: 1_500_000_000)
-                        await MainActor.run {
-                            showSuccessCheck = false
-                        }
-                    }
-                } catch {
-                    print("❌ Cloud API Error: \(error.localizedDescription)")
-                    await MainActor.run {
-                        voiceManager.recognizedText = ""
-                        voiceManager.isProcessing   = false
-                        voiceManager.lastError = .apiError(error.localizedDescription)
-                    }
-                }
-            }
+            publishSpeechDraft(text, using: voiceManager)
         }
+    }
+
+    @MainActor
+    private func publishSpeechDraft(_ text: String, using manager: VoiceInputManager) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            manager.isProcessing = false
+            manager.lastError = .emptyTranscription
+            return
+        }
+
+        if textInputValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            textInputValue = text
+        }
+        showTextInput = true
+        isTextInputFocused = scenePhase == .active
+            && activeTab == .voice
+            && !showSettings
+            && !showPaywall
+            && !showVoiceGuide
+    }
+
+    @MainActor
+    private func preserveSpeechDraftAndStopListening() {
+        let currentText = voiceManager.recognizedText
+        if voiceManager.isListening {
+            voiceManager.stopListening()
+        } else if voiceManager.isProcessing {
+            return
+        } else if !currentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            publishSpeechDraft(currentText, using: voiceManager)
+        }
+    }
+
+    @MainActor
+    private func cancelActiveAnalysis() {
+        analysisTask?.cancel()
+        analysisTask = nil
+        activeAnalysisID = nil
+        successPresentationID = nil
+        showSuccessCheck = false
     }
 }
 
@@ -774,13 +989,22 @@ struct VoiceConfirmationSheet: View {
                                 let newDateStr = df.string(from: editDateTime)
                                 
                                 var updatedCall = tasks[index].call
-                                updatedCall.updateFields(
-                                    taskName: editName,
-                                    time: numStr,
-                                    date: newDateStr,
-                                    category: editCategory
-                                )
+                                if tasks[index].executionIssue == .noMatchingTarget {
+                                    updatedCall.retargetForRetry(
+                                        taskName: editName,
+                                        date: newDateStr,
+                                        category: editCategory
+                                    )
+                                } else {
+                                    updatedCall.updateFields(
+                                        taskName: editName,
+                                        time: numStr,
+                                        date: newDateStr,
+                                        category: editCategory
+                                    )
+                                }
                                 tasks[index].call = updatedCall
+                                tasks[index].invalidatePreparedTargets()
                                 Haptic.impact(.light)
                                 withAnimation(.spring()) { editingTask = nil }
                             }
@@ -886,6 +1110,23 @@ struct VoiceConfirmationSheet: View {
                                     }
                                     .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
                                 }
+
+                                if task.call.requiresPreparedTargets {
+                                    HStack(spacing: 6) {
+                                        Image(systemName: "scope")
+                                            .accessibilityHidden(true)
+                                        Text(L.voice.affectedCount(task.targetSnapshots?.count ?? 0))
+                                        if task.requiresReconfirmation {
+                                            Text("• \(L.voice.reviewUpdatedPreview)")
+                                        }
+                                    }
+                                    .font(.caption2.weight(.semibold))
+                                    .foregroundColor(
+                                        task.requiresReconfirmation
+                                            ? .orange
+                                            : DesignSystem.Colors.onSurfaceVariant.opacity(0.6)
+                                    )
+                                }
                             }
                             .padding(.vertical, 16)
                             .padding(.horizontal, 20)
@@ -898,7 +1139,12 @@ struct VoiceConfirmationSheet: View {
                             )
                             .shadow(color: .black.opacity(0.03), radius: 8, x: 0, y: 4)
                             .onTapGesture {
-                                withAnimation(.spring()) { editingTask = task }
+                                switch task.call {
+                                case .addSingleTask, .updateTask, .deleteSpecificTask, .markTaskComplete:
+                                    withAnimation(.spring()) { editingTask = task }
+                                default:
+                                    break
+                                }
                             }
                         }
                     }
@@ -994,7 +1240,7 @@ extension Notification.Name {
 // MARK: - Preview
 struct HomeVoiceInterfaceView_Previews: PreviewProvider {
     static var previews: some View {
-        HomeVoiceInterfaceView(isModalVisible: .constant(false))
+        HomeVoiceInterfaceView(activeTab: .constant(.voice), isModalVisible: .constant(false))
             .environmentObject(CloudLLMManager())
             .environmentObject(TaskManager())
             .environmentObject(AuthManager())

@@ -1,4 +1,5 @@
 import SwiftUI
+import AuthenticationServices
 
 // MARK: - Settings View
 struct SettingsView: View {
@@ -10,16 +11,19 @@ struct SettingsView: View {
     @ObservedObject var langManager = LocalizationManager.shared
 
     @State private var showLogoutConfirm = false
-    @State private var showDeleteConfirm = false
+    @State private var showDeleteFlow = false
     @State private var showClearCompletedConfirm = false
     @State private var showClearAllConfirm = false
+    @State private var clearCompletedCount = 0
+    @State private var clearAllCount = 0
     @State private var showPaywall = false
 
     // Notifications
-    @State private var routineReminders: Bool = !UserDefaults.standard.bool(forKey: "routineRemindersDisabled")
-    @State private var appointmentReminders: Bool = !UserDefaults.standard.bool(forKey: "appointmentRemindersDisabled")
-    @State private var remindBefore: Int = UserDefaults.standard.integer(forKey: NotificationManager.remindBeforeKey)
-    @State private var notificationSound: Bool = !UserDefaults.standard.bool(forKey: "notificationSoundDisabled")
+    @State private var routineReminders = true
+    @State private var appointmentReminders = true
+    @State private var remindBefore = 0
+    @State private var notificationSound = true
+    @State private var loadedPreferenceAccountID: UUID?
 
     // Appearance
     @AppStorage("appTheme") private var appTheme: String = "system"
@@ -27,7 +31,11 @@ struct SettingsView: View {
 
     // Voice
     @AppStorage("micInputMode") private var micInputMode: String = "tap"
-    @AppStorage("confirmBeforeSave") private var confirmBeforeSave: Bool = true
+    @State private var confirmBeforeSave = true
+
+    private var accountUserID: UUID? {
+        authManager.accessState.accountUserID
+    }
 
     private var remindBeforeOptions: [(value: Int, label: String)] {[
         (0, L.settings.atTime),
@@ -68,7 +76,7 @@ struct SettingsView: View {
                     }
                     .accessibilityHint("Double tap to log out")
 
-                    Button(action: { showDeleteConfirm = true }) {
+                    Button(action: { showDeleteFlow = true }) {
                         HStack {
                             Image(systemName: "trash")
                                 .accessibilityHidden(true)
@@ -189,6 +197,9 @@ struct SettingsView: View {
                             Text(L.voice.confirmBeforeSave)
                         }
                     }
+                    .onChange(of: confirmBeforeSave) { _, value in
+                        persist(value, for: .confirmBeforeSave)
+                    }
                 } header: {
                     Text(L.tabVoice)
                 }
@@ -203,7 +214,8 @@ struct SettingsView: View {
                         }
                     }
                     .onChange(of: routineReminders) { _, val in
-                        UserDefaults.standard.set(!val, forKey: "routineRemindersDisabled")
+                        persist(!val, for: .routineRemindersDisabled)
+                        taskManager.reconcileNotificationsWithPreferences()
                     }
 
                     Toggle(isOn: $appointmentReminders) {
@@ -214,7 +226,8 @@ struct SettingsView: View {
                         }
                     }
                     .onChange(of: appointmentReminders) { _, val in
-                        UserDefaults.standard.set(!val, forKey: "appointmentRemindersDisabled")
+                        persist(!val, for: .appointmentRemindersDisabled)
+                        taskManager.reconcileNotificationsWithPreferences()
                     }
 
                     Picker(selection: $remindBefore) {
@@ -229,7 +242,8 @@ struct SettingsView: View {
                         }
                     }
                     .onChange(of: remindBefore) { _, val in
-                        UserDefaults.standard.set(val, forKey: NotificationManager.remindBeforeKey)
+                        persist(val, for: .remindBeforeMinutes)
+                        taskManager.reconcileNotificationsWithPreferences()
                     }
 
                     Toggle(isOn: $notificationSound) {
@@ -240,7 +254,8 @@ struct SettingsView: View {
                         }
                     }
                     .onChange(of: notificationSound) { _, val in
-                        UserDefaults.standard.set(!val, forKey: "notificationSoundDisabled")
+                        persist(!val, for: .notificationSoundDisabled)
+                        taskManager.reconcileNotificationsWithPreferences()
                     }
                 } header: {
                     Text(L.settings.notifications)
@@ -273,7 +288,10 @@ struct SettingsView: View {
 
                 // ── Data Management ──
                 Section {
-                    Button(action: { showClearCompletedConfirm = true }) {
+                    Button(action: {
+                        clearCompletedCount = taskManager.taskCount(completedOnly: true)
+                        showClearCompletedConfirm = true
+                    }) {
                         HStack {
                             Image(systemName: "checkmark.circle")
                                 .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.5))
@@ -284,7 +302,10 @@ struct SettingsView: View {
                     }
                     .accessibilityHint("Double tap to clear completed tasks")
 
-                    Button(action: { showClearAllConfirm = true }) {
+                    Button(action: {
+                        clearAllCount = taskManager.taskCount()
+                        showClearAllConfirm = true
+                    }) {
                         HStack {
                             Image(systemName: "trash.circle")
                                 .accessibilityHidden(true)
@@ -372,24 +393,13 @@ struct SettingsView: View {
             } message: {
                 Text(L.settings.logOutConfirm)
             }
-            .alert(L.settings.deleteAccount, isPresented: $showDeleteConfirm) {
-                Button(L.settings.cancel, role: .cancel) {}
-                Button(L.settings.delete, role: .destructive) {
-                    Task {
-                        try? await authManager.deleteAccount()
-                        dismiss()
-                    }
-                }
-            } message: {
-                Text(L.settings.deleteConfirm)
-            }
             .alert(L.settings.clearCompleted, isPresented: $showClearCompletedConfirm) {
                 Button(L.settings.cancel, role: .cancel) {}
                 Button(L.settings.delete, role: .destructive) {
                     taskManager.deleteCompleted()
                 }
             } message: {
-                Text(L.settings.clearCompletedConfirm)
+                Text(L.settings.clearCompletedPreview(clearCompletedCount))
             }
             .alert(L.settings.clearAll, isPresented: $showClearAllConfirm) {
                 Button(L.settings.cancel, role: .cancel) {}
@@ -397,7 +407,7 @@ struct SettingsView: View {
                     taskManager.deleteAll()
                 }
             } message: {
-                Text(L.settings.clearAllConfirm)
+                Text(L.settings.clearAllPreview(clearAllCount))
             }
         }
         .sheet(isPresented: $showPaywall) {
@@ -406,11 +416,193 @@ struct SettingsView: View {
                     .environmentObject(subscriptionManager)
             }
         }
+        .sheet(isPresented: $showDeleteFlow) {
+            AccountDeletionFlowView()
+                .environmentObject(authManager)
+                .environmentObject(taskManager)
+                .environmentObject(subscriptionManager)
+        }
         .onChange(of: langManager.currentLanguage) { oldVal, newVal in
             // Update speech locale when language changes
             let voiceLocale = newVal.localeIdentifier
             UserDefaults.standard.set(voiceLocale, forKey: VoiceInputManager.speechLocaleKey)
             Haptic.impact(.light)
+        }
+        .onAppear(perform: loadAccountPreferences)
+        .onChange(of: accountUserID) { _, _ in
+            loadAccountPreferences()
+        }
+    }
+
+    private func loadAccountPreferences() {
+        guard let userID = accountUserID else {
+            loadedPreferenceAccountID = nil
+            routineReminders = false
+            appointmentReminders = false
+            remindBefore = 0
+            notificationSound = false
+            confirmBeforeSave = true
+            return
+        }
+
+        routineReminders = !AccountPreferences.bool(
+            .routineRemindersDisabled,
+            default: false,
+            for: userID
+        )
+        appointmentReminders = !AccountPreferences.bool(
+            .appointmentRemindersDisabled,
+            default: false,
+            for: userID
+        )
+        remindBefore = AccountPreferences.integer(
+            .remindBeforeMinutes,
+            default: 0,
+            for: userID
+        )
+        notificationSound = !AccountPreferences.bool(
+            .notificationSoundDisabled,
+            default: false,
+            for: userID
+        )
+        confirmBeforeSave = AccountPreferences.bool(
+            .confirmBeforeSave,
+            default: true,
+            for: userID
+        )
+        loadedPreferenceAccountID = userID
+    }
+
+    private func persist(_ value: Bool, for key: AccountPreferenceKey) {
+        guard let userID = accountUserID,
+              loadedPreferenceAccountID == userID else { return }
+        AccountPreferences.set(value, for: key, userID: userID)
+    }
+
+    private func persist(_ value: Int, for key: AccountPreferenceKey) {
+        guard let userID = accountUserID,
+              loadedPreferenceAccountID == userID else { return }
+        AccountPreferences.set(value, for: key, userID: userID)
+    }
+}
+
+private struct AccountDeletionFlowView: View {
+    @EnvironmentObject private var authManager: AuthManager
+    @EnvironmentObject private var taskManager: TaskManager
+    @EnvironmentObject private var subscriptionManager: SubscriptionManager
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var acknowledged = false
+    @State private var appleAuthorizationCode: String?
+    @State private var isWorking = false
+    @State private var showFinalConfirmation = false
+    @State private var previewTaskCount = 0
+    @State private var errorMessage: String?
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    Label(L.settings.deletionPermanentLoss, systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.red)
+                    Text(L.settings.deletionNoExport)
+                }
+
+                if subscriptionManager.isPremium {
+                    Section {
+                        Text(L.settings.deletionSubscriptionNotice)
+                        Link(
+                            L.paywall.manageSubscription,
+                            destination: URL(string: "https://apps.apple.com/account/subscriptions")!
+                        )
+                    }
+                }
+
+                Section {
+                    Toggle(L.settings.deletionAcknowledgement, isOn: $acknowledged)
+
+                    if acknowledged {
+                        SignInWithAppleButton(.continue) { request in
+                            authManager.prepareAppleAccountDeletionRequest(request)
+                        } onCompletion: { result in
+                            Task { @MainActor in
+                                isWorking = true
+                                defer { isWorking = false }
+                                do {
+                                    appleAuthorizationCode = try await authManager
+                                        .reauthenticateForAccountDeletion(result)
+                                    errorMessage = nil
+                                } catch let error as AccountDeletionClientError {
+                                    errorMessage = error.localizedDescription
+                                } catch {
+                                    errorMessage = L.settings.deletionTryAgain
+                                }
+                            }
+                        }
+                        .signInWithAppleButtonStyle(.black)
+                        .frame(height: 50)
+                    }
+
+                    if appleAuthorizationCode != nil {
+                        Label(L.settings.deletionReauthenticationComplete, systemImage: "checkmark.shield.fill")
+                            .foregroundStyle(.green)
+                    }
+                } header: {
+                    Text(L.settings.deletionReauthenticate)
+                }
+
+                if let errorMessage {
+                    Section {
+                        Text(errorMessage)
+                            .foregroundStyle(.red)
+                    }
+                }
+
+                Section {
+                    Button(role: .destructive) {
+                        previewTaskCount = taskManager.taskCount()
+                        showFinalConfirmation = true
+                    } label: {
+                        if isWorking {
+                            ProgressView()
+                        } else {
+                            Text(L.settings.deletionFinalButton)
+                        }
+                    }
+                    .disabled(appleAuthorizationCode == nil || isWorking)
+                }
+            }
+            .navigationTitle(L.settings.deleteAccount)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(L.settings.cancel) { dismiss() }
+                }
+            }
+            .alert(L.settings.deletionFinalTitle, isPresented: $showFinalConfirmation) {
+                Button(L.settings.cancel, role: .cancel) {}
+                Button(L.settings.delete, role: .destructive) {
+                    guard let code = appleAuthorizationCode else { return }
+                    appleAuthorizationCode = nil
+                    Task { @MainActor in
+                        isWorking = true
+                        defer { isWorking = false }
+                        do {
+                            try await authManager.deleteAccount(appleAuthorizationCode: code)
+                            dismiss()
+                        } catch let error as AccountDeletionClientError {
+                            errorMessage = error.localizedDescription
+                        } catch {
+                            errorMessage = L.settings.deletionStatusPending
+                        }
+                    }
+                }
+            } message: {
+                Text(L.settings.deletionFinalPreview(
+                    account: authManager.userEmail ?? "Apple ID",
+                    taskCount: previewTaskCount
+                ))
+            }
         }
     }
 }

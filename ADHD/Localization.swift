@@ -126,9 +126,33 @@ struct Strings {
     var paywall: PaywallStrings { PaywallStrings(language: language) }
     var quickAdd: QuickAddStrings { QuickAddStrings(language: language) }
     var onboarding: OnboardingStrings { OnboardingStrings(language: language) }
+    var persistence: PersistenceStrings { PersistenceStrings(language: language) }
 
     // Alarm / Notification
     var alarm: AlarmStrings { AlarmStrings(language: language) }
+}
+
+struct PersistenceStrings {
+    let language: AppLanguage
+    private func t(_ en: String, _ ko: String, _ ja: String) -> String {
+        switch language {
+        case .en: return en
+        case .ko: return ko
+        case .ja: return ja
+        }
+    }
+
+    var title: String {
+        t("Your data couldn't be opened", "데이터를 열 수 없어요", "データを開けません")
+    }
+
+    var message: String {
+        t(
+            "Mora did not delete or replace your local data. Close and reopen the app. If this continues, update Mora or contact support with the code below.",
+            "Mora는 로컬 데이터를 삭제하거나 교체하지 않았습니다. 앱을 종료한 뒤 다시 열어주세요. 문제가 계속되면 Mora를 업데이트하거나 아래 코드와 함께 고객 지원에 문의해주세요.",
+            "Moraはローカルデータを削除・置換していません。アプリを終了して再度開いてください。問題が続く場合は、Moraを更新するか、下のコードを添えてサポートへお問い合わせください。"
+        )
+    }
 }
 
 struct AlarmStrings {
@@ -214,6 +238,40 @@ struct SettingsStrings {
     var done: String { t("Done", "완료", "完了") }
     var cancel: String { t("Cancel", "취소", "キャンセル") }
     var delete: String { t("Delete", "삭제", "削除") }
+    var deletionPermanentLoss: String { t("Your Mora account, local routines, appointments, settings, and server account data will be permanently deleted.", "Mora 계정, 로컬 루틴·일정·계정 설정과 서버 계정 데이터가 영구 삭제됩니다.", "Moraアカウント、ローカルのルーティン・予定・設定、サーバー上のアカウントデータが完全に削除されます。") }
+    var deletionNoExport: String { t("Mora does not offer data export in this version. This cannot be undone.", "현재 버전은 데이터 내보내기를 지원하지 않으며, 삭제 후 되돌릴 수 없습니다.", "このバージョンではデータの書き出しに対応しておらず、削除後は元に戻せません。") }
+    var deletionSubscriptionNotice: String { t("Deleting Mora does not automatically cancel an App Store subscription. Deletion can continue; manage the subscription separately in Apple settings.", "Mora 계정을 삭제해도 App Store 구독은 자동 해지되지 않습니다. 삭제는 계속할 수 있으며, 구독은 Apple 설정에서 별도로 관리해 주세요.", "Moraアカウントを削除してもApp Storeのサブスクリプションは自動解約されません。削除は続行でき、サブスクリプションはAppleの設定で別途管理してください。") }
+    var deletionAcknowledgement: String { t("I understand the permanent loss", "영구 삭제 내용을 확인했습니다", "完全削除の内容を確認しました") }
+    var deletionReauthenticate: String { t("Reauthenticate with Apple", "Apple 재인증", "Appleで再認証") }
+    var deletionReauthenticationComplete: String { t("Apple reauthentication complete", "Apple 재인증 완료", "Apple再認証完了") }
+    var deletionFinalButton: String { t("Continue to final deletion", "최종 삭제로 진행", "最終削除へ進む") }
+    var deletionFinalTitle: String { t("Permanently delete this exact account?", "이 계정을 영구 삭제할까요?", "このアカウントを完全に削除しますか？") }
+    var deletionTryAgain: String { t("Apple reauthentication failed. Try again.", "Apple 재인증에 실패했습니다. 다시 시도해 주세요.", "Apple再認証に失敗しました。もう一度お試しください。") }
+    var deletionStatusPending: String { t("The deletion request may be processing. Mora will keep the account locked and check its request ID.", "삭제 요청이 처리 중일 수 있습니다. 계정을 잠근 채 요청 ID로 상태를 확인합니다.", "削除リクエストが処理中の可能性があります。アカウントをロックし、リクエストIDで状態を確認します。") }
+    var deletionPendingTitle: String { t("Deleting your account", "계정 삭제 처리 중", "アカウントを削除しています") }
+    var deletionPendingMessage: String { t("Your local data is locked. Mora deletes it only after the server confirms completion.", "로컬 데이터는 잠겨 있습니다. 서버가 완료를 확인한 뒤에만 기기에서도 삭제합니다.", "ローカルデータはロックされています。サーバーで完了を確認した後にのみ端末から削除します。") }
+    var checkDeletionStatus: String { t("Check deletion status", "삭제 상태 확인", "削除状態を確認") }
+    func deletionFinalPreview(account: String, taskCount: Int) -> String {
+        t(
+            "Target: \(account)\nScope: Mora account and \(taskCount) local task(s), all types and dates\nAction: permanent deletion",
+            "대상: \(account)\n범위: Mora 계정 및 로컬 태스크 \(taskCount)개, 모든 유형·날짜\n작업: 영구 삭제",
+            "対象: \(account)\n範囲: Moraアカウントとローカルタスク\(taskCount)件、全種類・全日付\n操作: 完全削除"
+        )
+    }
+    func clearCompletedPreview(_ count: Int) -> String {
+        t(
+            "Target: \(count) completed task(s), all types and dates. Delete permanently?",
+            "대상: 완료된 태스크 \(count)개, 모든 유형·날짜. 영구 삭제할까요?",
+            "対象: 完了タスク\(count)件、全種類・全日付。完全に削除しますか？"
+        )
+    }
+    func clearAllPreview(_ count: Int) -> String {
+        t(
+            "Target: \(count) routine/appointment task(s), all dates. Delete permanently?",
+            "대상: 루틴·일정 태스크 \(count)개, 모든 날짜. 영구 삭제할까요?",
+            "対象: ルーティン・予定タスク\(count)件、全日付。完全に削除しますか？"
+        )
+    }
 }
 
 struct VoiceStrings {
@@ -265,7 +323,8 @@ struct VoiceStrings {
     var save: String { t("Save", "저장", "保存") }
     var cancel: String { t("Cancel", "취소", "キャンセル") }
 
-    var silenceCountdown: String { t("Sending in", "전송까지", "送信まで") }
+    var preparingDraft: String { t("Preparing draft...", "초안 준비 중...", "下書きを準備中...") }
+    var silenceCountdown: String { t("Draft in", "초안까지", "下書きまで") }
     var micModeTap: String { t("Tap to Toggle", "탭하여 전환", "탭하여 전환") }
     var micModeHold: String { t("Hold to Talk", "길게 눌러 말하기", "押し続けて話す") }
     var micModeTitle: String { t("Mic Mode", "마이크 모드", "마이크 모드") }
@@ -278,20 +337,47 @@ struct VoiceStrings {
     var undoCompleted: String { t("Marked as done", "완료 처리됨", "完了にしました") }
     var undoUncompleted: String { t("Marked as not done", "미완료 처리됨", "未完了にしました") }
     func undoUpdated(_ name: String) -> String { t("\"\(name)\" updated", "\"\(name)\" 수정됨", "「\(name)」を更新") }
+    func undoBatch(_ count: Int) -> String { t("\(count) change(s) saved", "\(count)개 변경사항 저장됨", "\(count)件の変更を保存") }
+    func affectedCount(_ count: Int) -> String { t("Affects \(count) task(s)", "대상 \(count)개", "対象\(count)件") }
+    var reviewUpdatedPreview: String { t("The target changed. Review the updated preview and confirm again", "대상이 변경됐어요. 최신 미리보기를 확인하고 다시 승인해주세요", "対象が変更されました。最新のプレビューを確認してもう一度承認してください") }
+    var partialSaveResult: String { t("Saved successful items. Review the items still shown", "성공한 항목은 저장했어요. 남은 항목을 확인해주세요", "成功した項目を保存しました。残りの項目を確認してください") }
+    var noMatchingTarget: String { t("No matching task was found", "일치하는 대상을 찾지 못했어요", "一致する対象が見つかりませんでした") }
+    var saveFailedPreserved: String { t("Couldn't save. Your existing data was preserved", "저장하지 못했어요. 기존 데이터는 보존됐습니다", "保存できませんでした。既存のデータは保持されています") }
     func postponeResult(_ count: Int) -> String { t("\(count) task(s) postponed", "\(count)개 일정 연기됨", "\(count)件延期しました") }
     var postponeNone: String { t("No tasks to postpone", "연기할 일정이 없어요", "延期する予定はありません") }
     var offTopicTitle: String { t("Heads up", "알림", "お知らせ") }
     var askAgain: String { t("Ask me differently", "다시 질문하기", "もう一度話す") }
 
-    var textInputPlaceholder: String { t("Type a task...", "할 일을 입력...", "タスクを入力...") }
+    var textInputPlaceholder: String { t("Type or edit a draft...", "초안을 입력하거나 편집하세요...", "下書きを入力・編集...") }
     var textInputSend: String { t("Send", "전송", "送信") }
+    var analyzeDraft: String { t("Analyze draft", "초안 분석", "下書きを分析") }
+    var analyzeDraftHint: String {
+        t(
+            "Double tap to analyze this draft",
+            "이 초안을 분석하려면 이중 탭하세요",
+            "この下書きを分析するにはダブルタップします"
+        )
+    }
+    var existingDraftProtected: String {
+        t(
+            "Finish or clear the current draft before recording again.",
+            "현재 초안을 완료하거나 지운 뒤 다시 녹음해주세요.",
+            "現在の下書きを完了または削除してから、もう一度録音してください。"
+        )
+    }
 
     var confirmRemoveItem: String { t("Remove", "제거", "削除") }
 
     var a11yStartRecording: String { t("Start recording", "녹음 시작", "録音開始") }
     var a11yStopRecording: String { t("Stop recording", "녹음 중지", "録音停止") }
     var a11yTapHint: String { t("Tap to start or stop voice input", "탭하여 음성 입력을 시작하거나 중지합니다", "탭하여 음성 입력을 시작하거나 중지합니다") }
-    var a11yHoldHint: String { t("Press and hold to record, release to send", "길게 눌러 녹음하고, 떼면 전송됩니다", "長押しで録音、離すと送信") }
+    var a11yHoldHint: String {
+        t(
+            "Press and hold to record, then release to create an editable draft",
+            "길게 눌러 녹음하고, 떼면 편집 가능한 초안이 만들어집니다",
+            "長押しで録音し、離すと編集可能な下書きになります"
+        )
+    }
     var a11yTabBar: String { t("Tab navigation", "탭 내비게이션", "탭 내비게이션") }
     var a11yUndo: String { t("Undo last action", "마지막 작업 되돌리기", "最後の操作を元に戻す") }
 
@@ -411,7 +497,13 @@ struct PaywallStrings {
     var planMonthly: String { t("Monthly", "월간", "月額") }
     var planYearly: String { t("Yearly", "연간", "年額") }
     var billedMonthly: String { t("Billed monthly", "매월 청구", "毎月請求") }
-    var billedYearly: String { t("Billed annually · $3.00/mo", "연 1회 청구 · 월 $3.00", "年1回請求 · 月$3.00") }
+    func billedYearly(monthlyEquivalent: String) -> String {
+        t(
+            "Billed annually · \(monthlyEquivalent)/mo",
+            "연 1회 청구 · 월 \(monthlyEquivalent)",
+            "年1回請求 · 月\(monthlyEquivalent)"
+        )
+    }
     var bestValue: String { t("SAVE 40%", "40% 절약", "40%お得") }
     var subscribe: String { t("Subscribe", "구독하기", "登録する") }
     var startSubscription: String { t("Start Pro", "Pro 시작하기", "Pro を開始") }

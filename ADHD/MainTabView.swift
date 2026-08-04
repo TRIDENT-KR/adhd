@@ -32,7 +32,7 @@ struct MainTabView: View {
                 }
                 .tag(TabSelection.routine)
 
-                HomeVoiceInterfaceView(isModalVisible: $isVoiceModalVisible)
+                HomeVoiceInterfaceView(activeTab: $activeTab, isModalVisible: $isVoiceModalVisible)
                     .tag(TabSelection.voice)
 
                 Group {

@@ -1,4 +1,10 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "@supabase/supabase-js";
+import {
+  type AnalysisInput,
+  AnalysisServiceError,
+  executeAnalysis,
+  type QuotaReservation,
+} from "./analysis-service.ts";
 
 const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
 
@@ -21,7 +27,42 @@ function isRateLimited(userId: string): boolean {
   return false;
 }
 
+function promptTimeInSeoul(now = new Date()): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(now);
+  const value = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((part) => part.type === type)?.value ?? "";
+  return `${value("year")}-${value("month")}-${value("day")} ${value("hour")}:${
+    value("minute")
+  }`;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function geminiResponseText(value: unknown): string | null {
+  if (!isRecord(value) || !Array.isArray(value.candidates)) return null;
+  const candidate = value.candidates[0];
+  if (
+    !isRecord(candidate) || !isRecord(candidate.content) ||
+    !Array.isArray(candidate.content.parts)
+  ) return null;
+  const part = candidate.content.parts[0];
+  return isRecord(part) && typeof part.text === "string" ? part.text : null;
+}
+
 Deno.serve(async (req: Request) => {
+  const traceId = crypto.randomUUID();
+  const startedAt = performance.now();
+  let logicalRequestId: string | undefined;
   // iOS 클라이언트 전용 — CORS를 Supabase 프로젝트 도메인으로 제한
   const origin = req.headers.get("Origin") ?? "";
   const supabaseProjectOrigin = Deno.env.get("SUPABASE_URL") ?? "";
@@ -41,69 +82,77 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers });
   }
+  if (req.method !== "POST") {
+    return new Response(
+      JSON.stringify({
+        error: { code: "method_not_allowed" },
+        requestId: null,
+      }),
+      { headers: { ...headers, Allow: "POST" }, status: 405 },
+    );
+  }
 
   try {
     // JWT 인증 검증
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(
-        JSON.stringify({ error: "Missing authorization header" }),
+        JSON.stringify({
+          error: { code: "missing_authorization" },
+          requestId: null,
+        }),
         { headers, status: 401 },
       );
     }
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
+    if (!supabaseUrl || !supabaseAnonKey || !GEMINI_API_KEY) {
+      throw new AnalysisServiceError("server_not_configured", 503);
+    }
     const supabase = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader } },
     });
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        headers,
-        status: 401,
-      });
+      return new Response(
+        JSON.stringify({
+          error: { code: "unauthorized" },
+          requestId: null,
+        }),
+        { headers, status: 401 },
+      );
     }
 
     // Rate limiting: 유저당 분당 30회 초과 시 429 반환
     if (isRateLimited(user.id)) {
       return new Response(
         JSON.stringify({
-          error: "Rate limit exceeded. Please wait before retrying.",
+          error: { code: "rate_limited" },
+          requestId: null,
         }),
         { headers, status: 429 },
       );
     }
 
-    const { text, currentTime, language } = await req.json();
-    if (!text) throw new Error("음성 텍스트가 없습니다.");
-    // 입력 길이 제한 — 음성 인식 결과는 최대 1000자를 초과하지 않음
-    // 초과 시 Gemini API 토큰 비용 증폭 방지
-    if (text.length > 1000) {
-      return new Response(
-        JSON.stringify({
-          error: "Input too long. Maximum 1000 characters allowed.",
-        }),
-        { headers, status: 400 },
-      );
+    const rawBody: unknown = await req.json();
+    if (!isRecord(rawBody)) {
+      throw new AnalysisServiceError("invalid_request_body", 400);
     }
-
-    // 전달받은 currentTime이 없으면 서버 현재시간 사용
-    // 프롬프트 인젝션 방지: 엄격한 datetime 형식(yyyy-MM-dd HH:mm)만 허용
-    const timeRegex = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/;
-    const localTimeStr =
-      (typeof currentTime === "string" && timeRegex.test(currentTime))
-        ? currentTime
-        : new Date().toLocaleString("ko-KR", {
-          timeZone: "Asia/Seoul",
-          hour12: false,
-        });
-
-    // 사용자 언어 설정 — 허용된 값만 사용 (프롬프트 인젝션 방지)
-    const ALLOWED_LANGUAGES = new Set(["en", "ko", "ja"]);
-    const userLanguage: string = ALLOWED_LANGUAGES.has(language)
-      ? language
-      : "en";
+    const input: AnalysisInput = {
+      requestId: typeof rawBody.requestId === "string" ? rawBody.requestId : "",
+      text: typeof rawBody.text === "string" ? rawBody.text : "",
+      currentTime: typeof rawBody.currentTime === "string"
+        ? rawBody.currentTime
+        : undefined,
+      language: typeof rawBody.language === "string"
+        ? rawBody.language
+        : undefined,
+    };
+    logicalRequestId = input.requestId || undefined;
+    const text = input.text;
+    const localTimeStr = input.currentTime ?? promptTimeInSeoul();
+    const userLanguage = input.language ?? "en";
 
     // ADHD 타겟 유저를 위한 시스템 프롬프트
     const finalPrompt =
@@ -214,127 +263,148 @@ Output: [{"function_name": "handle_off_topic_chat", "parameters": {"message": "J
 Input: "ジョークを教えて" (language: "ja")
 Output: [{"function_name": "handle_off_topic_chat", "parameters": {"message": "ジョークより予定管理が得意です！😄 何か追加しましょうか？"}}]`;
 
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          system_instruction: { parts: [{ text: finalPrompt }] },
-          contents: [{ role: "user", parts: [{ text }] }],
-          generationConfig: {
-            response_mime_type: "application/json",
-            temperature: 0.1,
+    const recordEvent = async (
+      eventName: "analysis_succeeded" | "analysis_failed" | "quota_denied",
+      statusCode: number,
+      outputCount: number | null,
+      failureCode: string | null,
+    ) => {
+      const { error } = await supabase.rpc("mora_record_operational_event", {
+        p_request_id: input.requestId,
+        p_event_name: eventName,
+        p_status_code: statusCode,
+        p_duration_ms: Math.round(performance.now() - startedAt),
+        p_input_length: text.length,
+        p_output_count: outputCount,
+        p_failure_code: failureCode,
+      });
+      if (error) console.error("operational_event_write_failed", { traceId });
+    };
+
+    const result = await executeAnalysis(input, {
+      reserve: async (requestId, inputHash): Promise<QuotaReservation> => {
+        const { data, error } = await supabase.rpc("mora_reserve_ai_analysis", {
+          p_request_id: requestId,
+          p_input_hash: inputHash,
+        });
+        if (error || !isRecord(data) || typeof data.allowed !== "boolean") {
+          throw new AnalysisServiceError("quota_backend_failed", 503);
+        }
+        const reservation: QuotaReservation = {
+          allowed: data.allowed,
+          reason: typeof data.reason === "string" ? data.reason : null,
+          alreadyCommitted: data.alreadyCommitted === true,
+          cachedCalls: data.cachedCalls,
+          quota: data.quota,
+        };
+        if (!reservation.allowed) {
+          await recordEvent(
+            "quota_denied",
+            reservation.reason === "quota_exhausted" ? 429 : 409,
+            null,
+            reservation.reason ?? "quota_denied",
+          );
+        }
+        return reservation;
+      },
+      analyze: async () => {
+        let response: Response;
+        try {
+          response = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                system_instruction: { parts: [{ text: finalPrompt }] },
+                contents: [{ role: "user", parts: [{ text }] }],
+                generationConfig: {
+                  response_mime_type: "application/json",
+                  temperature: 0.1,
+                },
+              }),
+            },
+          );
+        } catch {
+          throw new AnalysisServiceError("gemini_network_failed", 502);
+        }
+        const data: unknown = await response.json();
+        if (!response.ok) {
+          console.error("gemini_request_failed", {
+            traceId,
+            status: response.status,
+          });
+          throw new AnalysisServiceError("gemini_request_failed", 502);
+        }
+        const responseText = geminiResponseText(data);
+        if (!responseText) {
+          console.error("gemini_response_empty", { traceId });
+          throw new AnalysisServiceError("invalid_model_response", 502);
+        }
+        const cleanedText = responseText.replace(/```json/g, "").replace(
+          /```/g,
+          "",
+        )
+          .trim();
+        try {
+          return JSON.parse(cleanedText) as unknown;
+        } catch {
+          throw new AnalysisServiceError("invalid_model_response", 502);
+        }
+      },
+      finalize: async (requestId, calls) => {
+        const { data, error } = await supabase.rpc(
+          "mora_finalize_ai_analysis",
+          {
+            p_request_id: requestId,
+            p_validated_calls: calls,
           },
-        }),
+        );
+        if (error || !isRecord(data)) {
+          throw new AnalysisServiceError("quota_finalize_failed", 503);
+        }
+        return data;
+      },
+      fail: async (requestId, failureCode) => {
+        const { error } = await supabase.rpc("mora_fail_ai_analysis", {
+          p_request_id: requestId,
+          p_failure_code: failureCode,
+        });
+        if (error) throw new AnalysisServiceError("quota_fail_failed", 503);
+        await recordEvent("analysis_failed", 502, null, failureCode);
+      },
+    });
+
+    await recordEvent("analysis_succeeded", 200, result.calls.length, null);
+    console.log("analysis_succeeded", {
+      traceId,
+      requestId: result.requestId,
+      durationMs: Math.round(performance.now() - startedAt),
+      inputLength: text.length,
+      outputCount: result.calls.length,
+    });
+    return new Response(JSON.stringify(result), { headers, status: 200 });
+  } catch (error) {
+    const serviceError = error instanceof AnalysisServiceError
+      ? error
+      : error instanceof SyntaxError
+      ? new AnalysisServiceError("invalid_request_body", 400)
+      : new AnalysisServiceError("analysis_failed", 500);
+    console.error("analysis_failed", {
+      traceId,
+      requestId: logicalRequestId ?? null,
+      code: serviceError.code,
+      durationMs: Math.round(performance.now() - startedAt),
+    });
+    return new Response(
+      JSON.stringify({
+        error: { code: serviceError.code },
+        requestId: logicalRequestId ?? null,
+      }),
+      {
+        headers,
+        status: serviceError.status,
       },
     );
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      console.error("🔥 Gemini API Error:", data);
-      throw new Error(
-        `Gemini API Error: ${data.error?.message || response.status}`,
-      );
-    }
-
-    if (!data.candidates || data.candidates.length === 0) {
-      console.error("⚠️ No candidates returned:", data);
-      throw new Error("Gemini API returned no candidates.");
-    }
-
-    const responseText = data.candidates[0].content.parts[0].text;
-    console.log("🎤 음성 입력 수신 (길이:", text.length, "자)");
-    console.log("🌐 사용자 언어:", userLanguage);
-    console.log("🤖 Gemini Raw Response:", responseText);
-
-    const cleanedText = responseText.replace(/```json/g, "").replace(/```/g, "")
-      .trim();
-    let parsedData = JSON.parse(cleanedText);
-
-    // 1. 배열이 아닌 단일 객체인 경우 배열로 감싸기 (방어 코드)
-    if (!Array.isArray(parsedData)) {
-      parsedData = [parsedData];
-    }
-
-    // 2. 각 항목 정규화
-    parsedData = parsedData.map((item: any) => {
-      if (!item.function_name) {
-        item.function_name = "add_single_task";
-      }
-      if (!item.parameters) {
-        item.parameters = {};
-      }
-
-      // handle_off_topic_chat 방어 로직
-      if (item.function_name === "handle_off_topic_chat") {
-        if (
-          !item.parameters.message ||
-          typeof item.parameters.message !== "string"
-        ) {
-          if (userLanguage === "ko") {
-            item.parameters.message =
-              "앱의 핵심 기능과 관련된 내용만 도움을 드릴 수 있어요! 😊 할 일을 말씀해 주세요.";
-          } else if (userLanguage === "ja") {
-            item.parameters.message =
-              "タスク管理に関することのみお手伝いできます！😊 何か追加しましょうか？";
-          } else {
-            item.parameters.message =
-              "I can only help with tasks and routines! 😊 What shall we add to your list?";
-          }
-        }
-        return item;
-      }
-
-      // add_single_task 필수 파라미터 방어 로직
-      if (item.function_name === "add_single_task") {
-        if (!item.parameters.task_name) {
-          item.parameters.task_name = text.length > 20
-            ? text.substring(0, 20) + "..."
-            : (text || "할 일 확인 필요");
-        }
-
-        if (
-          item.parameters.category !== "Routine" &&
-          item.parameters.category !== "Appointment"
-        ) {
-          item.parameters.category = "Appointment";
-        }
-
-        if (
-          item.parameters.date &&
-          !/^\d{4}-\d{2}-\d{2}$/.test(item.parameters.date)
-        ) {
-          item.parameters.date = null;
-        }
-
-        const validRecurrence = ["weekly", "biweekly", "monthly", "yearly"];
-        if (
-          item.parameters.recurrence &&
-          !validRecurrence.includes(item.parameters.recurrence)
-        ) {
-          item.parameters.recurrence = null;
-        }
-
-        // urgency 화이트리스트 — 이상값은 null (클라이언트 휴리스틱이 처리)
-        if (
-          item.parameters.urgency !== "strong" &&
-          item.parameters.urgency !== "weak"
-        ) {
-          item.parameters.urgency = null;
-        }
-      }
-
-      return item;
-    });
-
-    // 3. 배열 전체 반환
-    return new Response(JSON.stringify(parsedData), { headers, status: 200 });
-  } catch (error: any) {
-    return new Response(JSON.stringify({ error: error.message }), {
-      headers,
-      status: 400,
-    });
   }
 });

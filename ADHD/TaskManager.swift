@@ -3,17 +3,90 @@ import SwiftUI
 import Combine
 import SwiftData
 import WidgetKit
+import UserNotifications
 
 // Removed ParsedTask
+
+// MARK: - Task Snapshot
+/// 승인 시점의 정확한 대상과 Undo 복원에 공통으로 사용하는 전체 스냅샷입니다.
+/// 이름 재검색 대신 UUID를 사용하여, 승인 후 같은 이름의 태스크가 추가되어도 범위가 넓어지지 않습니다.
+struct AppTaskSnapshot {
+    let id: UUID
+    let task: String
+    let time: String?
+    let date: Date?
+    let category: String
+    let isCompleted: Bool
+    let recurrenceRule: String?
+    let urgency: Urgency
+    let sortOrder: Int
+    let weeklyCompletions: [Bool]
+
+    init(_ task: AppTask) {
+        id = task.id
+        self.task = task.task
+        time = task.time
+        date = task.date
+        category = task.category
+        isCompleted = task.isCompleted
+        recurrenceRule = task.recurrenceRule
+        urgency = task.urgency
+        sortOrder = task.sortOrder
+        weeklyCompletions = task.weeklyCompletions
+    }
+
+    func matches(_ candidate: AppTask) -> Bool {
+        candidate.id == id
+            && candidate.task == task
+            && candidate.time == time
+            && candidate.date == date
+            && candidate.category == category
+            && candidate.isCompleted == isCompleted
+            && candidate.recurrenceRule == recurrenceRule
+            && candidate.urgency == urgency
+            && candidate.sortOrder == sortOrder
+            && candidate.weeklyCompletions == weeklyCompletions
+    }
+
+    func makeTask() -> AppTask {
+        let restored = AppTask(
+            id: id,
+            task: task,
+            time: time,
+            date: date,
+            category: category,
+            isCompleted: isCompleted,
+            recurrenceRule: recurrenceRule,
+            sortOrder: sortOrder,
+            urgency: urgency
+        )
+        restored.weeklyCompletions = weeklyCompletions
+        return restored
+    }
+
+    func restore(_ target: AppTask) {
+        target.task = task
+        target.time = time
+        target.date = date
+        target.category = category
+        target.isCompleted = isCompleted
+        target.recurrenceRule = recurrenceRule
+        target.urgency = urgency
+        target.sortOrder = sortOrder
+        target.weeklyCompletions = weeklyCompletions
+    }
+}
 
 // MARK: - Undo Action
 /// 되돌리기를 위한 최근 액션 저장
 struct UndoableAction {
-    enum ActionType {
-        case added([AppTask])
-        case deleted([(task: String, time: String?, date: Date?, category: String, recurrenceRule: String?, urgency: Urgency)])
-        case updated(AppTask, previous: (task: String, time: String?, date: Date?, category: String, recurrenceRule: String?, urgency: Urgency))
-        case toggled(AppTask, Bool) // task, previousState
+    indirect enum ActionType {
+        case added([UUID])
+        case deleted([AppTaskSnapshot])
+        case updated(previous: AppTaskSnapshot)
+        case toggled(taskID: UUID, previousState: Bool)
+        /// 한 번의 사용자 승인으로 성공한 변경은 한 번의 Undo로 되돌립니다.
+        case grouped([ActionType])
     }
     let type: ActionType
     let message: String
@@ -116,7 +189,7 @@ class TaskManager: ObservableObject {
             safeSave()
             print("✅ \(resetCount)개의 태스크 초기화 완료.")
         } catch {
-            print("❌ 초기화 실패: \(error.localizedDescription)")
+            print("daily_reset_failed")
         }
     }
 
@@ -132,14 +205,14 @@ class TaskManager: ObservableObject {
                 if !task.isCompleted {
                     task.isCompleted = true
                     safeSave()
-                    print("✅ [TaskManager] 알람 확인으로 태스크 완료 처리: \(task.task)")
+                    print("alarm_task_completed")
                     // 위젯 및 알림 갱신
                     writeWidgetSnapshot()
                     clearNotificationsAfterCompletion(of: task)
                 }
             }
         } catch {
-            print("❌ completeTask 실패: \(error.localizedDescription)")
+            print("task_completion_failed")
         }
     }
 
@@ -151,6 +224,10 @@ class TaskManager: ObservableObject {
         let isRepeating = task.isRecurring || task.date == nil
         if isRepeating {
             NotificationManager.shared.cancelFollowUps(taskIdString: task.id.uuidString)
+            // 격주·월간·연간은 one-shot이므로 완료 처리 시 다음 기준일 회차를 즉시 재무장합니다.
+            if RecurrenceEngine.requiresOneShotNotification(task.recurrenceRule) {
+                NotificationManager.shared.scheduleNotification(for: task)
+            }
         } else {
             NotificationManager.shared.cancelNotification(for: task)
         }
@@ -180,7 +257,40 @@ class TaskManager: ObservableObject {
                 NotificationManager.shared.scheduleNotification(for: task)
             }
         } catch {
-            print("❌ rescheduleAllStrongTasks 실패: \(error.localizedDescription)")
+            print("strong_task_reschedule_failed")
+        }
+    }
+
+    /// one-shot 반복 알림은 강도와 무관하게 포그라운드마다 다음 회차를 보장합니다.
+    func rescheduleAllOneShotRecurringTasks() {
+        guard let context = modelContext else { return }
+        do {
+            let all = try context.fetch(FetchDescriptor<AppTask>())
+            for task in all where RecurrenceEngine.requiresOneShotNotification(task.recurrenceRule) {
+                NotificationManager.shared.scheduleNotification(for: task)
+            }
+        } catch {
+            print("recurring_notification_reschedule_failed")
+        }
+    }
+
+    /// 현재 계정의 알림 설정이 바뀌면 기존 예약을 모두 폐기하고 저장소를 원천으로 재구성합니다.
+    func reconcileNotificationsWithPreferences() {
+        guard let context = modelContext else { return }
+        let center = UNUserNotificationCenter.current()
+        center.removeAllPendingNotificationRequests()
+        center.removeAllDeliveredNotifications()
+
+        do {
+            let tasks = try context.fetch(FetchDescriptor<AppTask>())
+            for task in tasks {
+                NotificationManager.shared.cancelNotification(for: task)
+                if !task.isCompleted {
+                    NotificationManager.shared.scheduleNotification(for: task)
+                }
+            }
+        } catch {
+            print("notification_preference_reconcile_failed")
         }
     }
 
@@ -194,15 +304,15 @@ class TaskManager: ObservableObject {
             NotificationManager.shared.removeOrphanedNotifications(validIds: validIds)
             SystemAlarmScheduler.shared.cancelOrphans(keeping: validIds)
         } catch {
-            print("❌ cleanupOrphanedNotifications 실패: \(error.localizedDescription)")
+            print("notification_orphan_cleanup_failed")
         }
     }
 
     /// Pro + AlarmKit 허용 상태에서만 재무장 (매 포그라운드 호출용 가드)
     func rescheduleStrongTasksIfNeeded() {
-        let premium = UserDefaults(suiteName: "group.trident-KR.ADHD")?
-            .bool(forKey: SubscriptionManager.premiumFlagKey) ?? false
-        guard premium, SystemAlarmScheduler.shared.isAuthorized else { return }
+        rescheduleAllOneShotRecurringTasks()
+        guard WidgetDataStore.isPremium,
+              SystemAlarmScheduler.shared.isAuthorized else { return }
         rescheduleAllStrongTasks()
     }
 
@@ -217,7 +327,10 @@ class TaskManager: ObservableObject {
             NotificationManager.shared.scheduleNotification(for: task)
         }
         safeSave()
-        setUndoAction(.toggled(task, previousState), message: task.isCompleted ? L.voice.undoCompleted : L.voice.undoUncompleted)
+        setUndoAction(
+            .toggled(taskID: task.id, previousState: previousState),
+            message: task.isCompleted ? L.voice.undoCompleted : L.voice.undoUncompleted
+        )
     }
 
     // MARK: - Update Task
@@ -229,7 +342,7 @@ class TaskManager: ObservableObject {
     // MARK: - Delete (by reference)
     func delete(task: AppTask) {
         guard let context = modelContext else { return }
-        let snapshot = (task: task.task, time: task.time, date: task.date, category: task.category, recurrenceRule: task.recurrenceRule, urgency: task.urgency)
+        let snapshot = AppTaskSnapshot(task)
         NotificationManager.shared.cancelNotification(for: task)
         context.delete(task)
         safeSave()
@@ -240,53 +353,9 @@ class TaskManager: ObservableObject {
     func undo() {
         guard let action = undoStack.popLast() else { return }
 
-        switch action.type {
-        case .added(let tasks):
-            guard let context = modelContext else { return }
-            for task in tasks {
-                NotificationManager.shared.cancelNotification(for: task)
-                context.delete(task)
-            }
-            safeSave()
-
-        case .deleted(let snapshots):
-            for snapshot in snapshots {
-                let restored = AppTask(
-                    task: snapshot.task,
-                    time: snapshot.time,
-                    date: snapshot.date,
-                    category: snapshot.category,
-                    recurrenceRule: snapshot.recurrenceRule,
-                    urgency: snapshot.urgency
-                )
-                insertBatch(restored)
-                NotificationManager.shared.scheduleNotification(for: restored)
-            }
-            safeSave()
-
-        case .updated(let task, let previous):
-            guard !task.isDeleted else { break }   // 이미 삭제된 객체 필드 변경으로 인한 크래시 방지
-            task.task = previous.task
-            task.time = previous.time
-            task.date = previous.date
-            task.category = previous.category
-            task.recurrenceRule = previous.recurrenceRule
-            task.urgency = previous.urgency
-            // 복원된 time이 nil이면 schedule이 조기 반환하므로 명시적 취소가 선행되어야 함
-            NotificationManager.shared.cancelNotification(for: task)
-            NotificationManager.shared.scheduleNotification(for: task)
-            safeSave()
-
-        case .toggled(let task, let previousState):
-            guard !task.isDeleted else { break }   // 이미 삭제된 객체 필드 변경으로 인한 크래시 방지
-            task.isCompleted = previousState
-            if previousState {
-                clearNotificationsAfterCompletion(of: task)
-            } else {
-                NotificationManager.shared.scheduleNotification(for: task)
-            }
-            safeSave()
-        }
+        guard let context = modelContext else { return }
+        applyUndo(action.type, in: context)
+        safeSave()
 
         // 스택에 남은 항목이 있으면 이전 메시지 표시, 없으면 숨김
         if let prev = undoStack.last {
@@ -296,6 +365,51 @@ class TaskManager: ObservableObject {
                 showUndoSnackbar = false
             }
         }
+    }
+
+    /// 그룹 Undo는 적용의 역순으로 복원해야 의존 변경도 원래 상태로 돌아갑니다.
+    private func applyUndo(_ type: UndoableAction.ActionType, in context: ModelContext) {
+        switch type {
+        case .added(let taskIDs):
+            for id in taskIDs {
+                guard let task = fetchTask(id: id, in: context) else { continue }
+                NotificationManager.shared.cancelNotification(for: task)
+                context.delete(task)
+            }
+
+        case .deleted(let snapshots):
+            for snapshot in snapshots where fetchTask(id: snapshot.id, in: context) == nil {
+                let restored = snapshot.makeTask()
+                context.insert(restored)
+                NotificationManager.shared.scheduleNotification(for: restored)
+            }
+
+        case .updated(let previous):
+            guard let task = fetchTask(id: previous.id, in: context) else { return }
+            NotificationManager.shared.cancelNotification(for: task)
+            previous.restore(task)
+            NotificationManager.shared.scheduleNotification(for: task)
+
+        case .toggled(let taskID, let previousState):
+            guard let task = fetchTask(id: taskID, in: context) else { return }
+            task.isCompleted = previousState
+            if previousState {
+                clearNotificationsAfterCompletion(of: task)
+            } else {
+                NotificationManager.shared.scheduleNotification(for: task)
+            }
+
+        case .grouped(let actions):
+            for child in actions.reversed() {
+                applyUndo(child, in: context)
+            }
+        }
+    }
+
+    func fetchTask(id: UUID, in context: ModelContext? = nil) -> AppTask? {
+        guard let context = context ?? modelContext else { return nil }
+        let descriptor = FetchDescriptor<AppTask>(predicate: #Predicate { $0.id == id })
+        return try? context.fetch(descriptor).first
     }
 
     // MARK: - Bulk Delete (Settings)
@@ -310,7 +424,7 @@ class TaskManager: ObservableObject {
             }
             safeSave()
         } catch {
-            print("❌ deleteCompleted 실패: \(error.localizedDescription)")
+            print("completed_task_delete_failed")
         }
     }
 
@@ -324,7 +438,7 @@ class TaskManager: ObservableObject {
             }
             safeSave()
         } catch {
-            print("❌ deleteAll 실패: \(error.localizedDescription)")
+            print("all_task_delete_failed")
         }
     }
 
@@ -358,10 +472,10 @@ class TaskManager: ObservableObject {
     /// 이름 기반 AppTask 삭제 (배치, save 호출 안함)
     /// 매칭 전략: 정확 매칭 > 태스크명에 검색어 포함 (단, 검색어 2글자 이상일 때만)
     /// 기존 양방향 contains 제거 — "a"가 모든 태스크를 삭제하는 문제 해결
-    func deleteByNameBatch(containing name: String, category: String? = nil, dateString: String? = nil) -> [(task: String, time: String?, date: Date?, category: String, recurrenceRule: String?, urgency: Urgency)] {
+    func deleteByNameBatch(containing name: String, category: String? = nil, dateString: String? = nil) -> [AppTaskSnapshot] {
         guard let context = modelContext else { return [] }
         let descriptor = FetchDescriptor<AppTask>()
-        var deleted: [(task: String, time: String?, date: Date?, category: String, recurrenceRule: String?, urgency: Urgency)] = []
+        var deleted: [AppTaskSnapshot] = []
 
         let query = name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard query.count >= 2 else { return [] } // 1글자 검색어는 무시 (안전장치)
@@ -401,12 +515,12 @@ class TaskManager: ObservableObject {
             }
 
             for item in matched {
-                deleted.append((task: item.task, time: item.time, date: item.date, category: item.category, recurrenceRule: item.recurrenceRule, urgency: item.urgency))
+                deleted.append(AppTaskSnapshot(item))
                 NotificationManager.shared.cancelNotification(for: item)
                 context.delete(item)
             }
         } catch {
-            print("❌ deleteByName 실패: \(error.localizedDescription)")
+            print("named_task_delete_failed")
         }
         return deleted
     }
@@ -418,7 +532,7 @@ class TaskManager: ObservableObject {
             return
         }
         context.insert(task)
-        print("🎯 삽입 완료! [\(task.category)] \(task.task) (시간: \(task.time ?? "미지정"))")
+        print("task_inserted category=\(task.category)")
     }
 
     /// 위젯 스냅샷 디바운스용 워크아이템
@@ -437,7 +551,19 @@ class TaskManager: ObservableObject {
             widgetDebounceWork = work
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: work)
         } catch {
-            print("❌ TaskManager 저장 실패: \(error.localizedDescription)")
+            print("task_store_save_failed")
+        }
+    }
+
+    func taskCount(completedOnly: Bool? = nil) -> Int {
+        guard let context = modelContext else { return 0 }
+        do {
+            let tasks = try context.fetch(FetchDescriptor<AppTask>())
+            guard let completedOnly else { return tasks.count }
+            return tasks.lazy.filter { $0.isCompleted == completedOnly }.count
+        } catch {
+            print("task_count_fetch_failed")
+            return 0
         }
     }
 
@@ -448,7 +574,8 @@ class TaskManager: ObservableObject {
               let defaults = UserDefaults(suiteName: "group.trident-KR.ADHD") else { return }
 
         let pendingToggles = defaults.stringArray(forKey: "pendingWidgetToggles") ?? []
-        guard !pendingToggles.isEmpty else { return }
+        guard !pendingToggles.isEmpty,
+              let activeScope = AccountPreferences.activeScope else { return }
 
         // 처리 완료 표시 (중복 방지)
         defaults.removeObject(forKey: "pendingWidgetToggles")
@@ -457,24 +584,27 @@ class TaskManager: ObservableObject {
             let descriptor = FetchDescriptor<AppTask>()
             let allTasks = try context.fetch(descriptor)
 
-            for idString in pendingToggles {
+            for scopedToggle in pendingToggles {
+                let parts = scopedToggle.split(separator: ":", maxSplits: 1).map(String.init)
+                guard parts.count == 2, parts[0] == activeScope else { continue }
+                let idString = parts[1]
                 guard let uuid = UUID(uuidString: idString),
                       let task = allTasks.first(where: { $0.id == uuid }) else { continue }
                 task.isCompleted.toggle()
-                print("🔄 위젯에서 토글 동기화: \(task.task) → \(task.isCompleted ? "완료" : "미완료")")
             }
 
             try context.save()
             print("✅ 위젯 토글 \(pendingToggles.count)개 동기화 완료")
         } catch {
-            print("❌ 위젯 토글 동기화 실패: \(error.localizedDescription)")
+            print("widget_toggle_sync_failed")
         }
     }
 
     // MARK: - Widget Data Sync
     /// 오늘의 태스크를 스냅샷으로 만들어 위젯과 공유합니다.
     func writeWidgetSnapshot() {
-        guard let context = modelContext else { return }
+        guard let context = modelContext,
+              let accountScope = AccountPreferences.activeScope else { return }
         do {
             let descriptor = FetchDescriptor<AppTask>()
             let allTasks = try context.fetch(descriptor)
@@ -491,6 +621,7 @@ class TaskManager: ObservableObject {
                 .map { $0.toWidgetSnapshot() }
 
             let payload = WidgetDataPayload(
+                accountScope: accountScope,
                 routines: routines,
                 appointments: appointments,
                 updatedAt: today
@@ -498,7 +629,7 @@ class TaskManager: ObservableObject {
             WidgetDataStore.write(payload)
             WidgetCenter.shared.reloadAllTimelines()
         } catch {
-            print("❌ 위젯 스냅샷 생성 실패: \(error.localizedDescription)")
+            print("widget_snapshot_failed")
         }
     }
 }

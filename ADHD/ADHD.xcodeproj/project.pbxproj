@@ -19,6 +19,10 @@
 		AC0000050000000000000001 /* DailyResetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC0000060000000000000001 /* DailyResetTests.swift */; };
 		AC0000070000000000000001 /* LLMFunctionCallDecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC0000080000000000000001 /* LLMFunctionCallDecodingTests.swift */; };
 		AC0000090000000000000001 /* DeleteByNameBatchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC00000100000000000000001 /* DeleteByNameBatchTests.swift */; };
+		AD1000010000000000000001 /* AccountStoreController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD1000020000000000000001 /* AccountStoreController.swift */; };
+		AD1000030000000000000001 /* AccountSessionCleanup.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD1000040000000000000001 /* AccountSessionCleanup.swift */; };
+		AD1000050000000000000001 /* AccountStoreLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD1000060000000000000001 /* AccountStoreLayoutTests.swift */; };
+		AE2000010000000000000001 /* SubscriptionEntitlementTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE2000020000000000000001 /* SubscriptionEntitlementTests.swift */; };
 		99526ADA2F7A3EB2000CD3EE /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 99526AD92F7A3EB2000CD3EE /* WidgetKit.framework */; };
 		99526ADC2F7A3EB2000CD3EE /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 99526ADB2F7A3EB2000CD3EE /* SwiftUI.framework */; };
 		99526AEB2F7A3EB4000CD3EE /* ADHDWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 99526AD82F7A3EB2000CD3EE /* ADHDWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -35,7 +39,6 @@
 		DD000003000000000000001A /* PaywallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD000004000000000000001A /* PaywallView.swift */; };
 		F3A1C1992F7E615B00FC011B /* StoreKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F3A1C1982F7E615B00FC011B /* StoreKit.framework */; };
 		F3A1C19D2F7E6AB800FC011B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F3A1C19C2F7E6AB800FC011B /* Assets.xcassets */; };
-		F3A1C1A12F7E74AF00FC011B /* Storekit.storekit in Resources */ = {isa = PBXBuildFile; fileRef = F3A1C1A02F7E74AF00FC011B /* Storekit.storekit */; };
 		F3D9E4B02F74D07100DA9A5A /* AuthManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3D9E4A22F74CF5C00DA9A5A /* AuthManager.swift */; };
 		F3D9E4B12F74D07100DA9A5A /* CloudLLMManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3D9E4A32F74CF5C00DA9A5A /* CloudLLMManager.swift */; };
 		F3D9E4B22F74D07100DA9A5A /* Config.plist in Resources */ = {isa = PBXBuildFile; fileRef = F3D9E4A42F74CF5C00DA9A5A /* Config.plist */; };
@@ -116,6 +119,10 @@
 		AC0000060000000000000001 /* DailyResetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyResetTests.swift; sourceTree = "<group>"; };
 		AC0000080000000000000001 /* LLMFunctionCallDecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMFunctionCallDecodingTests.swift; sourceTree = "<group>"; };
 		AC00000100000000000000001 /* DeleteByNameBatchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeleteByNameBatchTests.swift; sourceTree = "<group>"; };
+		AD1000020000000000000001 /* AccountStoreController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountStoreController.swift; sourceTree = "<group>"; };
+		AD1000040000000000000001 /* AccountSessionCleanup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountSessionCleanup.swift; sourceTree = "<group>"; };
+		AD1000060000000000000001 /* AccountStoreLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountStoreLayoutTests.swift; sourceTree = "<group>"; };
+		AE2000020000000000000001 /* SubscriptionEntitlementTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionEntitlementTests.swift; sourceTree = "<group>"; };
 		CC000002000000000000AA01 /* AlarmManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlarmManager.swift; sourceTree = "<group>"; };
 		CC000004000000000000AA01 /* AlarmOverlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlarmOverlayView.swift; sourceTree = "<group>"; };
 		CC000006000000000000AA01 /* SmoothTaskReorderList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmoothTaskReorderList.swift; sourceTree = "<group>"; };
@@ -124,7 +131,6 @@
 		DD000006000000000000001A /* StoreKitConfig.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = StoreKitConfig.storekit; sourceTree = "<group>"; };
 		F3A1C1982F7E615B00FC011B /* StoreKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = StoreKit.framework; path = System/Library/Frameworks/StoreKit.framework; sourceTree = SDKROOT; };
 		F3A1C19C2F7E6AB800FC011B /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		F3A1C1A02F7E74AF00FC011B /* Storekit.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = Storekit.storekit; sourceTree = "<group>"; };
 		F3D9E4782F74CF5200DA9A5A /* ADHD.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ADHD.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		F3D9E4852F74CF5200DA9A5A /* ADHDTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ADHDTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		F3D9E48F2F74CF5200DA9A5A /* ADHDUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ADHDUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -214,6 +220,8 @@
 				AC0000060000000000000001 /* DailyResetTests.swift */,
 				AC0000080000000000000001 /* LLMFunctionCallDecodingTests.swift */,
 				AC00000100000000000000001 /* DeleteByNameBatchTests.swift */,
+				AD1000060000000000000001 /* AccountStoreLayoutTests.swift */,
+				AE2000020000000000000001 /* SubscriptionEntitlementTests.swift */,
 			);
 			path = ADHDTests;
 			sourceTree = "<group>";
@@ -231,13 +239,14 @@
 		F3D9E46F2F74CF5200DA9A5A = {
 			isa = PBXGroup;
 			children = (
-				F3A1C1A02F7E74AF00FC011B /* Storekit.storekit */,
 				F3A1C19C2F7E6AB800FC011B /* Assets.xcassets */,
 				99526AFE2F7A411E000CD3EE /* ADHDWidgetExtension.entitlements */,
 				F3D9E4BE2F74D25900DA9A5A /* ADHD.entitlements */,
 				99526ADD2F7A3EB2000CD3EE /* ADHDWidget */,
 				F3D9E4792F74CF5200DA9A5A /* Products */,
 				F3D9E4A22F74CF5C00DA9A5A /* AuthManager.swift */,
+				AD1000020000000000000001 /* AccountStoreController.swift */,
+				AD1000040000000000000001 /* AccountSessionCleanup.swift */,
 				F3D9E4A32F74CF5C00DA9A5A /* CloudLLMManager.swift */,
 				F3D9E4A42F74CF5C00DA9A5A /* Config.plist */,
 				F3D9E4A52F74CF5C00DA9A5A /* ContentView.swift */,
@@ -454,7 +463,6 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				F3A1C1A12F7E74AF00FC011B /* Storekit.storekit in Resources */,
 				F3A1C19D2F7E6AB800FC011B /* Assets.xcassets in Resources */,
 				F3D9E4B22F74D07100DA9A5A /* Config.plist in Resources */,
 			);
@@ -491,6 +499,8 @@
 			files = (
 				09A02A8B9E43463FABAA10AD /* Localization.swift in Sources */,
 				F3D9E4B02F74D07100DA9A5A /* AuthManager.swift in Sources */,
+				AD1000010000000000000001 /* AccountStoreController.swift in Sources */,
+				AD1000030000000000000001 /* AccountSessionCleanup.swift in Sources */,
 				F3D9E4B12F74D07100DA9A5A /* CloudLLMManager.swift in Sources */,
 				F3D9E4C42F74DA1800DA9A5A /* NetworkMonitor.swift in Sources */,
 				F3D9E4C52F74DA1800DA9A5A /* NotificationManager.swift in Sources */,
@@ -534,6 +544,8 @@
 				AC0000050000000000000001 /* DailyResetTests.swift in Sources */,
 				AC0000070000000000000001 /* LLMFunctionCallDecodingTests.swift in Sources */,
 				AC0000090000000000000001 /* DeleteByNameBatchTests.swift in Sources */,
+				AD1000050000000000000001 /* AccountStoreLayoutTests.swift in Sources */,
+				AE2000010000000000000001 /* SubscriptionEntitlementTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -572,7 +584,7 @@
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
 				CODE_SIGN_ENTITLEMENTS = ADHDWidgetExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = 5S3Y6973X6;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ADHDWidget/Info.plist;
@@ -593,7 +605,7 @@
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Debug;
 		};
@@ -604,7 +616,7 @@
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
 				CODE_SIGN_ENTITLEMENTS = ADHDWidgetExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = 5S3Y6973X6;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ADHDWidget/Info.plist;
@@ -625,7 +637,7 @@
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Release;
 		};
@@ -771,7 +783,6 @@
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -786,7 +797,7 @@
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Debug;
 		};
@@ -809,7 +820,6 @@
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -824,7 +834,7 @@
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Release;
 		};
@@ -845,7 +855,7 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ADHD.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/ADHD";
 			};
 			name = Debug;
@@ -867,7 +877,7 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ADHD.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/ADHD";
 			};
 			name = Release;
@@ -887,7 +897,7 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 				TEST_TARGET_NAME = ADHD;
 			};
 			name = Debug;
@@ -907,7 +917,7 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 				TEST_TARGET_NAME = ADHD;
 			};
 			name = Release;

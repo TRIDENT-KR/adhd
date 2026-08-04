@@ -145,7 +145,7 @@ struct QuickAddSheet: View {
                            date: date, category: category, urgency: urgency)
         taskManager.insertBatch(task)
         NotificationManager.shared.scheduleNotification(for: task)
-        taskManager.setUndoAction(.added([task]), message: L.voice.undoAdded(1))
+        taskManager.setUndoAction(.added([task.id]), message: L.voice.undoAdded(1))
         taskManager.safeSave()                    // insertBatch는 save하지 않으므로 필수
         Haptic.notification(.success)
         dismiss()
