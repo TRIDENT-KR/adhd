@@ -98,4 +98,117 @@ struct LLMFunctionCallDecodingTests {
         #expect(p.date == nil)          // 루틴은 매일 반복 — 날짜 정보 금지 규약
         #expect(p.category == "Routine")
     }
+
+    // MARK: 파괴적 명령 확인 정책
+
+    @Test func destructiveCommandsAlwaysRequireConfirmation() throws {
+        let delete = try decode(#"{"function_name":"delete_specific_task","parameters":{"target_task_name":"운동"}}"#)
+        let clear = try decode(#"{"function_name":"clear_all_tasks","parameters":{"target_date":"all"}}"#)
+        let postpone = try decode(#"{"function_name":"postpone_all_tasks","parameters":{"from_date":"2026-07-09","to_date":"2026-07-10"}}"#)
+
+        #expect(delete.requiresExplicitConfirmation)
+        #expect(clear.requiresExplicitConfirmation)
+        #expect(postpone.requiresExplicitConfirmation)
+    }
+
+    @Test func destructiveAllCategoryIsPreserved() throws {
+        let call = try decode(#"{"function_name":"delete_specific_task","parameters":{"target_task_name":"운동","target_category":"all","target_date":"all"}}"#)
+        guard case .deleteSpecificTask(let params) = call else {
+            Issue.record("wrong case")
+            return
+        }
+
+        #expect(params.target_category == "all")
+        #expect(call.isExecutionPayloadValid)
+    }
+
+    @Test func malformedDestructiveDatesAreInvalid() {
+        let delete = LLMFunctionCall.deleteSpecificTask(
+            DeleteTaskParams(target_task_name: "운동", target_category: nil, target_date: "2026-02-30")
+        )
+        let postpone = LLMFunctionCall.postponeAllTasks(
+            PostponeTasksParams(from_date: "tomorrow", to_date: "2026-08-05")
+        )
+
+        #expect(!delete.isExecutionPayloadValid)
+        #expect(!postpone.isExecutionPayloadValid)
+    }
+
+    @Test func safeSingleCommandsCanFollowUserConfirmationSetting() throws {
+        let add = try decode(#"{"function_name":"add_single_task","parameters":{"task_name":"약 먹기","category":"Routine"}}"#)
+        let update = try decode(#"{"function_name":"update_task","parameters":{"target_task_name":"회의","new_time":"03:00 PM"}}"#)
+        let complete = try decode(#"{"function_name":"mark_task_complete","parameters":{"target_task_name":"물 마시기"}}"#)
+
+        #expect(!LLMConfirmationPolicy.requiresExplicitConfirmation(for: [add]))
+        #expect(!LLMConfirmationPolicy.requiresExplicitConfirmation(for: [update]))
+        #expect(!LLMConfirmationPolicy.requiresExplicitConfirmation(for: [complete]))
+    }
+
+    @Test func multipleExistingTaskMutationsRequireConfirmation() throws {
+        let update = try decode(#"{"function_name":"update_task","parameters":{"target_task_name":"회의","new_time":"03:00 PM"}}"#)
+        let complete = try decode(#"{"function_name":"mark_task_complete","parameters":{"target_task_name":"물 마시기"}}"#)
+
+        #expect(LLMConfirmationPolicy.requiresExplicitConfirmation(for: [update, complete]))
+    }
+
+    @Test func mixedBatchUsesStrictestConfirmationRule() throws {
+        let add = try decode(#"{"function_name":"add_single_task","parameters":{"task_name":"약 먹기","category":"Routine"}}"#)
+        let delete = try decode(#"{"function_name":"delete_specific_task","parameters":{"target_task_name":"운동"}}"#)
+
+        #expect(LLMConfirmationPolicy.requiresExplicitConfirmation(for: [add, delete]))
+    }
+}
+
+struct ServerAIQuotaSnapshotTests {
+    @Test func acceptsStrictKSTFreeQuotaSnapshot() {
+        let snapshot = ServerAIQuotaSnapshot(
+            isPro: false,
+            limit: 3,
+            used: 1,
+            reserved: 0,
+            remaining: 2,
+            usageDate: "2026-08-04",
+            timeZone: "Asia/Seoul"
+        )
+
+        #expect(snapshot.isValid)
+    }
+
+    @Test func rejectsClientAmbiguousOrInconsistentQuota() {
+        let wrongZone = ServerAIQuotaSnapshot(
+            isPro: false,
+            limit: 3,
+            used: 1,
+            reserved: 0,
+            remaining: 2,
+            usageDate: "2026-08-04",
+            timeZone: "UTC"
+        )
+        let wrongTotal = ServerAIQuotaSnapshot(
+            isPro: false,
+            limit: 3,
+            used: 1,
+            reserved: 1,
+            remaining: 2,
+            usageDate: "2026-08-04",
+            timeZone: "Asia/Seoul"
+        )
+
+        #expect(!wrongZone.isValid)
+        #expect(!wrongTotal.isValid)
+    }
+
+    @Test func proQuotaHasNoSyntheticLimit() {
+        let snapshot = ServerAIQuotaSnapshot(
+            isPro: true,
+            limit: nil,
+            used: 2,
+            reserved: 0,
+            remaining: nil,
+            usageDate: "2026-08-04",
+            timeZone: "Asia/Seoul"
+        )
+
+        #expect(snapshot.isValid)
+    }
 }

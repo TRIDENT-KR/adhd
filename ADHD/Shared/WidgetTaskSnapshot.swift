@@ -4,6 +4,26 @@ import Foundation
 /// 메인 앱과 위젯 간 데이터 공유를 위한 App Group ID
 let appGroupID = "group.trident-KR.ADHD"
 
+/// 위젯이 현재 로그인한 Mora 계정의 데이터만 읽도록 하는 App Group 범위입니다.
+enum WidgetAccountScope {
+    static let activeScopeKey = "activeWidgetAccountScope"
+    static let premiumScopeKey = "premiumWidgetAccountScope"
+
+    static var active: String? {
+        UserDefaults(suiteName: appGroupID)?.string(forKey: activeScopeKey)
+    }
+
+    static func activate(_ scope: String) {
+        UserDefaults(suiteName: appGroupID)?.set(scope, forKey: activeScopeKey)
+    }
+
+    static func deactivate() {
+        let defaults = UserDefaults(suiteName: appGroupID)
+        defaults?.removeObject(forKey: activeScopeKey)
+        defaults?.removeObject(forKey: premiumScopeKey)
+    }
+}
+
 // MARK: - Widget Task Snapshot (Lightweight DTO)
 /// 위젯에 표시할 태스크의 경량 스냅샷 (SwiftData 의존성 없음)
 struct WidgetTaskSnapshot: Codable, Identifiable {
@@ -35,6 +55,7 @@ struct WidgetTaskSnapshot: Codable, Identifiable {
 // MARK: - Widget Data Payload
 /// 위젯에 전달하는 전체 데이터 패킷
 struct WidgetDataPayload: Codable {
+    let accountScope: String
     let routines: [WidgetTaskSnapshot]
     let appointments: [WidgetTaskSnapshot]
     let updatedAt: Date

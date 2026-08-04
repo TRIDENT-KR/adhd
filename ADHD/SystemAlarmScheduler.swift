@@ -157,9 +157,9 @@ final class SystemAlarmScheduler: Sendable {
         do {
             try? manager.cancel(id: spec.id)   // 동일 id 갱신을 위한 선취소 (미존재 시 무해)
             _ = try await manager.schedule(id: spec.id, configuration: configuration)
-            print("⏰ [AlarmKit] 시스템 알람 등록: \(spec.title)")
+            print("alarmkit_schedule_succeeded")
         } catch {
-            print("❌ [AlarmKit] 등록 실패(\(error.localizedDescription)) — UN 폴백")
+            print("alarmkit_schedule_failed fallback=user_notification")
             await MainActor.run {
                 NotificationManager.shared.scheduleUserNotification(spec)
             }
@@ -177,7 +177,7 @@ final class SystemAlarmScheduler: Sendable {
         guard let alarms = try? AlarmKit.AlarmManager.shared.alarms else { return }
         for alarm in alarms where !validIds.contains(alarm.id) {
             try? AlarmKit.AlarmManager.shared.cancel(id: alarm.id)
-            print("🧹 [AlarmKit] 고아 알람 회수: \(alarm.id)")
+            print("orphan_alarm_reclaimed")
         }
     }
 

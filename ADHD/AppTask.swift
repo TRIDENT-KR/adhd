@@ -8,6 +8,125 @@ public enum Urgency: String, Codable {
     case strong = "strong"
 }
 
+// MARK: - Recurrence Engine
+/// 최초 기준일(anchor)에서 반복 발생일을 계산하는 순수 Foundation 엔진입니다.
+/// 계산 결과를 다음 기준일로 저장하지 않으므로 완료가 늦어져도 반복 주기가 밀리지 않습니다.
+enum RecurrenceEngine {
+    private static let oneShotRules = Set(["biweekly", "monthly", "yearly"])
+
+    static func requiresOneShotNotification(_ rule: String?) -> Bool {
+        guard let rule else { return false }
+        return oneShotRules.contains(rule)
+    }
+
+    static func occurs(
+        on targetDate: Date,
+        anchor: Date,
+        rule: String,
+        calendar: Calendar = .current
+    ) -> Bool {
+        let target = calendar.startOfDay(for: targetDate)
+        let start = calendar.startOfDay(for: anchor)
+        guard target >= start else { return false }
+
+        switch rule {
+        case "weekly", "biweekly":
+            guard let elapsedDays = calendar.dateComponents(
+                [.day], from: start, to: target
+            ).day else { return false }
+            let interval = rule == "weekly" ? 7 : 14
+            return elapsedDays % interval == 0
+
+        case "monthly":
+            let startParts = calendar.dateComponents([.year, .month, .day], from: start)
+            let targetParts = calendar.dateComponents([.year, .month, .day], from: target)
+            guard let startYear = startParts.year,
+                  let startMonth = startParts.month,
+                  let startDay = startParts.day,
+                  let targetYear = targetParts.year,
+                  let targetMonth = targetParts.month,
+                  let targetDay = targetParts.day else { return false }
+
+            let elapsedMonths = (targetYear - startYear) * 12 + targetMonth - startMonth
+            guard elapsedMonths >= 0,
+                  let daysInTargetMonth = calendar.range(
+                    of: .day, in: .month, for: target
+                  )?.count else { return false }
+            return targetDay == min(startDay, daysInTargetMonth)
+
+        case "yearly":
+            let startParts = calendar.dateComponents([.year, .month, .day], from: start)
+            let targetParts = calendar.dateComponents([.year, .month, .day], from: target)
+            guard let startYear = startParts.year,
+                  let startMonth = startParts.month,
+                  let startDay = startParts.day,
+                  let targetYear = targetParts.year,
+                  let targetMonth = targetParts.month,
+                  let targetDay = targetParts.day,
+                  targetYear >= startYear,
+                  targetMonth == startMonth,
+                  let daysInTargetMonth = calendar.range(
+                    of: .day, in: .month, for: target
+                  )?.count else { return false }
+            return targetDay == min(startDay, daysInTargetMonth)
+
+        default:
+            return calendar.isDate(anchor, inSameDayAs: targetDate)
+        }
+    }
+
+    /// 지정한 현지 날짜의 wall-clock 시각을 만듭니다.
+    /// DST로 시각이 사라지면 다음 유효 시각, 두 번 나타나면 첫 번째 시각을 선택합니다.
+    static func wallClockDate(
+        on day: Date,
+        hour: Int,
+        minute: Int,
+        calendar: Calendar = .current
+    ) -> Date? {
+        calendar.date(
+            bySettingHour: hour,
+            minute: minute,
+            second: 0,
+            of: calendar.startOfDay(for: day),
+            matchingPolicy: .nextTime,
+            repeatedTimePolicy: .first,
+            direction: .forward
+        )
+    }
+
+    /// 격주·월간·연간 알림에 사용할 미래 최초 1건을 반환합니다.
+    /// `leadMinutes`는 실제 발생 wall-clock 시각에서 차감합니다.
+    static func nextScheduledDate(
+        after now: Date,
+        anchor: Date,
+        rule: String,
+        hour: Int,
+        minute: Int,
+        leadMinutes: Int = 0,
+        calendar: Calendar = .current
+    ) -> Date? {
+        guard requiresOneShotNotification(rule) else { return nil }
+
+        let today = calendar.startOfDay(for: now)
+        let anchorDay = calendar.startOfDay(for: anchor)
+        let searchStart = max(today, anchorDay)
+
+        // 세 규칙 모두 1년 안에 다음 발생일이 반드시 있으므로 윤년 여유를 포함해 탐색합니다.
+        for offset in 0...370 {
+            guard let day = calendar.date(byAdding: .day, value: offset, to: searchStart),
+                  occurs(on: day, anchor: anchor, rule: rule, calendar: calendar),
+                  let occurrence = wallClockDate(
+                    on: day, hour: hour, minute: minute, calendar: calendar
+                  ),
+                  let fireDate = calendar.date(
+                    byAdding: .minute, value: -leadMinutes, to: occurrence
+                  ) else { continue }
+            if fireDate > now { return fireDate }
+        }
+        return nil
+    }
+}
+
 // MARK: - SwiftData Persistent Model
 /// 영구 저장소에 기록되는 실제 데이터 모델.
 /// ParsedTask(DTO)와 분리하여 Codable 디코딩과의 충돌을 방지합니다.
@@ -88,8 +207,8 @@ final class AppTask {
     // MARK: - 반복 일정: 특정 날짜에 발생하는지 판단
     /// 일회성 → date가 targetDate와 같은 날인지 확인
     /// 반복 → 시작일(date) 이후, 규칙에 따라 해당 날짜에 발생하는지 계산
-    func occursOn(_ targetDate: Date) -> Bool {
-        let cal = Calendar.current
+    func occursOn(_ targetDate: Date, calendar: Calendar = .current) -> Bool {
+        let cal = calendar
 
         // Routine은 기존 로직 유지 (date == nil → 매일)
         guard category == "Appointment" else {
@@ -97,41 +216,16 @@ final class AppTask {
         }
 
         guard let startDate = date else { return false }
-        let target = cal.startOfDay(for: targetDate)
-        let start  = cal.startOfDay(for: startDate)
-
-        // 시작일 이전이면 불발
-        guard target >= start else { return false }
-
         // 일회성
         guard let rule = recurrenceRule else {
             return cal.isDate(startDate, inSameDayAs: targetDate)
         }
-
-        switch rule {
-        case "weekly":
-            let weeks = cal.dateComponents([.weekOfYear], from: start, to: target).weekOfYear ?? 0
-            return cal.component(.weekday, from: start) == cal.component(.weekday, from: target) && weeks >= 0
-
-        case "biweekly":
-            let weeks = cal.dateComponents([.weekOfYear], from: start, to: target).weekOfYear ?? 0
-            return cal.component(.weekday, from: start) == cal.component(.weekday, from: target) && weeks >= 0 && weeks % 2 == 0
-
-        case "monthly":
-            let startDay = cal.component(.day, from: start)
-            let targetDay = cal.component(.day, from: target)
-            let daysInMonth = cal.range(of: .day, in: .month, for: target)?.count ?? 31
-            let effectiveDay = min(startDay, daysInMonth)
-            return targetDay == effectiveDay && target >= start
-
-        case "yearly":
-            let startComps = cal.dateComponents([.month, .day], from: start)
-            let targetComps = cal.dateComponents([.month, .day], from: target)
-            return startComps.month == targetComps.month && startComps.day == targetComps.day
-
-        default:
-            return cal.isDate(startDate, inSameDayAs: targetDate)
-        }
+        return RecurrenceEngine.occurs(
+            on: targetDate,
+            anchor: startDate,
+            rule: rule,
+            calendar: cal
+        )
     }
 
     /// 반복 일정의 사람이 읽을 수 있는 라벨

@@ -330,7 +330,11 @@ private struct PlanCard: View {
     private var priceSubtitle: String {
         switch product.id {
         case SubscriptionProductID.monthly.rawValue: return L.paywall.billedMonthly
-        case SubscriptionProductID.yearly.rawValue:  return L.paywall.billedYearly
+        case SubscriptionProductID.yearly.rawValue:
+            let monthlyEquivalent = (product.price / 12).formatted(
+                product.priceFormatStyle
+            )
+            return L.paywall.billedYearly(monthlyEquivalent: monthlyEquivalent)
         default: return ""
         }
     }

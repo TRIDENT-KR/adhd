@@ -22,6 +22,8 @@ struct ToggleTaskIntent: AppIntent {
         guard let defaults = UserDefaults(suiteName: appGroupID),
               let data = defaults.data(forKey: "widgetTaskPayload"),
               let payload = try? JSONDecoder().decode(WidgetDataPayload.self, from: data),
+              let activeScope = WidgetAccountScope.active,
+              payload.accountScope == activeScope,
               let uuid = UUID(uuidString: taskID) else {
             return .result()
         }
@@ -50,6 +52,7 @@ struct ToggleTaskIntent: AppIntent {
 
         if foundInRoutines || foundInAppointments {
             let newPayload = WidgetDataPayload(
+                accountScope: payload.accountScope,
                 routines: routines,
                 appointments: appointments,
                 updatedAt: Date()
@@ -60,7 +63,7 @@ struct ToggleTaskIntent: AppIntent {
 
             // 메인 앱에 동기화 요청 전달 (앱 복귀 시 처리)
             var pendingToggles = defaults.stringArray(forKey: "pendingWidgetToggles") ?? []
-            pendingToggles.append(taskID)
+            pendingToggles.append("\(payload.accountScope):\(taskID)")
             defaults.set(pendingToggles, forKey: "pendingWidgetToggles")
         }
 

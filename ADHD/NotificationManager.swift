@@ -1,5 +1,114 @@
 import Foundation
 import UserNotifications
+import CryptoKit
+
+enum AccountPreferenceKey: String {
+    case routineRemindersDisabled
+    case appointmentRemindersDisabled
+    case remindBeforeMinutes
+    case notificationSoundDisabled
+    case confirmBeforeSave
+}
+
+/// 계정별 설정을 raw Mora UUID가 노출되지 않는 UserDefaults namespace에 저장합니다.
+enum AccountPreferences {
+    private static let activeScopeKey = "mora.active-account-preference-scope.v1"
+
+    static var hasActiveAccount: Bool {
+        activeScope != nil
+    }
+
+    static func activate(for userID: UUID, defaults: UserDefaults = .standard) {
+        defaults.set(scope(for: userID), forKey: activeScopeKey)
+    }
+
+    static func deactivate(defaults: UserDefaults = .standard) {
+        defaults.removeObject(forKey: activeScopeKey)
+    }
+
+    static func bool(
+        _ key: AccountPreferenceKey,
+        default defaultValue: Bool,
+        for userID: UUID? = nil,
+        defaults: UserDefaults = .standard
+    ) -> Bool {
+        guard let namespaced = namespacedKey(key, for: userID, defaults: defaults) else {
+            return defaultValue
+        }
+        guard defaults.object(forKey: namespaced) != nil else { return defaultValue }
+        return defaults.bool(forKey: namespaced)
+    }
+
+    static func integer(
+        _ key: AccountPreferenceKey,
+        default defaultValue: Int,
+        for userID: UUID? = nil,
+        defaults: UserDefaults = .standard
+    ) -> Int {
+        guard let namespaced = namespacedKey(key, for: userID, defaults: defaults),
+              defaults.object(forKey: namespaced) != nil else { return defaultValue }
+        return defaults.integer(forKey: namespaced)
+    }
+
+    static func set(
+        _ value: Bool,
+        for key: AccountPreferenceKey,
+        userID: UUID? = nil,
+        defaults: UserDefaults = .standard
+    ) {
+        guard let namespaced = namespacedKey(key, for: userID, defaults: defaults) else { return }
+        defaults.set(value, forKey: namespaced)
+    }
+
+    static func removeAll(
+        for userID: UUID,
+        defaults: UserDefaults = .standard
+    ) {
+        let accountScope = scope(for: userID)
+        for key in [
+            AccountPreferenceKey.routineRemindersDisabled,
+            .appointmentRemindersDisabled,
+            .remindBeforeMinutes,
+            .notificationSoundDisabled,
+            .confirmBeforeSave,
+        ] {
+            defaults.removeObject(
+                forKey: "mora.account.\(accountScope).\(key.rawValue).v1"
+            )
+        }
+    }
+
+    static func set(
+        _ value: Int,
+        for key: AccountPreferenceKey,
+        userID: UUID? = nil,
+        defaults: UserDefaults = .standard
+    ) {
+        guard let namespaced = namespacedKey(key, for: userID, defaults: defaults) else { return }
+        defaults.set(value, forKey: namespaced)
+    }
+
+    static func scope(for userID: UUID) -> String {
+        SHA256.hash(data: Data(userID.uuidString.lowercased().utf8))
+            .map { String(format: "%02x", $0) }
+            .joined()
+    }
+
+    static var activeScope: String? {
+        UserDefaults.standard.string(forKey: activeScopeKey)
+    }
+
+    private static func namespacedKey(
+        _ key: AccountPreferenceKey,
+        for userID: UUID?,
+        defaults: UserDefaults
+    ) -> String? {
+        let accountScope = userID.map(scope(for:))
+            ?? defaults.string(forKey: activeScopeKey)
+        guard let accountScope else { return nil }
+        return "mora.account.\(accountScope).\(key.rawValue).v1"
+    }
+}
 
 // MARK: - NotificationManager
 /// 싱글톤 로컬 알림 관리자.
@@ -59,18 +168,19 @@ final class NotificationManager {
     static let soundEnabledKey         = "notificationSoundEnabled"
 
     var routineRemindersEnabled: Bool {
-        // 기본값 true (UserDefaults에 키가 없으면 true 반환)
-        !UserDefaults.standard.bool(forKey: "routineRemindersDisabled")
+        AccountPreferences.hasActiveAccount
+            && !AccountPreferences.bool(.routineRemindersDisabled, default: false)
     }
     var appointmentRemindersEnabled: Bool {
-        !UserDefaults.standard.bool(forKey: "appointmentRemindersDisabled")
+        AccountPreferences.hasActiveAccount
+            && !AccountPreferences.bool(.appointmentRemindersDisabled, default: false)
     }
     var remindBeforeMinutes: Int {
-        let val = UserDefaults.standard.integer(forKey: Self.remindBeforeKey)
-        return val == 0 ? 0 : val // 0 = 정시
+        AccountPreferences.integer(.remindBeforeMinutes, default: 0)
     }
     var soundEnabled: Bool {
-        !UserDefaults.standard.bool(forKey: "notificationSoundDisabled")
+        AccountPreferences.hasActiveAccount
+            && !AccountPreferences.bool(.notificationSoundDisabled, default: false)
     }
 
     /// D13/D14: Pro 여부 — SubscriptionManager가 App Group에 기록한 플래그
@@ -82,8 +192,8 @@ final class NotificationManager {
     /// App 실행 시 onAppear에서 한 번 호출합니다.
     func requestAuthorization() {
         center.requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
-            if let error {
-                print("❌ 알림 권한 요청 실패: \(error.localizedDescription)")
+            if error != nil {
+                print("notification_authorization_failed")
                 return
             }
             print(granted ? "✅ 알림 권한 허용됨" : "🔕 알림 권한 거부됨")
@@ -130,15 +240,40 @@ final class NotificationManager {
         if task.category == "Appointment" && !appointmentRemindersEnabled { return }
 
         guard let time = task.time, !time.isEmpty else { return }
-        guard var fireDate = parseTime(time, on: task.date) else {
-            print("⚠️ 시간 파싱 실패: \(time)")
+        let calendar = Calendar.current
+        guard let clock = parseTimeComponents(time, calendar: calendar) else {
+            print("notification_time_parse_failed")
             return
         }
 
-        // Remind Before: 사전 알림 시간 적용
+        let now = Date()
         let leadMinutes = remindBeforeMinutes
-        if leadMinutes > 0 {
-            fireDate = fireDate.addingTimeInterval(-Double(leadMinutes * 60))
+        let fireDate: Date
+        if let rule = task.recurrenceRule,
+           RecurrenceEngine.requiresOneShotNotification(rule) {
+            guard let anchor = task.date,
+                  let next = RecurrenceEngine.nextScheduledDate(
+                    after: now,
+                    anchor: anchor,
+                    rule: rule,
+                    hour: clock.hour,
+                    minute: clock.minute,
+                    leadMinutes: leadMinutes,
+                    calendar: calendar
+                  ) else { return }
+            fireDate = next
+        } else {
+            guard let occurrence = RecurrenceEngine.wallClockDate(
+                on: task.date ?? now,
+                hour: clock.hour,
+                minute: clock.minute,
+                calendar: calendar
+            ), let adjusted = calendar.date(
+                byAdding: .minute,
+                value: -leadMinutes,
+                to: occurrence
+            ) else { return }
+            fireDate = adjusted
         }
 
         // ── strong × Pro → AlarmKit 시도 (최초 저장 시 권한 요청, 거부 시 UN 폴백) ──
@@ -146,7 +281,7 @@ final class NotificationManager {
             let spec = makeSpec(
                 for: task,
                 fireDate: fireDate,
-                alarmKit: alarmKitSchedule(for: task, fireDate: fireDate, lead: leadMinutes)
+                alarmKit: alarmKitSchedule(for: task, fireDate: fireDate)
             )
             Task { @MainActor in
                 if await SystemAlarmScheduler.shared.ensureAuthorized() {
@@ -207,17 +342,17 @@ final class NotificationManager {
             trigger:    UNCalendarNotificationTrigger(dateMatching: components, repeats: repeats)
         )
         center.add(request) { error in
-            if let error {
-                print("❌ 알림 등록 실패 [\(spec.title)]: \(error.localizedDescription)")
+            if error != nil {
+                print("notification_schedule_failed")
             } else {
                 let urgencyLabel = spec.urgency == .strong ? "🔴강함" : "🔵약함"
-                print("🔔 알림 등록 완료 [\(urgencyLabel)]: \(spec.title) @ \(spec.fireDate)")
+                print("notification_scheduled urgency=\(urgencyLabel)")
             }
         }
 
         // 일회성 strong → +5/+10분 재알림 체인 (한 번 놓쳐도 끝나지 않게)
         // 반복 태스크에는 매일 반복되는 잔소리가 되므로 걸지 않음
-        if spec.urgency == .strong && !repeats {
+        if spec.urgency == .strong && spec.recurrenceRule == nil && !repeats {
             for follow in Self.followUpOffsets {
                 let followDate = spec.fireDate.addingTimeInterval(follow.seconds)
                 guard followDate > Date() else { continue }
@@ -251,7 +386,7 @@ final class NotificationManager {
             content: content,
             trigger: UNTimeIntervalNotificationTrigger(timeInterval: Self.snoozeInterval, repeats: false)
         ))
-        print("😴 스누즈 등록: \(snoozeID) (+\(Int(Self.snoozeInterval))초)")
+        print("notification_snoozed interval=\(Int(Self.snoozeInterval))")
     }
 
     // MARK: - Cancel
@@ -313,19 +448,19 @@ final class NotificationManager {
         )
     }
 
-    /// UN 트리거 규칙 (기존 로직 유지):
-    /// weekly/biweekly → 요일+시분 반복(biweekly는 iOS 제약으로 주간 등록 — 알려진 제한)
-    /// monthly → 일+시분 / yearly → 월일+시분 / date 없음 → 매일 / 그 외 → 일회성
+    /// UN 트리거 규칙:
+    /// weekly → 요일+시분 반복 / biweekly·monthly·yearly → 계산된 다음 1건
+    /// date 없음 → 매일 / 그 외 → 일회성
     private func triggerComponents(for spec: AlarmSpec) -> (DateComponents, Bool) {
         let cal = Calendar.current
         if let rule = spec.recurrenceRule {
             switch rule {
-            case "weekly", "biweekly":
+            case "weekly":
                 return (cal.dateComponents([.weekday, .hour, .minute], from: spec.fireDate), true)
-            case "monthly":
-                return (cal.dateComponents([.day, .hour, .minute], from: spec.fireDate), true)
-            case "yearly":
-                return (cal.dateComponents([.month, .day, .hour, .minute], from: spec.fireDate), true)
+            case "biweekly", "monthly", "yearly":
+                return (cal.dateComponents(
+                    [.year, .month, .day, .hour, .minute], from: spec.fireDate
+                ), false)
             default:
                 return (cal.dateComponents([.year, .month, .day, .hour, .minute], from: spec.fireDate), false)
             }
@@ -338,9 +473,9 @@ final class NotificationManager {
 
     /// AlarmKit 스케줄 매핑:
     /// 매일 루틴 → 7요일 relative / weekly → 해당 요일 relative
-    /// biweekly·monthly·yearly → occursOn 스캔으로 다음 발생일 fixed (완료/포그라운드 시 재무장)
+    /// biweekly·monthly·yearly → RecurrenceEngine이 계산한 다음 발생일 fixed
     /// 일회성 → fixed
-    private func alarmKitSchedule(for task: AppTask, fireDate: Date, lead: Int) -> AlarmKitScheduleKind? {
+    private func alarmKitSchedule(for task: AppTask, fireDate: Date) -> AlarmKitScheduleKind? {
         let cal = Calendar.current
         let hour = cal.component(.hour, from: fireDate)
         let minute = cal.component(.minute, from: fireDate)
@@ -353,8 +488,7 @@ final class NotificationManager {
                     hour: hour, minute: minute
                 )
             case "biweekly", "monthly", "yearly":
-                guard let next = nextFixedOccurrence(for: task, lead: lead) else { return nil }
-                return .fixed(next)
+                return fireDate > Date() ? .fixed(fireDate) : nil
             default:
                 return fireDate > Date() ? .fixed(fireDate) : nil
             }
@@ -362,20 +496,6 @@ final class NotificationManager {
             return .daily(hour: hour, minute: minute)
         }
         return fireDate > Date() ? .fixed(fireDate) : nil
-    }
-
-    /// biweekly/monthly/yearly의 다음 발생 시각 (미래 최초 1건, 최대 366일 스캔)
-    private func nextFixedOccurrence(for task: AppTask, lead: Int) -> Date? {
-        guard let time = task.time else { return nil }
-        let cal = Calendar.current
-        for offset in 0...366 {
-            guard let day = cal.date(byAdding: .day, value: offset, to: Date()) else { continue }
-            guard task.occursOn(day) else { continue }
-            guard let fire = parseTime(time, on: day)?
-                .addingTimeInterval(-Double(lead * 60)) else { continue }
-            if fire > Date() { return fire }
-        }
-        return nil
     }
 
     /// Calendar weekday(1=일 … 7=토) → Locale.Weekday
@@ -393,18 +513,20 @@ final class NotificationManager {
 
     // MARK: - Private: Time Parsing
     /// "07:00 AM", "02:00 PM", "14:00" 등 다양한 포맷을 허용합니다.
-    private func parseTime(_ timeString: String, on date: Date?) -> Date? {
-        let base = date ?? Date()
+    private func parseTimeComponents(
+        _ timeString: String,
+        calendar: Calendar
+    ) -> (hour: Int, minute: Int)? {
         let trimmed = timeString.trimmingCharacters(in: .whitespaces)
 
-        for formatter in Self.timeFormatters {
-            if let parsed = formatter.date(from: trimmed) {
-                let parsedComponents = Calendar.current.dateComponents([.hour, .minute], from: parsed)
-                var baseComponents   = Calendar.current.dateComponents([.year, .month, .day], from: base)
-                baseComponents.hour   = parsedComponents.hour
-                baseComponents.minute = parsedComponents.minute
-                baseComponents.second = 0
-                return Calendar.current.date(from: baseComponents)
+        for cachedFormatter in Self.timeFormatters {
+            guard let formatter = cachedFormatter.copy() as? DateFormatter else { continue }
+            formatter.calendar = calendar
+            formatter.timeZone = calendar.timeZone
+            guard let parsed = formatter.date(from: trimmed) else { continue }
+            let parts = calendar.dateComponents([.hour, .minute], from: parsed)
+            if let hour = parts.hour, let minute = parts.minute {
+                return (hour, minute)
             }
         }
         return nil
