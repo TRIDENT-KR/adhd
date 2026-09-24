@@ -409,6 +409,20 @@ enabled = true
 verify_jwt = false
 import_map = "./functions/delete-account/deno.json"
 entrypoint = "./functions/delete-account/index.ts"
+
+[functions.storekit-sync]
+enabled = true
+# analyze-task와 같이 함수 안에서 auth.getUser()로 Supabase 사용자를 검증한다.
+verify_jwt = false
+import_map = "./functions/storekit-sync/deno.json"
+entrypoint = "./functions/storekit-sync/index.ts"
+
+[functions.app-store-notifications]
+enabled = true
+# Apple이 직접 호출하므로 Supabase JWT가 없다. 신뢰는 Apple 서명 체인 검증으로만 얻는다.
+verify_jwt = false
+import_map = "./functions/app-store-notifications/deno.json"
+entrypoint = "./functions/app-store-notifications/index.ts"
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/analyze-task/*.html" ]

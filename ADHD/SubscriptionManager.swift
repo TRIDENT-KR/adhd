@@ -320,10 +320,38 @@ nonisolated enum ServerQuotaAccessPolicy {
 }
 
 // MARK: - Server Adapter
-nonisolated enum SubscriptionServerError: Error {
+nonisolated enum SubscriptionServerError: Error, Equatable {
     case transactionRegistrationUnavailable
     case restoreRebindUnavailable
     case subscriptionOwnedByAnotherAccount
+    case familySharingNotSupported
+    case transactionRejected
+}
+
+/// storekit-sync의 `{ "error": { "code": ... } }` 응답을 앱 오류로 옮깁니다.
+/// 목록에 없는 코드는 nil을 돌려 일시 장애로 취급합니다.
+nonisolated enum StoreKitSyncErrorMapper {
+    private struct Envelope: Decodable {
+        struct Body: Decodable { let code: String }
+        let error: Body
+    }
+
+    static func map(status: Int, data: Data) -> SubscriptionServerError? {
+        guard let code = try? JSONDecoder().decode(Envelope.self, from: data).error.code else {
+            return nil
+        }
+        switch code {
+        case "subscription_owned_by_another_account":
+            return .subscriptionOwnedByAnotherAccount
+        case "rebind_not_eligible":
+            return .restoreRebindUnavailable
+        case "family_sharing_not_supported":
+            return .familySharingNotSupported
+        default:
+            // 422는 Apple 서명·상품·형식 검증 실패라 재시도해도 결과가 같습니다.
+            return status == 422 ? .transactionRejected : nil
+        }
+    }
 }
 
 @MainActor
@@ -337,11 +365,11 @@ protocol SubscriptionServerClient {
     func claimSubscriptionRebind(jws: String) async throws
 }
 
-/// 현재 migration에 존재하는 읽기 RPC만 연결합니다.
-/// 거래 등록·재귀속은 Apple JWS를 서버에서 검증하는 endpoint가 추가될 때 활성화해야 합니다.
+/// 읽기는 RPC, 거래 등록·재귀속은 Apple JWS를 서버에서 검증하는 storekit-sync 함수로 보냅니다.
+/// 서버(migration 202609240001 + storekit-sync)가 배포되기 전의 빌드를 출시하면 안 됩니다.
 struct SupabaseSubscriptionServerClient: SubscriptionServerClient {
-    let supportsTransactionRegistration = false
-    let supportsRestoreRebind = false
+    let supportsTransactionRegistration = true
+    let supportsRestoreRebind = true
 
     func fetchAppAccountToken() async throws -> UUID {
         let response: PostgrestResponse<UUID> = try await supabase
@@ -358,11 +386,31 @@ struct SupabaseSubscriptionServerClient: SubscriptionServerClient {
     }
 
     func registerVerifiedTransaction(jws: String) async throws {
-        throw SubscriptionServerError.transactionRegistrationUnavailable
+        try await syncTransaction(action: "register", jws: jws)
     }
 
     func claimSubscriptionRebind(jws: String) async throws {
-        throw SubscriptionServerError.restoreRebindUnavailable
+        try await syncTransaction(action: "rebind", jws: jws)
+    }
+
+    private struct SyncResponse: Decodable {
+        let result: String
+    }
+
+    private func syncTransaction(action: String, jws: String) async throws {
+        guard let session = try? await supabase.auth.session else {
+            throw SubscriptionFlowError.accountRequired
+        }
+        let options = FunctionInvokeOptions(
+            headers: ["Authorization": "Bearer \(session.accessToken)"],
+            body: ["action": action, "signedTransaction": jws]
+        )
+        do {
+            let _: SyncResponse = try await supabase.functions.invoke("storekit-sync", options: options)
+        } catch let FunctionsError.httpError(code, data) {
+            throw StoreKitSyncErrorMapper.map(status: code, data: data)
+                ?? FunctionsError.httpError(code: code, data: data)
+        }
     }
 }
 
@@ -823,6 +871,10 @@ final class SubscriptionManager: ObservableObject {
             return "이 구독을 현재 계정으로 복원할 수 없습니다. 지원팀에 문의해 주세요."
         case SubscriptionServerError.subscriptionOwnedByAnotherAccount:
             return "이 구독은 다른 Mora 계정에 연결되어 있습니다. 지원팀에 문의해 주세요."
+        case SubscriptionServerError.familySharingNotSupported:
+            return "가족 공유로 받은 구독은 아직 지원하지 않습니다."
+        case SubscriptionServerError.transactionRejected:
+            return "구독 정보를 안전하게 확인할 수 없습니다. 잠시 후 다시 시도해 주세요."
         case SubscriptionFlowError.nothingToRestore:
             return "복원할 수 있는 구독을 찾지 못했습니다."
         case SubscriptionFlowError.appAccountTokenChanged:
