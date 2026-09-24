@@ -19,6 +19,7 @@ struct QuickAddSheet: View {
     @State private var time = ""                 // "" = 시간 미정 (AppTask.time nil 규약)
     @State private var urgency: Urgency = .strong
     @State private var showTimePicker = false
+    @State private var saveFailed = false
     @FocusState private var isNameFocused: Bool
 
     private var trimmedName: String {
@@ -102,6 +103,14 @@ struct QuickAddSheet: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
 
+            // 저장 실패 안내 — 입력은 남아 있으니 다시 누르기만 하면 된다
+            if saveFailed {
+                Text(L.quickAdd.saveFailed)
+                    .font(DesignSystem.Typography.bodyMd)
+                    .foregroundColor(DesignSystem.Colors.primary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
             Spacer(minLength: 0)
 
             // 저장 버튼
@@ -143,10 +152,15 @@ struct QuickAddSheet: View {
 
         let task = AppTask(task: trimmed, time: time.isEmpty ? nil : time,
                            date: date, category: category, urgency: urgency)
-        taskManager.insertBatch(task)
+        // 저장이 확정된 뒤에만 알림·Undo·성공 피드백. 실패하면 시트와 입력을 그대로 둡니다.
+        guard taskManager.insertAndSave(task) else {
+            saveFailed = true
+            Haptic.notification(.error)
+            AccessibilityNotification.Announcement(L.quickAdd.saveFailed).post()
+            return
+        }
         NotificationManager.shared.scheduleNotification(for: task)
         taskManager.setUndoAction(.added([task.id]), message: L.voice.undoAdded(1))
-        taskManager.safeSave()                    // insertBatch는 save하지 않으므로 필수
         Haptic.notification(.success)
         dismiss()
     }

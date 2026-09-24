@@ -18,6 +18,7 @@
 		AC0000030000000000000001 /* SortableTimeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC0000040000000000000001 /* SortableTimeTests.swift */; };
 		AC0000050000000000000001 /* DailyResetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC0000060000000000000001 /* DailyResetTests.swift */; };
 		AC0000070000000000000001 /* LLMFunctionCallDecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC0000080000000000000001 /* LLMFunctionCallDecodingTests.swift */; };
+		EF00000300000000000000A1 /* SaveAndRetryContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF00000400000000000000A1 /* SaveAndRetryContractTests.swift */; };
 		AC0000090000000000000001 /* DeleteByNameBatchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC00000100000000000000001 /* DeleteByNameBatchTests.swift */; };
 		AD1000010000000000000001 /* AccountStoreController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD1000020000000000000001 /* AccountStoreController.swift */; };
 		AD1000030000000000000001 /* AccountSessionCleanup.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD1000040000000000000001 /* AccountSessionCleanup.swift */; };
@@ -38,6 +39,7 @@
 		DD000001000000000000001A /* SubscriptionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD000002000000000000001A /* SubscriptionManager.swift */; };
 		DD000003000000000000001A /* PaywallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD000004000000000000001A /* PaywallView.swift */; };
 		F3A1C1992F7E615B00FC011B /* StoreKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F3A1C1982F7E615B00FC011B /* StoreKit.framework */; };
+		EF00000100000000000000A1 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = EF00000200000000000000A1 /* PrivacyInfo.xcprivacy */; };
 		F3A1C19D2F7E6AB800FC011B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F3A1C19C2F7E6AB800FC011B /* Assets.xcassets */; };
 		F3D9E4B02F74D07100DA9A5A /* AuthManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3D9E4A22F74CF5C00DA9A5A /* AuthManager.swift */; };
 		F3D9E4B12F74D07100DA9A5A /* CloudLLMManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3D9E4A32F74CF5C00DA9A5A /* CloudLLMManager.swift */; };
@@ -118,6 +120,7 @@
 		AC0000040000000000000001 /* SortableTimeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SortableTimeTests.swift; sourceTree = "<group>"; };
 		AC0000060000000000000001 /* DailyResetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyResetTests.swift; sourceTree = "<group>"; };
 		AC0000080000000000000001 /* LLMFunctionCallDecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMFunctionCallDecodingTests.swift; sourceTree = "<group>"; };
+		EF00000400000000000000A1 /* SaveAndRetryContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SaveAndRetryContractTests.swift; sourceTree = "<group>"; };
 		AC00000100000000000000001 /* DeleteByNameBatchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeleteByNameBatchTests.swift; sourceTree = "<group>"; };
 		AD1000020000000000000001 /* AccountStoreController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountStoreController.swift; sourceTree = "<group>"; };
 		AD1000040000000000000001 /* AccountSessionCleanup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountSessionCleanup.swift; sourceTree = "<group>"; };
@@ -130,6 +133,7 @@
 		DD000004000000000000001A /* PaywallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallView.swift; sourceTree = "<group>"; };
 		DD000006000000000000001A /* StoreKitConfig.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = StoreKitConfig.storekit; sourceTree = "<group>"; };
 		F3A1C1982F7E615B00FC011B /* StoreKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = StoreKit.framework; path = System/Library/Frameworks/StoreKit.framework; sourceTree = SDKROOT; };
+		EF00000200000000000000A1 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		F3A1C19C2F7E6AB800FC011B /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		F3D9E4782F74CF5200DA9A5A /* ADHD.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ADHD.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		F3D9E4852F74CF5200DA9A5A /* ADHDTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ADHDTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -220,6 +224,7 @@
 				AC0000060000000000000001 /* DailyResetTests.swift */,
 				AC0000080000000000000001 /* LLMFunctionCallDecodingTests.swift */,
 				AC00000100000000000000001 /* DeleteByNameBatchTests.swift */,
+				EF00000400000000000000A1 /* SaveAndRetryContractTests.swift */,
 				AD1000060000000000000001 /* AccountStoreLayoutTests.swift */,
 				AE2000020000000000000001 /* SubscriptionEntitlementTests.swift */,
 			);
@@ -240,6 +245,7 @@
 			isa = PBXGroup;
 			children = (
 				F3A1C19C2F7E6AB800FC011B /* Assets.xcassets */,
+				EF00000200000000000000A1 /* PrivacyInfo.xcprivacy */,
 				99526AFE2F7A411E000CD3EE /* ADHDWidgetExtension.entitlements */,
 				F3D9E4BE2F74D25900DA9A5A /* ADHD.entitlements */,
 				99526ADD2F7A3EB2000CD3EE /* ADHDWidget */,
@@ -464,6 +470,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				F3A1C19D2F7E6AB800FC011B /* Assets.xcassets in Resources */,
+				EF00000100000000000000A1 /* PrivacyInfo.xcprivacy in Resources */,
 				F3D9E4B22F74D07100DA9A5A /* Config.plist in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -544,6 +551,7 @@
 				AC0000050000000000000001 /* DailyResetTests.swift in Sources */,
 				AC0000070000000000000001 /* LLMFunctionCallDecodingTests.swift in Sources */,
 				AC0000090000000000000001 /* DeleteByNameBatchTests.swift in Sources */,
+				EF00000300000000000000A1 /* SaveAndRetryContractTests.swift in Sources */,
 				AD1000050000000000000001 /* AccountStoreLayoutTests.swift in Sources */,
 				AE2000010000000000000001 /* SubscriptionEntitlementTests.swift in Sources */,
 			);

@@ -477,6 +477,11 @@ struct QuickAddStrings {
 
     var title: String { t("Quick Add", "빠른 추가", "クイック追加") }
     var save: String { t("Add", "추가", "追加") }
+    var saveFailed: String {
+        t("Couldn't save. Please tap Add again in a moment.",
+          "저장하지 못했어요. 잠시 후 다시 눌러 주세요.",
+          "保存できませんでした。少し待ってからもう一度押してください。")
+    }
 }
 
 struct PaywallStrings {

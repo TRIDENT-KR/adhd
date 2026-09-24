@@ -538,9 +538,10 @@ class TaskManager: ObservableObject {
     /// 위젯 스냅샷 디바운스용 워크아이템
     private var widgetDebounceWork: DispatchWorkItem?
 
-    /// do-catch 기반 안전한 저장
-    func safeSave() {
-        guard let context = modelContext else { return }
+    /// do-catch 기반 안전한 저장. 저장까지 끝났을 때만 true.
+    @discardableResult
+    func safeSave() -> Bool {
+        guard let context = modelContext else { return false }
         do {
             try context.save()
             // 데이터 변경 시 위젯 동기화 (디바운스: 0.5초 내 중복 호출 병합)
@@ -550,9 +551,27 @@ class TaskManager: ObservableObject {
             }
             widgetDebounceWork = work
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: work)
+            return true
         } catch {
             print("task_store_save_failed")
+            return false
         }
+    }
+
+    /// 한 건을 넣고 바로 저장합니다. 저장에 실패하면 넣었던 것을 되돌리고 false.
+    /// 호출부는 true일 때만 알림·Undo·성공 피드백을 진행해야 합니다.
+    func insertAndSave(_ task: AppTask) -> Bool {
+        guard let context = modelContext else {
+            print("task_store_context_missing")
+            return false
+        }
+        context.insert(task)
+        guard safeSave() else {
+            // 저장되지 않은 insert를 남겨두면 이후 다른 저장에 알림 없이 섞여 들어갑니다.
+            context.delete(task)
+            return false
+        }
+        return true
     }
 
     func taskCount(completedOnly: Bool? = nil) -> Int {
