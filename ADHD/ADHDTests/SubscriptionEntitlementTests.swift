@@ -251,3 +251,29 @@ struct SubscriptionEntitlementTests {
         ISO8601DateFormatter().date(from: value)!
     }
 }
+
+// MARK: - storekit-sync 오류 응답 매핑 (QA-003)
+struct StoreKitSyncErrorMapperTests {
+    private func body(_ code: String) -> Data {
+        Data(#"{"error":{"code":"\#(code)"}}"#.utf8)
+    }
+
+    @Test func ownershipConflictsBecomeAccountErrors() {
+        #expect(StoreKitSyncErrorMapper.map(status: 409, data: body("subscription_owned_by_another_account"))
+            == .subscriptionOwnedByAnotherAccount)
+        #expect(StoreKitSyncErrorMapper.map(status: 409, data: body("rebind_not_eligible"))
+            == .restoreRebindUnavailable)
+    }
+
+    @Test func verificationFailuresAreNotRetriedAsOutages() {
+        #expect(StoreKitSyncErrorMapper.map(status: 422, data: body("family_sharing_not_supported"))
+            == .familySharingNotSupported)
+        #expect(StoreKitSyncErrorMapper.map(status: 422, data: body("transaction_signature_invalid"))
+            == .transactionRejected)
+    }
+
+    @Test func outagesAndUnknownBodiesStayGeneric() {
+        #expect(StoreKitSyncErrorMapper.map(status: 503, data: body("subscription_backend_unavailable")) == nil)
+        #expect(StoreKitSyncErrorMapper.map(status: 502, data: Data("<html>".utf8)) == nil)
+    }
+}
