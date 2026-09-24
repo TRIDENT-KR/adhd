@@ -81,25 +81,20 @@ class CloudLLMManager: ObservableObject {
         // 한 번의 사용자 분석 탭에 하나만 만들고, 네트워크 재시도에는 같은 ID를 사용합니다.
         // 서버 원장이 이 ID로 중복 차감과 서로 다른 입력 재사용을 차단합니다.
         let logicalRequestID = UUID()
+        // 서버는 requestId와 함께 입력 전체(시간·언어 포함)를 hash로 묶습니다.
+        // 재시도 중 분이 바뀌거나 언어가 바뀌어도 같은 요청으로 인정받도록 payload를 한 번만 만듭니다.
+        let currentLanguage = await MainActor.run { LocalizationManager.shared.currentLanguage.rawValue }
+        let payload = Self.makeAnalyzePayload(
+            requestID: logicalRequestID,
+            text: text,
+            now: Date(),
+            language: currentLanguage
+        )
 
         var lastError: Error?
         for attempt in 0..<maxRetries {
             try Task.checkCancellation()
             do {
-                // Main-actor-isolated 값을 task group 밖에서 캡처
-                let formatter = DateFormatter()
-                formatter.dateFormat = "yyyy-MM-dd HH:mm"
-                formatter.locale = Locale(identifier: "ko_KR")
-                let currentTimeString = formatter.string(from: Date())
-                let currentLanguage = await MainActor.run { LocalizationManager.shared.currentLanguage.rawValue }
-
-                let payload: [String: String] = [
-                    "requestId": logicalRequestID.uuidString.lowercased(),
-                    "text": text,
-                    "currentTime": currentTimeString,
-                    "language": currentLanguage
-                ]
-
                 let response = try await withThrowingTaskGroup(of: AnalyzeTaskResponse.self) { group in
                     // API 호출 태스크
                     group.addTask {
@@ -158,6 +153,19 @@ class CloudLLMManager: ObservableObject {
 
         print("ai_request_failed attempts=\(maxRetries)")
         throw mappedError(lastError ?? CloudLLMError.serverUnavailable)
+    }
+
+    /// 논리 요청 하나에 대응하는 analyze-task 입력. 재시도 동안 절대 다시 만들지 않습니다.
+    static func makeAnalyzePayload(requestID: UUID, text: String, now: Date, language: String) -> [String: String] {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd HH:mm"
+        formatter.locale = Locale(identifier: "ko_KR")
+        return [
+            "requestId": requestID.uuidString.lowercased(),
+            "text": text,
+            "currentTime": formatter.string(from: now),
+            "language": language
+        ]
     }
 
     private func shouldRetry(_ error: Error) -> Bool {
