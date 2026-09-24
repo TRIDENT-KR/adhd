@@ -148,6 +148,8 @@ def run():
         p = cluster.psql(script.read_text())
         if p.returncode:
             raise RuntimeError(f"{script.name}: {p.stderr.strip()}")
+    rerun = [cluster.psql(script.read_text()) for script in MIGRATIONS]
+    check("migration을 두 번 적용해도 오류가 없다", all(p.returncode == 0 for p in rerun))
 
     # 1. 권한 경계
     a, a_token = new_account()
