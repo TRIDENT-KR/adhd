@@ -23,11 +23,12 @@ const SAFE_PATHS = new Set([
   "traceId",
   "requestId",
   "logicalRequestId",
-  "notificationUUID",
   "startedAt",
   "name", // delete-account rpc()의 RPC 함수 이름
-  "action",
-  "reason",
+  "action", // storekit-sync: "register" | "rebind"로 검증된 값
+  "notificationType", // Apple 알림 종류: ^[A-Z_]{1,64}$로 검증된 값
+  "subtype",
+  "result", // DB가 돌려주는 처리 결과 코드
   "outputCount",
   "Math.round",
   "performance.now",
