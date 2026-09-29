@@ -133,7 +133,7 @@ struct PaywallView: View {
                     PlanCard(
                         product: product,
                         isSelected: selectedProductID == product.id,
-                        isBestValue: product.id == SubscriptionProductID.yearly.rawValue
+                        badgeText: product.id == SubscriptionProductID.yearly.rawValue ? yearlyBadgeText : nil
                     ) {
                         selectedProductID = product.id
                         Haptic.impact(.light)
@@ -242,13 +242,27 @@ struct PaywallView: View {
         return "\(L.paywall.startSubscription) · \(product.displayPrice)"
     }
 
+    /// 연간 플랜 배지. 월간 대비 절약률을 실제 스토어 가격으로 계산하고,
+    /// 두 상품이 모두 로드되지 않았거나 절약이 없으면 "BEST VALUE"로 폴백.
+    private var yearlyBadgeText: String {
+        let products = subscriptionManager.products
+        guard let monthly = products.first(where: { $0.id == SubscriptionProductID.monthly.rawValue }),
+              let yearly = products.first(where: { $0.id == SubscriptionProductID.yearly.rawValue }) else {
+            return L.paywall.bestValue
+        }
+        let monthlyForYear = monthly.price * 12
+        guard monthlyForYear > 0, yearly.price < monthlyForYear else { return L.paywall.bestValue }
+        let ratio = (monthlyForYear - yearly.price) / monthlyForYear
+        let percent = Int((NSDecimalNumber(decimal: ratio).doubleValue * 100).rounded())
+        return percent > 0 ? L.paywall.savePercent(percent) : L.paywall.bestValue
+    }
+
+    /// 페이월에는 실제로 Pro 전용인 혜택(AI 입력 무제한)만 표시한다.
+    /// 알람·위젯은 무료 플랜에서도 제공되므로 여기서 광고하지 않는다.
     private var paywallFeatures: [PaywallFeature] {
         [
-            PaywallFeature(icon: "waveform",        color: DesignSystem.Colors.primary,          title: L.paywall.featureVoiceTitle,   description: L.paywall.featureVoiceDesc),
-            PaywallFeature(icon: "sparkles",        color: DesignSystem.Colors.primary,          title: L.paywall.featureAITitle,      description: L.paywall.featureAIDesc),
-            PaywallFeature(icon: "alarm",           color: DesignSystem.Colors.tertiary,         title: L.paywall.featureAlarmsTitle,  description: L.paywall.featureAlarmsDesc),
-            PaywallFeature(icon: "apps.iphone",     color: DesignSystem.Colors.tertiary,         title: L.paywall.featureWidgetsTitle, description: L.paywall.featureWidgetsDesc),
-            PaywallFeature(icon: "arrow.clockwise", color: DesignSystem.Colors.onSurfaceVariant, title: L.paywall.featureSyncTitle,    description: L.paywall.featureSyncDesc),
+            PaywallFeature(icon: "waveform", color: DesignSystem.Colors.primary, title: L.paywall.featureVoiceTitle, description: L.paywall.featureVoiceDesc),
+            PaywallFeature(icon: "sparkles", color: DesignSystem.Colors.primary, title: L.paywall.featureAITitle,    description: L.paywall.featureAIDesc),
         ]
     }
 }
@@ -257,7 +271,8 @@ struct PaywallView: View {
 private struct PlanCard: View {
     let product: Product
     let isSelected: Bool
-    let isBestValue: Bool
+    /// 카드 우측 상단 배지 문구. nil이면 배지를 그리지 않는다.
+    let badgeText: String?
     let action: () -> Void
 
     var body: some View {
@@ -282,8 +297,8 @@ private struct PlanCard: View {
                         Text(product.displayName.isEmpty ? planName : product.displayName)
                             .font(.system(size: 15, weight: .semibold))
                             .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
-                        if isBestValue {
-                            Text(L.paywall.bestValue)
+                        if let badgeText {
+                            Text(badgeText)
                                 .font(.system(size: 10, weight: .bold))
                                 .foregroundColor(.white)
                                 .padding(.horizontal, 7)
@@ -329,9 +344,14 @@ private struct PlanCard: View {
 
     private var priceSubtitle: String {
         switch product.id {
-        case SubscriptionProductID.monthly.rawValue: return L.paywall.billedMonthly
-        case SubscriptionProductID.yearly.rawValue:  return L.paywall.billedYearly
-        default: return ""
+        case SubscriptionProductID.monthly.rawValue:
+            return L.paywall.billedMonthly
+        case SubscriptionProductID.yearly.rawValue:
+            // 스토어프론트 통화 그대로 월 환산 (예: $35.99/년 → $3.00/월, ₩49,000/년 → ₩4,083/월)
+            let perMonth = (product.price / 12).formatted(product.priceFormatStyle)
+            return L.paywall.billedYearly(perMonth: perMonth)
+        default:
+            return ""
         }
     }
 }

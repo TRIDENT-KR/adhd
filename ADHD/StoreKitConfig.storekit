@@ -74,12 +74,12 @@
           "introductoryOffer" : null,
           "localizations" : [
             {
-              "description" : "Unlock all AI features: unlimited voice input, smart analysis, widgets, and more.",
+              "description" : "Unlimited AI voice & text input with smart task sorting. No daily limit.",
               "displayName" : "Monthly",
               "locale" : "en_US"
             },
             {
-              "description" : "모든 AI 기능을 잠금 해제하세요: 무제한 음성 입력, 스마트 분석, 위젯 등.",
+              "description" : "AI 음성·텍스트 입력 무제한, 스마트 분류. 하루 횟수 제한 없음.",
               "displayName" : "월간",
               "locale" : "ko_KR"
             }
@@ -107,12 +107,12 @@
           "introductoryOffer" : null,
           "localizations" : [
             {
-              "description" : "Unlock all AI features: unlimited voice input, smart analysis, widgets, and more. Save 40% vs monthly.",
+              "description" : "Unlimited AI voice & text input with smart task sorting. No daily limit. Best value.",
               "displayName" : "Yearly",
               "locale" : "en_US"
             },
             {
-              "description" : "모든 AI 기능을 잠금 해제하세요. 월간 대비 40% 절약.",
+              "description" : "AI 음성·텍스트 입력 무제한, 스마트 분류. 하루 횟수 제한 없음. 연간 최고 가성비.",
               "displayName" : "연간",
               "locale" : "ko_KR"
             }

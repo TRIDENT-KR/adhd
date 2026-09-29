@@ -343,13 +343,15 @@ struct PaywallStrings {
     }
 
     var title: String { t("Mora Pro", "Mora Pro", "Mora Pro") }
-    var subtitle: String { t("Unlimited AI voice input\nand all premium features.", "AI 음성 입력 무제한\n그리고 모든 프리미엄 기능.", "AI音声入力を無制限に\nすべてのプレミアム機能を。") }
+    var subtitle: String { t("Unlimited AI voice & text input.\nNo daily limit.", "AI 음성·텍스트 입력 무제한.\n하루 횟수 제한 없이.", "AI音声・テキスト入力が無制限。\n1日の回数制限なし。") }
     var choosePlan: String { t("CHOOSE YOUR PLAN", "플랜 선택", "プランを選択") }
     var planMonthly: String { t("Monthly", "월간", "月額") }
     var planYearly: String { t("Yearly", "연간", "年額") }
     var billedMonthly: String { t("Billed monthly", "매월 청구", "毎月請求") }
-    var billedYearly: String { t("Billed annually · $3.00/mo", "연 1회 청구 · 월 $3.00", "年1回請求 · 月$3.00") }
-    var bestValue: String { t("SAVE 40%", "40% 절약", "40%お得") }
+    /// perMonth: 스토어 통화로 포맷된 월 환산 가격 (예: "$3.00", "₩4,083")
+    func billedYearly(perMonth: String) -> String { t("Billed annually · \(perMonth)/mo", "연 1회 청구 · 월 \(perMonth)", "年1回請求 · 月\(perMonth)") }
+    var bestValue: String { t("BEST VALUE", "최고 가성비", "ベストバリュー") }
+    func savePercent(_ percent: Int) -> String { t("SAVE \(percent)%", "\(percent)% 절약", "\(percent)%お得") }
     var subscribe: String { t("Subscribe", "구독하기", "登録する") }
     var startSubscription: String { t("Start Pro", "Pro 시작하기", "Proを開始") }
     var purchaseErrorTitle: String { t("Purchase Error", "구매 오류", "購入エラー") }
@@ -367,12 +369,6 @@ struct PaywallStrings {
     var featureVoiceDesc: String { t("Free users get 3 AI inputs per day. Pro removes the limit entirely.", "무료는 하루 3회, Pro는 제한 없이 음성·텍스트 AI를 사용할 수 있어요.", "無料は1日3回、Proなら回数制限なしで音声・テキストAIを使えます。") }
     var featureAITitle: String { t("Smart task sorting", "AI 자동 분류", "AIが自動で分類") }
     var featureAIDesc: String { t("AI tells apart routines, tasks, and appointments automatically.", "루틴인지, 할 일인지, 일정인지 AI가 알아서 구분해요.", "ルーティンか、タスクか、予定か、AIが自動で判断します。") }
-    var featureAlarmsTitle: String { t("Full-screen alarms", "전체 화면 알람", "フルスクリーンアラーム") }
-    var featureAlarmsDesc: String { t("Can't-miss alarms that fill the whole screen.", "화면 가득 뜨는 알람으로 절대 놓치지 않아요.", "画面いっぱいのアラームで絶対に見逃しません。") }
-    var featureWidgetsTitle: String { t("Home screen widgets", "홈 화면 위젯", "ホーム画面ウィジェット") }
-    var featureWidgetsDesc: String { t("See today's tasks and routines without opening the app.", "앱을 열지 않아도 오늘 할 일과 루틴을 바로 확인하세요.", "アプリを開かなくても今日のタスクとルーティンを確認。") }
-    var featureSyncTitle: String { t("Cloud backup", "클라우드 백업", "クラウドバックアップ") }
-    var featureSyncDesc: String { t("Your data stays safe across devices. (Coming soon)", "기기를 바꿔도 데이터가 안전하게 유지돼요. (출시 예정)", "機種変更してもデータは安全に保管されます。(近日公開)") }
 
     var subscriptionSection: String { t("Subscription", "구독", "サブスクリプション") }
     var premiumActive: String { t("Pro · Active", "Pro · 활성", "Pro · 有効") }
