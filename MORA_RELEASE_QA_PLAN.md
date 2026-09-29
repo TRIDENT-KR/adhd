@@ -1,30 +1,24 @@
 # MORA 출시 전 최종 QA 실행 계획
 
-상태 갱신: **2026-09-29 App Store 재감사에서 추가 결함 확인. 전체 출시는 BLOCKED.** 이전 통합·배포·Gemini smoke 완료는 아래 범위의 이력이며 전체 심사 준비 완료가 아니다.
+상태 갱신: **2026-09-29 추가 결함 구현·서버 반영 완료. 전체 출시는 외부 조건으로 BLOCKED.** 최신 앱1.0(4), 서버 backend86117cd. [준비 결과](MORA_RELEASE_READINESS.md)와 [재감사 조치표](MORA_APP_STORE_REVIEW_AUDIT.md)를 우선한다.
 
-[심사 재감사](MORA_APP_STORE_REVIEW_AUDIT.md)의 AR-01~11을 선행 작업으로 추가한다. 특히 삭제 재인증/로컬 삭제 실패 후 재실행, 구독 유예 후 앱 재등록, 환불 후 구 JWS/역순 알림, 무료 위젯의 업셀, 구독 미인식 상태의 관리 링크, Time Sensitive capability를 수정하고 재검증한다. 기존 테스트 통과 개수로 이 순서 검증을 대신하지 않는다. 본 계획의 두 물리 기기·48시간 TestFlight는 팀 품질 기준이며 Apple의 일률적 필수 요건은 아니다.
+- 삭제 재인증/영구 로컬 정리, 유예·환불·알림 순서·구매 소유권, 위젯 직접 업셀, 항상 구독 관리, Time Sensitive, 게스트 저장소·명시 복사, 계정 전환 인증 토큰을 수정했다.
+- Swift111/Deno60/격리DB68 통과. 전체 함수 다운로드 소스 일치. analyze-task v22 / delete-account v3 / storekit-sync v2 / app-store-notifications v2, migration4개.
+- 단일 시뮬레이터에서 실제 게스트 수동 추가·완료·재시작 보존·로그인 취소·관리 링크·일본어 설정/라이선스·빈 플래너 수동 진입 확인.
+- Apple secret/계약/상품/서명/실제 거래·기기, 대상 연령·Google 유료 조건, 공개 정책·ASC·TestFlight는 미완료. 두 기기/48시간은 팀 기준이지 Apple 일률적 필수 규정이 아니다.
+- 원래 checkout의 Luna 하네스·prompt 작업은 보존. 모델 의미평가와 앱 QA를 분리한다. 본문 §7~8의 구 결과는 이력이다.
 
-최신 결과·사람에게 필요한 조치는 [출시 준비 보고서](MORA_RELEASE_READINESS.md)를 우선한다. 아래 §7은 변경 전 main `49add4d`의 야간 검사 이력이며 당시의 읽기 전용/배포 금지 범위는 보존 기록이다. 이후 사용자의 구현·출시 준비 위임에 따라 §8을 실행했다. §4~5의 전체 출시 gate는 유지한다.
-
-- 기준 main: `49add4d065f40cb1a0be186987e9ff89cdb45c05`. 통합 브랜치: `codex/release-readiness-20260929`.
-- 팀원 PR #57은 Draft·충돌 상태로 보존. `f175ca8` 페이월/`dc0029c` Gemini에서 필요한 변경을 main의 서버 quota·구매·계정 보호와 통합했다. Pro 알람·위젯 혜택은 유지한다.
-- 원래 checkout의 Luna 하네스·프롬프트 미커밋 변경은 보존했다. 별도 관리 worktree에서 작업했다.
-- 배포: analyze-task v22, delete-account v3, storekit-sync v1, app-store-notifications v1. 네 함수의 실제 다운로드 소스/상대 import hash와 gateway 설정 일치. 3개 migration 적용.
-- 실제 Gemini 분석 3회, 동일 요청 replay 무차감, 네 번째 무료 요청 서버 차단 확인. 이는 서버 합성 smoke이며 앱 Apple 로그인 E2E나 LLM 평가 점수는 아니다.
-- 자동 회귀: Swift 95, Deno 53, 격리 HTTP 12, StoreKit/보존 DB 36 통과. 기존 SHA의 결과는 이월하지 않는다.
-- APPLE_CLIENT_SECRET, 실제 Apple 삭제/구매/복원/알람, 대상 연령·Google 요금제, 정책 게시·ASC·TestFlight 완료는 남아 있다.
-
-| Gate | 현재 상태 | 근거 / 남은 범위 |
+| Gate | 현재 상태 | 남은 범위 |
 |---|---|---|
-| 0 연결·준비 | 부분 완료 / BLOCKED | 서버 소스·migration·Gemini 연결 확인. Apple 삭제 secret·ASC 설정 필요 |
-| 1 자동 검증·빌드 | 기존 시험 PASS / 신규 결함 OPEN | Swift95/Deno53/HTTP12/DB36. 재감사의 실패 순서 회귀 추가 후 새 RC 필요 |
-| 2 핵심 앱 흐름 | 부분 실행 | 서버 실제 quota/replay PASS. Apple 로그인 뒤 앱 E2E 필요 |
-| 3 일정·알람·위젯 | 실기기 BLOCKED | 날짜/계정 회귀는 통과, 실제 수신·위젯 전환 필요 |
-| 4 결제·삭제·운영 | 코드 결함 / BLOCKED | 삭제 복구·구독 상태 역전 수정 선행. 실제 Apple 거래/삭제·cron 실행 관측 필요 |
-| 5 UI·접근성·성능 | 표본 PASS / 부분 실행 | 명시 AI 동의·권한 거부 복구·가격·큰 글자 수정 확인. 전체 12조합/성능/실기기 미완료 |
-| 6 TestFlight 48시간 | NOT_RUN | 선행 필수 gate 완료 뒤 시작 |
+| 0 연결·준비 | 부분 완료 / BLOCKED | 서버 배포검증 완료. Apple/Google 계정과 연령·지역 결정 |
+| 1 자동 검증·빌드 | 자동 회귀 PASS | 새 Release archive/배포 서명 결과는 준비 보고서 참조 |
+| 2 핵심 앱 흐름 | 게스트 표본 PASS | 실제 Apple 로그인·AI 저장·두 계정 전환·음성 |
+| 3 일정·알람·위젯 | 부분 완료 | 날짜/격리 회귀와 수동 저장 통과. 실제 전달·잠금·위젯 |
+| 4 결제·삭제·운영 | 코드/DB 회귀 PASS, E2E BLOCKED | 실제 Sandbox·revoke·운영 cron 관측 |
+| 5 UI·접근성·성능 | 표본 PASS | 전체 언어·외관·글자 조합, 실기기 VoiceOver·성능 |
+| 6 TestFlight48h | NOT_RUN | 필수 선행 조건 및 같은RC 업로드 |
 
-과거 결과: [변경 전 야간 QA](outputs/release-qa/20260929-49add4d/release-decision.md). 새 증거: `outputs/release-readiness/20260929-integration/`.
+최신 증거: `outputs/release-readiness/20260929-final-implementation/`. main 자동 병합 금지에 따라 앱PR65와 웹PR1을 인수한다.
 
 ## 1. 역할과 범위
 
@@ -91,9 +85,9 @@ RC마다 Git SHA, dirty diff 여부, 앱 버전/build, Xcode, OS·기기, 배포
 
 | ID | 시나리오 | 통과 조건 |
 |---|---|---|
-| AUTH-01 | 신규 설치 → Apple 로그인 → 온보딩 완료/스킵 | 올바른 화면 진입, 가이드 자동 중복 노출 없음 |
+| AUTH-01 | 신규 설치 → 게스트 온보딩/수동 추가 → 선택적 Apple 로그인 | 로그인 없이 기본 사용, 명시 복사 전 계정 데이터와 분리, 가이드 중복 없음 |
 | AUTH-02 | A 일정·초안·Undo·알림 생성 → 로그아웃 → B 로그인 → A 재로그인 | B에 A 데이터 노출 없음, A 일정 보존, 오래된 알림/위젯 액션 차단 |
-| AUTH-03 | 앱 재시작, 세션 만료/취소, 비행기 모드 | 유효 세션만 로컬 접근 허용, 무효 세션 잠금, 데이터 자동 삭제 없음 |
+| AUTH-03 | 앱 재시작, 세션 만료/취소, 비행기 모드 | 유효 계정 세션에만 해당 계정 접근, 무효 세션은 별도 게스트와 재로그인 안내, 데이터 자동 삭제 없음 |
 | VOICE-01 | 마이크/음성 인식 각각 허용·거부·설정 변경 | 동작 가능한 복구 안내, crash/무한 대기 없음 |
 | VOICE-02 | 녹음 → 종료 → 초안 수정 → 명시적 분석 | 분석 전 API/차감 없음, 수정된 문장 제출, 중복 탭 중복 실행 없음 |
 | VOICE-03 | 녹음 중 background/화면 잠금/오디오 인터럽트 | 마이크·오디오 세션 정리, 초안·UI 상태 일관, 타 앱 소리 정상 복구 |
@@ -119,7 +113,7 @@ RC마다 Git SHA, dirty diff 여부, 앱 버전/build, Xcode, OS·기기, 배포
 | ALARM-02 | 권한 거부·철회, 집중 모드·무음·잠금 | OS가 허용하는 동작과 앱 안내 일치. 권한/OS 제한을 무시한 전달 보장을 하지 않음 |
 | ALARM-03 | 완료·삭제·시간 수정·Undo·로그아웃 | 이전 알람 취소, 새 알람 중복 없음, 고아 알림 미노출 |
 | ALARM-04 | Done·5분 Snooze·팔로업, 반복 다음 회차 | 완료 relay 1회 적용, 후속 알람 정리/재예약 정확 |
-| WIDGET-01 | 6종 위젯, Free 잠금 → paywall, Pro 데이터·토글 | 요금제와 계정 범위 일치, 올바른 딥링크 |
+| WIDGET-01 | 6종 위젯, Free 중립 안내 → 루틴, Pro 데이터·토글 | 요금제와 계정 범위 일치, 올바른 딥링크 |
 | WIDGET-02 | A→B 전환, 구독 만료, 오래된 widget timeline/action | 이전 계정 내용/권한 잔존 없음. OS 갱신 지연과 데이터 노출을 구분 |
 | UPGRADE-01 | 데이터 있는 이전 QA build → RC 업데이트 | 일정·반복·계정 상태 보존. 초기 테스트 DB cutover는 명세대로 1회만 |
 
@@ -173,7 +167,7 @@ App Store 제출 준비는 별도 체크: 실제 build의 권한 설명·개인�
 
 ## 6. 다음 실행 기준
 
-통합 PR 검토·merge → 미완료 Apple/Google/ASC 설정·정책 게시 → 지정 계정·실기기 E2E → 별도 Luna LLM 평가 → 동일 RC TestFlight 48시간 → App Store 제출 순서다. 서버는 통합 backend `9423851`에서 이미 배포했다. main은 merge 전 구 모델을 포함하므로 그대로 재배포하지 않는다.
+통합 PR 검토·merge → 미완료 Apple/Google/ASC 설정·정책 게시 → 지정 계정·실기기 E2E → 별도 Luna LLM 평가 → 동일 RC TestFlight 48시간 → App Store 제출 순서다. 서버는 초기 통합 backend `9423851` 이후 `86117cd`의 StoreKit 보완과 네 번째 migration까지 배포했다. main은 merge 전 구 모델을 포함하므로 그대로 재배포하지 않는다.
 
 ## 7. 2026-09-29 야간 자율 QA 실행안
 
@@ -263,3 +257,14 @@ App Store 제출 준비는 별도 체크: 실제 build의 권한 설명·개인�
 ## 9. 추가 음성 QA
 
 앱 코드 `26a7ac6`에서 빈 전사→키보드 전환, 오류 재시도 때 음성 화면 복귀, Hold 모드 접근성 실행을 보완했다. Swift95건과 Release 앱·위젯 archive 재검증을 완료했다. 최종 실시간 UI 조작은 Computer Use 캡처 오류로, 실제 음성 전사는 합성 오디오 주입 경로 미지원으로 미완료다. VOICE-01~03과 실제 VoiceOver·문장 끝 날짜/시간 보존은 실기기 gate에 유지한다. 증거: `outputs/release-readiness/20260929-voice-followup/`.
+
+## 9. 이번 구현의 필수 추가 회귀
+
+- GUEST-01: 게스트 일정/설정 저장→앱 종료→보존, 로그인→명시 복사 확인→복사2회 중복 없음→게스트 원본 보존→다른계정 격리.
+- AUTH-04: A 요청 중 로그아웃/B로그인/A재로그인, 늦은 provider 이벤트·HTTP 응답이 현재계정을 바꾸거나 과거결과를 적용하지 않음.
+- DELETE-04: 상태조회409 재인증→재실행→재인증, 서버완료 뒤 로컬삭제/Keychain 오류→재실행 복구→완료 안내.
+- IAP-06: 과거만료/미래유예 알림→앱재등록·복원, 환불→옛JWS·역순알림·동일시각, 명시환불철회·새구매, 새계정 알림선착→이전계정 Pro 미부여.
+- PRIVACY-01: 탈퇴원장30일/최대400일·후속알림 기한불변·실제행정리, 게스트/계정/다른기기 삭제범위와 정책 일치.
+- UI-06: 게스트 빈화면 직접추가, 무료/오류상태 구독관리, Pro유효확인시에만결제완료닫기, 각언어 오류/OSS/알람목적 설명.
+
+자동회귀는 위의 데이터·상태 규칙을 검사한다. 실제 Apple 서명/인증·기기 알림 전달은 별도 수동 결과가 필요하다.
