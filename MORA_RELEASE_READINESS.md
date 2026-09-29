@@ -2,6 +2,8 @@
 
 **판정: 구현·배포 수정 완료, App Store 제출은 BLOCKED.** 테스트하지 않은 실제 Apple 거래·삭제·실기기 알람을 통과로 간주하지 않는다. Apple 심사 승인을 보장하는 문서가 아니다.
 
+통합 PR: [adhd #65](https://github.com/TRIDENT-KR/adhd/pull/65). 정책 PR: [waitwhat-site #1](https://github.com/TRIDENT-KR/waitwhat-site/pull/1) (Draft).
+
 ## 통합 범위
 
 - main `49add4d` 기반 `codex/release-readiness-20260929`. backend `9423851`, iOS `4959a7b` + 동의 검사 액터 보완 `ff833b4`, 배포 검증 도구 `93308e8`.
@@ -45,7 +47,7 @@ GEMINI_MODEL=gemini-3.5-flash-lite, APPLE_CLIENT_ID/APPLE_BUNDLE_ID, DELETION_ST
 | 실제 Gemini 서버 smoke | PASS | 지정한 임시 staging Auth 계정·합성 문장만 사용 |
 | 전체 출시 33개 case | 미완료 | 부분 근거가 전체 시나리오 통과를 의미하지 않음 |
 
-최신 UI 배치와 동의 검사 액터 보완까지 포함한 최종 회귀를 실행한다. 결과 확정 전 이전 95건을 최종 SHA 결과로 이월하지 않는다.
+최신 UI 배치와 동의 검사 액터 보완까지 포함한 `ff833b4` 소스로 Swift 95건을 다시 실행해 모두 통과했다. 최종 결과는 `shipping-tests.xcresult`/`swift-test-summary.json`에 있다.
 
 Release는 개발 서명으로 생성됐으며 App Store export를 실제 시도했으나 앱·위젯 배포 프로파일이 없어 실패했다. 기존 Apple Distribution 인증서도 없다. Apple 계정 소유자가 배포 인증서/두 App Store provisioning profile을 준비하거나 Xcode Organizer에서 권한 있는 계정으로 자동 서명을 설정해야 한다. 인증서 생성·약관 수락·업로드를 대신하지 않았다.
 
@@ -83,4 +85,4 @@ Release에 기존 경고 8개(Swift 6 전환 관련 actor 7, UIScreen deprecated
 - 후속 배포는 이 통합 코드의 migration 적용 상태를 확인한 뒤 함수를 각각 `supabase functions deploy <name> --no-verify-jwt --use-api --project-ref nmjtswtqwwxxwiolgsnk`로 수행하고 다운로드 검증한다.
 - 장애 시 알려진 정상 backend `9423851`의 함수 소스로 복구하고 소스 검증/합성 smoke를 수행한다. v20이나 구 main/2.0으로 되돌리지 않는다. migration을 역방향 삭제하거나 원장을 지우지 않는다. 모델을 바꿀 경우 실제 존재·호환·하네스 평가를 먼저 확인한다.
 
-로컬 증거 폴더: `outputs/release-readiness/20260929-integration/` (원래 checkout). 주요 파일은 `deployed-source-verification.json`, `live-staging-smoke.json`, `swift-test-summary.json`, `release-tests.xcresult`, `deno-tests.log`, `http-tests.log`, `db-tests-final.log`, `release-preflight.log`, 최종 UI PNG, archive/export 기록이다. 기존 main 야간 로그는 `outputs/release-qa/20260929-49add4d/`에 별도 보존했다.
+로컬 증거 폴더: `outputs/release-readiness/20260929-integration/` (원래 checkout). 주요 파일은 `deployed-source-verification.json`, `live-staging-smoke.json`, `swift-test-summary.json`, `shipping-tests.xcresult`, `deno-tests.log`, `http-tests.log`, `db-tests-final.log`, `release-preflight.log`, 최종 UI PNG, archive/export 기록이다. 기존 main 야간 로그는 `outputs/release-qa/20260929-49add4d/`에 별도 보존했다.
