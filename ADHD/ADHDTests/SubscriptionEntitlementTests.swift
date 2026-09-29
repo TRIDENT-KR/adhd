@@ -292,3 +292,54 @@ struct SubscriptionPricingTests {
         #expect(SubscriptionPricing.annualSavingsPercent(monthly: 5, yearly: 36, monthlyCurrency: "USD", yearlyCurrency: "KRW") == nil)
     }
 }
+
+
+// A suspended StoreKit/server operation must never follow a later account session.
+struct SubscriptionOperationScopeTests {
+    @Test func guestRejectsAStaleAuthenticatedSession() {
+        var scope = SubscriptionOperationScope()
+        let userID = UUID()
+        scope.activate(userID)
+        scope.deactivate()
+        #expect(scope.capture(sessionUserID: userID, accessToken: "synthetic-old-token") == nil)
+    }
+
+    @Test func accountSwitchInvalidatesAnInflightOperation() throws {
+        var scope = SubscriptionOperationScope()
+        let firstUser = UUID()
+        let secondUser = UUID()
+        scope.activate(firstUser)
+        let operation = try #require(scope.capture(sessionUserID: firstUser, accessToken: "synthetic-a"))
+        // The provider session can change before its auth event is consumed.
+        #expect(!scope.accepts(operation, sessionUserID: secondUser))
+        scope.activate(secondUser)
+        #expect(!scope.accepts(operation, sessionUserID: secondUser))
+        #expect(operation.userID == firstUser)
+        #expect(operation.accessToken == "synthetic-a")
+    }
+
+    @Test func returningToSameAccountDoesNotReviveAnOldOperation() throws {
+        var scope = SubscriptionOperationScope()
+        let userID = UUID()
+        scope.activate(userID)
+        let oldOperation = try #require(scope.capture(sessionUserID: userID, accessToken: "synthetic-before-logout"))
+        scope.deactivate()
+        scope.activate(userID)
+        #expect(!scope.accepts(oldOperation, sessionUserID: userID))
+        let newOperation = try #require(scope.capture(sessionUserID: userID, accessToken: "synthetic-after-login"))
+        #expect(scope.accepts(newOperation, sessionUserID: userID))
+    }
+
+    @Test func sameAccountRefreshKeepsTheRequestTokenPinned() throws {
+        var scope = SubscriptionOperationScope()
+        let userID = UUID()
+        scope.activate(userID)
+        let operation = try #require(scope.capture(sessionUserID: userID, accessToken: "synthetic-first-token"))
+        scope.activate(userID)
+        let refreshed = try #require(scope.capture(sessionUserID: userID, accessToken: "synthetic-refreshed-token"))
+        #expect(scope.accepts(operation, sessionUserID: userID))
+        #expect(operation.accessToken == "synthetic-first-token")
+        #expect(refreshed.accessToken == "synthetic-refreshed-token")
+        #expect(!scope.accepts(operation, sessionUserID: nil))
+    }
+}

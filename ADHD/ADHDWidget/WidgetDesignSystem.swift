@@ -191,19 +191,19 @@ struct WidgetL {
         }
     }
 
-    static var proLocked: String {
+    static var unavailable: String {
         switch currentLang {
-        case "ko": return "위젯은 Pro 기능이에요"
-        case "ja": return "ウィジェットはPro機能です"
-        default:   return "Widgets are a Pro feature"
+        case "ko": return "위젯을 사용할 수 없어요"
+        case "ja": return "ウィジェットは利用できません"
+        default:   return "Widget unavailable"
         }
     }
 
-    static var proCTA: String {
+    static var openApp: String {
         switch currentLang {
-        case "ko": return "탭해서 업그레이드"
-        case "ja": return "タップしてアップグレード"
-        default:   return "Tap to upgrade"
+        case "ko": return "Mora 열기"
+        case "ja": return "Moraを開く"
+        default:   return "Open Mora"
         }
     }
 

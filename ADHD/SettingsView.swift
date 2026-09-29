@@ -6,6 +6,7 @@ struct SettingsView: View {
     @EnvironmentObject var authManager: AuthManager
     @EnvironmentObject var taskManager: TaskManager
     @EnvironmentObject var subscriptionManager: SubscriptionManager
+    @EnvironmentObject private var accountStoreController: AccountStoreController
     @Environment(\.dismiss) private var dismiss
 
     @ObservedObject var langManager = LocalizationManager.shared
@@ -19,6 +20,10 @@ struct SettingsView: View {
     @State private var showPaywall = false
     @State private var showAIConsent = false
     @State private var aiDataConsentGranted = false
+    @State private var showLogin = false
+    @State private var showGuestCopyConfirmation = false
+    @State private var guestCopyAccountID: UUID?
+    @State private var guestCopyMessage: String?
 
     // Notifications
     @State private var routineReminders = true
@@ -39,6 +44,8 @@ struct SettingsView: View {
         authManager.accessState.accountUserID
     }
 
+    private var preferenceUserID: UUID? { authManager.accessState.localStorageUserID }
+
     private var remindBeforeOptions: [(value: Int, label: String)] {[
         (0, L.settings.atTime),
         (5, "5 \(L.settings.minBefore)"),
@@ -52,13 +59,21 @@ struct SettingsView: View {
             List {
                 // ── Account ──
                 Section {
+                    if accountUserID == nil {
+                        Label(L.authRelease.guestTitle, systemImage: "iphone")
+                        Text(L.authRelease.guestPreserved).font(.footnote)
+                        if authManager.accessState == .lockedInvalidSession {
+                            Text(L.authRelease.sessionExpired).foregroundStyle(.orange)
+                        }
+                        Button(L.authRelease.signIn) { showLogin = true }
+                    } else {
                     HStack {
                         Image(systemName: "person.circle.fill")
                             .font(.title)
                             .foregroundColor(DesignSystem.Colors.primary.opacity(0.7))
                             .accessibilityHidden(true)
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(authManager.userEmail ?? "User")
+                            Text(authManager.userEmail ?? L.authRelease.accountTitle)
                                 .font(DesignSystem.Typography.bodyMd)
                                 .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
                             Text("Apple ID")
@@ -76,7 +91,7 @@ struct SettingsView: View {
                         }
                         .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
                     }
-                    .accessibilityHint("Double tap to log out")
+                    .accessibilityHint(L.authRelease.logOutHint)
 
                     Button(action: { showDeleteFlow = true }) {
                         HStack {
@@ -86,7 +101,14 @@ struct SettingsView: View {
                         }
                         .foregroundColor(.red.opacity(0.7))
                     }
-                    .accessibilityHint("Double tap to delete your account")
+                    .accessibilityHint(L.authRelease.deleteAccountHint)
+
+                    Button(L.authRelease.copyGuestTasks) {
+                        guestCopyAccountID = accountUserID
+                        showGuestCopyConfirmation = true
+                    }
+                    Text(L.authRelease.guestPreserved).font(.footnote)
+                    }
                 } header: {
                     Text(L.settings.account)
                 }
@@ -126,23 +148,15 @@ struct SettingsView: View {
                     }
                     .padding(.vertical, 2)
 
-                    if subscriptionManager.isPremium {
+                    Link(destination: URL(string: "https://apps.apple.com/account/subscriptions")!) {
+                        Label(L.paywall.manageSubscription, systemImage: "arrow.up.right.square")
+                    }
+                    Text(L.settings.deletionSubscriptionNotice).font(.footnote)
+
+                    if !subscriptionManager.isPremium {
                         Button {
-                            if let url = URL(string: "https://apps.apple.com/account/subscriptions") {
-                                UIApplication.shared.open(url)
-                            }
-                        } label: {
-                            HStack {
-                                Image(systemName: "arrow.up.right.square")
-                                    .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.5))
-                                    .accessibilityHidden(true)
-                                Text(L.paywall.manageSubscription)
-                                    .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
-                            }
-                        }
-                    } else {
-                        Button {
-                            showPaywall = true
+                            if accountUserID == nil { showLogin = true }
+                            else { showPaywall = true }
                         } label: {
                             HStack {
                                 Image(systemName: "sparkles")
@@ -220,6 +234,10 @@ struct SettingsView: View {
                     .disabled(accountUserID == nil)
                     Text(L.aiPrivacy.choice).font(.footnote)
                     Button(L.aiPrivacy.title) { showAIConsent = true }
+                        .disabled(accountUserID == nil)
+                    if accountUserID == nil {
+                        Button(L.authRelease.signIn) { showLogin = true }
+                    }
                 } header: {
                     Text(L.aiPrivacy.title)
                 }
@@ -320,7 +338,7 @@ struct SettingsView: View {
                                 .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
                         }
                     }
-                    .accessibilityHint("Double tap to clear completed tasks")
+                    .accessibilityHint(L.authRelease.clearCompletedHint)
 
                     Button(action: {
                         clearAllCount = taskManager.taskCount()
@@ -333,13 +351,18 @@ struct SettingsView: View {
                         }
                         .foregroundColor(.red.opacity(0.7))
                     }
-                    .accessibilityHint("Double tap to clear all tasks")
+                    .accessibilityHint(L.authRelease.clearAllHint)
                 } header: {
                     Text(L.settings.dataManagement)
                 }
 
                 // ── About ──
                 Section {
+                    NavigationLink {
+                        ThirdPartyNoticesView()
+                    } label: {
+                        Label(L.authRelease.openSourceNotices, systemImage: "doc.plaintext")
+                    }
                     HStack {
                         Image(systemName: "info.circle")
                             .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.5))
@@ -394,7 +417,7 @@ struct SettingsView: View {
                     Text(L.settings.about)
                 }
             }
-            .navigationTitle(Text(verbatim: "Settings"))
+            .navigationTitle(L.authRelease.settingsTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -429,6 +452,23 @@ struct SettingsView: View {
             } message: {
                 Text(L.settings.clearAllPreview(clearAllCount))
             }
+            .alert(L.authRelease.copyGuestTasks, isPresented: $showGuestCopyConfirmation) {
+                Button(L.settings.cancel, role: .cancel) { guestCopyAccountID = nil }
+                Button(L.authRelease.copyGuestTasks) { copyGuestTasks() }
+            } message: {
+                Text(L.authRelease.copyGuestExplanation(account: authManager.userEmail ?? L.authRelease.accountTitle))
+            }
+            .alert(L.authRelease.copyGuestTasks, isPresented: Binding(
+                get: { guestCopyMessage != nil },
+                set: { if !$0 { guestCopyMessage = nil } }
+            )) {
+                Button(L.settings.done) { guestCopyMessage = nil }
+            } message: {
+                Text(guestCopyMessage ?? "")
+            }
+        }
+        .sheet(isPresented: $showLogin) {
+            LoginView().environmentObject(authManager)
         }
         .sheet(isPresented: $showPaywall) {
             NavigationView {
@@ -454,14 +494,14 @@ struct SettingsView: View {
             AIDataConsentView(userID: accountUserID)
         }
         .onAppear(perform: loadAccountPreferences)
-        .onChange(of: accountUserID) { _, _ in
+        .onChange(of: preferenceUserID) { _, _ in
             loadAccountPreferences()
         }
     }
 
     private func loadAccountPreferences() {
         aiDataConsentGranted = AIDataConsent.isGranted(for: accountUserID)
-        guard let userID = accountUserID else {
+        guard let userID = preferenceUserID else {
             loadedPreferenceAccountID = nil
             routineReminders = false
             appointmentReminders = false
@@ -500,15 +540,52 @@ struct SettingsView: View {
     }
 
     private func persist(_ value: Bool, for key: AccountPreferenceKey) {
-        guard let userID = accountUserID,
+        guard let userID = preferenceUserID,
               loadedPreferenceAccountID == userID else { return }
         AccountPreferences.set(value, for: key, userID: userID)
     }
 
     private func persist(_ value: Int, for key: AccountPreferenceKey) {
-        guard let userID = accountUserID,
+        guard let userID = preferenceUserID,
               loadedPreferenceAccountID == userID else { return }
         AccountPreferences.set(value, for: key, userID: userID)
+    }
+
+    private func copyGuestTasks() {
+        defer { guestCopyAccountID = nil }
+        guard let userID = guestCopyAccountID, userID == accountUserID else {
+            guestCopyMessage = L.authRelease.copyGuestFailed
+            return
+        }
+        do {
+            let count = try accountStoreController.copyGuestTasks(to: userID)
+            taskManager.reconcileNotificationsWithPreferences()
+            guestCopyMessage = L.authRelease.copiedGuestTasks(count)
+        } catch {
+            guestCopyMessage = L.authRelease.copyGuestFailed
+        }
+    }
+}
+
+private struct ThirdPartyNoticesView: View {
+    private var notices: String {
+        guard let url = Bundle.main.url(forResource: "ThirdPartyNotices", withExtension: "txt"),
+              let text = try? String(contentsOf: url, encoding: .utf8) else {
+            return L.authRelease.noticesUnavailable
+        }
+        return text
+    }
+
+    var body: some View {
+        ScrollView {
+            Text(notices)
+                .font(.footnote)
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding()
+        }
+        .navigationTitle(L.authRelease.openSourceNotices)
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 
@@ -534,18 +611,19 @@ private struct AccountDeletionFlowView: View {
                     Text(L.settings.deletionNoExport)
                 }
 
-                if subscriptionManager.isPremium {
-                    Section {
+                Section {
                         Text(L.settings.deletionSubscriptionNotice)
                         Link(
                             L.paywall.manageSubscription,
                             destination: URL(string: "https://apps.apple.com/account/subscriptions")!
                         )
-                    }
                 }
 
                 Section {
                     Toggle(L.settings.deletionAcknowledgement, isOn: $acknowledged)
+                        .onChange(of: acknowledged) { _, accepted in
+                            if !accepted { appleAuthorizationCode = nil }
+                        }
 
                     if acknowledged {
                         SignInWithAppleButton(.continue) { request in
@@ -567,6 +645,7 @@ private struct AccountDeletionFlowView: View {
                         }
                         .signInWithAppleButtonStyle(.black)
                         .frame(height: 50)
+                        .disabled(isWorking)
                     }
 
                     if appleAuthorizationCode != nil {
@@ -595,7 +674,7 @@ private struct AccountDeletionFlowView: View {
                             Text(L.settings.deletionFinalButton)
                         }
                     }
-                    .disabled(appleAuthorizationCode == nil || isWorking)
+                    .disabled(!acknowledged || appleAuthorizationCode == nil || isWorking)
                 }
             }
             .navigationTitle(L.settings.deleteAccount)
@@ -608,7 +687,7 @@ private struct AccountDeletionFlowView: View {
             .alert(L.settings.deletionFinalTitle, isPresented: $showFinalConfirmation) {
                 Button(L.settings.cancel, role: .cancel) {}
                 Button(L.settings.delete, role: .destructive) {
-                    guard let code = appleAuthorizationCode else { return }
+                    guard acknowledged, let code = appleAuthorizationCode else { return }
                     appleAuthorizationCode = nil
                     Task { @MainActor in
                         isWorking = true

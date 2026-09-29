@@ -13,6 +13,19 @@ enum AuthAccessState: Hashable {
     case deletionPending(userID: UUID)
     case lockedInvalidSession
 
+    /// 로컬 전용 식별자입니다. accountUserID와 서버 인증에는 게스트 ID를 사용하지 않습니다.
+    var localStorageUserID: UUID? {
+        switch self {
+        case .signedOut, .lockedInvalidSession: return LocalGuestIdentity.storageID
+        case .authenticatedOnline(let id), .authenticatedOfflineLimited(let id): return id
+        case .booting, .deletionPending: return nil
+        }
+    }
+
+    var isGuest: Bool {
+        self == .signedOut || self == .lockedInvalidSession
+    }
+
     var exposedUserID: UUID? {
         switch self {
         case .authenticatedOnline(let userID), .authenticatedOfflineLimited(let userID):
@@ -41,6 +54,47 @@ enum AccountDeletionProgressStatus: String, Codable {
     case completed
 }
 
+/// 이전 세션 검사/SDK 이벤트가 명시적 로그아웃이나 새 로그인 시도를 역전시키지 못하게 합니다.
+struct AuthSessionTransitionGuard {
+    private(set) var generation: UInt64 = 0
+    private(set) var allowsBackgroundSession: Bool
+    private(set) var interactiveGeneration: UInt64?
+
+    init(isLocallyLocked: Bool) { allowsBackgroundSession = !isLocallyLocked }
+
+    mutating func invalidate() {
+        generation &+= 1
+        allowsBackgroundSession = false
+        interactiveGeneration = nil
+    }
+
+    mutating func beginInteractiveSignIn() -> UInt64 {
+        invalidate()
+        interactiveGeneration = generation
+        return generation
+    }
+
+    @discardableResult
+    mutating func finishInteractiveSignIn(_ attempt: UInt64, succeeded: Bool) -> Bool {
+        guard interactiveGeneration == attempt, generation == attempt else { return false }
+        interactiveGeneration = nil
+        allowsBackgroundSession = succeeded
+        return true
+    }
+
+    func permitsBackgroundResult(_ startedGeneration: UInt64) -> Bool {
+        generation == startedGeneration && allowsBackgroundSession && interactiveGeneration == nil
+    }
+
+    mutating func didAcceptSession() {
+        generation &+= 1
+    }
+
+    static func expiryCheckDelay(expiresAt: TimeInterval, now: TimeInterval) -> TimeInterval {
+        max(0.1, expiresAt - now + 0.1)
+    }
+}
+
 private enum AuthValidationError: Error {
     case identityMismatch
     case deletionNotCompleted
@@ -57,15 +111,15 @@ enum AccountDeletionClientError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .onlineSessionRequired:
-            return "인터넷에 연결한 뒤 다시 시도해 주세요."
+            return L.authRelease.onlineRequired
         case .appleCredentialMissing:
-            return "Apple 재인증 정보를 받지 못했습니다. 다시 시도해 주세요."
+            return L.authRelease.appleCredentialMissing
         case .appleAccountMismatch:
-            return "현재 Mora 계정과 같은 Apple 계정으로 인증해 주세요."
+            return L.authRelease.appleAccountMismatch
         case .appleReauthenticationRequired:
-            return "Apple로 다시 인증해야 삭제를 계속할 수 있습니다."
+            return L.authRelease.appleReauthenticationRequired
         case .invalidServerResponse, .statusUnavailable:
-            return "삭제 상태를 확인하지 못했습니다. 요청 ID와 함께 고객 지원에 문의해 주세요."
+            return L.authRelease.deletionUnavailable
         }
     }
 }
@@ -77,7 +131,7 @@ private struct AccountDeletionEnvelope: Codable {
     let statusToken: String?
 }
 
-private struct AccountDeletionServerError: Decodable {
+struct AccountDeletionServerError: Decodable {
     struct Detail: Decodable { let code: String }
     let error: Detail
     let requestId: UUID?
@@ -86,16 +140,41 @@ private struct AccountDeletionServerError: Decodable {
     let statusToken: String?
 }
 
-private struct PendingAccountDeletion: Codable {
+struct PendingAccountDeletion: Codable {
     let userID: UUID
     let requestID: UUID
     var jobID: UUID?
     var status: AccountDeletionProgressStatus
     var statusToken: String?
     var needsAppleReauthentication: Bool
+
+    var shouldPoll: Bool {
+        statusToken != nil && !needsAppleReauthentication && status != .completed
+    }
+
+    func applying(_ response: AccountDeletionServerError) throws -> Self {
+        if let responseRequestID = response.requestId, responseRequestID != requestID {
+            throw AccountDeletionClientError.invalidServerResponse
+        }
+        var updated = self
+        updated.jobID = response.jobId ?? jobID
+        updated.status = response.status ?? .retryWait
+        if let token = response.statusToken {
+            guard token.count == 43 else { throw AccountDeletionClientError.invalidServerResponse }
+            updated.statusToken = token
+        }
+        updated.needsAppleReauthentication = response.error.code == "apple_reauth_required"
+        return updated
+    }
 }
 
-private struct AccountDeletionPollingStore {
+protocol AccountDeletionPersistence {
+    func load() -> PendingAccountDeletion?
+    func save(_ pending: PendingAccountDeletion) throws
+    func clear() throws
+}
+
+private struct AccountDeletionPollingStore: AccountDeletionPersistence {
     private let service = "com.trident-KR.ADHD.account-deletion.v1"
     private let account = "pending"
 
@@ -134,13 +213,16 @@ private struct AccountDeletionPollingStore {
         }
     }
 
-    func clear() {
+    func clear() throws {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: account,
         ]
-        SecItemDelete(query as CFDictionary)
+        let status = SecItemDelete(query as CFDictionary)
+        guard status == errSecSuccess || status == errSecItemNotFound else {
+            throw AccountDeletionClientError.statusUnavailable
+        }
     }
 }
 
@@ -154,6 +236,14 @@ class AuthManager: NSObject, ObservableObject {
     @Published private(set) var accountDeletionRequestID: UUID?
     @Published private(set) var accountDeletionNeedsAppleReauthentication = false
     @Published private(set) var accountDeletionErrorCode: String?
+    @Published private(set) var signInFailed = false
+    @Published private(set) var showsDeletionCompletion = false
+
+    /// 서버 완료 표식을 로컬 파일·설정 삭제가 끝날 때까지 Keychain에 보존합니다.
+    var pendingLocalDeletionUserID: UUID? {
+        guard let pending = deletionPollingStore.load(), pending.status == .completed else { return nil }
+        return pending.userID
+    }
 
     /// Settings에서 사용할 이메일 (Auth 모듈 import 없이 접근)
     var userEmail: String? {
@@ -173,13 +263,36 @@ class AuthManager: NSObject, ObservableObject {
     private var authStateObservationTask: Task<Void, Never>?
     private var sessionExpiryTask: Task<Void, Never>?
     private var deletionPollingTask: Task<Void, Never>?
-    private let deletionPollingStore = AccountDeletionPollingStore()
+    private let deletionPollingStore: any AccountDeletionPersistence
+    private let deletionNoticeDefaults: UserDefaults
+    private static let localSessionLockKey = "mora.local-session-lock.v1"
+    private var sessionTransition: AuthSessionTransitionGuard
+    private var isSigningOut = false
 
-    override init() {
-        let cachedSession = supabase.auth.currentSession
+    override convenience init() {
+        self.init(
+            deletionPollingStore: AccountDeletionPollingStore(),
+            deletionNoticeDefaults: .standard,
+            observesAuthentication: true
+        )
+    }
+
+    /// Test seams avoid live authentication and let deletion persistence failures be exercised.
+    init(
+        deletionPollingStore: any AccountDeletionPersistence,
+        deletionNoticeDefaults: UserDefaults,
+        observesAuthentication: Bool
+    ) {
+        self.deletionPollingStore = deletionPollingStore
+        self.deletionNoticeDefaults = deletionNoticeDefaults
+        let isLocallyLocked = deletionNoticeDefaults.integer(forKey: Self.localSessionLockKey) != 0
+        self.sessionTransition = AuthSessionTransitionGuard(isLocallyLocked: isLocallyLocked)
+        let cachedSession = observesAuthentication && !isLocallyLocked ? supabase.auth.currentSession : nil
         startupCachedSession = cachedSession
         lastKnownUserID = cachedSession?.user.id
         super.init()
+        showsDeletionCompletion = deletionNoticeDefaults.bool(forKey: "mora.account-deletion-completion-notice.v1")
+        guard observesAuthentication else { return }
 
         authStateObservationTask = Task { [weak self] in
             for await change in supabase.auth.authStateChanges {
@@ -206,24 +319,34 @@ class AuthManager: NSObject, ObservableObject {
             startDeletionPollingIfPossible()
             return
         }
+        guard sessionTransition.allowsBackgroundSession else {
+            exposeLocallyLockedSession()
+            return
+        }
+        let startedGeneration = sessionTransition.generation
         let fallbackSession = session ?? supabase.auth.currentSession ?? startupCachedSession
 
         do {
             let refreshedSession = try await supabase.auth.session
+            guard sessionTransition.permitsBackgroundResult(startedGeneration) else { return }
             guard !refreshedSession.isExpired else {
                 await lockInvalidSessionAndClearProviderCache()
                 return
             }
 
             let currentUser = try await supabase.auth.user(jwt: refreshedSession.accessToken)
+            guard sessionTransition.permitsBackgroundResult(startedGeneration),
+                  matchesCurrentProviderSession(refreshedSession) else { return }
             guard currentUser.id == refreshedSession.user.id else {
                 throw AuthValidationError.identityMismatch
             }
             acceptAuthenticatedSession(refreshedSession, isOnline: true)
         } catch {
+            guard sessionTransition.permitsBackgroundResult(startedGeneration) else { return }
             if isDefinitiveInvalidSession(error) {
                 await lockInvalidSessionAndClearProviderCache()
-            } else if let fallbackSession, !fallbackSession.isExpired {
+            } else if let fallbackSession, !fallbackSession.isExpired,
+                      matchesCurrentProviderSession(fallbackSession) {
                 acceptAuthenticatedSession(fallbackSession, isOnline: false)
             } else if fallbackSession == nil {
                 session = nil
@@ -243,9 +366,14 @@ class AuthManager: NSObject, ObservableObject {
             if isConnected { startDeletionPollingIfPossible() }
             return
         }
+        guard sessionTransition.allowsBackgroundSession else {
+            exposeLocallyLockedSession()
+            return
+        }
         if !isConnected {
             let fallbackSession = session ?? supabase.auth.currentSession ?? startupCachedSession
-            if let fallbackSession, !fallbackSession.isExpired {
+            if let fallbackSession, !fallbackSession.isExpired,
+               matchesCurrentProviderSession(fallbackSession) {
                 acceptAuthenticatedSession(fallbackSession, isOnline: false)
             } else if fallbackSession == nil {
                 session = nil
@@ -266,6 +394,11 @@ class AuthManager: NSObject, ObservableObject {
     /// 서버 sign-out 성공 여부와 무관하게 호출 즉시 로컬 화면과 세션을 잠급니다.
     @MainActor
     func signOut() async {
+        sessionTransition.invalidate()
+        deletionNoticeDefaults.set(1, forKey: Self.localSessionLockKey)
+        isSigningOut = true
+        isProcessing = true
+        defer { isSigningOut = false; isProcessing = false }
         lastKnownUserID = session?.user.id ?? accessState.accountUserID ?? lastKnownUserID
         session = nil
         startupCachedSession = nil
@@ -278,6 +411,8 @@ class AuthManager: NSObject, ObservableObject {
         } catch {
             print("auth_sign_out_failed")
         }
+        // A failed remote revocation must not leave the provider's local cached session usable.
+        try? await supabase.auth.signOut(scope: .local)
     }
 
     func prepareAppleAccountDeletionRequest(_ request: ASAuthorizationAppleIDRequest) {
@@ -396,9 +531,16 @@ class AuthManager: NSObject, ObservableObject {
     /// 앱 재실행 후에도 Keychain의 request ID/status token으로만 저빈도 상태 조회를 재개합니다.
     @MainActor
     func refreshAccountDeletionStatus() async throws {
-        guard let pending = deletionPollingStore.load(),
-              let statusToken = pending.statusToken else {
+        guard var pending = deletionPollingStore.load() else {
+            throw AccountDeletionClientError.statusUnavailable
+        }
+        guard pending.status != .completed else { return }
+        guard let statusToken = pending.statusToken else {
+            pending.needsAppleReauthentication = true
+            try deletionPollingStore.save(pending)
             accountDeletionNeedsAppleReauthentication = true
+            deletionPollingTask?.cancel()
+            deletionPollingTask = nil
             throw AccountDeletionClientError.appleReauthenticationRequired
         }
         let body = [
@@ -413,8 +555,14 @@ class AuthManager: NSObject, ObservableObject {
             )
             try applyDeletionEnvelope(response, to: pending)
         } catch {
-            accountDeletionErrorCode = decodeAccountDeletionServerError(error)?.error.code
-                ?? "deletion_status_unavailable"
+            if let serverError = decodeAccountDeletionServerError(error) {
+                try handleDeletionStatusServerError(serverError)
+                if accountDeletionNeedsAppleReauthentication {
+                    throw AccountDeletionClientError.appleReauthenticationRequired
+                }
+            } else {
+                accountDeletionErrorCode = "deletion_status_unavailable"
+            }
             throw error
         }
     }
@@ -422,24 +570,53 @@ class AuthManager: NSObject, ObservableObject {
     /// 동기 응답, polling 또는 auth userDeleted event가 실제 완료를 알릴 때의 단일 진입점입니다.
     @MainActor
     func confirmAccountDeletionCompleted(for userID: UUID) {
+        var pending = deletionPollingStore.load() ?? PendingAccountDeletion(
+            userID: userID, requestID: UUID(), jobID: nil, status: .completed,
+            statusToken: nil, needsAppleReauthentication: false
+        )
+        guard pending.userID == userID else { return }
+        pending.status = .completed
+        pending.needsAppleReauthentication = false
+        do {
+            // Write before publishing completion. A crash now must still resume local cleanup.
+            try deletionPollingStore.save(pending)
+        } catch {
+            accountDeletionErrorCode = "local_deletion_marker_unavailable"
+            return
+        }
         deletionPollingTask?.cancel()
         deletionPollingTask = nil
-        deletionPollingStore.clear()
+        sessionTransition.invalidate()
+        deletionNoticeDefaults.set(1, forKey: Self.localSessionLockKey)
+        exposePendingDeletion(pending)
+        accountDeletionErrorCode = nil
+        session = nil
+        startupCachedSession = nil
+        NotificationCenter.default.post(name: .moraAccountDeletionCompleted, object: userID)
+    }
+
+    @MainActor
+    func finishLocalAccountDeletion(for userID: UUID) throws {
+        guard pendingLocalDeletionUserID == userID else { return }
+        // A completion notice also survives termination between cleanup and the next launch.
+        deletionNoticeDefaults.set(true, forKey: "mora.account-deletion-completion-notice.v1")
+        try deletionPollingStore.clear()
+        showsDeletionCompletion = true
         accountDeletionStatus = .completed
         accountDeletionRequestID = nil
         accountDeletionNeedsAppleReauthentication = false
         accountDeletionErrorCode = nil
-        if accessState.accountUserID == userID || session?.user.id == userID {
-            session = nil
-            startupCachedSession = nil
-            sessionExpiryTask?.cancel()
-            accessState = .signedOut
-            isSessionLoaded = true
-        }
-        if lastKnownUserID == userID {
-            lastKnownUserID = nil
-        }
-        NotificationCenter.default.post(name: .moraAccountDeletionCompleted, object: userID)
+        lastKnownUserID = nil
+        session = nil
+        startupCachedSession = nil
+        accessState = .signedOut
+        isSessionLoaded = true
+    }
+
+    @MainActor
+    func dismissDeletionCompletion() {
+        deletionNoticeDefaults.removeObject(forKey: "mora.account-deletion-completion-notice.v1")
+        showsDeletionCompletion = false
     }
 
     @MainActor
@@ -487,24 +664,22 @@ class AuthManager: NSObject, ObservableObject {
         _ response: AccountDeletionServerError,
         to existing: PendingAccountDeletion
     ) throws {
-        if let responseRequestID = response.requestId,
-           responseRequestID != existing.requestID {
-            throw AccountDeletionClientError.invalidServerResponse
-        }
-
-        var pending = existing
-        pending.jobID = response.jobId ?? pending.jobID
-        pending.status = response.status ?? .retryWait
-        if let token = response.statusToken {
-            guard token.count == 43 else {
-                throw AccountDeletionClientError.invalidServerResponse
-            }
-            pending.statusToken = token
-        }
-        pending.needsAppleReauthentication = response.error.code == "apple_reauth_required"
+        let pending = try existing.applying(response)
         try deletionPollingStore.save(pending)
         accountDeletionErrorCode = response.error.code
         exposePendingDeletion(pending)
+    }
+
+    @MainActor
+    func handleDeletionStatusServerError(_ response: AccountDeletionServerError) throws {
+        guard let pending = deletionPollingStore.load() else {
+            throw AccountDeletionClientError.statusUnavailable
+        }
+        try applyDeletionServerError(response, to: pending)
+        if accountDeletionNeedsAppleReauthentication {
+            deletionPollingTask?.cancel()
+            deletionPollingTask = nil
+        }
     }
 
     private func decodeAccountDeletionServerError(
@@ -517,10 +692,7 @@ class AuthManager: NSObject, ObservableObject {
 
     @MainActor
     private func startDeletionPollingIfPossible() {
-        guard let pending = deletionPollingStore.load(),
-              pending.statusToken != nil,
-              !pending.needsAppleReauthentication,
-              pending.status != .completed else { return }
+        guard let pending = deletionPollingStore.load(), pending.shouldPoll else { return }
 
         deletionPollingTask?.cancel()
         deletionPollingTask = Task { [weak self] in
@@ -535,6 +707,7 @@ class AuthManager: NSObject, ObservableObject {
                 } catch is CancellationError {
                     return
                 } catch {
+                    if self?.accountDeletionNeedsAppleReauthentication == true { return }
                     continue
                 }
             }
@@ -543,6 +716,8 @@ class AuthManager: NSObject, ObservableObject {
 
     @MainActor
     private func acceptAuthenticatedSession(_ session: Session, isOnline: Bool) {
+        guard sessionTransition.allowsBackgroundSession else { return }
+        sessionTransition.didAcceptSession()
         if let pending = deletionPollingStore.load() {
             self.session = session.user.id == pending.userID ? session : nil
             startupCachedSession = self.session
@@ -561,6 +736,8 @@ class AuthManager: NSObject, ObservableObject {
 
     @MainActor
     private func lockInvalidSessionAndClearProviderCache() async {
+        sessionTransition.invalidate()
+        deletionNoticeDefaults.set(2, forKey: Self.localSessionLockKey)
         lastKnownUserID = session?.user.id ?? startupCachedSession?.user.id ?? lastKnownUserID
         session = nil
         startupCachedSession = nil
@@ -578,32 +755,43 @@ class AuthManager: NSObject, ObservableObject {
             break
 
         case .signedIn, .tokenRefreshed:
-            if let session, !session.isExpired {
+            guard sessionTransition.permitsBackgroundResult(sessionTransition.generation) else { return }
+            guard let session, matchesCurrentProviderSession(session) else { return }
+            if !session.isExpired {
                 acceptAuthenticatedSession(session, isOnline: true)
             } else {
                 await lockInvalidSessionAndClearProviderCache()
             }
 
         case .signedOut:
+            // A queued sign-out from an older provider session cannot close a newer login.
+            guard supabase.auth.currentSession == nil else { return }
+            guard sessionTransition.interactiveGeneration == nil else { return }
             self.session = nil
             startupCachedSession = nil
             sessionExpiryTask?.cancel()
             if let pending = deletionPollingStore.load() {
                 exposePendingDeletion(pending)
             } else if accessState != .signedOut {
-                accessState = lastKnownUserID == nil ? .signedOut : .lockedInvalidSession
-                isSessionLoaded = true
+                if sessionTransition.allowsBackgroundSession {
+                    sessionTransition.invalidate()
+                    deletionNoticeDefaults.set(lastKnownUserID == nil ? 1 : 2, forKey: Self.localSessionLockKey)
+                }
+                exposeLocallyLockedSession()
             }
 
         case .userDeleted:
-            if let userID = session?.user.id ?? lastKnownUserID {
+            if let userID = session?.user.id ?? lastKnownUserID,
+               userID == accessState.accountUserID || userID == deletionPollingStore.load()?.userID {
                 confirmAccountDeletionCompleted(for: userID)
             }
 
         case .userUpdated:
+            guard sessionTransition.permitsBackgroundResult(sessionTransition.generation) else { return }
             if let session,
                session.user.id == accessState.accountUserID,
-               !session.isExpired {
+               !session.isExpired,
+               matchesCurrentProviderSession(session) {
                 acceptAuthenticatedSession(session, isOnline: true)
             }
 
@@ -615,9 +803,9 @@ class AuthManager: NSObject, ObservableObject {
     @MainActor
     private func scheduleExpiryCheck(for session: Session) {
         sessionExpiryTask?.cancel()
-        let secondsUntilRefreshBoundary = max(
-            0,
-            session.expiresAt - Date().timeIntervalSince1970 - 30
+        let secondsUntilRefreshBoundary = AuthSessionTransitionGuard.expiryCheckDelay(
+            expiresAt: session.expiresAt,
+            now: Date().timeIntervalSince1970
         )
         let nanoseconds = UInt64(secondsUntilRefreshBoundary * 1_000_000_000)
 
@@ -634,7 +822,12 @@ class AuthManager: NSObject, ObservableObject {
 
     @MainActor
     private func handleSessionRefreshBoundary(for userID: UUID) async {
-        guard session?.user.id == userID, session?.isExpired == true else { return }
+        guard let session, session.user.id == userID else { return }
+        guard session.isExpired else {
+            // The device clock can move backwards while the timer is sleeping.
+            scheduleExpiryCheck(for: session)
+            return
+        }
 
         if case .authenticatedOnline = accessState {
             await checkSession()
@@ -671,13 +864,30 @@ class AuthManager: NSObject, ObservableObject {
         }
         return false
     }
+
+    @MainActor
+    private func exposeLocallyLockedSession() {
+        session = nil
+        startupCachedSession = nil
+        accessState = deletionNoticeDefaults.integer(forKey: Self.localSessionLockKey) == 2
+            ? .lockedInvalidSession : .signedOut
+        isSessionLoaded = true
+    }
+
+    private func matchesCurrentProviderSession(_ candidate: Session) -> Bool {
+        guard let current = supabase.auth.currentSession else { return false }
+        return current.user.id == candidate.user.id && current.accessToken == candidate.accessToken
+    }
     
     // MARK: - Apple Sign In (SwiftUI Support)
     
     func prepareAppleSignInRequest(_ request: ASAuthorizationAppleIDRequest) {
+        guard !isSigningOut else { return }
+        _ = sessionTransition.beginInteractiveSignIn()
         let nonce = randomNonceString()
         currentNonce = nonce
-        request.requestedScopes = [.fullName, .email]
+        signInFailed = false
+        request.requestedScopes = [.email]
         request.nonce = sha256(nonce)
     }
     
@@ -687,44 +897,77 @@ class AuthManager: NSObject, ObservableObject {
             guard let appleIDCredential = authorization.credential as? ASAuthorizationAppleIDCredential,
                   let idTokenData = appleIDCredential.identityToken,
                   let idToken = String(data: idTokenData, encoding: .utf8),
-                  let nonce = currentNonce else {
-                print("❌ Apple Sign In failed: Missing credentials or nonce")
+                  let nonce = currentNonce,
+                  let attempt = sessionTransition.interactiveGeneration else {
+                if let attempt = sessionTransition.interactiveGeneration {
+                    sessionTransition.finishInteractiveSignIn(attempt, succeeded: false)
+                }
+                currentNonce = nil
+                isProcessing = false
+                signInFailed = true
                 return
             }
             
             Task {
                 do {
-                    await MainActor.run { self.isProcessing = true }
+                    let shouldProceed = await MainActor.run {
+                        guard self.sessionTransition.interactiveGeneration == attempt else { return false }
+                        self.isProcessing = true
+                        return true
+                    }
+                    guard shouldProceed else { return }
                     let session = try await supabase.auth.signInWithIdToken(
                         credentials: .init(provider: .apple, idToken: idToken, nonce: nonce)
                     )
                     await MainActor.run {
+                        guard self.sessionTransition.interactiveGeneration == attempt else { return }
+                        guard self.matchesCurrentProviderSession(session) else {
+                            self.sessionTransition.finishInteractiveSignIn(attempt, succeeded: false)
+                            self.currentNonce = nil
+                            self.isProcessing = false
+                            self.signInFailed = true
+                            return
+                        }
+                        guard self.sessionTransition.finishInteractiveSignIn(attempt, succeeded: true) else { return }
+                        self.deletionNoticeDefaults.removeObject(forKey: Self.localSessionLockKey)
                         self.acceptAuthenticatedSession(session, isOnline: true)
                         self.currentNonce = nil
                         self.isProcessing = false
+                        self.signInFailed = false
                     }
                     print("apple_sign_in_succeeded")
                 } catch {
                     print("apple_sign_in_exchange_failed")
                     await MainActor.run {
+                        guard self.sessionTransition.finishInteractiveSignIn(attempt, succeeded: false) else { return }
                         self.currentNonce = nil
                         self.isProcessing = false
+                        self.signInFailed = true
                     }
                 }
             }
-        case .failure:
+        case .failure(let error):
+            if let attempt = sessionTransition.interactiveGeneration {
+                sessionTransition.finishInteractiveSignIn(attempt, succeeded: false)
+            }
+            currentNonce = nil
+            isProcessing = false
+            signInFailed = (error as? ASAuthorizationError)?.code != .canceled
             print("apple_sign_in_failed")
         }
     }
     
     // Legacy support for non-SwiftUI cases if needed
     func startAppleSignIn() {
+        guard !isSigningOut else { return }
+        _ = sessionTransition.beginInteractiveSignIn()
         let nonce = randomNonceString()
         currentNonce = nonce
         
         let appleIDProvider = ASAuthorizationAppleIDProvider()
         let request = appleIDProvider.createRequest()
-        request.requestedScopes = [.fullName, .email]
+        signInFailed = false
+        request.requestedScopes = [.email]
         request.nonce = sha256(nonce)
         
         let authorizationController = ASAuthorizationController(authorizationRequests: [request])
@@ -756,38 +999,11 @@ class AuthManager: NSObject, ObservableObject {
 
 extension AuthManager: ASAuthorizationControllerDelegate {
     func authorizationController(controller: ASAuthorizationController, didCompleteWithAuthorization authorization: ASAuthorization) {
-        guard let appleIDCredential = authorization.credential as? ASAuthorizationAppleIDCredential,
-              let idTokenData = appleIDCredential.identityToken,
-              let idToken = String(data: idTokenData, encoding: .utf8),
-              let nonce = currentNonce else {
-            print("❌ Apple Sign In failed: Missing credentials")
-            return
-        }
-        
-        Task {
-            do {
-                await MainActor.run { self.isProcessing = true }
-                let session = try await supabase.auth.signInWithIdToken(
-                    credentials: .init(provider: .apple, idToken: idToken, nonce: nonce)
-                )
-                await MainActor.run {
-                    self.acceptAuthenticatedSession(session, isOnline: true)
-                    self.currentNonce = nil
-                    self.isProcessing = false
-                }
-                print("apple_sign_in_succeeded")
-            } catch {
-                print("apple_sign_in_exchange_failed")
-                await MainActor.run {
-                    self.currentNonce = nil
-                    self.isProcessing = false
-                }
-            }
-        }
+        handleAppleSignInResult(.success(authorization))
     }
     
     func authorizationController(controller: ASAuthorizationController, didCompleteWithError error: Error) {
-        print("apple_sign_in_failed")
+        handleAppleSignInResult(.failure(error))
     }
 }
 

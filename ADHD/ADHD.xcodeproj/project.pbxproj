@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		FA3000030000000000000001 /* ThirdPartyNotices.txt in Resources */ = {isa = PBXBuildFile; fileRef = FA3000040000000000000001 /* ThirdPartyNotices.txt */; };
+		FA3000010000000000000001 /* AuthReleaseStrings.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA3000020000000000000001 /* AuthReleaseStrings.swift */; };
 		AB3900010000000000000001 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = AB3900020000000000000001 /* InfoPlist.strings */; };
 		09A02A8B9E43463FABAA10AD /* Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF1CC5EA265049FBB8EE3A58 /* Localization.swift */; };
 		EE0000010000000000000001 /* SystemAlarmScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE0000020000000000000001 /* SystemAlarmScheduler.swift */; };
@@ -101,6 +103,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		FA3000040000000000000001 /* ThirdPartyNotices.txt */ = {isa = PBXFileReference; lastKnownFileType = text; name = ThirdPartyNotices.txt; path = Resources/ThirdPartyNotices.txt; sourceTree = "<group>"; };
+		FA3000020000000000000001 /* AuthReleaseStrings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AuthReleaseStrings.swift; path = AuthReleaseStrings.swift; sourceTree = "<group>"; };
 		AB3900050000000000000001 /* ja */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ja; path = ja.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		AB3900040000000000000001 /* ko */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ko; path = ko.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		AB3900030000000000000001 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
@@ -256,6 +260,8 @@
 				99526ADD2F7A3EB2000CD3EE /* ADHDWidget */,
 				F3D9E4792F74CF5200DA9A5A /* Products */,
 				F3D9E4A22F74CF5C00DA9A5A /* AuthManager.swift */,
+				FA3000040000000000000001 /* ThirdPartyNotices.txt */,
+				FA3000020000000000000001 /* AuthReleaseStrings.swift */,
 				AD1000020000000000000001 /* AccountStoreController.swift */,
 				AD1000040000000000000001 /* AccountSessionCleanup.swift */,
 				F3D9E4A32F74CF5C00DA9A5A /* CloudLLMManager.swift */,
@@ -487,6 +493,7 @@
 			files = (
 				F3A1C19D2F7E6AB800FC011B /* Assets.xcassets in Resources */,
 				EF00000100000000000000A1 /* PrivacyInfo.xcprivacy in Resources */,
+				FA3000030000000000000001 /* ThirdPartyNotices.txt in Resources */,
 				AB3900010000000000000001 /* InfoPlist.strings in Resources */,
 				F3D9E4B22F74D07100DA9A5A /* Config.plist in Resources */,
 			);
@@ -523,6 +530,7 @@
 			files = (
 				09A02A8B9E43463FABAA10AD /* Localization.swift in Sources */,
 				F3D9E4B02F74D07100DA9A5A /* AuthManager.swift in Sources */,
+				FA3000010000000000000001 /* AuthReleaseStrings.swift in Sources */,
 				AD1000010000000000000001 /* AccountStoreController.swift in Sources */,
 				AD1000030000000000000001 /* AccountSessionCleanup.swift in Sources */,
 				F3D9E4B12F74D07100DA9A5A /* CloudLLMManager.swift in Sources */,
@@ -609,11 +617,11 @@
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
 				CODE_SIGN_ENTITLEMENTS = ADHDWidgetExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 4;
 				DEVELOPMENT_TEAM = 5S3Y6973X6;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ADHDWidget/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = ADHDWidget;
+				INFOPLIST_KEY_CFBundleDisplayName = Mora;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -641,11 +649,11 @@
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
 				CODE_SIGN_ENTITLEMENTS = ADHDWidgetExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 4;
 				DEVELOPMENT_TEAM = 5S3Y6973X6;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ADHDWidget/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = ADHDWidget;
+				INFOPLIST_KEY_CFBundleDisplayName = Mora;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -796,7 +804,7 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = ADHD.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 4;
 				DEVELOPMENT_TEAM = 5S3Y6973X6;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -832,7 +840,7 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = ADHD.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 4;
 				DEVELOPMENT_TEAM = 5S3Y6973X6;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;

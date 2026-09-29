@@ -4,10 +4,12 @@ import StoreKit
 // MARK: - Paywall View
 struct PaywallView: View {
     @EnvironmentObject var subscriptionManager: SubscriptionManager
+    @EnvironmentObject private var authManager: AuthManager
     @Environment(\.dismiss) private var dismiss
 
     @State private var selectedProductID: String? = SubscriptionProductID.yearly.rawValue
     @State private var showError: Bool = false
+    @State private var showLogin = false
 
     private var selectedProduct: Product? {
         subscriptionManager.products.first { $0.id == selectedProductID }
@@ -29,11 +31,16 @@ struct PaywallView: View {
                 VStack(spacing: 0) {
                     headerSection
 
-                    planSection
-                        .padding(.top, 28)
+                    if subscriptionManager.isPremium {
+                        activeSubscriptionSection
+                            .padding(.top, 28)
+                    } else {
+                        planSection
+                            .padding(.top, 28)
 
-                    ctaSection
-                        .padding(.top, 24)
+                        ctaSection
+                            .padding(.top, 24)
+                    }
 
                     featuresSection
                         .padding(.top, 32)
@@ -59,6 +66,13 @@ struct PaywallView: View {
         }
         .onChange(of: subscriptionManager.purchaseError) { _, error in
             showError = error != nil
+        }
+        .sheet(isPresented: $showLogin) {
+            LoginView()
+                .environmentObject(authManager)
+        }
+        .onChange(of: authManager.canUseServerFeatures) { _, canUseServerFeatures in
+            if canUseServerFeatures { showLogin = false }
         }
         .task {
             if subscriptionManager.products.isEmpty {
@@ -143,26 +157,66 @@ struct PaywallView: View {
         }
     }
 
+    private var activeSubscriptionSection: some View {
+        VStack(spacing: 16) {
+            Label(L.paywall.premiumActive, systemImage: "checkmark.circle.fill")
+                .font(.headline)
+                .foregroundStyle(DesignSystem.Colors.tertiary)
+            Button(L.settings.done) { dismiss() }
+                .font(.headline)
+                .foregroundStyle(DesignSystem.Colors.primary)
+            Link(L.paywall.manageSubscription, destination: URL(string: "https://apps.apple.com/account/subscriptions")!)
+                .font(.subheadline)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private var needsSignIn: Bool {
+        authManager.accessState.accountUserID == nil
+    }
+
+    private var purchaseButtonDisabled: Bool {
+        subscriptionManager.isLoading
+            || (!needsSignIn && (!authManager.canUseServerFeatures || selectedProduct == nil))
+    }
+
     // MARK: - CTA
     private var ctaSection: some View {
         VStack(spacing: 12) {
+            if needsSignIn {
+                Text(L.paywall.accountRequired)
+                    .font(.footnote)
+                    .multilineTextAlignment(.center)
+            } else if !authManager.canUseServerFeatures {
+                Text(L.paywall.connectionRequired)
+                    .font(.footnote)
+                    .multilineTextAlignment(.center)
+            }
+
             Button {
-                guard let product = selectedProduct else { return }
+                if needsSignIn {
+                    showLogin = true
+                    return
+                }
+                guard authManager.canUseServerFeatures, let product = selectedProduct else { return }
                 Haptic.impact(.medium)
-                Task { await subscriptionManager.purchase(product) }
+                Task {
+                    if await subscriptionManager.purchase(product) { dismiss() }
+                }
             } label: {
                 ZStack {
                     if subscriptionManager.isLoading {
                         ProgressView()
                             .tint(.white)
                     } else {
-                        Text(ctaTitle)
-                            .font(.system(size: 17, weight: .bold))
+                        Text(needsSignIn ? L.paywall.signIn : ctaTitle)
+                            .font(.headline)
                             .foregroundColor(.white)
                     }
                 }
                 .frame(maxWidth: .infinity)
-                .frame(height: 54)
+                .padding(.vertical, 14)
+                .frame(minHeight: 54)
                 .background(
                     Capsule()
                         .fill(DesignSystem.Colors.primary)
@@ -170,18 +224,32 @@ struct PaywallView: View {
                 )
             }
             .buttonStyle(SquishyButtonStyle())
-            .disabled(subscriptionManager.isLoading || selectedProduct == nil)
-            .opacity((subscriptionManager.isLoading || selectedProduct == nil) ? 0.6 : 1)
+            .disabled(purchaseButtonDisabled)
+            .opacity(purchaseButtonDisabled ? 0.6 : 1)
 
             Button {
-                Task { await subscriptionManager.restorePurchases() }
+                if needsSignIn {
+                    showLogin = true
+                    return
+                }
+                guard authManager.canUseServerFeatures else { return }
+                Task {
+                    if await subscriptionManager.restorePurchases() { dismiss() }
+                }
             } label: {
                 Text(L.paywall.restore)
                     .font(.system(size: 14))
                     .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
                     .underline()
             }
-            .disabled(subscriptionManager.isLoading)
+            .disabled(subscriptionManager.isLoading || (!needsSignIn && !authManager.canUseServerFeatures))
+
+            if let notice = subscriptionManager.purchaseNotice {
+                Text(notice)
+                    .font(.footnote)
+                    .multilineTextAlignment(.center)
+                    .accessibilityAddTraits(.updatesFrequently)
+            }
         }
     }
 

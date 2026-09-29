@@ -3,6 +3,11 @@ import CryptoKit
 import Foundation
 import SwiftData
 
+/// 서버 계정이 아닌 기기 내 저장소 키입니다. Supabase identity로 전달하지 않습니다.
+enum LocalGuestIdentity {
+    static let storageID = UUID(uuidString: "00000000-0000-0000-0000-000000000000")!
+}
+
 /// 계정 UUID 원문을 디스크 경로에 남기지 않는 계정별 SwiftData 배치 규칙입니다.
 struct AccountStoreLayout: Equatable {
     static let accountDirectoryName = "MoraAccounts"
@@ -28,7 +33,10 @@ struct AccountStoreLayout: Equatable {
     }
 
     func accountDirectoryURL(for userID: UUID) -> URL {
-        accountsRootURL.appendingPathComponent(namespace(for: userID), isDirectory: true)
+        if userID == LocalGuestIdentity.storageID {
+            return applicationSupportURL.appendingPathComponent("MoraGuest", isDirectory: true)
+        }
+        return accountsRootURL.appendingPathComponent(namespace(for: userID), isDirectory: true)
     }
 
     func storeURL(for userID: UUID) -> URL {
@@ -115,7 +123,7 @@ final class AccountStoreController: ObservableObject {
         self.fileManager = fileManager
     }
 
-    /// 인증이 확정된 Mora 사용자만 해당 물리 저장소를 열 수 있습니다.
+    /// 인증 계정 또는 명시적인 로컬 게스트 범위만 해당 물리 저장소를 엽니다.
     func activate(for userID: UUID) {
         if activeUserID == userID, container != nil {
             return
@@ -170,6 +178,16 @@ final class AccountStoreController: ObservableObject {
     }
 
     /// 메모리 참조만 해제합니다. 로그아웃·세션 무효에서는 디스크 파일을 보존합니다.
+    func saveBeforeSwitch() -> Bool {
+        do {
+            try container?.mainContext.save()
+            return true
+        } catch {
+            failureCode = "MORA-DATA-SAVE-001"
+            return false
+        }
+    }
+
     func lock() {
         container = nil
         activeUserID = nil
@@ -178,6 +196,7 @@ final class AccountStoreController: ObservableObject {
 
     /// 서버 삭제 완료가 확인된 계정만 물리 파일을 제거합니다.
     func deleteStoreAfterServerCompletion(for userID: UUID) {
+        guard userID != LocalGuestIdentity.storageID else { return }
         if activeUserID == userID {
             lock()
         }
@@ -193,5 +212,58 @@ final class AccountStoreController: ObservableObject {
             failureCode = "MORA-DATA-DELETE-001"
             print("account_store_delete_failed code=MORA-DATA-DELETE-001")
         }
+    }
+
+    func markLocalDeletionFailure() {
+        failureCode = "MORA-DATA-DELETE-001"
+    }
+
+    /// 게스트 원본은 유지합니다. 로그인만으로 가져오지 않으며 Settings의 명시 확인 뒤 호출합니다.
+    func copyGuestTasks(to userID: UUID) throws -> Int {
+        guard userID != LocalGuestIdentity.storageID,
+              activeUserID == userID,
+              let container else { throw GuestTaskImportError.accountUnavailable }
+        let guestURL = layout.storeURL(for: LocalGuestIdentity.storageID)
+        guard fileManager.fileExists(atPath: guestURL.path) else { return 0 }
+        let schema = Schema([AppTask.self])
+        let guestContainer = try ModelContainer(
+            for: schema,
+            configurations: [ModelConfiguration(
+                "MoraAccount", schema: schema, url: guestURL,
+                allowsSave: true, cloudKitDatabase: .none
+            )]
+        )
+        return try GuestTaskImport.copy(
+            from: guestContainer.mainContext, to: container.mainContext
+        )
+    }
+}
+
+enum GuestTaskImportError: Error { case accountUnavailable }
+
+@MainActor
+enum GuestTaskImport {
+    /// 원본 UUID로 재시도 중복을 방지하며 기존 계정 항목은 덮어쓰지 않습니다.
+    static func copy(from source: ModelContext, to target: ModelContext) throws -> Int {
+        var existingIDs = Set(try target.fetch(FetchDescriptor<AppTask>()).map(\.id))
+        let originals = try source.fetch(FetchDescriptor<AppTask>())
+        // Import rollback must not discard unrelated edits already made in the account.
+        try target.save()
+        var copied = 0
+        for task in originals where !existingIDs.contains(task.id) {
+            let copy = AppTask(
+                id: task.id, task: task.task, time: task.time, date: task.date,
+                category: task.category, isCompleted: task.isCompleted,
+                recurrenceRule: task.recurrenceRule, sortOrder: task.sortOrder,
+                urgency: task.urgency
+            )
+            copy.weeklyCompletions = task.weeklyCompletions
+            target.insert(copy)
+            existingIDs.insert(task.id)
+            copied += 1
+        }
+        do { try target.save() }
+        catch { target.rollback(); throw error }
+        return copied
     }
 }

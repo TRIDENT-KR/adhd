@@ -1,6 +1,7 @@
 import Testing
 import Foundation
 import SwiftData
+import Supabase
 @testable import ADHD
 
 // MARK: - TaskManager.insertAndSave Tests (QA-008)
@@ -49,5 +50,44 @@ struct AnalyzePayloadTests {
         #expect(payload["currentTime"] == "2026-09-24 09:00")
         #expect(payload["language"] == "ko")
         #expect(payload["text"] == "내일 3시 병원")
+    }
+}
+
+// The transport is intercepted locally: no real account, API call or credential is used.
+nonisolated private final class TokenEchoURLProtocol: URLProtocol, @unchecked Sendable {
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func startLoading() {
+        let body = try! JSONSerialization.data(withJSONObject: [
+            "authorization": request.value(forHTTPHeaderField: "Authorization") ?? ""
+        ])
+        let response = HTTPURLResponse(
+            url: request.url!, statusCode: 200, httpVersion: "HTTP/1.1",
+            headerFields: ["Content-Type": "application/json"]
+        )!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: body)
+        client?.urlProtocolDidFinishLoading(self)
+    }
+    override func stopLoading() {}
+}
+
+@MainActor
+struct FixedAccountRequestTests {
+    private struct Echo: Decodable { let authorization: String }
+
+    @Test func functionsAndRPCUseTheCapturedAccountToken() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [TokenEchoURLProtocol.self]
+        let transport = URLSession(configuration: configuration)
+        defer { transport.invalidateAndCancel() }
+        let first = SupabaseConfig.requestClient(accessToken: "fake-account-a", session: transport)
+        let second = SupabaseConfig.requestClient(accessToken: "fake-account-b", session: transport)
+        let secondResponse: Echo = try await second.functions.invoke("token-echo")
+        let firstResponse: Echo = try await first.functions.invoke("token-echo")
+        let rpc: PostgrestResponse<Echo> = try await first.rpc("token_echo").execute()
+        #expect(secondResponse.authorization == "Bearer fake-account-b")
+        #expect(firstResponse.authorization == "Bearer fake-account-a")
+        #expect(rpc.value.authorization == "Bearer fake-account-a")
     }
 }

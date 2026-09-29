@@ -112,10 +112,9 @@ class CloudLLMManager: ObservableObject {
                               AIDataConsent.isGranted(for: session.user.id) else {
                             throw CloudLLMError.consentRequired
                         }
-                        let headers = ["Authorization": "Bearer \(session.accessToken)"]
-
-                        let options = FunctionInvokeOptions(headers: headers, body: payload)
-                        let result: AnalyzeTaskResponse = try await supabase.functions.invoke(
+                        let requestClient = SupabaseConfig.requestClient(accessToken: session.accessToken)
+                        let options = FunctionInvokeOptions(body: payload)
+                        let result: AnalyzeTaskResponse = try await requestClient.functions.invoke(
                             "analyze-task",
                             options: options
                         )

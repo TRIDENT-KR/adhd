@@ -9,6 +9,7 @@ struct PlannerView: View {
     private var appointments: [AppTask]
 
     @EnvironmentObject private var taskManager: TaskManager
+    @EnvironmentObject private var authManager: AuthManager
     @ObservedObject var langManager = LocalizationManager.shared
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -93,7 +94,7 @@ struct PlannerView: View {
                                 .contentShape(Circle())
                         }
                         .buttonStyle(NoEffectButtonStyle())
-                        .accessibilityLabel(isReordering ? "Finish reordering" : "Reorder tasks")
+                        .accessibilityLabel(isReordering ? L.t("Finish reordering", "순서 변경 완료", "並べ替えを完了") : L.t("Reorder tasks", "일정 순서 변경", "タスクを並べ替える"))
                         .frame(minWidth: 44, minHeight: 44)
 
                         Button(action: { showSearch = true }) {
@@ -104,7 +105,7 @@ struct PlannerView: View {
                                 .contentShape(Circle())
                         }
                         .buttonStyle(NoEffectButtonStyle())
-                        .accessibilityLabel("Search tasks")
+                        .accessibilityLabel(L.t("Search tasks", "일정 검색", "タスクを検索"))
                         .frame(minWidth: 44, minHeight: 44)
 
                         Button(action: { isCalendarPresented.toggle() }) {
@@ -115,8 +116,8 @@ struct PlannerView: View {
                                 .contentShape(Circle())
                         }
                         .buttonStyle(NoEffectButtonStyle())
-                        .accessibilityLabel("Open calendar")
-                        .accessibilityHint("Double tap to pick a date")
+                        .accessibilityLabel(L.t("Open calendar", "달력 열기", "カレンダーを開く"))
+                        .accessibilityHint(L.t("Double tap to pick a date", "날짜를 선택하려면 이중 탭하세요", "日付を選ぶにはダブルタップ"))
                         }
                         .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
                     }
@@ -131,7 +132,7 @@ struct PlannerView: View {
                     if filteredAppointments.isEmpty {
                         GeometryReader { geo in
                             VStack(spacing: 20) {
-                                Image(systemName: "mic.fill")
+                                Image(systemName: authManager.accessState.isGuest ? "plus.circle" : "mic.fill")
                                     .font(.system(size: 48))
                                     .foregroundColor(DesignSystem.Colors.primary.opacity(0.5))
                                     .accessibilityHidden(true)
@@ -141,9 +142,13 @@ struct PlannerView: View {
                             }
                             .frame(width: geo.size.width, height: geo.size.height)
                             .onTapGesture {
-                                if reduceMotion { activeTab = .voice } else { withAnimation(.spring()) { activeTab = .voice } }
+                                if authManager.accessState.isGuest { showQuickAdd = true }
+                                else if reduceMotion { activeTab = .voice }
+                                else { withAnimation(.spring()) { activeTab = .voice } }
                             }
-                            .accessibilityLabel("No appointments. Tap to add with voice")
+                            .accessibilityLabel(authManager.accessState.isGuest
+                                ? L.t("No tasks yet. Add a task", "아직 일정이 없어요. 일정 추가", "予定はまだありません。タスクを追加")
+                                : L.t("No tasks yet. Add with voice", "아직 일정이 없어요. 음성으로 추가", "予定はまだありません。音声で追加"))
                             .accessibilityAddTraits(.isButton)
                         }
                         .frame(minHeight: ((UIApplication.shared.connectedScenes.first as? UIWindowScene)?.screen.bounds.height ?? 800) * 0.4)
@@ -398,7 +403,7 @@ struct EventCard: View {
                             .frame(minWidth: 44, minHeight: 44)
                             .contentShape(Rectangle())
                     }
-                    .accessibilityLabel("Delete task")
+                    .accessibilityLabel(L.t("Delete task", "일정 삭제", "タスクを削除"))
 
                     Button(action: { finishEditing() }) {
                         Image(systemName: "checkmark")
@@ -407,7 +412,7 @@ struct EventCard: View {
                             .frame(minWidth: 44, minHeight: 44)
                             .contentShape(Rectangle())
                     }
-                    .accessibilityLabel("Save changes")
+                    .accessibilityLabel(L.t("Save changes", "변경사항 저장", "変更を保存"))
                 }
 
                 // 하단: 시간 + 알림 pill
@@ -473,8 +478,8 @@ struct EventCard: View {
                     }
                     .frame(minWidth: 44, minHeight: 44)
                     .contentShape(Rectangle())
-                    .accessibilityLabel(task.isCompleted ? "\(task.task), completed" : "\(task.task), not completed")
-                    .accessibilityHint("Double tap to toggle completion")
+                    .accessibilityLabel("\(task.task), \(task.isCompleted ? L.t("completed", "완료", "完了") : L.t("not completed", "미완료", "未完了"))")
+                    .accessibilityHint(L.t("Double tap to toggle completion", "완료 상태를 바꾸려면 이중 탭하세요", "完了状態を切り替えるにはダブルタップ"))
 
                     // 아이콘 + 제목 + 메타 (탭 → 편집)
                     VStack(alignment: .leading, spacing: 0) {
@@ -559,8 +564,8 @@ struct EventCard: View {
                         withAnimation { startEditing() }
                         Haptic.impact(.light)
                     }
-                    .accessibilityLabel("Edit \(task.task)")
-                    .accessibilityHint("Double tap to edit")
+                    .accessibilityLabel(L.t("Edit \(task.task)", "\(task.task) 수정", "\(task.task)を編集"))
+                    .accessibilityHint(L.t("Double tap to edit", "수정하려면 이중 탭하세요", "編集するにはダブルタップ"))
                 }
             }
         }
@@ -619,5 +624,6 @@ struct PlannerView_Previews: PreviewProvider {
     static var previews: some View {
         PlannerView(activeTab: .constant(.planner))
             .environmentObject(TaskManager())
+            .environmentObject(AuthManager())
     }
 }

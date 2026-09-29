@@ -2,14 +2,17 @@ import SwiftUI
 import WidgetKit
 
 // MARK: - Widget Locked View
-/// D13: 위젯은 Pro 전용 — 무료 사용자에게는 자물쇠 플레이스홀더를 표시하고
-/// 탭하면 `mora://paywall` 딥링크로 앱 내 페이월을 연다.
+/// 위젯 데이터를 표시할 수 없을 때 중립 상태를 보여줍니다.
+/// 탭하면 일반 앱 화면을 열며, 위젯에서 구독을 광고하거나 구매를 유도하지 않습니다.
 struct WidgetLockedView: View {
     let family: WidgetFamily
 
     var body: some View {
         content
-            .widgetURL(URL(string: "mora://paywall"))
+            .widgetURL(URL(string: "mora://tab/routine"))
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Mora. \(WidgetL.unavailable)")
+            .accessibilityHint(WidgetL.openApp)
     }
 
     @ViewBuilder
@@ -20,10 +23,10 @@ struct WidgetLockedView: View {
                 Image(systemName: "lock.fill")
                     .font(.system(size: 22))
                     .foregroundStyle(WDS.Colors.primary)
-                Text("Mora Pro")
+                Text("Mora")
                     .font(WDS.Typography.titleSm)
                     .foregroundStyle(WDS.Colors.onSurfaceVariant)
-                Text(WidgetL.proCTA)
+                Text(WidgetL.openApp)
                     .font(WDS.Typography.caption)
                     .foregroundStyle(WDS.Colors.onSurfaceVariant.opacity(0.5))
             }
@@ -35,13 +38,13 @@ struct WidgetLockedView: View {
                     .font(.system(size: 28))
                     .foregroundStyle(WDS.Colors.primary)
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Mora Pro")
+                    Text("Mora")
                         .font(WDS.Typography.titleSm)
                         .foregroundStyle(WDS.Colors.onSurfaceVariant)
-                    Text(WidgetL.proLocked)
+                    Text(WidgetL.unavailable)
                         .font(WDS.Typography.bodyMd)
                         .foregroundStyle(WDS.Colors.onSurfaceVariant.opacity(0.7))
-                    Text(WidgetL.proCTA)
+                    Text(WidgetL.openApp)
                         .font(WDS.Typography.caption)
                         .foregroundStyle(WDS.Colors.primary.opacity(0.8))
                 }
@@ -62,10 +65,10 @@ struct WidgetLockedView: View {
                 HStack(spacing: 4) {
                     Image(systemName: "lock.fill")
                         .font(.system(size: 10))
-                    Text("Mora Pro")
+                    Text("Mora")
                         .font(.system(size: 12, weight: .bold))
                 }
-                Text(WidgetL.proCTA)
+                Text(WidgetL.openApp)
                     .font(.system(size: 10))
                     .foregroundStyle(.secondary)
             }
@@ -73,7 +76,7 @@ struct WidgetLockedView: View {
             .containerBackground(for: .widget) { Color.clear }
 
         default: // .accessoryInline 등
-            Label("Mora Pro", systemImage: "lock.fill")
+            Label("Mora", systemImage: "lock.fill")
                 .containerBackground(for: .widget) { Color.clear }
         }
     }

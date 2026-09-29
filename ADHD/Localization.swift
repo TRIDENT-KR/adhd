@@ -466,6 +466,10 @@ struct OnboardingStrings {
         }
     }
 
+    func pageHint(_ page: Int, total: Int) -> String {
+        t("Page \(page) of \(total)", "전체 \(total)페이지 중 \(page)페이지", "全\(total)ページ中\(page)ページ")
+    }
+
     var page1Title: String { t("Just say it", "말하면 끝", "話すだけ") }
     var page1Body: String { t("One mic for every routine, task, and plan.", "마이크 하나로 루틴, 할 일, 일정까지 전부.", "マイクひとつでルーティンも予定もすべて。") }
     var page3Title: String { t("You're all set", "준비 끝", "準備完了") }
@@ -505,7 +509,7 @@ struct PaywallStrings {
     }
 
     var title: String { t("Mora Pro", "Mora Pro", "Mora Pro") }
-    var subtitle: String { t("Unlimited AI voice input\nand all premium features.", "AI 음성 입력 무제한\n그리고 모든 프리미엄 기능.", "AI音声入力を無制限に\nすべてのプレミアム機能を。") }
+    var subtitle: String { t("More room for AI task planning,\nwith advanced reminders and task widgets.", "AI 일정 입력을 더 자유롭게,\n고급 알림과 일정 위젯까지.", "AIで予定をもっと自由に。\n高度なリマインダーとタスクウィジェットも。") }
     var purchaseErrorTitle: String { t("Purchase Error", "구매 오류", "購入エラー") }
     var ok: String { t("OK", "확인", "OK") }
     var choosePlan: String { t("CHOOSE YOUR PLAN", "플랜 선택", "プランを選択") }
@@ -532,14 +536,28 @@ struct PaywallStrings {
         "サブスクリプションは自動的に更新されます。設定からいつでも解約できます。"
     ) }
 
-    var featureVoiceTitle: String { t("Unlimited voice & AI", "무제한 음성 & AI", "無制限の音声 & AI") }
-    var featureVoiceDesc: String { t("Free users get 3 AI inputs per day. Pro removes the limit entirely.", "무료는 하루 3회, Pro는 제한 없이 음성·텍스트 AI를 사용할 수 있어요.", "無料は1日3回、Proなら回数制限なしで音声・テキストAIを使えます。") }
+    var featureVoiceTitle: String { t("AI beyond the daily free limit", "AI 일일 무료 횟수 제한 해제", "AIの1日の無料回数制限を解除") }
+    var featureVoiceDesc: String { t("Free includes 3 AI analyses per day. Pro removes this daily limit. Excessive requests may be temporarily limited to keep the service available.", "무료 AI 분석은 하루 3회입니다. Pro는 이 일일 횟수 제한을 해제합니다. 안정적인 서비스 운영을 위해 과도한 요청은 일시적으로 제한될 수 있어요.", "無料のAI分析は1日3回です。Proではこの1日の回数制限を解除します。安定したサービス提供のため、過剰なリクエストは一時的に制限される場合があります。") }
     var featureAITitle: String { t("Smart task sorting", "AI 자동 분류", "AIが自動で分類") }
     var featureAIDesc: String { t("AI tells apart routines, tasks, and appointments automatically.", "루틴인지, 할 일인지, 일정인지 AI가 알아서 구분해요.", "ルーティンか、タスクか、予定か、AIが自動で判断します。") }
     var featureAlarmsTitle: String { t("Full-screen alarms", "전체 화면 알람", "フルスクリーンアラーム") }
-    var featureAlarmsDesc: String { t("Full-screen alarms with Pro. Delivery depends on device permissions and settings.", "Pro 전체 화면 알람. 알람 전달은 기기 권한과 설정에 따라 달라져요.", "Proのフルスクリーンアラーム。通知は端末の許可と設定に依存します。") }
+    var featureAlarmsDesc: String { t("Full-screen reminders for urgent tasks, with completion and snooze actions. Delivery depends on device permissions and settings.", "긴급한 일정의 전체 화면 알림에서 완료와 다시 알림을 처리하세요. 전달은 기기 권한과 설정에 따라 달라져요.", "緊急なタスクを全画面で通知し、完了やスヌーズを操作できます。通知は端末の許可と設定に依存します。") }
     var featureWidgetsTitle: String { t("Home screen widgets", "홈 화면 위젯", "ホーム画面ウィジェット") }
-    var featureWidgetsDesc: String { t("Pro-only widgets for your Home & Lock Screen.", "홈·잠금 화면 위젯 — Pro 전용.", "ホーム・ロック画面ウィジェット — Pro限定。") }
+    var featureWidgetsDesc: String { t("See your next task and routine progress from Home and Lock Screen task widgets with Pro.", "Pro 일정 위젯에서 다음 할 일과 루틴 진행 상황을 홈·잠금 화면으로 확인하세요.", "Proのタスクウィジェットで、次のタスクやルーティンの進捗をホーム・ロック画面から確認できます。") }
+
+    var purchasePending: String { t("Your purchase is awaiting approval. Pro will activate after Apple and Mora confirm it.", "구매 승인을 기다리고 있어요. Apple과 Mora의 확인이 끝나면 Pro가 활성화됩니다.", "購入は承認待ちです。AppleとMoraの確認後にProが有効になります。") }
+    var accountRequired: String { t("Sign in with Apple to subscribe or restore purchases. You can keep using manual tasks without signing in.", "구독하거나 구매를 복원하려면 Apple로 로그인해 주세요. 수동 일정은 로그인 없이 계속 사용할 수 있어요.", "登録や購入の復元にはAppleでサインインしてください。手入力のタスクはサインインせずに利用できます。") }
+    var signIn: String { t("Sign in with Apple", "Apple로 로그인", "Appleでサインイン") }
+    var connectionRequired: String { t("Connect to the internet to subscribe or restore purchases.", "구독하거나 구매를 복원하려면 인터넷에 연결해 주세요.", "登録や購入の復元にはインターネット接続が必要です。") }
+    var registrationUnavailable: String { t("Subscription verification is unavailable. No purchase was started. Please try again later.", "구독 확인을 사용할 수 없어 결제를 시작하지 않았어요. 잠시 후 다시 시도해 주세요.", "サブスクリプションを確認できないため、購入は開始していません。しばらくしてからお試しください。") }
+    var restoreRebindUnavailable: String { t("This subscription cannot be restored to the current account. Please contact support.", "이 구독을 현재 계정으로 복원할 수 없어요. 고객 지원에 문의해 주세요.", "このアカウントにはサブスクリプションを復元できません。サポートにお問い合わせください。") }
+    var ownedByAnotherAccount: String { t("This subscription is linked to another Mora account. Please contact support.", "이 구독은 다른 Mora 계정에 연결되어 있어요. 고객 지원에 문의해 주세요.", "このサブスクリプションは別のMoraアカウントに紐づいています。サポートにお問い合わせください。") }
+    var familySharingUnsupported: String { t("Subscriptions received through Family Sharing are not supported.", "가족 공유로 받은 구독은 지원하지 않아요.", "ファミリー共有で受け取ったサブスクリプションには対応していません。") }
+    var verificationFailed: String { t("The subscription could not be verified. Please try again later.", "구독 정보를 확인할 수 없어요. 잠시 후 다시 시도해 주세요.", "サブスクリプションを確認できませんでした。しばらくしてからお試しください。") }
+    var nothingToRestore: String { t("No active subscription was found to restore.", "복원할 수 있는 활성 구독을 찾지 못했어요.", "復元できる有効なサブスクリプションが見つかりませんでした。") }
+    var accountTokenChanged: String { t("The subscription account could not be confirmed. Please contact support.", "구독 계정을 확인할 수 없어요. 고객 지원에 문의해 주세요.", "サブスクリプションのアカウントを確認できませんでした。サポートにお問い合わせください。") }
+    var entitlementNotGranted: String { t("Your purchase was received, but Pro access has not been confirmed. Try Restore Purchases before buying again, or contact support.", "구매 정보는 받았지만 Pro 권한을 확인하지 못했어요. 다시 결제하기 전에 구매 복원을 시도하거나 고객 지원에 문의해 주세요.", "購入情報は受信しましたが、Proの利用権限を確認できませんでした。再購入の前に購入を復元するか、サポートにお問い合わせください。") }
+    var serverUnavailable: String { t("We could not confirm your subscription. Check your connection and try Restore Purchases before buying again.", "구독 상태를 확인하지 못했어요. 연결을 확인하고, 다시 결제하기 전에 구매 복원을 시도해 주세요.", "サブスクリプションを確認できませんでした。接続を確認し、再購入の前に購入の復元をお試しください。") }
 
     var subscriptionSection: String { t("Subscription", "구독", "サブスクリプション") }
     var premiumActive: String { t("Pro · Active", "Pro · 활성", "Pro · 有効") }

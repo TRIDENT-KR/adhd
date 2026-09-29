@@ -110,7 +110,7 @@ struct OnboardingView: View {
         }
         .padding(.horizontal, 32)
         .accessibilityElement(children: .combine)
-        .accessibilityHint("Page 1 of 3")
+        .accessibilityHint(L.onboarding.pageHint(1, total: 3))
     }
 
     /// 2장: 예시 명령어 (VoiceGuideSheet의 행 스타일 재사용 — D21 중복 해소의 근거)
@@ -128,7 +128,7 @@ struct OnboardingView: View {
         }
         .padding(.horizontal, 24)
         .accessibilityElement(children: .combine)
-        .accessibilityHint("Page 2 of 3")
+        .accessibilityHint(L.onboarding.pageHint(2, total: 3))
     }
 
     /// 3장: 시작 CTA로 이어지는 마무리
@@ -149,7 +149,7 @@ struct OnboardingView: View {
         }
         .padding(.horizontal, 32)
         .accessibilityElement(children: .combine)
-        .accessibilityHint("Page 3 of 3")
+        .accessibilityHint(L.onboarding.pageHint(3, total: 3))
     }
 
     private func exampleRow(icon: String, text: String, color: Color) -> some View {

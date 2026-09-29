@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>NSAlarmKitUsageDescription</key>
-	<string>Mora uses alarms so you never miss a critical task, even in Silent or Focus mode.</string>
+	<string>Mora uses alarms for tasks you mark as urgent. Alarm delivery depends on your device permissions and settings.</string>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
 	<key>CFBundleURLTypes</key>

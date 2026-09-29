@@ -1,2 +1,3 @@
 "NSMicrophoneUsageDescription" = "マイクを押すと音声から編集可能な下書きを作成します。文字でも入力できます。";
 "NSSpeechRecognitionUsageDescription" = "Appleの音声認識で音声を編集可能なタスクの下書きに変換します。音声がAppleで処理される場合があります。文字でも入力できます。";
+"NSAlarmKitUsageDescription" = "緊急に設定したタスクをアラームでお知らせします。通知は端末の許可と設定に依存します。";

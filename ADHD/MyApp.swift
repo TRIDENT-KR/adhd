@@ -25,7 +25,6 @@ struct MoraApp: App {
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     @Environment(\.scenePhase) private var scenePhase
     @State private var hasSeededPresentationDemo = false
-    @State private var pendingStoreDeletionUserID: UUID?
     private let sessionCleanupCoordinator = AccountSessionCleanupCoordinator()
 
     private var isPresentationDemoMode: Bool {
@@ -79,6 +78,14 @@ struct MoraApp: App {
     var body: some Scene {
         WindowGroup {
             rootContent
+                .alert(L.authRelease.deletionCompleteTitle, isPresented: Binding(
+                    get: { authManager.showsDeletionCompletion && authManager.pendingLocalDeletionUserID == nil },
+                    set: { if !$0 { authManager.dismissDeletionCompletion() } }
+                )) {
+                    Button(L.settings.done) { authManager.dismissDeletionCompletion() }
+                } message: {
+                    Text(L.authRelease.deletionCompleteMessage)
+                }
                 .task(id: authManager.accessState) {
                     await synchronizeAccountStoreWithAuthState()
                 }
@@ -134,10 +141,12 @@ struct MoraApp: App {
                 }
 
             case .signedOut, .lockedInvalidSession:
-                LoginView()
-                    .environmentObject(authManager)
-                    .preferredColorScheme(colorScheme)
-                    .environment(\.locale, Locale(identifier: appLanguage))
+                if accountStoreController.activeUserID == LocalGuestIdentity.storageID,
+                   let container = accountStoreController.container {
+                    accountContent(container: container, userID: LocalGuestIdentity.storageID)
+                } else {
+                    loadingView
+                }
             }
         }
     }
@@ -172,6 +181,7 @@ struct MoraApp: App {
             .environmentObject(authManager)
             .environmentObject(networkMonitor)
             .environmentObject(subscriptionManager)
+            .environmentObject(accountStoreController)
             .modelContainer(container)
             .preferredColorScheme(colorScheme)
             .task {
@@ -228,7 +238,12 @@ struct MoraApp: App {
             return
         }
 
-        switch authManager.accessState {
+        if let userID = authManager.pendingLocalDeletionUserID {
+            await removeCompletedAccountStore(for: userID)
+            return
+        }
+        let expectedState = authManager.accessState
+        switch expectedState {
         case .booting:
             return
 
@@ -236,73 +251,76 @@ struct MoraApp: App {
              .authenticatedOfflineLimited(let userID):
             if let activeUserID = accountStoreController.activeUserID,
                activeUserID != userID {
+                guard accountStoreController.saveBeforeSwitch() else { return }
                 await sessionCleanupCoordinator.lockLocalExposure(
                     taskManager: taskManager,
                     reason: .accountSwitch
                 )
+                guard !Task.isCancelled, authManager.accessState == expectedState else { return }
                 accountStoreController.lock()
             }
+            guard !Task.isCancelled, authManager.accessState == expectedState else { return }
             AccountPreferences.activate(for: userID)
             WidgetAccountScope.activate(AccountPreferences.scope(for: userID))
             subscriptionManager.activateLocalAccountScope(userID)
             accountStoreController.activate(for: userID)
 
-        case .signedOut:
-            await sessionCleanupCoordinator.lockLocalExposure(
-                taskManager: taskManager,
-                reason: .signedOut
-            )
-            accountStoreController.lock()
-
-        case .lockedInvalidSession:
-            await sessionCleanupCoordinator.lockLocalExposure(
-                taskManager: taskManager,
-                reason: .invalidSession
-            )
-            accountStoreController.lock()
+        case .signedOut, .lockedInvalidSession:
+            if accountStoreController.activeUserID != LocalGuestIdentity.storageID {
+                guard accountStoreController.saveBeforeSwitch() else { return }
+                await sessionCleanupCoordinator.lockLocalExposure(
+                    taskManager: taskManager,
+                    reason: expectedState == .signedOut ? .signedOut : .invalidSession
+                )
+                guard !Task.isCancelled, authManager.accessState == expectedState else { return }
+                accountStoreController.lock()
+            }
+            guard !Task.isCancelled, authManager.accessState == expectedState else { return }
+            AccountPreferences.activate(for: LocalGuestIdentity.storageID)
+            WidgetAccountScope.activate(AccountPreferences.scope(for: LocalGuestIdentity.storageID))
+            subscriptionManager.activateGuestScope()
+            accountStoreController.activate(for: LocalGuestIdentity.storageID)
 
         case .deletionPending:
+            guard accountStoreController.saveBeforeSwitch() else { return }
             await sessionCleanupCoordinator.lockLocalExposure(
                 taskManager: taskManager,
                 reason: .deletionPending
             )
+            guard !Task.isCancelled, authManager.accessState == expectedState else { return }
             accountStoreController.lock()
         }
     }
 
     @MainActor
     private func removeCompletedAccountStore(for userID: UUID) async {
-        pendingStoreDeletionUserID = userID
+        guard authManager.pendingLocalDeletionUserID == userID else { return }
         if accountStoreController.activeUserID == userID {
             await sessionCleanupCoordinator.lockLocalExposure(
                 taskManager: taskManager,
                 reason: .deletionCompleted
             )
+            guard authManager.pendingLocalDeletionUserID == userID else { return }
             accountStoreController.lock()
             await Task.yield()
         }
+        guard authManager.pendingLocalDeletionUserID == userID else { return }
         accountStoreController.deleteStoreAfterServerCompletion(for: userID)
+        guard accountStoreController.failureCode == nil else { return }
         AccountPreferences.removeAll(for: userID)
         subscriptionManager.clearAccountCache(for: userID)
-        if accountStoreController.failureCode == nil {
-            pendingStoreDeletionUserID = nil
+        do {
+            try authManager.finishLocalAccountDeletion(for: userID)
+        } catch {
+            accountStoreController.markLocalDeletionFailure()
         }
     }
 
     @MainActor
     private func retryPersistenceOperation() {
-        if let userID = pendingStoreDeletionUserID {
-            accountStoreController.deleteStoreAfterServerCompletion(for: userID)
-            if accountStoreController.failureCode == nil {
-                pendingStoreDeletionUserID = nil
-            }
-            return
+        Task { @MainActor in
+            await synchronizeAccountStoreWithAuthState()
         }
-
-        guard let userID = authManager.accessState.accountUserID else { return }
-        AccountPreferences.activate(for: userID)
-        WidgetAccountScope.activate(AccountPreferences.scope(for: userID))
-        accountStoreController.activate(for: userID)
     }
 
     private func seedPresentationDemoData(in container: ModelContainer) {
@@ -333,6 +351,7 @@ private struct AccountDeletionPendingView: View {
     }
 
     var body: some View {
+        ScrollView {
         VStack(spacing: 24) {
             Image(systemName: "person.crop.circle.badge.clock")
                 .font(.system(size: 44, weight: .medium))
@@ -346,14 +365,20 @@ private struct AccountDeletionPendingView: View {
                     .multilineTextAlignment(.center)
                     .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.75))
 
+                Text(L.authRelease.deletionDelay)
+                    .font(.footnote)
+                    .multilineTextAlignment(.center)
+
                 if let requestID = authManager.accountDeletionRequestID {
-                    Text("Request ID: \(requestID.uuidString.lowercased())")
+                    Text("\(L.authRelease.requestID): \(requestID.uuidString.lowercased())")
                         .font(.caption.monospaced())
                         .textSelection(.enabled)
                 }
             }
 
-            if needsAppleReauthentication {
+            if authManager.accountDeletionStatus == .completed {
+                ProgressView(L.authRelease.deletionFinishing)
+            } else if needsAppleReauthentication {
                 SignInWithAppleButton(.continue) { request in
                     authManager.prepareAppleAccountDeletionRequest(request)
                 } onCompletion: { result in
@@ -375,7 +400,7 @@ private struct AccountDeletionPendingView: View {
                     }
                 }
                 .signInWithAppleButtonStyle(.black)
-                .frame(width: 280, height: 50)
+                .frame(maxWidth: 320, minHeight: 50)
                 .disabled(isWorking)
             } else {
                 Button {
@@ -406,8 +431,13 @@ private struct AccountDeletionPendingView: View {
                 L.settings.contactSupport,
                 destination: URL(string: "mailto:trident1398@gmail.com")!
             )
+            Link(
+                L.paywall.manageSubscription,
+                destination: URL(string: "https://apps.apple.com/account/subscriptions")!
+            )
         }
-        .padding(.horizontal, 32)
+        .padding(32)
+        }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(DesignSystem.Colors.background.ignoresSafeArea())
     }
