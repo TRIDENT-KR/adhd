@@ -1,6 +1,10 @@
 import { assertEquals } from "jsr:@std/assert@1";
 import { verifyAppleNotification } from "../_shared/apple-jws.ts";
-import { appleLikeChain, sampleTransaction, signJws } from "../_shared/test-pki.ts";
+import {
+  appleLikeChain,
+  sampleTransaction,
+  signJws,
+} from "../_shared/test-pki.ts";
 import {
   handleNotification,
   type NotificationDeps,
@@ -21,10 +25,13 @@ function verified(over: {
     notification: {
       notificationType: "DID_RENEW",
       notificationUUID: NOTIFICATION_UUID,
+      signedDate: NOW.getTime(),
       data: { bundleId: "trident-KR.ADHD", environment: "Sandbox" },
       ...over.notification,
     },
-    transaction: over.transaction === null ? undefined : over.transaction ?? sampleTransaction(),
+    transaction: over.transaction === null
+      ? undefined
+      : over.transaction ?? sampleTransaction(),
     renewalInfo: over.renewalInfo,
   };
 }
@@ -35,7 +42,10 @@ function deps(
   apply: () => Promise<string> = () => Promise.resolve("updated"),
 ): NotificationDeps {
   return {
-    verifyNotification: () => result instanceof Error ? Promise.reject(result) : Promise.resolve(result),
+    verifyNotification: () =>
+      result instanceof Error
+        ? Promise.reject(result)
+        : Promise.resolve(result),
     applyNotification: (record) => {
       records.push(record);
       return apply();
@@ -45,7 +55,9 @@ function deps(
   };
 }
 
-function request(body: unknown = { signedPayload: "signed.payload.value" }): Request {
+function request(
+  body: unknown = { signedPayload: "signed.payload.value" },
+): Request {
   return new Request("https://example.test/app-store-notifications", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -85,6 +97,7 @@ Deno.test("유예 기간 결제 실패 알림은 grace", async () => {
     transaction: sampleTransaction({ expiresDate: NOW.getTime() - HOUR }),
     renewalInfo: {
       environment: "Sandbox",
+      signedDate: NOW.getTime(),
       isInBillingRetryPeriod: true,
       gracePeriodExpiresDate: NOW.getTime() + 6 * 24 * HOUR,
     },
@@ -102,7 +115,10 @@ Deno.test("환불 알림은 refunded", async () => {
       notificationUUID: NOTIFICATION_UUID,
       data: { bundleId: "trident-KR.ADHD", environment: "Sandbox" },
     },
-    transaction: sampleTransaction({ revocationDate: NOW.getTime() - 60_000, revocationReason: 0 }),
+    transaction: sampleTransaction({
+      revocationDate: NOW.getTime() - 60_000,
+      revocationReason: 0,
+    }),
   });
   await call(request(), deps(v, records));
   assertEquals(records[0].facts?.state, "refunded");
@@ -117,10 +133,15 @@ Deno.test("다른 앱 알림은 200으로 무시하고, 가족 공유·TEST 알�
       data: { bundleId: "com.other.app", environment: "Sandbox" },
     },
   });
-  assertEquals((await call(request(), deps(otherApp, records))).body.result, "ignored_other_app");
+  assertEquals(
+    (await call(request(), deps(otherApp, records))).body.result,
+    "ignored_other_app",
+  );
   assertEquals(records.length, 0);
 
-  const family = verified({ transaction: sampleTransaction({ inAppOwnershipType: "FAMILY_SHARED" }) });
+  const family = verified({
+    transaction: sampleTransaction({ inAppOwnershipType: "FAMILY_SHARED" }),
+  });
   assertEquals((await call(request(), deps(family, records))).status, 200);
   assertEquals(records[0].facts, null);
 
@@ -137,12 +158,20 @@ Deno.test("다른 앱 알림은 200으로 무시하고, 가족 공유·TEST 알�
 });
 
 Deno.test("알림 환경과 거래 환경이 다르면 400", async () => {
-  const v = verified({ transaction: sampleTransaction({ environment: "Production" }) });
-  assertEquals((await call(request(), deps(v))).body.error.code, "environment_mismatch");
+  const v = verified({
+    transaction: sampleTransaction({ environment: "Production" }),
+  });
+  assertEquals(
+    (await call(request(), deps(v))).body.error.code,
+    "environment_mismatch",
+  );
 });
 
 Deno.test("DB 장애면 503을 돌려 Apple이 다시 보내게 한다", async () => {
-  const result = await call(request(), deps(verified(), [], () => Promise.reject(new Error("down"))));
+  const result = await call(
+    request(),
+    deps(verified(), [], () => Promise.reject(new Error("down"))),
+  );
   assertEquals(result.status, 503);
 });
 
@@ -150,11 +179,20 @@ Deno.test("통합: 테스트 체인으로 서명한 실제 V2 알림(중첩 JWS 
   const chain = await appleLikeChain();
   const now = new Date();
   const signedTransactionInfo = await signJws(
-    sampleTransaction({ purchaseDate: now.getTime() - HOUR, expiresDate: now.getTime() + HOUR }),
+    sampleTransaction({
+      purchaseDate: now.getTime() - HOUR,
+      expiresDate: now.getTime() + HOUR,
+      signedDate: now.getTime(),
+    }),
     chain,
   );
   const signedRenewalInfo = await signJws(
-    { environment: "Sandbox", originalTransactionId: "2000000999000001", autoRenewStatus: 1 },
+    {
+      environment: "Sandbox",
+      originalTransactionId: "2000000999000001",
+      autoRenewStatus: 1,
+      signedDate: now.getTime(),
+    },
     chain,
   );
   const signedPayload = await signJws({
@@ -173,7 +211,8 @@ Deno.test("통합: 테스트 체인으로 서명한 실제 V2 알림(중첩 JWS 
 
   const records: NotificationRecord[] = [];
   const d: NotificationDeps = {
-    verifyNotification: (value) => verifyAppleNotification(value, { pinnedRootsDer: [chain.rootDer] }),
+    verifyNotification: (value) =>
+      verifyAppleNotification(value, { pinnedRootsDer: [chain.rootDer] }),
     applyNotification: (record) => {
       records.push(record);
       return Promise.resolve("bound");
@@ -183,10 +222,61 @@ Deno.test("통합: 테스트 체인으로 서명한 실제 V2 알림(중첩 JWS 
   };
   const result = await call(request({ signedPayload }), d);
   assertEquals(result, { status: 200, body: { result: "bound" } });
-  assertEquals(records[0].facts?.appAccountToken, "6f9619ff-8b86-d011-b42d-00c04fc964ff");
+  assertEquals(
+    records[0].facts?.appAccountToken,
+    "6f9619ff-8b86-d011-b42d-00c04fc964ff",
+  );
 
   // 다른 루트로 만든 체인이면 거부
   const attacker = await appleLikeChain();
-  const forged = await signJws({ notificationType: "SUBSCRIBED", data: {} }, attacker);
+  const forged = await signJws(
+    { notificationType: "SUBSCRIBED", data: {} },
+    attacker,
+  );
   assertEquals((await call(request({ signedPayload: forged }), d)).status, 400);
+});
+
+Deno.test("알림의 검증된 signedDate를 전달하며 거래 시각으로 대체하지 않는다", async () => {
+  const records: NotificationRecord[] = [];
+  const value = verified({
+    transaction: sampleTransaction({ signedDate: NOW.getTime() - 1000 }),
+  });
+  await call(
+    request({ signedPayload: "signed.payload.value", signedDate: 1 }),
+    deps(value, records),
+  );
+  assertEquals(records[0].signedAt, NOW.toISOString());
+  assertEquals(
+    records[0].facts?.signedAt,
+    new Date(NOW.getTime() - 1000).toISOString(),
+  );
+});
+
+Deno.test("알림·거래·갱신 JWS의 signedDate 누락과 미래 시각은 거부한다", async () => {
+  const malformed: VerifiedNotification[] = [
+    verified({ notification: { signedDate: undefined } }),
+    verified({ notification: { signedDate: NOW.getTime() + 60_001 } }),
+    verified({ transaction: sampleTransaction({ signedDate: undefined }) }),
+    verified({
+      renewalInfo: { environment: "Sandbox", signedDate: undefined },
+    }),
+  ];
+  for (const value of malformed) {
+    const records: NotificationRecord[] = [];
+    const result = await call(request(), deps(value, records));
+    assertEquals(result.status, 400);
+    assertEquals(result.body.error.code, "invalid_signed_date");
+    assertEquals(records.length, 0);
+  }
+});
+
+Deno.test("서명된 환불 철회는 취소일을 지우고 유효 기간 안에서 active를 전달한다", async () => {
+  const records: NotificationRecord[] = [];
+  const value = verified({
+    notification: { notificationType: "REFUND_REVERSED" },
+    transaction: sampleTransaction({ revocationDate: NOW.getTime() - 1000 }),
+  });
+  assertEquals((await call(request(), deps(value, records))).status, 200);
+  assertEquals(records[0].facts?.state, "active");
+  assertEquals(records[0].facts?.revokedAt, null);
 });

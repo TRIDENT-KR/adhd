@@ -1,5 +1,9 @@
 import { assertEquals, assertThrows } from "jsr:@std/assert@1";
-import { deriveState, TransactionRejected, transactionFacts } from "./storekit-facts.ts";
+import {
+  deriveState,
+  transactionFacts,
+  TransactionRejected,
+} from "./storekit-facts.ts";
 import { SAMPLE_NOW as NOW, sampleTransaction } from "./test-pki.ts";
 
 const HOUR = 3_600_000;
@@ -10,6 +14,7 @@ Deno.test("유효한 구독 거래는 active 사실로 바뀐다", () => {
   assertEquals(facts.appleEnvironment, "Sandbox");
   assertEquals(facts.appAccountToken, "6f9619ff-8b86-d011-b42d-00c04fc964ff");
   assertEquals(facts.graceExpiresAt, null);
+  assertEquals(facts.signedAt, NOW.toISOString());
 });
 
 Deno.test("우리 앱·상품·구매 형태가 아니면 거부한다", () => {
@@ -34,7 +39,10 @@ Deno.test("우리 앱·상품·구매 형태가 아니면 거부한다", () => {
 
 Deno.test("갱신 정보가 다른 환경·다른 거래면 거부한다", () => {
   assertThrows(
-    () => transactionFacts(sampleTransaction(), { environment: "Production" }, { now: NOW }),
+    () =>
+      transactionFacts(sampleTransaction(), { environment: "Production" }, {
+        now: NOW,
+      }),
     TransactionRejected,
     "environment_mismatch",
   );
@@ -54,27 +62,115 @@ Deno.test("상태 판정: 만료·유예·결제 재시도·환불·취소", () 
   const expired = sampleTransaction({ expiresDate: NOW.getTime() - HOUR });
   assertEquals(deriveState(expired, undefined, undefined, NOW), "expired");
   assertEquals(
-    deriveState(expired, { isInBillingRetryPeriod: true, gracePeriodExpiresDate: NOW.getTime() + HOUR }, undefined, NOW),
+    deriveState(
+      expired,
+      {
+        isInBillingRetryPeriod: true,
+        gracePeriodExpiresDate: NOW.getTime() + HOUR,
+      },
+      undefined,
+      NOW,
+    ),
     "grace",
   );
   // 유예가 끝났으면 재시도 중이어도 Pro가 아니다 (INT-15)
   assertEquals(
-    deriveState(expired, { isInBillingRetryPeriod: true, gracePeriodExpiresDate: NOW.getTime() - HOUR }, undefined, NOW),
+    deriveState(
+      expired,
+      {
+        isInBillingRetryPeriod: true,
+        gracePeriodExpiresDate: NOW.getTime() - HOUR,
+      },
+      undefined,
+      NOW,
+    ),
     "billing_retry",
   );
   assertEquals(
-    deriveState(sampleTransaction({ revocationDate: NOW.getTime() - 60_000 }), undefined, undefined, NOW),
+    deriveState(
+      sampleTransaction({ revocationDate: NOW.getTime() - 60_000 }),
+      undefined,
+      undefined,
+      NOW,
+    ),
     "refunded",
   );
-  assertEquals(deriveState(sampleTransaction(), undefined, "REVOKE", NOW), "revoked");
+  assertEquals(
+    deriveState(sampleTransaction(), undefined, "REVOKE", NOW),
+    "revoked",
+  );
 });
 
 Deno.test("grace 상태에서만 유예 만료 시각을 넘긴다", () => {
   const facts = transactionFacts(
     sampleTransaction({ expiresDate: NOW.getTime() - HOUR }),
-    { environment: "Sandbox", isInBillingRetryPeriod: true, gracePeriodExpiresDate: NOW.getTime() + HOUR },
+    {
+      environment: "Sandbox",
+      signedDate: NOW.getTime(),
+      isInBillingRetryPeriod: true,
+      gracePeriodExpiresDate: NOW.getTime() + HOUR,
+    },
     { now: NOW },
   );
   assertEquals(facts.state, "grace");
-  assertEquals(facts.graceExpiresAt, new Date(NOW.getTime() + HOUR).toISOString());
+  assertEquals(
+    facts.graceExpiresAt,
+    new Date(NOW.getTime() + HOUR).toISOString(),
+  );
+});
+
+Deno.test("거래 증거에는 검증된 signedDate와 purchaseDate가 반드시 있다", () => {
+  for (
+    const bad of [
+      undefined,
+      null,
+      "1",
+      0,
+      -1,
+      NaN,
+      Infinity,
+      1.5,
+      NOW.getTime() + 60_001,
+    ]
+  ) {
+    assertThrows(
+      () =>
+        transactionFacts(sampleTransaction({ signedDate: bad }), undefined, {
+          now: NOW,
+        }),
+      TransactionRejected,
+      "invalid_signed_date",
+    );
+  }
+  assertThrows(
+    () =>
+      transactionFacts(
+        sampleTransaction({ purchaseDate: undefined }),
+        undefined,
+        { now: NOW },
+      ),
+    TransactionRejected,
+    "invalid_purchase_date",
+  );
+});
+
+Deno.test("환불 철회는 원래 갱신일 안에서 권한을 복원한다", () => {
+  const refunded = sampleTransaction({ revocationDate: NOW.getTime() - HOUR });
+  assertEquals(
+    deriveState(refunded, undefined, "REFUND_REVERSED", NOW),
+    "active",
+  );
+  assertEquals(
+    deriveState(
+      { ...refunded, expiresDate: NOW.getTime() - HOUR },
+      undefined,
+      "REFUND_REVERSED",
+      NOW,
+    ),
+    "expired",
+  );
+  assertEquals(
+    deriveState(sampleTransaction(), undefined, "REFUND", NOW),
+    "refunded",
+  );
 });
