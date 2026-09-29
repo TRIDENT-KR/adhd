@@ -140,3 +140,29 @@ struct AccountStoreLayoutTests {
             .appendingPathComponent("mora-account-store-\(UUID().uuidString)", isDirectory: true)
     }
 }
+
+struct AIDataConsentTests {
+    @Test func consentRequiresOptInAndIsIsolatedAndDeletedWithAccount() throws {
+        let name = "consent-tests-" + UUID().uuidString
+        let defaults = try #require(UserDefaults(suiteName: name))
+        defer { defaults.removePersistentDomain(forName: name) }
+        let first = UUID(), second = UUID()
+        #expect(!AIDataConsent.isGranted(for: first, defaults: defaults))
+        AIDataConsent.setGranted(true, for: first, defaults: defaults)
+        #expect(AIDataConsent.isGranted(for: first, defaults: defaults))
+        #expect(!AIDataConsent.isGranted(for: second, defaults: defaults))
+        AIDataConsent.setGranted(false, for: first, defaults: defaults)
+        #expect(!AIDataConsent.isGranted(for: first, defaults: defaults))
+        AIDataConsent.setGranted(true, for: first, defaults: defaults)
+        AccountPreferences.removeAll(for: first, defaults: defaults)
+        #expect(!AIDataConsent.isGranted(for: first, defaults: defaults))
+    }
+    @Test func outdatedConsentCannotAuthorizeANewDisclosure() throws {
+        let name = "consent-tests-" + UUID().uuidString
+        let defaults = try #require(UserDefaults(suiteName: name))
+        defer { defaults.removePersistentDomain(forName: name) }
+        let user = UUID()
+        AccountPreferences.set(AIDataConsent.currentVersion - 1, for: .aiDataConsentVersion, userID: user, defaults: defaults)
+        #expect(!AIDataConsent.isGranted(for: user, defaults: defaults))
+    }
+}

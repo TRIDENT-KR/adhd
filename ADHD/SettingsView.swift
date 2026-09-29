@@ -17,6 +17,8 @@ struct SettingsView: View {
     @State private var clearCompletedCount = 0
     @State private var clearAllCount = 0
     @State private var showPaywall = false
+    @State private var showAIConsent = false
+    @State private var aiDataConsentGranted = false
 
     // Notifications
     @State private var routineReminders = true
@@ -202,6 +204,24 @@ struct SettingsView: View {
                     }
                 } header: {
                     Text(L.tabVoice)
+                }
+
+                Section {
+                    Toggle(L.aiPrivacy.allow, isOn: Binding(
+                        get: { aiDataConsentGranted },
+                        set: { granted in
+                            if granted { showAIConsent = true }
+                            else {
+                                AIDataConsent.setGranted(false, for: accountUserID)
+                                aiDataConsentGranted = false
+                            }
+                        }
+                    ))
+                    .disabled(accountUserID == nil)
+                    Text(L.aiPrivacy.choice).font(.footnote)
+                    Button(L.aiPrivacy.title) { showAIConsent = true }
+                } header: {
+                    Text(L.aiPrivacy.title)
                 }
 
                 // ── Notifications ──
@@ -428,6 +448,11 @@ struct SettingsView: View {
             UserDefaults.standard.set(voiceLocale, forKey: VoiceInputManager.speechLocaleKey)
             Haptic.impact(.light)
         }
+        .sheet(isPresented: $showAIConsent, onDismiss: {
+            aiDataConsentGranted = AIDataConsent.isGranted(for: accountUserID)
+        }) {
+            AIDataConsentView(userID: accountUserID)
+        }
         .onAppear(perform: loadAccountPreferences)
         .onChange(of: accountUserID) { _, _ in
             loadAccountPreferences()
@@ -435,6 +460,7 @@ struct SettingsView: View {
     }
 
     private func loadAccountPreferences() {
+        aiDataConsentGranted = AIDataConsent.isGranted(for: accountUserID)
         guard let userID = accountUserID else {
             loadedPreferenceAccountID = nil
             routineReminders = false

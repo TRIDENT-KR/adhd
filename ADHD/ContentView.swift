@@ -9,19 +9,15 @@ struct CustomBottomBar: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            Spacer()
             TabBarItem(iconName: "square.grid.2x2", label: "Routine", isActive: activeTab == .routine, reduceMotion: reduceMotion) {
                 if reduceMotion { activeTab = .routine } else { withAnimation(.spring()) { activeTab = .routine } }
             }
-            Spacer()
             TabBarItem(iconName: "mic.fill", label: "Voice", isActive: activeTab == .voice, reduceMotion: reduceMotion) {
                 if reduceMotion { activeTab = .voice } else { withAnimation(.spring()) { activeTab = .voice } }
             }
-            Spacer()
             TabBarItem(iconName: "calendar", label: "Planner", isActive: activeTab == .planner, reduceMotion: reduceMotion) {
                 if reduceMotion { activeTab = .planner } else { withAnimation(.spring()) { activeTab = .planner } }
             }
-            Spacer()
         }
         .padding(.vertical, 12)
         .background(DesignSystem.Colors.background)
@@ -52,6 +48,8 @@ struct TabBarItem: View {
                     .font(DesignSystem.Typography.labelSm)
                     .fontWeight(isActive ? .semibold : .regular)
                     .opacity(isActive ? 1 : 0.7)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
 
                 // Active Dot Indicator
                 Circle()
@@ -63,13 +61,14 @@ struct TabBarItem: View {
             .foregroundColor(
                 isActive ? DesignSystem.Colors.primary : DesignSystem.Colors.onSurfaceVariant.opacity(0.5)
             )
-            .frame(width: 80, height: 56)
+            .frame(maxWidth: .infinity, minHeight: 56)
             .contentShape(Rectangle())
             .animation(reduceMotion ? .none : .spring(response: 0.3, dampingFraction: 0.7), value: isActive)
         }
+        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
         .buttonStyle(PlainButtonStyle())
-        .accessibilityLabel("\(label) tab")
-        .accessibilityHint(isActive ? "Currently selected" : "Double tap to switch to \(label)")
+        .accessibilityLabel(L.tabAccessibilityLabel(label))
+        .accessibilityHint(isActive ? L.tabAccessibilitySelected : L.tabAccessibilityHint(label))
         .accessibilityAddTraits(isActive ? .isSelected : [])
     }
 }

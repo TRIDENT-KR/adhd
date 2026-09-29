@@ -277,3 +277,18 @@ struct StoreKitSyncErrorMapperTests {
         #expect(StoreKitSyncErrorMapper.map(status: 502, data: Data("<html>".utf8)) == nil)
     }
 }
+
+struct SubscriptionPricingTests {
+    @Test func savingsUseActualPricesAndRoundDown() {
+        #expect(SubscriptionPricing.annualSavingsPercent(monthly: 5, yearly: 36, monthlyCurrency: "USD", yearlyCurrency: "USD") == 40)
+        #expect(SubscriptionPricing.annualSavingsPercent(monthly: 5900, yearly: 49000, monthlyCurrency: "KRW", yearlyCurrency: "KRW") == 30)
+        #expect(SubscriptionPricing.annualSavingsPercent(monthly: 3, yearly: 24, monthlyCurrency: "JPY", yearlyCurrency: "JPY") == 33)
+    }
+    @Test func misleadingSavingsAreNotAdvertised() {
+        for yearly: Decimal in [0, -1, 60, 61] {
+            #expect(SubscriptionPricing.annualSavingsPercent(monthly: 5, yearly: yearly, monthlyCurrency: "USD", yearlyCurrency: "USD") == nil)
+        }
+        #expect(SubscriptionPricing.annualSavingsPercent(monthly: 0, yearly: 36, monthlyCurrency: "USD", yearlyCurrency: "USD") == nil)
+        #expect(SubscriptionPricing.annualSavingsPercent(monthly: 5, yearly: 36, monthlyCurrency: "USD", yearlyCurrency: "KRW") == nil)
+    }
+}

@@ -11,6 +11,7 @@ struct PlannerView: View {
     @EnvironmentObject private var taskManager: TaskManager
     @ObservedObject var langManager = LocalizationManager.shared
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     @Binding var activeTab: TabSelection
     @State private var editingTaskId: UUID?
@@ -53,14 +54,20 @@ struct PlannerView: View {
                 VStack(alignment: .leading, spacing: 40) {
 
                     // Header
-                    HStack {
+                    let headerLayout = dynamicTypeSize.isAccessibilitySize
+                        ? AnyLayout(VStackLayout(alignment: .leading, spacing: 16))
+                        : AnyLayout(HStackLayout())
+                    headerLayout {
                         Text(verbatim: "Planner")
                             .font(DesignSystem.Typography.displayLg)
                             .foregroundColor(DesignSystem.Colors.primary)
                             .tracking(-0.5)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.6)
 
-                        Spacer()
+                        if !dynamicTypeSize.isAccessibilitySize { Spacer() }
 
+                        HStack(spacing: 0) {
                         Button(action: { showQuickAdd = true }) {
                             Image(systemName: "plus")
                                 .font(.title3.weight(.light))
@@ -110,6 +117,8 @@ struct PlannerView: View {
                         .buttonStyle(NoEffectButtonStyle())
                         .accessibilityLabel("Open calendar")
                         .accessibilityHint("Double tap to pick a date")
+                        }
+                        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
                     }
                     .padding(.top, 16)
                     .padding(.leading, 32)
@@ -227,6 +236,8 @@ struct PlannerView: View {
 
         let weekdayFormatter = Self.weekdayFormatter
         let dayFormatter = Self.dayFormatter
+        weekdayFormatter.locale = Locale(identifier: langManager.currentLanguage.rawValue)
+        dayFormatter.locale = Locale(identifier: langManager.currentLanguage.rawValue)
 
         return HStack(spacing: 0) {
             // 좌측: 오늘 고정
@@ -244,7 +255,8 @@ struct PlannerView: View {
                         .foregroundColor(isTodaySelected ? .white : DesignSystem.Colors.primary)
                         .minimumScaleFactor(0.8)
                 }
-                .frame(width: 56, height: 68)
+                .padding(.vertical, 10)
+                .frame(minWidth: 56, minHeight: 68)
                 .overlay(alignment: .bottom) {
                     if hasEvents(on: today) {
                         Circle()
@@ -287,7 +299,8 @@ struct PlannerView: View {
                                         .foregroundColor(isSelected ? .white : DesignSystem.Colors.onSurfaceVariant)
                                         .minimumScaleFactor(0.8)
                                 }
-                                .frame(width: 50, height: 64)
+                                .padding(.vertical, 10)
+                                .frame(minWidth: 50, minHeight: 64)
                                 .overlay(alignment: .bottom) {
                                     if hasEvents(on: date) {
                                         Circle()
@@ -336,6 +349,7 @@ struct PlannerView: View {
                 }
             }
         }
+        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
         .padding(.leading, 24)
     }
 }
@@ -469,6 +483,7 @@ struct EventCard: View {
                         HStack(alignment: .top, spacing: 8) {
                             Image(systemName: cachedCategoryIcon)
                                 .font(.footnote)
+                                .dynamicTypeSize(...DynamicTypeSize.large)
                                 .foregroundColor(DesignSystem.Colors.primary.opacity(task.isCompleted ? 0.3 : 0.55))
                                 .frame(width: 18)
                                 .padding(.top, 3)

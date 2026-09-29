@@ -72,6 +72,8 @@ struct RoutineView: View {
                             .font(DesignSystem.Typography.displayLg)
                             .foregroundColor(DesignSystem.Colors.primary)
                             .tracking(-0.5)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.6)
                         Spacer()
                         Button(action: { showQuickAdd = true }) {
                             Image(systemName: "plus")
@@ -110,6 +112,8 @@ struct RoutineView: View {
                                 }
                             }) {
                                 Text(section.label)
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.6)
                                     .font(DesignSystem.Typography.labelSm)
                                     .tracking(0.3)
                                     .foregroundColor(isSelected ? .white : DesignSystem.Colors.onSurfaceVariant)
@@ -140,6 +144,7 @@ struct RoutineView: View {
                         }
                         .accessibilityLabel(isReordering ? "Finish reordering" : "Reorder tasks")
                     }
+                    .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
                     .padding(.horizontal, 32)
 
                     // 선택된 섹션의 태스크 목록
@@ -322,8 +327,9 @@ struct TaskRow: View {
 
                     // 1행: 아이콘 + 제목
                     HStack(alignment: .top, spacing: 8) {
-                        Image(systemName: cachedCategoryIcon)
-                            .font(.footnote)
+                            Image(systemName: cachedCategoryIcon)
+                                .font(.footnote)
+                                .dynamicTypeSize(...DynamicTypeSize.large)
                             .foregroundColor(DesignSystem.Colors.primary.opacity(task.isCompleted ? 0.3 : 0.6))
                             .frame(width: 18)
                             .padding(.top, 3)
@@ -660,4 +666,3 @@ private extension Array {
         return (matching, rest)
     }
 }
-

@@ -56,8 +56,6 @@ struct MainTabView: View {
 
             // 3. 글로벌 바텀 바
             CustomBottomBar(activeTab: $activeTab)
-                .accessibilityElement(children: .contain)
-                .accessibilityLabel(L.voice.a11yTabBar)
                 .blur(radius: isVoiceModalVisible ? 12 : 0)
                 .opacity(isVoiceModalVisible ? 0.6 : 1)
                 .animation(reduceMotion ? .none : .spring(response: 0.4, dampingFraction: 0.7), value: isVoiceModalVisible)

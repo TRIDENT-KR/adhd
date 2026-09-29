@@ -8,6 +8,7 @@ enum AccountPreferenceKey: String {
     case remindBeforeMinutes
     case notificationSoundDisabled
     case confirmBeforeSave
+    case aiDataConsentVersion
 }
 
 /// 계정별 설정을 raw Mora UUID가 노출되지 않는 UserDefaults namespace에 저장합니다.
@@ -71,6 +72,7 @@ enum AccountPreferences {
             .remindBeforeMinutes,
             .notificationSoundDisabled,
             .confirmBeforeSave,
+            .aiDataConsentVersion,
         ] {
             defaults.removeObject(
                 forKey: "mora.account.\(accountScope).\(key.rawValue).v1"
@@ -530,5 +532,20 @@ final class NotificationManager {
             }
         }
         return nil
+    }
+}
+
+/// Versioned per-account permission; signing out never grants another account access.
+enum AIDataConsent {
+    static let currentVersion = 1
+    static let didChange = Notification.Name("mora.aiDataConsentChanged")
+
+    static func isGranted(for userID: UUID? = nil, defaults: UserDefaults = .standard) -> Bool {
+        AccountPreferences.integer(.aiDataConsentVersion, default: 0, for: userID, defaults: defaults) == currentVersion
+    }
+
+    static func setGranted(_ granted: Bool, for userID: UUID? = nil, defaults: UserDefaults = .standard) {
+        AccountPreferences.set(granted ? currentVersion : 0, for: .aiDataConsentVersion, userID: userID, defaults: defaults)
+        NotificationCenter.default.post(name: didChange, object: nil)
     }
 }

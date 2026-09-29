@@ -1,0 +1,2 @@
+"NSMicrophoneUsageDescription" = "마이크를 누르면 음성을 편집 가능한 초안으로 만듭니다. 글로 입력할 수도 있습니다.";
+"NSSpeechRecognitionUsageDescription" = "Apple 음성 인식으로 말을 편집 가능한 일정 초안으로 만듭니다. 음성이 Apple에서 처리될 수 있으며, 글로 입력할 수도 있습니다.";

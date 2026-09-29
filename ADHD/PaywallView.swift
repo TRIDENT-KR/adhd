@@ -133,7 +133,7 @@ struct PaywallView: View {
                     PlanCard(
                         product: product,
                         isSelected: selectedProductID == product.id,
-                        isBestValue: product.id == SubscriptionProductID.yearly.rawValue
+                        badgeText: savingsBadge(for: product)
                     ) {
                         selectedProductID = product.id
                         Haptic.impact(.light)
@@ -242,13 +242,25 @@ struct PaywallView: View {
         return "\(L.paywall.startSubscription) · \(product.displayPrice)"
     }
 
+    private func savingsBadge(for product: Product) -> String? {
+        guard product.id == SubscriptionProductID.yearly.rawValue,
+              let monthly = subscriptionManager.products.first(where: {
+                  $0.id == SubscriptionProductID.monthly.rawValue
+              }),
+              let percent = SubscriptionPricing.annualSavingsPercent(
+                  monthly: monthly.price, yearly: product.price,
+                  monthlyCurrency: monthly.priceFormatStyle.currencyCode,
+                  yearlyCurrency: product.priceFormatStyle.currencyCode
+              ) else { return nil }
+        return L.paywall.savePercent(percent)
+    }
+
     private var paywallFeatures: [PaywallFeature] {
         [
             PaywallFeature(icon: "waveform",        color: DesignSystem.Colors.primary,          title: L.paywall.featureVoiceTitle,   description: L.paywall.featureVoiceDesc),
             PaywallFeature(icon: "sparkles",        color: DesignSystem.Colors.primary,          title: L.paywall.featureAITitle,      description: L.paywall.featureAIDesc),
             PaywallFeature(icon: "alarm",           color: DesignSystem.Colors.tertiary,         title: L.paywall.featureAlarmsTitle,  description: L.paywall.featureAlarmsDesc),
             PaywallFeature(icon: "apps.iphone",     color: DesignSystem.Colors.tertiary,         title: L.paywall.featureWidgetsTitle, description: L.paywall.featureWidgetsDesc),
-            PaywallFeature(icon: "arrow.clockwise", color: DesignSystem.Colors.onSurfaceVariant, title: L.paywall.featureSyncTitle,    description: L.paywall.featureSyncDesc),
         ]
     }
 }
@@ -257,7 +269,7 @@ struct PaywallView: View {
 private struct PlanCard: View {
     let product: Product
     let isSelected: Bool
-    let isBestValue: Bool
+    let badgeText: String?
     let action: () -> Void
 
     var body: some View {
@@ -279,11 +291,11 @@ private struct PlanCard: View {
 
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 8) {
-                        Text(product.displayName.isEmpty ? planName : product.displayName)
+                        Text(planName)
                             .font(.system(size: 15, weight: .semibold))
                             .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
-                        if isBestValue {
-                            Text(L.paywall.bestValue)
+                        if let badgeText {
+                            Text(badgeText)
                                 .font(.system(size: 10, weight: .bold))
                                 .foregroundColor(.white)
                                 .padding(.horizontal, 7)
@@ -346,4 +358,20 @@ private struct PaywallFeature {
     let color: Color
     let title: String
     let description: String
+}
+
+/// Compare regular prices from the same storefront without overstating rounded savings.
+enum SubscriptionPricing {
+    static func annualSavingsPercent(
+        monthly: Decimal, yearly: Decimal,
+        monthlyCurrency: String, yearlyCurrency: String
+    ) -> Int? {
+        guard monthlyCurrency == yearlyCurrency, !monthlyCurrency.isEmpty,
+              monthly > 0, yearly > 0, yearly < monthly * 12 else { return nil }
+        var value = (1 - yearly / (monthly * 12)) * 100
+        var rounded = Decimal()
+        NSDecimalRound(&rounded, &value, 0, .down)
+        let percent = NSDecimalNumber(decimal: rounded).intValue
+        return (1...99).contains(percent) ? percent : nil
+    }
 }

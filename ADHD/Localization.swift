@@ -74,6 +74,10 @@ struct Strings {
     var tabVoice:   String { "Voice" }
     var tabPlanner: String { "Planner" }
 
+    func tabAccessibilityLabel(_ name: String) -> String { t("\(name) tab", "\(name) 탭", "\(name)タブ") }
+    var tabAccessibilitySelected: String { t("Currently selected", "현재 선택됨", "選択中") }
+    func tabAccessibilityHint(_ name: String) -> String { t("Double tap to switch to \(name)", "\(name)로 이동하려면 이중 탭하세요", "\(name)に切り替えるにはダブルタップ") }
+
     // Navigation Labels (English Fixed per Objective 1)
     var navSettings: String { "Settings" }
     var navCalendar: String { "Calendar" }
@@ -123,6 +127,8 @@ struct Strings {
     var recurrence: RecurrenceStrings { RecurrenceStrings(language: language) }
 
     // Paywall
+    var aiPrivacy: AIPrivacyStrings { AIPrivacyStrings(language: language) }
+
     var paywall: PaywallStrings { PaywallStrings(language: language) }
     var quickAdd: QuickAddStrings { QuickAddStrings(language: language) }
     var onboarding: OnboardingStrings { OnboardingStrings(language: language) }
@@ -218,7 +224,7 @@ struct SettingsStrings {
     var haptic: String { t("Haptic Feedback", "햅틱 피드백", "触覚フィードバック") }
     var dataManagement: String { t("Data Management", "데이터 관리", "データ管理") }
     var clearCompleted: String { t("Clear Completed Tasks", "완료된 태스크 삭제", "完了タスクを削除") }
-    var clearAll: String { t("Clear All Data", "전체 데이터 삭제", "全데이터 삭제") }
+    var clearAll: String { t("Clear All Data", "전체 데이터 삭제", "全データ削除") }
     var routineNotifTitle: String { t("🔔 Routine Reminder", "🔔 루틴 알림", "🔔 ルーティン通知") }
     var appointmentNotifTitle: String { t("Appointment Reminder", "일정 알림", "予定通知") }
     var about: String { t("About", "앱 정보", "アプリ情報") }
@@ -288,7 +294,11 @@ struct VoiceStrings {
     var errorRecognitionFailed: String { t("Speech recognition failed. Try again", "음성 인식에 실패했어요. 다시 시도해주세요", "音声認識に失敗しました. 再試行してください") }
     var errorNetwork: String { t("No connection. Try again later", "연결이 없어요. 나중에 다시 시도해주세요", "接続がありません。後で再試行してください") }
     var errorApi: String { t("Something went wrong. Try again", "문제가 생겼어요. 다시 시도해주세요", "問題が発生しました。再試行してください") }
-    var errorPermission: String { t("Microphone permission needed", "마이크 권한이 필요합니다", "마이크의 허가가 필요합니다") }
+    var errorPermission: String { t("Allow the microphone in Settings, or type your task.", "설정에서 마이크를 허용하거나 글로 입력해주세요.", "設定でマイクを許可するか、文字で入力してください。") }
+    var permissionReadyHint: String { t("Microphone ready. Tap again to record.", "마이크가 준비됐어요. 다시 눌러 녹음을 시작하세요.", "マイクの準備ができました。もう一度押すと録音を開始します。") }
+    var errorSpeechPermission: String { t("Allow speech recognition in Settings, or type your task.", "설정에서 음성 인식을 허용하거나 글로 입력해주세요.", "設定で音声認識を許可するか、文字で入力してください。") }
+    var errorSpeechRestricted: String { t("Speech recognition is restricted on this device. You can type your task.", "이 기기에서 음성 인식이 제한되어 있어요. 글로 입력할 수 있습니다.", "この端末では音声認識が制限されています。文字で入力できます。") }
+    var openSettings: String { t("Open Settings", "설정 열기", "設定を開く") }
     var tryAgain: String { t("Try Again", "다시 시도", "再試行") }
     var confirmTitle: String { t("Review & Confirm", "확인 및 검토", "確認と検討") }
     var confirmUpdate: String { t("Edit", "수정", "編集") }
@@ -325,15 +335,15 @@ struct VoiceStrings {
 
     var preparingDraft: String { t("Preparing draft...", "초안 준비 중...", "下書きを準備中...") }
     var silenceCountdown: String { t("Draft in", "초안까지", "下書きまで") }
-    var micModeTap: String { t("Tap to Toggle", "탭하여 전환", "탭하여 전환") }
+    var micModeTap: String { t("Tap to Toggle", "탭하여 전환", "タップして切替") }
     var micModeHold: String { t("Hold to Talk", "길게 눌러 말하기", "押し続けて話す") }
-    var micModeTitle: String { t("Mic Mode", "마이크 모드", "마이크 모드") }
+    var micModeTitle: String { t("Mic Mode", "마이크 모드", "マイクモード") }
     var confirmBeforeSave: String { t("Confirm Before Save", "저장 전 확인", "保存前に確認") }
 
     var undoButton: String { t("Undo", "되돌리기", "元に戻す") }
     func undoAdded(_ count: Int) -> String { t("\(count) task(s) added", "\(count)개 추가됨", "\(count)件追加") }
     func undoDeleted(_ count: Int) -> String { t("\(count) task(s) deleted", "\(count)개 삭제됨", "\(count)件削除") }
-    func undoDeletedSingle(_ name: String) -> String { t("\"\(name)\" deleted", "\"\(name)\" 삭제됨", "\"\(name)\"를 삭제") }
+    func undoDeletedSingle(_ name: String) -> String { t("\"\(name)\" deleted", "\"\(name)\" 삭제됨", "\"\(name)\"を削除") }
     var undoCompleted: String { t("Marked as done", "완료 처리됨", "完了にしました") }
     var undoUncompleted: String { t("Marked as not done", "미완료 처리됨", "未完了にしました") }
     func undoUpdated(_ name: String) -> String { t("\"\(name)\" updated", "\"\(name)\" 수정됨", "「\(name)」を更新") }
@@ -370,7 +380,7 @@ struct VoiceStrings {
 
     var a11yStartRecording: String { t("Start recording", "녹음 시작", "録音開始") }
     var a11yStopRecording: String { t("Stop recording", "녹음 중지", "録音停止") }
-    var a11yTapHint: String { t("Tap to start or stop voice input", "탭하여 음성 입력을 시작하거나 중지합니다", "탭하여 음성 입력을 시작하거나 중지합니다") }
+    var a11yTapHint: String { t("Tap to start or stop voice input", "탭하여 음성 입력을 시작하거나 중지합니다", "タップして音声入力を開始または停止") }
     var a11yHoldHint: String {
         t(
             "Press and hold to record, then release to create an editable draft",
@@ -378,7 +388,7 @@ struct VoiceStrings {
             "長押しで録音し、離すと編集可能な下書きになります"
         )
     }
-    var a11yTabBar: String { t("Tab navigation", "탭 내비게이션", "탭 내비게이션") }
+    var a11yTabBar: String { t("Tab navigation", "탭 내비게이션", "タブナビゲーション") }
     var a11yUndo: String { t("Undo last action", "마지막 작업 되돌리기", "最後の操作を元に戻す") }
 
     var errorMissingTime: String { t("Please set the time for the routine.", "루틴 시간을 설정해주세요.", "ルーティンの時間を設定してください。") }
@@ -401,7 +411,7 @@ struct LoginStrings {
     var subtitle: String { t("Your AI thoughts companion.", "당신의 AI 생각 도우미.", "あなたのAI思考パートナー。") }
     var tosPrefix: String { t("By signing in, you agree to our ", "로그인하면 ", "サインインすると") }
     var tosLink: String { t("Terms of Service", "이용약관", "利用規約") }
-    var tosSuffix: String { t(".", "에 동의합니다.", "에 동의합니다.") }
+    var tosSuffix: String { t(".", "에 동의합니다.", "に同意します。") }
 }
 
 struct NetworkStrings {
@@ -413,7 +423,7 @@ struct NetworkStrings {
         case .ja: return ja
         }
     }
-    var backOnline: String { t("Back online ✓", "온라인 복구 ✓", "온라인 복구 ✓") }
+    var backOnline: String { t("Back online ✓", "온라인 복구 ✓", "オンラインに復帰 ✓") }
 }
 
 struct RecurrenceStrings {
@@ -509,7 +519,7 @@ struct PaywallStrings {
             "年1回請求 · 月\(monthlyEquivalent)"
         )
     }
-    var bestValue: String { t("SAVE 40%", "40% 절약", "40%お得") }
+    func savePercent(_ percent: Int) -> String { t("Save \(percent)%", "\(percent)% 절약", "\(percent)%お得") }
     var subscribe: String { t("Subscribe", "구독하기", "登録する") }
     var startSubscription: String { t("Start Pro", "Pro 시작하기", "Pro を開始") }
     var restore: String { t("Restore Purchases", "구매 복원", "購入を復元") }
@@ -527,15 +537,34 @@ struct PaywallStrings {
     var featureAITitle: String { t("Smart task sorting", "AI 자동 분류", "AIが自動で分類") }
     var featureAIDesc: String { t("AI tells apart routines, tasks, and appointments automatically.", "루틴인지, 할 일인지, 일정인지 AI가 알아서 구분해요.", "ルーティンか、タスクか、予定か、AIが自動で判断します。") }
     var featureAlarmsTitle: String { t("Full-screen alarms", "전체 화면 알람", "フルスクリーンアラーム") }
-    var featureAlarmsDesc: String { t("Pro-only full-screen alarms you can't miss.", "절대 놓칠 수 없는 풀스크린 알람 — Pro 전용.", "絶対に見逃せないフルスクリーンアラーム — Pro限定。") }
+    var featureAlarmsDesc: String { t("Full-screen alarms with Pro. Delivery depends on device permissions and settings.", "Pro 전체 화면 알람. 알람 전달은 기기 권한과 설정에 따라 달라져요.", "Proのフルスクリーンアラーム。通知は端末の許可と設定に依存します。") }
     var featureWidgetsTitle: String { t("Home screen widgets", "홈 화면 위젯", "ホーム画面ウィジェット") }
     var featureWidgetsDesc: String { t("Pro-only widgets for your Home & Lock Screen.", "홈·잠금 화면 위젯 — Pro 전용.", "ホーム・ロック画面ウィジェット — Pro限定。") }
-    var featureSyncTitle: String { t("Cloud backup", "클라우드 백업", "クラウドバックアップ") }
-    var featureSyncDesc: String { t("Your data stays safe across devices. (Coming soon)", "기기를 바꿔도 데이터가 안전하게 유지돼요. (출시 예정)", "機種変更してもデータは安全に保管されます。(近日公開)") }
 
     var subscriptionSection: String { t("Subscription", "구독", "サブスクリプション") }
     var premiumActive: String { t("Pro · Active", "Pro · 활성", "Pro · 有効") }
     var premiumInactive: String { t("Free Plan", "무료 플랜", "無料プラン") }
     var upgradeToPro: String { t("Upgrade to Pro", "Pro로 업그레이드", "Proにアップグレード") }
     var manageSubscription: String { t("Manage Subscription", "구독 관리", "サブスクリプション管理") }
+}
+
+struct AIPrivacyStrings {
+    let language: AppLanguage
+    private func t(_ en: String, _ ko: String, _ ja: String) -> String {
+        switch language { case .en: return en; case .ko: return ko; case .ja: return ja }
+    }
+    var title: String { t("AI data sharing", "AI 데이터 전송", "AIへのデータ送信") }
+    var explanation: String { t(
+        "When you tap Analyze, your typed text or edited speech transcript, current date/time and app language are sent through Supabase to Google's Gemini to interpret your request. Your full task list and raw audio are not sent to Gemini. Voice transcription uses Apple's speech recognition and may be processed by Apple. Review the draft before sending; avoid including sensitive information.",
+        "분석을 누르면 입력한 글 또는 수정한 음성 초안, 현재 날짜·시간과 앱 언어가 Supabase 서버를 거쳐 Google Gemini로 전달되어 요청을 해석합니다. 전체 일정 목록과 원본 음성은 Gemini에 보내지 않습니다. 음성 전사는 Apple 음성 인식을 사용하며 Apple에서 처리될 수 있습니다. 전송 전에 초안을 확인하고 민감한 정보는 포함하지 마세요.",
+        "解析を押すと、入力した文章または編集した音声の下書き、現在の日時とアプリの言語がSupabase経由でGoogle Geminiに送られ、リクエストを解析します。タスク一覧全体や音声そのものはGeminiに送信しません。音声の文字起こしにはAppleの音声認識を使用し、Appleで処理される場合があります。送信前に下書きを確認し、機密情報は含めないでください。"
+    ) }
+    var choice: String { t(
+        "AI is optional. You can add and edit tasks manually without sharing them with Gemini. You can withdraw permission in Settings. Withdrawal stops future AI requests; it does not recall data already sent. See the privacy policies for data handling and retention.",
+        "AI 사용은 선택입니다. Gemini 전송에 동의하지 않아도 일정을 직접 추가·수정할 수 있습니다. 설정에서 언제든 동의를 철회할 수 있으며, 철회하면 이후 AI 요청이 중단됩니다. 이미 보낸 데이터는 회수되지 않습니다. 데이터 처리와 보관은 개인정보 처리방침을 확인하세요.",
+        "AIの利用は任意です。同意しなくてもタスクを手動で追加・編集できます。設定でいつでも同意を撤回でき、以後のAIリクエストは停止します。送信済みのデータは取り戻せません。データの取り扱いと保管はプライバシーポリシーをご確認ください。"
+    ) }
+    var allow: String { t("Allow AI data sharing", "AI 데이터 전송에 동의", "AIへの送信に同意する") }
+    var notNow: String { t("Not now", "나중에", "今はしない") }
+    var googlePolicy: String { t("Google Gemini data policy", "Google Gemini 데이터 정책", "Google Geminiのデータポリシー") }
 }

@@ -107,12 +107,12 @@
           "introductoryOffer" : null,
           "localizations" : [
             {
-              "description" : "Unlock all AI features: unlimited voice input, smart analysis, widgets, and more. Save 40% vs monthly.",
+              "description" : "Unlock all AI features: unlimited voice input, smart analysis, widgets, and more.",
               "displayName" : "Yearly",
               "locale" : "en_US"
             },
             {
-              "description" : "모든 AI 기능을 잠금 해제하세요. 월간 대비 40% 절약.",
+              "description" : "모든 AI 기능을 잠금 해제하세요.",
               "displayName" : "연간",
               "locale" : "ko_KR"
             }

@@ -20,6 +20,8 @@ struct HomeVoiceInterfaceView: View {
     @State private var shakeOffset: CGFloat = 0
     @State private var showErrorToast = false
     @State private var errorToastMessage = ""
+    @State private var errorToastOpensSettings = false
+    @State private var errorToastID = UUID()
     @AppStorage("hasSeenVoiceOnboarding") private var hasSeenVoiceOnboarding = false
     @State private var confirmBeforeSave = true
 
@@ -33,6 +35,7 @@ struct HomeVoiceInterfaceView: View {
     @Binding var activeTab: TabSelection
     @Binding var isModalVisible: Bool
     @State private var showPaywall = false
+    @State private var showAIConsent = false
 
     // Text input state
     @State private var showTextInput = false
@@ -285,7 +288,7 @@ struct HomeVoiceInterfaceView: View {
                             Text(L.voiceListening)
                                 .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
                         } else {
-                            Text(L.voicePlaceholder)
+                            Text(voiceManager.showPermissionReadyHint ? L.voice.permissionReadyHint : L.voicePlaceholder)
                                 .foregroundColor(DesignSystem.Colors.primary)
                         }
                     }
@@ -346,21 +349,24 @@ struct HomeVoiceInterfaceView: View {
                             withAnimation(reduceMotion ? .none : .easeOut(duration: 0.2)) {
                                 showErrorToast = false
                             }
-                            if textInputValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            if errorToastOpensSettings {
+                                if let url = URL(string: UIApplication.openSettingsURLString) {
+                                    UIApplication.shared.open(url)
+                                }
+                            } else if textInputValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                                 handleMicTap()
                             } else {
                                 showTextInput = true
                                 sendTextInput()
                             }
                         }) {
-                            Text(L.voice.tryAgain)
+                            Text(errorToastOpensSettings ? L.voice.openSettings : L.voice.tryAgain)
                                 .font(.caption.weight(.semibold))
                                 .foregroundColor(DesignSystem.Colors.primaryFixedDim)
                                 .frame(minWidth: 44, minHeight: 44)
                                 .contentShape(Rectangle())
                         }
-                        .accessibilityLabel("Try again")
-                        .accessibilityHint("Double tap to retry voice input")
+                        .accessibilityLabel(errorToastOpensSettings ? L.voice.openSettings : L.voice.tryAgain)
                     }
                     .padding(.horizontal, 16)
                     .padding(.vertical, 14)
@@ -385,6 +391,12 @@ struct HomeVoiceInterfaceView: View {
                 .environmentObject(taskManager)
                 .environmentObject(subscriptionManager)
         }
+        .sheet(isPresented: $showAIConsent) {
+            AIDataConsentView(userID: authManager.accessState.accountUserID)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: AIDataConsent.didChange)) { _ in
+            if !AIDataConsent.isGranted() { cancelActiveAnalysis() }
+        }
         .sheet(isPresented: $showPaywall) {
             NavigationView {
                 PaywallView()
@@ -400,7 +412,7 @@ struct HomeVoiceInterfaceView: View {
         }
         .onChange(of: voiceManager.lastError) { _, newError in
             if let error = newError {
-                triggerErrorFeedback(message: error.message)
+                triggerErrorFeedback(message: error.message, openSettings: error.needsSettings)
                 voiceManager.lastError = nil
             }
         }
@@ -471,6 +483,7 @@ struct HomeVoiceInterfaceView: View {
             pendingTasks = []
             editingTask = nil
             showConfirmation = false
+            showAIConsent = false
             showTextInput = false
             showErrorToast = false
             isTextInputFocused = false
@@ -532,6 +545,12 @@ struct HomeVoiceInterfaceView: View {
             return
         }
 
+        guard AIDataConsent.isGranted(for: authManager.accessState.accountUserID) else {
+            isTextInputFocused = false
+            showAIConsent = true
+            return
+        }
+
         if !subscriptionManager.canUseAI {
             showPaywall = true
             return
@@ -572,6 +591,13 @@ struct HomeVoiceInterfaceView: View {
                     guard activeAnalysisID == analysisID else { return }
                     activeAnalysisID = nil
                     analysisTask = nil
+                }
+            } catch CloudLLMError.consentRequired {
+                await MainActor.run {
+                    guard activeAnalysisID == analysisID else { return }
+                    activeAnalysisID = nil
+                    analysisTask = nil
+                    showAIConsent = true
                 }
             } catch CloudLLMError.quotaExhausted {
                 await MainActor.run {
@@ -768,7 +794,7 @@ struct HomeVoiceInterfaceView: View {
     }
 
     // MARK: - Error Feedback
-    private func triggerErrorFeedback(message: String) {
+    private func triggerErrorFeedback(message: String, openSettings: Bool = false) {
         withAnimation(.spring(response: 0.1, dampingFraction: 0.2)) {
             shakeOffset = 12
         }
@@ -791,10 +817,15 @@ struct HomeVoiceInterfaceView: View {
         Haptic.notification(.error)
 
         errorToastMessage = message
+        errorToastOpensSettings = openSettings
+        let toastID = UUID()
+        errorToastID = toastID
         withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
             showErrorToast = true
         }
+        guard !openSettings else { return }
         DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
+            guard errorToastID == toastID else { return }
             withAnimation(.easeOut(duration: 0.3)) {
                 showErrorToast = false
             }

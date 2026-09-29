@@ -12,6 +12,8 @@ enum VoiceError: Equatable {
     case networkError
     case apiError(String)
     case permissionDenied
+    case speechPermissionDenied
+    case speechRestricted
 
     var message: String {
         switch self {
@@ -25,7 +27,17 @@ enum VoiceError: Equatable {
             return L.voice.errorApi
         case .permissionDenied:
             return L.voice.errorPermission
+        case .speechPermissionDenied:
+            return L.voice.errorSpeechPermission
+        case .speechRestricted:
+            return L.voice.errorSpeechRestricted
         }
+    }
+}
+
+extension VoiceError {
+    var needsSettings: Bool {
+        self == .permissionDenied || self == .speechPermissionDenied
     }
 }
 
@@ -58,6 +70,8 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
 
     // Error feedback
     @Published var lastError: VoiceError?
+    @Published private(set) var isRequestingPermissions = false
+    @Published private(set) var showPermissionReadyHint = false
 
     // Completion handler for when recording successfully finishes
     var onSpeechFinalized: ((String) -> Void)?
@@ -139,7 +153,6 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
         didPrepare = true
         speechRecognizer = SFSpeechRecognizer(locale: Locale(identifier: currentLocaleId))
         speechRecognizer?.delegate = self
-        requestPermissions()
     }
 
     /// 뷰 등장 시 미리 호출해 첫 탭 렉을 방지합니다.
@@ -153,29 +166,41 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
         }
     }
 
+    /// Permission prompts only follow a microphone gesture. Never start recording
+    /// asynchronously after permission is granted (a hold gesture may have ended).
     func requestPermissions() {
-        SFSpeechRecognizer.requestAuthorization { authStatus in
+        guard !isRequestingPermissions else { return }
+        isRequestingPermissions = true
+        SFSpeechRecognizer.requestAuthorization { [weak self] status in
             DispatchQueue.main.async {
-                switch authStatus {
-                case .authorized:
-                    AVAudioApplication.requestRecordPermission { granted in
-                        if !granted {
-                            DispatchQueue.main.async {
-                                self.errorMessage = L.voice.errorPermission
-                                self.lastError = .permissionDenied
-                            }
+                guard let self else { return }
+                guard status == .authorized else {
+                    self.isRequestingPermissions = false
+                    self.publishPermissionError(status == .restricted ? .speechRestricted : .speechPermissionDenied)
+                    return
+                }
+                AVAudioApplication.requestRecordPermission { [weak self] granted in
+                    DispatchQueue.main.async {
+                        guard let self else { return }
+                        self.isRequestingPermissions = false
+                        if granted {
+                            self.errorMessage = nil
+                            self.lastError = nil
+                            self.showPermissionReadyHint = true
+                        } else {
+                            self.publishPermissionError(.permissionDenied)
                         }
                     }
-                case .denied, .restricted, .notDetermined:
-                    self.errorMessage = L.voice.errorPermission
-                    self.lastError = .permissionDenied
-                @unknown default:
-                    self.errorMessage = L.voice.errorRecognitionFailed
                 }
             }
         }
     }
-    
+
+    private func publishPermissionError(_ error: VoiceError) {
+        errorMessage = error.message
+        lastError = error
+    }
+
     func toggleListening() {
         prepareIfNeeded()
         if activeRecognitionSessionID != nil {
@@ -205,6 +230,7 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
         draftFinalizationWorkItem?.cancel()
         draftFinalizationWorkItem = nil
         recognizedText = ""
+        showPermissionReadyHint = false
         errorMessage = nil
         lastError = nil
         audioPower = 0
@@ -214,6 +240,35 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
     }
 
     func startListening() {
+        guard !isRequestingPermissions else { return }
+        prepareIfNeeded()
+        switch SFSpeechRecognizer.authorizationStatus() {
+        case .notDetermined:
+            requestPermissions()
+            return
+        case .denied:
+            publishPermissionError(.speechPermissionDenied)
+            return
+        case .restricted:
+            publishPermissionError(.speechRestricted)
+            return
+        case .authorized: break
+        @unknown default:
+            publishPermissionError(.speechRestricted)
+            return
+        }
+        switch AVAudioApplication.shared.recordPermission {
+        case .undetermined:
+            requestPermissions()
+            return
+        case .denied:
+            publishPermissionError(.permissionDenied)
+            return
+        case .granted: break
+        @unknown default:
+            publishPermissionError(.permissionDenied)
+            return
+        }
         // 앱 설정 언어와 인식 언어 동기화
         syncLocaleWithAppLanguage()
         guard !isProcessing else { return }
@@ -236,6 +291,7 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
         
         // Reset state
         recognizedText = ""
+        showPermissionReadyHint = false
         errorMessage = nil
         lastError = nil
         isListening = true
