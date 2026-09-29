@@ -104,7 +104,7 @@ class CloudLLMManager: ObservableObject {
             do {
                 let response = try await withThrowingTaskGroup(of: AnalyzeTaskResponse.self) { group in
                     // API 호출 태스크
-                    group.addTask {
+                    group.addTask { @MainActor in
                         let session = try await supabase.auth.session
                         try Task.checkCancellation()
                         guard AccountPreferences.activeScope == consentScope,
