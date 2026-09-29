@@ -1,6 +1,6 @@
 # Mora App Store 재감사 및 수정 결과
 
-2026-09-29 · RC 1.0 (4) · **확인된 코드 결함을 수정했다. 심사 제출은 외부 설정·연령 결정·실기기 검증이 남아 있어 BLOCKED다.** 수정 전 상세 근거는 Git `5472051`의 이 문서와 `outputs/release-readiness/20260929-final-implementation/audit-before.md`에 보존했다. 심사 통과를 보장하거나 미실행 항목을 PASS로 처리하지 않는다.
+2026-09-29 · RC 1.0 (4) · **확인된 코드 결함을 수정했다. 심사 제출은 외부 설정·AI 제공 방식 전환·실기기 검증이 남아 있어 BLOCKED다.** 수정 전 상세 근거는 Git `5472051`의 이 문서와 `outputs/release-readiness/20260929-final-implementation/audit-before.md`에 보존했다. 심사 통과를 보장하거나 미실행 항목을 PASS로 처리하지 않는다.
 
 ## 확인된 문제의 현재 상태
 
@@ -15,8 +15,8 @@
 | AR-07 | Time Sensitive entitlement 누락 | 앱 entitlement 추가, AlarmKit 목적 설명 KO/EN/JA 정리 | 현재 개발 프로파일 권한 누락·팀 로그인 부재로 서명 실패. 프로파일 갱신·실기기 Focus 검사 |
 | AR-08 | 오류·현지화·OSS·결제 완료 표시 | 로그인 실패/사용자 취소 분리, 구매·복원 현지화, 서버 유효 Pro 확인 뒤 닫기, 위젯 이름 Mora, SDK6개 LICENSE/NOTICE, 이름 scope 제거 | 실제 구매·복원 오류 및 VoiceOver |
 | AR-09 | 기본 로컬 일정까지 로그인 강제 | 게스트 물리 저장소·설정 분리, 수동 추가/알림, 명시 복사·원본 보존·중복 방지. 게스트는 서버 identity/Pro 미보유 | 실제 A/B 로그인·재설치·오프라인 QA |
-| AR-10 | Gemini 연령·요금제·지역 조건 | **미확정.** 사용자에게 18세 이상 운영 여부 질문을 남겼고 답변 전 연령 정책을 임의 변경하지 않음 | 대상 연령 결정 + Google billing/지원 지역 확인 |
-| AR-11 | 공개 정책/보관/수집 신고 차이 | 탈퇴 거래 원장 물리 삭제 및 고정 보관 상한, Usage Data(Product Interaction) manifest, 게스트/보관/지원3언어 웹 초안 | 연령·Google 조건 확정, 웹 PR 게시, ASC Privacy 입력 |
+| AR-10 | Gemini 연령·요금제·지역 조건 | **제품 결정 완료:** 18세 이상 제한 없이 폭넓게 출시. Developer API와 Cloud §20(d)의 기본 조건 모두 불일치 확인 | 미성년자 지원 가능한 제공 방식 선정·전환·평가, 어린이 보호/데이터 조건 반영 |
+| AR-11 | 공개 정책/보관/수집 신고 차이 | 탈퇴 거래 원장 물리 삭제 및 고정 보관 상한, Usage Data(Product Interaction) manifest, 게스트/보관/지원3언어 웹 초안 | 새 AI 제공자·어린이 보호 조건 확정, 웹 PR 게시, ASC Privacy 입력 |
 
 추가로 계정 전환 중 Supabase SDK가 현재 세션으로 Authorization을 바꾸는 경로를 막았다. AI·구독 요청은 시작 계정 토큰을 고정하고 구독 응답에는 계정 세대를 검사한다. 로그아웃 이후 늦게 도착한 인증 검증/이벤트도 계정을 재개방하지 않는다. 실제 HTTP 전송은 URLProtocol 격리 회귀로 확인한다.
 
@@ -62,3 +62,5 @@ Pro 알람·위젯은 기존 제품 정책대로 유지했다. 기본 알림은 
 - [Gemini API 조건](https://ai.google.dev/gemini-api/terms) — 18세 미만 대상/접근 가능성, 유료 서비스 데이터 조건·지원 지역
 
 [앱 PR #65](https://github.com/TRIDENT-KR/adhd/pull/65) · [웹 PR #1](https://github.com/TRIDENT-KR/waitwhat-site/pull/1). main 자동 병합은 저장소 CLAUDE.md의 명시적 금지에 따라 하지 않는다.
+
+2026-09-29 후속 근거: [Google Cloud §20(d)](https://cloud.google.com/terms/service-terms)도 같은18세 제한을 명시한다. [OpenAI 미성년자 지침](https://developers.openai.com/api/docs/guides/safety-checks/under-18-api-guidance)은 대안 검토 근거이며 조건 없는 전 연령 허용 판정은 아니다.

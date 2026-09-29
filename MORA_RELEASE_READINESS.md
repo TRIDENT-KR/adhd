@@ -1,6 +1,6 @@
 # Mora 출시 준비 결과 — 2026-09-29
 
-**확인된 앱·서버 결함을 수정하고 서버에 반영했다. 아직 App Store에 제출할 수 있는 상태는 아니다.** 남은 필수 조건은 대상 연령 결정, Apple/Google 계정 설정, 공개 정책 게시, 배포 서명과 실제 Apple·실기기 QA다. 심사 통과를 보장하거나 실행하지 않은 검사를 통과로 기록하지 않는다.
+**확인된 앱·서버 결함을 수정하고 서버에 반영했다. 아직 App Store에 제출할 수 있는 상태는 아니다.** 남은 필수 조건은 폭넓은 연령을 지원하는 AI 제공 방식 전환, Apple/AI 제공자 계정 설정, 공개 정책 게시, 배포 서명과 실제 Apple·실기기 QA다. 심사 통과를 보장하거나 실행하지 않은 검사를 통과로 기록하지 않는다.
 
 앱 [PR #65](https://github.com/TRIDENT-KR/adhd/pull/65) · 웹 [PR #1](https://github.com/TRIDENT-KR/waitwhat-site/pull/1). 작업은 관리 worktree에서 했으며 원래 checkout의 Luna 하네스·prompt 미커밋 변경을 보존했다. 팀원 PR #57의 필요한 Gemini/페이월 동작은 통합됐고 해당 구 브랜치를 통째로 병합할 필요는 없다.
 
@@ -53,16 +53,28 @@ Supabase 프로젝트 `nmjtswtqwwxxwiolgsnk`, backend `86117cd`:
 
 ## 지금 남은 필수 조건
 
-1. **제품 결정:** Gemini API는 18세 미만을 대상으로 하거나 이용 가능성이 있는 API Client를 제한한다. 18세 이상 운영 여부를 사용자에게 질문했고 답변 대기 중이다. 결정 뒤 앱 진입/이용 조건·약관·마케팅·ASC 연령/지역을 일치시켜야 한다. 현재 under13 문구로 제출하지 않는다. [Google 조건](https://ai.google.dev/gemini-api/terms)
-2. **Google 설정:** 실제 API 프로젝트의 활성 Cloud Billing, 유료 데이터 처리 조건 및 지원 지역을 확인한다. 무료 조건과 유료 조건을 같다고 안내하지 않는다.
+1. **연령 방향 확정:** 사용자는 18세 이상 제한 없이 최대한 넓은 연령대를 대상으로 출시한다. 연령 결정에 대한 답변 대기는 종료했다. 이는 아동 보호 요건이나 스토어 연령 질문을 생략한다는 뜻이 아니다. 기존 13세 미만 제외 문구도 그대로 확정하지 않는다.
+2. **AI 제공 방식 변경:** 현 Gemini Developer API와 Google Cloud 생성형 AI의 기본 조건 모두 18세 미만이 이용할 가능성이 있는 앱을 제한한다. Gemini 유지보다 위 제품 방향을 우선한다. 다른 제공자/직접 운영 모델을 비용·품질·미성년자 조건으로 평가하고 서버 연결, 전송 동의, 공개 정책, 하네스 기준을 함께 바꿔야 한다. OpenAI API는 미성년자 대상 지침이 있어 후보가 될 수 있으나 어린이 개인정보 처리에는 추가 요건이 있으며 모델·계정·보관 조건은 아직 확정하지 않았다. 유료 Gemini 전환 또는 Vertex 연결 변경만으로 해결한 것으로 처리하지 않는다. [Gemini 조건](https://ai.google.dev/gemini-api/terms), [Google Cloud §20(d)](https://cloud.google.com/terms/service-terms), [OpenAI 미성년자 지침](https://developers.openai.com/api/docs/guides/safety-checks/under-18-api-guidance)
 3. **Apple 계정:** APPLE_CLIENT_SECRET 설정·갱신 관리, 유료 앱 계약/세금/은행, 월/연 구독 상품·같은 그룹/혜택 수준·가격·지역·설명·심사 screenshot, 서버 알림 V2 Production/Sandbox URL 설정·Apple 테스트 수신. 첫 구독은 앱 버전과 함께 심사 제출한다.
-4. **공개 정보·서명:** 연령/Google 조건을 반영한 웹 PR 게시 후 support/privacy/terms 실제 확인, ASC Privacy·연령·DSA/암호화/심사 연락처, 배포 인증서·앱/위젯 프로파일·TestFlight 업로드.
+4. **공개 정보·서명:** 새 AI 제공 방식과 아동 보호 요건을 반영한 웹 PR 게시 후 support/privacy/terms 실제 확인, ASC Privacy·연령·DSA/암호화/심사 연락처, 배포 인증서·앱/위젯 프로파일·TestFlight 업로드.
 5. **실제 기능 검증:** 지정 QA Apple/Mora 계정으로 로그인→AI 일정 저장, 구독 구매/복원/환불/유예/재귀속, Apple revoke→삭제 완료, 실제 음성·알람·위젯·VoiceOver·오프라인/계정 전환. LLM 평가 인수와 같은 RC의 팀48시간 관찰. 두 기기/48시간은 팀 기준이며 Apple의 일률적 필수 규정은 아니다.
 
 필요한 사람 작업과 심사 메모는 [제출 인계서](MORA_APP_STORE_HANDOFF.md), 전체 case는 [QA 계획](MORA_RELEASE_QA_PLAN.md)을 따른다. 이번에 ASC 저장·앱 업로드·심사 제출은 하지 않았다.
+
+## 남은 일을 쉽게 정리하면
+
+| 순서 | 해야 할 일 | 담당과 완료 기준 |
+|---|---|---|
+| 1 | 청소년도 이용할 수 있는 AI로 연결 변경 | Codex: 제공자 조건·비용·정확도 확인 → 앱/서버 변경 → 재시험. 소유자: 필요한 계정·결제 연결 |
+| 2 | Apple에서 앱을 올리고 판매할 준비 | 소유자: Xcode/Apple 계정 로그인, 계약·세금·은행 확인. Codex: 배포 파일·월/연 구독·결제 알림 연결 점검 |
+| 3 | 탈퇴할 때 Apple 로그인 연결도 끊기도록 설정 | 소유자: Apple 개발자 키 준비. Codex: 서버 설정 → 테스트 계정 탈퇴 완료 확인. 키를 채팅에 붙이지 않음 |
+| 4 | 심사자가 볼 안내 페이지와 앱 소개 완성 | Codex: 개인정보·약관·지원 페이지, 설명·스크린샷·심사 안내 준비. 소유자: 실제 연락처·권리자 확인 |
+| 5 | 실제 iPhone에서 최종 시험 후 제출 | 공동: 로그인·AI 일정·구매/복원·탈퇴·음성·알람·위젯. Codex: LLM 평가 확인·실패 수정·제출 파일 준비. 소유자: 기기 조작/본인 인증·최종 제출 |
+
+자동 테스트 통과와 실제 결제·알람 작동 확인은 별개다. 현재 운영 AI는 아직 Gemini이며, 대체 연결로 전환하거나 심사 제출한 상태가 아니다.
 
 ## 산출물과 인수
 
 `outputs/release-readiness/20260929-final-implementation/`에 Swift xcresult/JSON·Deno·DB 수정 전후·배포/migration/source hash·HTTP 차단·UI 스크린샷을 보존했다. 토큰·키 값·실사용자 일정은 저장하지 않았다. 이전 검증은 각 outputs 폴더에 역사로 남고 최신 PASS를 대신하지 않는다.
 
-[CLAUDE.md](CLAUDE.md)의 “NEVER attempt a programmatic force-push or merge to main”에 따라 main을 자동 병합하지 않았다. 검토 후 앱은 `gh pr merge 65 --repo TRIDENT-KR/adhd --squash --delete-branch`로 인수한다. 웹은 연령/Google 조건을 확정한 뒤 PR #1을 병합·게시한다.
+[CLAUDE.md](CLAUDE.md)의 “NEVER attempt a programmatic force-push or merge to main”에 따라 main을 자동 병합하지 않았다. 검토 후 앱은 `gh pr merge 65 --repo TRIDENT-KR/adhd --squash --delete-branch`로 인수한다. 웹은 새 AI 제공 방식과 개인정보 조건을 확정한 뒤 PR #1을 병합·게시한다.
