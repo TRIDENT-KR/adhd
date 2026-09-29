@@ -287,6 +287,26 @@ def run():
               role="service_role"))
 
 
+    # 11. Bounded retention must not shrink the 90-day aggregate on repeated runs.
+    for duration in [10, 20]:
+        sql(f"INSERT INTO mora_prod_private.operational_events "
+            "(request_id, event_name, status_code, duration_ms, occurred_at, expires_at) "
+            f"VALUES ('{uuid.uuid4()}', 'analysis_succeeded', 200, {duration}, "
+            "now() - interval '15 days', now() - interval '1 day');")
+    aggregate_query = (
+        "SELECT event_count || '|' || total_duration_ms || '|' || max_duration_ms "
+        "FROM mora_prod_private.daily_operational_aggregates "
+        "WHERE metric_date = ((now() - interval '15 days') AT TIME ZONE 'Asia/Seoul')::date "
+        "AND event_name = 'analysis_succeeded' AND status_class = '2xx';"
+    )
+    sql("SELECT public.mora_cleanup_security_data(1);")
+    check("보존 정리 첫 배치가 전체 집계를 만든다", sql(aggregate_query) == "2|30|20")
+    sql("SELECT public.mora_cleanup_security_data(1);")
+    check("두 번째 배치가 90일 집계를 줄이지 않는다", sql(aggregate_query) == "2|30|20")
+    sql("SELECT public.mora_cleanup_security_data(1);")
+    check("원본 삭제 완료 뒤에도 집계가 유지된다", sql(aggregate_query) == "2|30|20")
+
+
 if __name__ == "__main__":
     try:
         cluster.start()

@@ -6,6 +6,8 @@ import {
   type QuotaReservation,
 } from "./analysis-service.ts";
 
+import { geminiModel } from "./model-config.ts";
+
 const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
 
 // 유저당 분당 최대 호출 횟수 (Gemini 비용 증폭 방지)
@@ -110,6 +112,8 @@ Deno.serve(async (req: Request) => {
     if (!supabaseUrl || !supabaseAnonKey || !GEMINI_API_KEY) {
       throw new AnalysisServiceError("server_not_configured", 503);
     }
+    const model = geminiModel(Deno.env.get("GEMINI_MODEL"));
+    if (!model) throw new AnalysisServiceError("invalid_model_config", 503);
     const supabase = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader } },
     });
@@ -311,10 +315,13 @@ Output: [{"function_name": "handle_off_topic_chat", "parameters": {"message": "�
         let response: Response;
         try {
           response = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+            `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
             {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
+              headers: {
+                "Content-Type": "application/json",
+                "x-goog-api-key": GEMINI_API_KEY,
+              },
               body: JSON.stringify({
                 system_instruction: { parts: [{ text: finalPrompt }] },
                 contents: [{ role: "user", parts: [{ text }] }],
