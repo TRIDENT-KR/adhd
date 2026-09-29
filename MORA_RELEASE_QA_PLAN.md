@@ -257,3 +257,7 @@ App Store 제출 준비는 별도 체크: 실제 build의 권한 설명·개인�
 보존 migration은 postgres 소유 cron을 설치하고 bounded cleanup 시 aggregate 감소를 막는다. 배포 도구의 timestamp 판정은 실제 소스 hash 검사로 교체했다. 배포 일부 실패 후 버전만 바뀌는 상황을 발견했으므로 네 함수 모두 다운로드 대조했다.
 
 새 증거와 최종 미완료 목록은 [출시 준비 보고서](MORA_RELEASE_READINESS.md)에 있다. 33개 전체 case·LLM 의미 정확도·실기기 거래·48시간 관찰은 이 통합 smoke만으로 PASS가 되지 않는다.
+
+## 9. 추가 음성 QA
+
+앱 코드 `26a7ac6`에서 빈 전사→키보드 전환, 오류 재시도 때 음성 화면 복귀, Hold 모드 접근성 실행을 보완했다. Swift95건과 Release 앱·위젯 archive 재검증을 완료했다. 최종 실시간 UI 조작은 Computer Use 캡처 오류로, 실제 음성 전사는 합성 오디오 주입 경로 미지원으로 미완료다. VOICE-01~03과 실제 VoiceOver·문장 끝 날짜/시간 보존은 실기기 gate에 유지한다. 증거: `outputs/release-readiness/20260929-voice-followup/`.

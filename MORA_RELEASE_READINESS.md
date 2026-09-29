@@ -4,6 +4,14 @@
 
 통합 PR: [adhd #65](https://github.com/TRIDENT-KR/adhd/pull/65). 정책 PR: [waitwhat-site #1](https://github.com/TRIDENT-KR/waitwhat-site/pull/1) (Draft).
 
+## 추가 음성 QA — 최신 앱 코드 `26a7ac6`
+
+사용자가 허용한 서브에이전트 검토와 단일 시뮬레이터를 사용해 음성 흐름을 추가 점검했다. 빈 전사 결과에서 키보드 전환이 사라지는 경로, 글 입력 화면 뒤에서 오류 재시도 녹음이 시작되는 경로를 고쳤다. 초안 최종화 중에는 입력·분석을 차단하고, Hold 모드에 VoiceOver 실행 동작·3언어 안내를 추가했다.
+
+최신 소스로 **Swift95건/14 suites 통과**, Release1.0(3) 앱·위젯 archive·서명·manifest 확인을 다시 완료했다. 서버와 Luna 하네스는 변경하지 않았다. 기존 `ff833b4` 기록은 이전 통합 검증이며 최신 앱 기준은 `26a7ac6`이다.
+
+이번 마지막 화면 조작은 Computer Use 캡처/요소 연결 오류로 완료하지 못했다. 최종 Voice 실행 스크린샷은 확보했지만 실제 버튼/VoiceOver 실행을 PASS로 기록하지 않았다. 현재 Simulator에는 합성 오디오 파일 주입 경로가 없고 Mac 마이크만 노출되어 실제 STT 전사 품질·마지막 날짜/시간 보존도 미검증이다. 자세한 근거와 다음 실기기 시나리오는 `outputs/release-readiness/20260929-voice-followup/report.md`에 있다. 종료 시 켜진 simulator는 없다.
+
 ## 통합 범위
 
 - main `49add4d` 기반 `codex/release-readiness-20260929`. backend `9423851`, iOS `4959a7b` + 동의 검사 액터 보완 `ff833b4`, 배포 검증 도구 `93308e8`.
