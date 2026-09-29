@@ -2,6 +2,8 @@
 
 이 문서는 입력 초안·검증 순서다. 현재 제출 승인이 아니다. 최신 상태는 [출시 준비 결과](MORA_RELEASE_READINESS.md)를 따른다. 담당자는 아래 결과를 확인한 뒤 ASC에 입력하며, 아직 없는 심사 계정이나 테스트 결과를 만들었다고 기재하지 않는다.
 
+**2026-09-29 재감사:** [추가 결함과 심사 위험](MORA_APP_STORE_REVIEW_AUDIT.md)이 확인됐다. 계정 삭제 복구·구독 상태 전이·위젯 업셀 등을 먼저 고쳐야 하므로 아래 메모를 현재 상태의 완료 증명으로 제출하지 않는다. 로그인/유료 기능 범위, 대상 연령, 거래 보관 정책이 확정되면 메모·웹 정책·ASC 답변을 함께 갱신한다. ASC는 이번 조사에서 로그인 필요 상태였으며 실제 계약/상품/신고 값을 확인하지 못했다.
+
 ## 소유자가 먼저 처리할 계정 설정
 
 1. Apple Developer의 Sign in with Apple 키와 Team ID/Key ID/Bundle ID를 확인해 `APPLE_CLIENT_SECRET` JWT를 발급한다. Bundle ID/client ID는 `trident-KR.ADHD`다. 유효기간·갱신 담당자를 기록하고 Supabase Edge Function secret으로 설정한다. private key/JWT를 Git이나 채팅에 남기지 않는다. 설정 후 `release-preflight.sh`를 다시 실행한다.

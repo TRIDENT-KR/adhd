@@ -1,6 +1,12 @@
 # MORA 출시 준비 결과 — 2026-09-29
 
-**판정: 구현·배포 수정 완료, App Store 제출은 BLOCKED.** 테스트하지 않은 실제 Apple 거래·삭제·실기기 알람을 통과로 간주하지 않는다. Apple 심사 승인을 보장하는 문서가 아니다.
+**판정: 추가 코드 결함 확인, App Store 제출은 BLOCKED.** 이전 통합 수정은 완료했지만 전체 심사 필요 구현이 끝난 상태는 아니다. 테스트하지 않은 실제 Apple 거래·삭제·실기기 알람을 통과로 간주하지 않는다.
+
+## App Store 재감사 — 우선 적용할 최신 판정
+
+[심사 재감사 보고서](MORA_APP_STORE_REVIEW_AUDIT.md)를 우선한다. `d6a0d04`/제품 `26a7ac6`의 코드·실제 archive·공개 정책·Apple 공식 자료를 독립 검토했다. 삭제 재인증 복구, 로컬 삭제 재시도 보존, 구독 유예/환불 상태 역전, 위젯 직접 업셀, 조건부 구독 관리 노출 및 Time Sensitive capability 누락을 추가로 확인했다. 로그인 강제·OS 기능 유료화는 확정 리젝이 아닌 정책 판단 위험으로 분리했다.
+
+APPLE_CLIENT_SECRET 누락과 공개 정책의 실제 제공자/보관/백업 안내 불일치를 다시 확인했다. ASC는 로그인 필요 상태여서 내부 설정은 미확인이다. 기존 자동 회귀는 새 실패 순서를 다루지 않았으며, 아래의 기존 PASS가 이 문제를 해소하지 않는다. 이번 감사는 제품 코드·운영 서버를 변경하지 않았다. AR-01~11 조치와 새 RC 검증을 완료하기 전 제출하지 않는다.
 
 통합 PR: [adhd #65](https://github.com/TRIDENT-KR/adhd/pull/65). 정책 PR: [waitwhat-site #1](https://github.com/TRIDENT-KR/waitwhat-site/pull/1) (Draft).
 
