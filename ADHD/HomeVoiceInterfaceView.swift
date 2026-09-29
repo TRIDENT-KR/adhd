@@ -57,18 +57,13 @@ struct HomeVoiceInterfaceView: View {
                     Button(action: {
                         let shouldShowTextInput = !showTextInput
                         if shouldShowTextInput {
-                            let isFinalizingSpeech = voiceManager.isListening || voiceManager.isProcessing
                             preserveSpeechDraftAndStopListening()
-                            if isFinalizingSpeech {
-                                // 최종 STT가 초안으로 publish된 뒤 텍스트 모드와 키보드를 엽니다.
-                                return
-                            }
                         }
                         let anim: Animation? = reduceMotion ? .none : .spring(response: 0.3, dampingFraction: 0.8)
                         withAnimation(anim) {
                             showTextInput = shouldShowTextInput
                             if showTextInput {
-                                isTextInputFocused = true
+                                isTextInputFocused = !voiceManager.isProcessing
                             }
                         }
                     }) {
@@ -146,6 +141,7 @@ struct HomeVoiceInterfaceView: View {
                                 )
                                 .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
                                 .focused($isTextInputFocused)
+                                .disabled(voiceManager.isProcessing)
                                 .submitLabel(.send)
                                 .onSubmit { sendTextInput() }
 
@@ -162,14 +158,15 @@ struct HomeVoiceInterfaceView: View {
                                 textInputValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                                     || activeAnalysisID != nil
                                     || cloudLLM.isProcessing
+                                    || voiceManager.isProcessing
                             )
                             .accessibilityLabel(L.voice.analyzeDraft)
                             .accessibilityHint(L.voice.analyzeDraftHint)
                         }
                         .padding(.horizontal, 24)
 
-                        if activeAnalysisID != nil {
-                            Text(L.voiceAnalyzing)
+                        if voiceManager.isProcessing || activeAnalysisID != nil {
+                            Text(voiceManager.isProcessing ? L.voice.preparingDraft : L.voiceAnalyzing)
                                 .font(DesignSystem.Typography.bodyMd)
                                 .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
                         }
@@ -416,6 +413,12 @@ struct HomeVoiceInterfaceView: View {
                 voiceManager.lastError = nil
             }
         }
+        .onChange(of: voiceManager.isProcessing) { _, isProcessing in
+            if !isProcessing && showTextInput {
+                isTextInputFocused = scenePhase == .active && activeTab == .voice
+                    && !showSettings && !showPaywall && !showVoiceGuide && !showAIConsent
+            }
+        }
         .onChange(of: showConfirmation) { _, isVisible in
             withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
                 isModalVisible = isVisible
@@ -525,6 +528,8 @@ struct HomeVoiceInterfaceView: View {
                             }
                         }
                 )
+                .accessibilityAddTraits(.isButton)
+                .accessibilityAction { handleMicTap() }
         } else {
             // Tap-to-Toggle (기본)
             Button(action: { handleMicTap() }) {
@@ -538,7 +543,8 @@ struct HomeVoiceInterfaceView: View {
     // MARK: - Text Input Handler
     private func sendTextInput() {
         let text = textInputValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty, activeAnalysisID == nil, !cloudLLM.isProcessing else { return }
+        guard !text.isEmpty, activeAnalysisID == nil,
+              !cloudLLM.isProcessing, !voiceManager.isProcessing else { return }
 
         guard networkMonitor.isConnected else {
             networkMonitor.showOfflineBannerTemporarily()
@@ -663,6 +669,8 @@ struct HomeVoiceInterfaceView: View {
 
     // MARK: - Mic Button Handler
     private func handleMicTap() {
+        guard activeAnalysisID == nil, !cloudLLM.isProcessing,
+              !voiceManager.isProcessing else { return }
         // STT는 초안 작성 단계입니다. 서버 연결과 quota는 명시적 분석 시점에 확인합니다.
         if !voiceManager.isListening,
            !textInputValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -672,6 +680,8 @@ struct HomeVoiceInterfaceView: View {
             return
         }
 
+        showTextInput = false
+        isTextInputFocused = false
         Haptic.impact(.medium)
         voiceManager.toggleListening()
     }

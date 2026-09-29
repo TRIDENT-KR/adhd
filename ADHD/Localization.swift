@@ -383,9 +383,9 @@ struct VoiceStrings {
     var a11yTapHint: String { t("Tap to start or stop voice input", "탭하여 음성 입력을 시작하거나 중지합니다", "タップして音声入力を開始または停止") }
     var a11yHoldHint: String {
         t(
-            "Press and hold to record, then release to create an editable draft",
-            "길게 눌러 녹음하고, 떼면 편집 가능한 초안이 만들어집니다",
-            "長押しで録音し、離すと編集可能な下書きになります"
+            "Hold to record and release for a draft. With VoiceOver, double tap to start or stop.",
+            "길게 눌러 녹음하고 떼면 초안이 만들어집니다. VoiceOver에서는 이중 탭하여 시작하거나 중지합니다.",
+            "長押しで録音し、離すと下書きになります。VoiceOverではダブルタップで開始・停止します。"
         )
     }
     var a11yTabBar: String { t("Tab navigation", "탭 내비게이션", "タブナビゲーション") }
