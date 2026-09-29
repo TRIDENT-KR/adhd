@@ -66,11 +66,12 @@ interface TestResult {
 async function callGemini(text: string): Promise<{ result: TaskItem[]; latencyMs: number }> {
   const apiKey = Deno.env.get("GEMINI_API_KEY");
   if (!apiKey) throw new Error("GEMINI_API_KEY 환경변수가 없습니다.");
+  const model = Deno.env.get("GEMINI_MODEL") ?? "gemini-3.5-flash-lite";
 
   const start = performance.now();
 
   const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },

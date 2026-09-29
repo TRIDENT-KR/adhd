@@ -1,6 +1,92 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+// ── LLM Provider 설정 ────────────────────────────────────────────
+// LLM_PROVIDER=kimi 로 전환. 미설정 시 기존 Gemini 유지
+const LLM_PROVIDER = (Deno.env.get("LLM_PROVIDER") ?? "gemini").toLowerCase();
+
 const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+// gemini-2.0-flash 는 2026-06-01 종료됨. 대시보드 secrets 의 GEMINI_MODEL 로 재배포 없이 교체 가능
+const GEMINI_MODEL = Deno.env.get("GEMINI_MODEL") ?? "gemini-3.5-flash-lite";
+
+const MOONSHOT_API_KEY = Deno.env.get("MOONSHOT_API_KEY");
+// 글로벌: https://api.moonshot.ai/v1 · 중국 본토: https://api.moonshot.cn/v1
+const MOONSHOT_BASE_URL = Deno.env.get("MOONSHOT_BASE_URL") ??
+  "https://api.moonshot.ai/v1";
+const MOONSHOT_MODEL = Deno.env.get("MOONSHOT_MODEL") ?? "kimi-k2.6";
+
+/** Gemini 호출 — 모델 응답 텍스트 반환 */
+async function callGemini(
+  systemPrompt: string,
+  userText: string,
+): Promise<string> {
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        system_instruction: { parts: [{ text: systemPrompt }] },
+        contents: [{ role: "user", parts: [{ text: userText }] }],
+        generationConfig: {
+          response_mime_type: "application/json",
+          temperature: 0.1,
+        },
+      }),
+    },
+  );
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    console.error("🔥 Gemini API Error:", data);
+    throw new Error(
+      `Gemini API Error: ${data.error?.message || response.status}`,
+    );
+  }
+  if (!data.candidates || data.candidates.length === 0) {
+    console.error("⚠️ No candidates returned:", data);
+    throw new Error("Gemini API returned no candidates.");
+  }
+  return data.candidates[0].content.parts[0].text;
+}
+
+/** Kimi(Moonshot) 호출 — OpenAI 호환 Chat Completions */
+async function callKimi(
+  systemPrompt: string,
+  userText: string,
+): Promise<string> {
+  const response = await fetch(`${MOONSHOT_BASE_URL}/chat/completions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${MOONSHOT_API_KEY}`,
+    },
+    body: JSON.stringify({
+      model: MOONSHOT_MODEL,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userText },
+      ],
+      temperature: 0.1,
+      response_format: { type: "json_object" },
+    }),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    console.error("🔥 Kimi API Error:", data);
+    throw new Error(
+      `Kimi API Error: ${data.error?.message || response.status}`,
+    );
+  }
+  const content = data.choices?.[0]?.message?.content;
+  if (!content) {
+    console.error("⚠️ No choices returned:", data);
+    throw new Error("Kimi API returned no choices.");
+  }
+  return content;
+}
 
 // 유저당 분당 최대 호출 횟수 (Gemini 비용 증폭 방지)
 const RATE_LIMIT_MAX = 30;
@@ -206,46 +292,28 @@ Output: [{"function_name": "handle_off_topic_chat", "parameters": {"message": "J
 Input: "ジョークを教えて" (language: "ja")
 Output: [{"function_name": "handle_off_topic_chat", "parameters": {"message": "ジョークより予定管理が得意です！😄 何か追加しましょうか？"}}]`;
 
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          system_instruction: { parts: [{ text: finalPrompt }] },
-          contents: [{ role: "user", parts: [{ text }] }],
-          generationConfig: {
-            response_mime_type: "application/json",
-            temperature: 0.1,
-          },
-        }),
-      },
-    );
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      console.error("🔥 Gemini API Error:", data);
-      throw new Error(
-        `Gemini API Error: ${data.error?.message || response.status}`,
-      );
-    }
-
-    if (!data.candidates || data.candidates.length === 0) {
-      console.error("⚠️ No candidates returned:", data);
-      throw new Error("Gemini API returned no candidates.");
-    }
-
-    const responseText = data.candidates[0].content.parts[0].text;
+    const responseText = LLM_PROVIDER === "kimi"
+      ? await callKimi(finalPrompt, text)
+      : await callGemini(finalPrompt, text);
     console.log("🎤 음성 입력 수신 (길이:", text.length, "자)");
     console.log("🌐 사용자 언어:", userLanguage);
-    console.log("🤖 Gemini Raw Response:", responseText);
+    console.log(`🤖 ${LLM_PROVIDER} Raw Response:`, responseText);
 
     const cleanedText = responseText.replace(/```json/g, "").replace(/```/g, "")
       .trim();
     let parsedData = JSON.parse(cleanedText);
 
-    // 1. 배열이 아닌 단일 객체인 경우 배열로 감싸기 (방어 코드)
+    // 1-a. JSON mode(response_format=json_object)를 쓰는 provider는
+    //      최상위 배열을 {"calls": [...]} 형태로 감쌀 수 있음 → 벗겨내기
+    if (
+      !Array.isArray(parsedData) && parsedData &&
+      typeof parsedData === "object" && !parsedData.function_name
+    ) {
+      const inner = Object.values(parsedData).find((v) => Array.isArray(v));
+      if (inner) parsedData = inner;
+    }
+
+    // 1-b. 배열이 아닌 단일 객체인 경우 배열로 감싸기 (방어 코드)
     if (!Array.isArray(parsedData)) {
       parsedData = [parsedData];
     }

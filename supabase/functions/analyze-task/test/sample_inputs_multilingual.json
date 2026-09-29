@@ -1,0 +1,343 @@
+{
+  "_comment": "다국어(ko/ja/en) 함수 호출 정확도 벤치마크용. 기준 시각을 고정해 날짜/시간 산술 정답을 결정적으로 만든다.",
+  "fixed_current_time": "2026-08-19 14:00",
+  "test_cases": [
+    {
+      "id": "KO01",
+      "language": "ko",
+      "description": "단순 루틴 추가 - 시간 미지정",
+      "input": "아침마다 스트레칭 좀 해야겠다",
+      "expect": {
+        "count": 1,
+        "function_name": "add_single_task",
+        "category": "Routine",
+        "time_is_null": true
+      }
+    },
+    {
+      "id": "KO02",
+      "language": "ko",
+      "description": "상대 시간 산술 - 2시간 뒤",
+      "input": "지금부터 두 시간 뒤에 치과 예약 잡아줘",
+      "expect": {
+        "count": 1,
+        "function_name": "add_single_task",
+        "category": "Appointment",
+        "time": "04:00 PM",
+        "date": "2026-08-19"
+      }
+    },
+    {
+      "id": "KO03",
+      "language": "ko",
+      "description": "내일 특정 시각",
+      "input": "내일 오후 3시 반에 팀 회의 있어",
+      "expect": {
+        "count": 1,
+        "function_name": "add_single_task",
+        "category": "Appointment",
+        "time": "03:30 PM",
+        "date": "2026-08-20"
+      }
+    },
+    {
+      "id": "KO04",
+      "language": "ko",
+      "description": "산만한 발화 + 중간 번복 (최종 의도 추출)",
+      "input": "어 그 저번에 엄마가 말했던 게 뭐였더라... 아무튼 오늘 저녁 7시에 장 보러 가야 되는데, 아니다 그거 말고 8시로 해줘",
+      "expect": {
+        "count": 1,
+        "function_name": "add_single_task",
+        "category": "Appointment",
+        "time": "08:00 PM",
+        "date": "2026-08-19"
+      }
+    },
+    {
+      "id": "KO05",
+      "language": "ko",
+      "description": "브레인 덤프 - 복수 작업",
+      "input": "할 일 몇 개 넣을게. 매일 물 2리터 마시기랑, 금요일 오전 11시에 은행 가기",
+      "expect": {
+        "count": 2,
+        "function_names": ["add_single_task", "add_single_task"]
+      }
+    },
+    {
+      "id": "KO06",
+      "language": "ko",
+      "description": "특정 작업 삭제",
+      "input": "치과 예약 취소됐어, 목록에서 지워줘",
+      "expect": {
+        "count": 1,
+        "function_name": "delete_specific_task"
+      }
+    },
+    {
+      "id": "KO07",
+      "language": "ko",
+      "description": "완료 처리",
+      "input": "아침 운동 방금 끝냈어",
+      "expect": {
+        "count": 1,
+        "function_name": "mark_task_complete"
+      }
+    },
+    {
+      "id": "KO08",
+      "language": "ko",
+      "description": "전체 삭제",
+      "input": "오늘 일정 다 지워버려",
+      "expect": {
+        "count": 1,
+        "function_name": "clear_all_tasks"
+      }
+    },
+    {
+      "id": "KO09",
+      "language": "ko",
+      "description": "일정 미루기",
+      "input": "오늘 할 거 전부 내일로 미뤄줘",
+      "expect": {
+        "count": 1,
+        "function_name": "postpone_all_tasks"
+      }
+    },
+    {
+      "id": "KO10",
+      "language": "ko",
+      "description": "주제 이탈 - 한국어 응답 필수",
+      "input": "너 오늘 기분 어때?",
+      "expect": {
+        "count": 1,
+        "function_name": "handle_off_topic_chat",
+        "reply_language": "ko"
+      }
+    },
+    {
+      "id": "KO11",
+      "language": "ko",
+      "description": "시간 추측 금지 - time은 null이어야 함",
+      "input": "이번 주에 세차 한 번 해야지",
+      "expect": {
+        "count": 1,
+        "function_name": "add_single_task",
+        "time_is_null": true
+      }
+    },
+    {
+      "id": "KO12",
+      "language": "ko",
+      "description": "날짜 산술 - 지난 날짜는 다음 달로",
+      "input": "2일에 있는 검진 일정을 5일로 옮겨줘",
+      "expect": {
+        "count": 1,
+        "function_name": "update_task",
+        "new_date": "2026-09-05"
+      }
+    },
+    {
+      "id": "JA01",
+      "language": "ja",
+      "description": "単純なルーティン追加 - 時刻なし",
+      "input": "毎朝ストレッチをする習慣をつけたい",
+      "expect": {
+        "count": 1,
+        "function_name": "add_single_task",
+        "category": "Routine",
+        "time_is_null": true
+      }
+    },
+    {
+      "id": "JA02",
+      "language": "ja",
+      "description": "相対時刻の計算 - 2時間後",
+      "input": "今から2時間後に歯医者の予約を入れて",
+      "expect": {
+        "count": 1,
+        "function_name": "add_single_task",
+        "category": "Appointment",
+        "time": "04:00 PM",
+        "date": "2026-08-19"
+      }
+    },
+    {
+      "id": "JA03",
+      "language": "ja",
+      "description": "明日の特定時刻",
+      "input": "明日の午後3時半にチーム会議があります",
+      "expect": {
+        "count": 1,
+        "function_name": "add_single_task",
+        "category": "Appointment",
+        "time": "03:30 PM",
+        "date": "2026-08-20"
+      }
+    },
+    {
+      "id": "JA04",
+      "language": "ja",
+      "description": "散漫な発話と途中変更",
+      "input": "えっと、この前母が言ってたことなんだっけ…とにかく今日の夜7時に買い物に行かないと、いや違う、8時にして",
+      "expect": {
+        "count": 1,
+        "function_name": "add_single_task",
+        "category": "Appointment",
+        "time": "08:00 PM",
+        "date": "2026-08-19"
+      }
+    },
+    {
+      "id": "JA05",
+      "language": "ja",
+      "description": "ブレインダンプ - 複数タスク",
+      "input": "いくつか追加して。毎日水を2リットル飲むのと、金曜の午前11時に銀行に行くこと",
+      "expect": {
+        "count": 2,
+        "function_names": ["add_single_task", "add_single_task"]
+      }
+    },
+    {
+      "id": "JA06",
+      "language": "ja",
+      "description": "特定タスクの削除",
+      "input": "歯医者の予約がキャンセルになったのでリストから削除して",
+      "expect": {
+        "count": 1,
+        "function_name": "delete_specific_task"
+      }
+    },
+    {
+      "id": "JA07",
+      "language": "ja",
+      "description": "完了処理",
+      "input": "朝の運動、今終わったよ",
+      "expect": {
+        "count": 1,
+        "function_name": "mark_task_complete"
+      }
+    },
+    {
+      "id": "JA08",
+      "language": "ja",
+      "description": "全件削除",
+      "input": "今日の予定を全部消して",
+      "expect": {
+        "count": 1,
+        "function_name": "clear_all_tasks"
+      }
+    },
+    {
+      "id": "JA09",
+      "language": "ja",
+      "description": "予定の繰り延べ",
+      "input": "今日のタスクを全部明日に延ばして",
+      "expect": {
+        "count": 1,
+        "function_name": "postpone_all_tasks"
+      }
+    },
+    {
+      "id": "JA10",
+      "language": "ja",
+      "description": "トピック外 - 日本語で返答必須",
+      "input": "今日の気分はどう？",
+      "expect": {
+        "count": 1,
+        "function_name": "handle_off_topic_chat",
+        "reply_language": "ja"
+      }
+    },
+    {
+      "id": "JA11",
+      "language": "ja",
+      "description": "時刻を推測しない - timeはnull",
+      "input": "今週中に洗車をしておきたい",
+      "expect": {
+        "count": 1,
+        "function_name": "add_single_task",
+        "time_is_null": true
+      }
+    },
+    {
+      "id": "JA12",
+      "language": "ja",
+      "description": "日付計算 - 過ぎた日は翌月",
+      "input": "2日の検診の予定を5日に移して",
+      "expect": {
+        "count": 1,
+        "function_name": "update_task",
+        "new_date": "2026-09-05"
+      }
+    },
+    {
+      "id": "EN01",
+      "language": "en",
+      "description": "Relative time arithmetic - 2 hours later",
+      "input": "Book a dentist appointment two hours from now",
+      "expect": {
+        "count": 1,
+        "function_name": "add_single_task",
+        "category": "Appointment",
+        "time": "04:00 PM",
+        "date": "2026-08-19"
+      }
+    },
+    {
+      "id": "EN02",
+      "language": "en",
+      "description": "Tomorrow specific time",
+      "input": "I've got a team meeting tomorrow at 3:30 in the afternoon",
+      "expect": {
+        "count": 1,
+        "function_name": "add_single_task",
+        "category": "Appointment",
+        "time": "03:30 PM",
+        "date": "2026-08-20"
+      }
+    },
+    {
+      "id": "EN03",
+      "language": "en",
+      "description": "No time mentioned - must stay null",
+      "input": "I should wash the car sometime this week",
+      "expect": {
+        "count": 1,
+        "function_name": "add_single_task",
+        "time_is_null": true
+      }
+    },
+    {
+      "id": "EN04",
+      "language": "en",
+      "description": "Off-topic - must reply in English",
+      "input": "How are you feeling today?",
+      "expect": {
+        "count": 1,
+        "function_name": "handle_off_topic_chat",
+        "reply_language": "en"
+      }
+    },
+    {
+      "id": "EN05",
+      "language": "en",
+      "description": "Date arithmetic - past day rolls to next month",
+      "input": "Move my checkup from the 2nd to the 5th",
+      "expect": {
+        "count": 1,
+        "function_name": "update_task",
+        "new_date": "2026-09-05"
+      }
+    },
+    {
+      "id": "EN06",
+      "language": "en",
+      "description": "Brain dump - multiple tasks",
+      "input": "Let me add a couple things. Drink two liters of water every day, and go to the bank Friday at 11 AM",
+      "expect": {
+        "count": 2,
+        "function_names": ["add_single_task", "add_single_task"]
+      }
+    }
+  ]
+}
