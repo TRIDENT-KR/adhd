@@ -56,7 +56,7 @@ struct SearchView: View {
                                 .frame(minWidth: 44, minHeight: 44)
                                 .contentShape(Rectangle())
                         }
-                        .accessibilityLabel("Clear search")
+                        .accessibilityLabel(L.t("Clear search", "검색어 지우기", "検索をクリア"))
                     }
                 }
                 .padding(.horizontal, 16)
@@ -213,7 +213,7 @@ struct SearchResultRow: View {
         .padding(.vertical, 12)
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(task.task)\(task.isCompleted ? ", completed" : "")\(task.time.map { ", \($0)" } ?? "")")
-        .accessibilityHint("Double tap to navigate to this task")
+        .accessibilityLabel("\(task.task)\(task.isCompleted ? L.t(", completed", ", 완료", ", 完了") : "")\(task.time.map { ", \($0)" } ?? "")")
+        .accessibilityHint(L.t("Double tap to navigate to this task", "이 일정으로 이동하려면 이중 탭하세요", "このタスクに移動するにはダブルタップ"))
     }
 }

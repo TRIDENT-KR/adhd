@@ -268,7 +268,7 @@ struct HomeVoiceInterfaceView: View {
                                     .font(.system(size: 48))
                                     .foregroundColor(DesignSystem.Colors.tertiary)
                                     .transition(reduceMotion ? .opacity : .scale.combined(with: .opacity))
-                                    .accessibilityLabel("Task saved successfully")
+                                    .accessibilityLabel(L.t("Task saved successfully", "일정을 저장했어요", "タスクを保存しました"))
                             } else if activeAnalysisID != nil {
                                 Text(L.voiceAnalyzing)
                                     .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
@@ -1027,8 +1027,8 @@ struct VoiceConfirmationSheet: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(PlainButtonStyle())
-                .accessibilityLabel("Close")
-                .accessibilityHint("Double tap to cancel")
+                .accessibilityLabel(L.t("Close", "닫기", "閉じる"))
+                .accessibilityHint(L.t("Double tap to cancel", "취소하려면 이중 탭하세요", "キャンセルするにはダブルタップ"))
             }
             .padding(.horizontal, 20)
             .padding(.top, 24)
