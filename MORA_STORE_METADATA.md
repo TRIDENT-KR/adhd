@@ -15,7 +15,7 @@
 | 고객 지원 | trident1398@gmail.com |
 | 심사 연락처 | 담당자의 실제 성명·전화·이메일을 소유자가 입력 |
 | 저작권 | 실제 권리자·법인명을 소유자가 확인하여 입력. 저장소 조직명이 법적 권리자라고 추정하지 않음 |
-| 연령·국가 | 18세 이상 이용 조건과 판매 지역의 성인 기준·Google 지원 지역에 맞춘다. ASC 질문은 사실대로 답하고 더 높은 연령 제한 설정이 필요한지 확인. 앱 자기신고는 신분증 인증이 아님 |
+| 연령·국가 | 설문은 사실대로 답한 뒤 **Override to Higher Age Rating → 18+** 필수(약관이 18세 이상, [Apple 기준](https://developer.apple.com/help/app-store-connect/manage-app-information/set-an-app-age-rating)). 판매 지역은 [계정 설정 체크리스트](MORA_ACCOUNT_SETUP_CHECKLIST.md#1-먼저-정할-것--김기홍이연재-합의-필요)의 결정을 따른다. 앱 자기신고는 신분증 인증이 아님 |
 | 플랫폼 | iPhone, iOS 26.2 이상. 스크린샷·기능 설명은 검증한 실제 화면 기준 |
 
 ## 한국어

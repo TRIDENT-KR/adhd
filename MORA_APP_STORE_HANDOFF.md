@@ -2,7 +2,7 @@
 
 > **2026-09-30 구현 갱신:** 18세 이상 성인 대상·Gemini 유지. `adult-v1` 자기확인 UI, 계정별 서버 기록, AI·신규 구매 제한과 개인정보 신고 문안을 구현했다. 자기확인은 신원·실제 나이 검증이 아니다. 새 migration과 AI gate는 아직 운영에 배포하지 않았으며, 공개 정책 게시·ASC 입력·Apple 계정 작업·실기기 검증은 남는다.
 
-이 문서는 입력 초안·검증 순서다. 현재 제출 승인이 아니다. 최신 상태는 [출시 준비 결과](MORA_RELEASE_READINESS.md)를 따른다. 담당자는 아래 결과를 확인한 뒤 ASC에 입력하며, 아직 없는 심사 계정이나 테스트 결과를 만들었다고 기재하지 않는다.
+계정 작업의 담당·순서·정확한 값은 [계정 설정 인계 체크리스트](MORA_ACCOUNT_SETUP_CHECKLIST.md)를 먼저 본다. 이 문서는 입력 초안·검증 순서다. 현재 제출 승인이 아니다. 최신 상태는 [출시 준비 결과](MORA_RELEASE_READINESS.md)를 따른다. 담당자는 아래 결과를 확인한 뒤 ASC에 입력하며, 아직 없는 심사 계정이나 테스트 결과를 만들었다고 기재하지 않는다.
 
 **이전 검증:** 2026-09-29 [재감사 조치](MORA_APP_STORE_REVIEW_AUDIT.md)의 삭제 복구·구독 순서·위젯 안내·게스트 경로·OSS 등을 구현했고 구독 서버를 v2로 배포했다. 당시 Swift111/Deno60/DB68 회귀를 통과했다. 이를 이번 성인 확인 구현의 새 검사로 세지 않는다. **이번 서버 회귀는 Deno61개(성인 확인 9개 하위 검사 포함), 격리DB86개가 통과했다.** 실제 Apple 구매·복원·삭제, 서명·업로드 및 실기기 완료 증명은 아니다. ASC는 실제 값을 확인하지 못했고 [3언어 스토어 문안](MORA_STORE_METADATA.md)은 입력 초안이다.
 
@@ -56,6 +56,8 @@
 > Subscription prices and periods are shown on the Pro screen. New purchases require current account adult eligibility. Pro removes the free daily AI quota; excessive consecutive requests can be temporarily limited. Restore Purchases is available on the Pro screen, and existing subscription synchronization is preserved. Account deletion uses Apple reauthentication and is accessible from Settings and the restricted-use management screen. Pending deletion and local cleanup resume after relaunch, and the app displays completion confirmation; deleting a Mora account does not cancel its App Store subscription. The app provides Apple's subscription management link.
 >
 > Full-screen alarms require compatible hardware, iOS support and permissions. The app and widget require iOS 26.2 or later. Please use an iPhone for review.
+>
+> Sign in with Apple is the only sign-in method, so no separate demo account is required; any Apple ID can be used. On first launch, confirm that you are 18 or older to continue.
 
 위 메모는 호환 앱·서버 gate 배포와 필수 QA를 완료한 뒤 사용한다. ASC의 심사 연락처에는 담당자의 실제 연락처를 입력한다. 심사자가 모든 기능에 접근할 수 있는 실제 경로·필요한 테스트 안내를 별도로 확인한다. DEBUG presentation demo는 Release에서 사용할 수 없고 심사 계정을 대신하지 않는다.
 

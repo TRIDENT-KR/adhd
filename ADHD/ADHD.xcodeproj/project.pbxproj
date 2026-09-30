@@ -826,6 +826,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Mora;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Mora uses the microphone to create an editable speech draft when you tap the microphone. You can type instead.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Mora uses Apple speech recognition to transcribe your voice into an editable task draft. Audio may be processed by Apple. You can type instead.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -862,6 +863,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Mora;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Mora uses the microphone to create an editable speech draft when you tap the microphone. You can type instead.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Mora uses Apple speech recognition to transcribe your voice into an editable task draft. Audio may be processed by Apple. You can type instead.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;

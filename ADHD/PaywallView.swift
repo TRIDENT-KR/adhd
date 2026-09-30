@@ -290,17 +290,18 @@ struct PaywallView: View {
     private var footerSection: some View {
         VStack(spacing: 6) {
             Text(L.paywall.legalNote)
-                .font(.system(size: 11))
-                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.45))
+                .font(.footnote)
+                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.75))
                 .multilineTextAlignment(.center)
                 .lineSpacing(3)
+                .fixedSize(horizontal: false, vertical: true)
 
             HStack(spacing: 16) {
-                Link(L.settings.privacyPolicy, destination: URL(string: "https://trident-kr.github.io/waitwhat-site/privacy")!)
-                Link(L.settings.termsOfService, destination: URL(string: "https://trident-kr.github.io/waitwhat-site/terms")!)
+                Link(L.settings.privacyPolicy, destination: URL(string: "https://trident-kr.github.io/waitwhat-site/privacy/")!)
+                Link(L.settings.termsOfService, destination: URL(string: "https://trident-kr.github.io/waitwhat-site/terms/")!)
             }
-            .font(.system(size: 11))
-            .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.45))
+            .font(.footnote.weight(.semibold))
+            .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.85))
         }
     }
 

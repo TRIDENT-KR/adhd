@@ -531,9 +531,9 @@ struct PaywallStrings {
     var loadPlansFailed: String { t("Failed to load plans.", "플랜을 불러오지 못했어요.", "プランの読み込みに失敗しました。") }
     var retry: String { t("Retry", "다시 시도", "再試行") }
     var legalNote: String { t(
-        "Subscription renews automatically. Cancel anytime in Settings.",
-        "구독은 자동으로 갱신됩니다. 언제든지 설정에서 취소할 수 있습니다.",
-        "サブスクリプションは自動的に更新されます。設定からいつでも解約できます。"
+        "Payment is charged to your Apple Account when you confirm the purchase. The subscription renews automatically unless auto-renew is turned off at least 24 hours before the current period ends, and the renewal is charged within 24 hours before the period ends. Manage or cancel anytime in your Apple Account subscription settings.",
+        "결제는 구매를 확인하면 Apple 계정으로 청구돼요. 현재 기간이 끝나기 최소 24시간 전에 자동 갱신을 끄지 않으면 구독이 자동으로 갱신되고, 갱신 요금은 기간이 끝나기 전 24시간 안에 청구돼요. 구독 관리와 해지는 언제든 Apple 계정의 구독 설정에서 할 수 있어요.",
+        "お支払いは購入の確定時にAppleアカウントに請求されます。現在の期間が終了する24時間前までに自動更新をオフにしない限り、サブスクリプションは自動的に更新され、更新料金は期間終了前の24時間以内に請求されます。管理や解約は、Appleアカウントのサブスクリプション設定からいつでも行えます。"
     ) }
 
     var featureVoiceTitle: String { t("AI beyond the daily free limit", "AI 일일 무료 횟수 제한 해제", "AIの1日の無料回数制限を解除") }
@@ -547,7 +547,7 @@ struct PaywallStrings {
 
     var purchasePending: String { t("Your purchase is awaiting approval. Pro will activate after Apple and Mora confirm it.", "구매 승인을 기다리고 있어요. Apple과 Mora의 확인이 끝나면 Pro가 활성화됩니다.", "購入は承認待ちです。AppleとMoraの確認後にProが有効になります。") }
     var accountRequired: String { t("Sign in with Apple to subscribe or restore purchases. You can keep using manual tasks without signing in.", "구독하거나 구매를 복원하려면 Apple로 로그인해 주세요. 수동 일정은 로그인 없이 계속 사용할 수 있어요.", "登録や購入の復元にはAppleでサインインしてください。手入力のタスクはサインインせずに利用できます。") }
-    var signIn: String { t("Sign in with Apple", "Apple로 로그인", "Appleでサインイン") }
+    var signIn: String { t("Sign in to subscribe", "로그인하고 구독하기", "サインインして登録") }
     var connectionRequired: String { t("Connect to the internet to subscribe or restore purchases.", "구독하거나 구매를 복원하려면 인터넷에 연결해 주세요.", "登録や購入の復元にはインターネット接続が必要です。") }
     var registrationUnavailable: String { t("Subscription verification is unavailable. No purchase was started. Please try again later.", "구독 확인을 사용할 수 없어 결제를 시작하지 않았어요. 잠시 후 다시 시도해 주세요.", "サブスクリプションを確認できないため、購入は開始していません。しばらくしてからお試しください。") }
     var restoreRebindUnavailable: String { t("This subscription cannot be restored to the current account. Please contact support.", "이 구독을 현재 계정으로 복원할 수 없어요. 고객 지원에 문의해 주세요.", "このアカウントにはサブスクリプションを復元できません。サポートにお問い合わせください。") }
