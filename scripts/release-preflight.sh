@@ -66,7 +66,8 @@ echo "[3] 배포된 함수가 로컬 코드와 맞는지 (QA-002·003·004·005)
 if python3 scripts/verify-deployed-functions.py "$REF"; then
   pass "4개 함수의 실제 배포 소스와 gateway 설정 일치"
 else
-  fail "배포 소스 또는 gateway 불일치" "각 함수를 개별 배포한 뒤 실제 소스를 다시 확인하세요. 버전/날짜만으로 완료 판정하지 않습니다."
+  fail "배포 소스 또는 gateway 불일치" "각 함수를 개별 배포한 뒤 실제 소스를 다시 확인하세요. 버전/날짜만으로 완료 판정하지 않습니다.
+       analyze-task만 다르다면 성인 확인 gate가 아직 안 올라간 상태일 수 있습니다. supabase/ADULT_ELIGIBILITY.md 순서(migration → 호환 앱 → gate)를 먼저 확인하세요."
 fi
 
 echo
@@ -95,7 +96,8 @@ fi
 
 echo
 echo "[5] 로컬 테스트"
-DENO_TESTS=$(rg --files supabase/functions supabase/tests -g '*_test.ts' -g '!**/test/**' -g '!**/eval/**' | sort)
+# rg가 없는 맥에서도 같은 목록이 나오도록 find를 쓴다.
+DENO_TESTS=$(find supabase/functions supabase/tests -name '*_test.ts' -not -path '*/test/*' -not -path '*/eval/*' | sort)
 # shellcheck disable=SC2086
 if deno test --config supabase/deno.json --allow-read --allow-env=APPLE_BUNDLE_ID --quiet $DENO_TESTS >"$LOG_DIR/deno.log" 2>&1; then
   pass "Deno 테스트 $(grep -oE '[0-9]+ passed' "$LOG_DIR/deno.log" | tail -1)"
@@ -121,6 +123,8 @@ cat <<EOF
   2. supabase db push                  # 보안·구독·보존 작업 migration 적용 (DB 비밀번호 필요)
   3. supabase secrets set APPLE_CLIENT_ID=... APPLE_CLIENT_SECRET=... DELETION_STATUS_SECRET=... --project-ref $REF
   4. 각 함수를 개별 배포: supabase functions deploy <함수명> --no-verify-jwt --use-api --project-ref $REF
+     ⚠️ analyze-task는 성인 확인 migration 적용과 호환 앱 빌드 확인이 끝난 뒤에만 배포합니다.
+        먼저 올리면 확인 화면이 없는 이전 빌드의 AI가 막힙니다. (supabase/ADULT_ELIGIBILITY.md)
   5. App Store Connect → 앱 → App 정보 → App Store 서버 알림 (버전 2)
      Production·Sandbox URL: https://$REF.supabase.co/functions/v1/app-store-notifications
 EOF
