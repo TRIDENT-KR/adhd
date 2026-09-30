@@ -7,6 +7,7 @@ import Foundation
 /// 1) LLM 응답의 urgency 필드 디코딩
 /// 2) 필드 부재/이상값 시 카테고리 휴리스틱 (Appointment=strong, Routine=weak)
 /// 3) 알림 파생 id 규약 (팔로업/스누즈)
+@MainActor
 struct UrgencyClassificationTests {
 
     // MARK: - Helpers

@@ -277,3 +277,88 @@ struct StoreKitSyncErrorMapperTests {
         #expect(StoreKitSyncErrorMapper.map(status: 502, data: Data("<html>".utf8)) == nil)
     }
 }
+
+struct SubscriptionPricingTests {
+    @Test func savingsUseActualPricesAndRoundDown() {
+        #expect(SubscriptionPricing.annualSavingsPercent(monthly: 5, yearly: 36, monthlyCurrency: "USD", yearlyCurrency: "USD") == 40)
+        #expect(SubscriptionPricing.annualSavingsPercent(monthly: 5900, yearly: 49000, monthlyCurrency: "KRW", yearlyCurrency: "KRW") == 30)
+        #expect(SubscriptionPricing.annualSavingsPercent(monthly: 3, yearly: 24, monthlyCurrency: "JPY", yearlyCurrency: "JPY") == 33)
+    }
+    @Test func misleadingSavingsAreNotAdvertised() {
+        for yearly: Decimal in [0, -1, 60, 61] {
+            #expect(SubscriptionPricing.annualSavingsPercent(monthly: 5, yearly: yearly, monthlyCurrency: "USD", yearlyCurrency: "USD") == nil)
+        }
+        #expect(SubscriptionPricing.annualSavingsPercent(monthly: 0, yearly: 36, monthlyCurrency: "USD", yearlyCurrency: "USD") == nil)
+        #expect(SubscriptionPricing.annualSavingsPercent(monthly: 5, yearly: 36, monthlyCurrency: "USD", yearlyCurrency: "KRW") == nil)
+    }
+}
+
+
+// A suspended StoreKit/server operation must never follow a later account session.
+struct SubscriptionOperationScopeTests {
+    @Test func finishingRestrictedRestoreCannotCloseNewerOrNewlyEligibleAccount() throws {
+        var scope = SubscriptionOperationScope()
+        let first = UUID(), second = UUID()
+        scope.activate(first)
+        let original = try #require(scope.capture(sessionUserID: first, accessToken: "restore-first"))
+        let closedEligible = scope.finishRestrictedManagementOperation(original, sessionUserID: first, isLocallyEligible: true)
+        #expect(!closedEligible)
+        #expect(scope.accepts(original, sessionUserID: first))
+        scope.activate(second)
+        let closedNewerAccount = scope.finishRestrictedManagementOperation(original, sessionUserID: second, isLocallyEligible: false)
+        #expect(!closedNewerAccount)
+        #expect(scope.userID == second)
+        let current = try #require(scope.capture(sessionUserID: second, accessToken: "restore-second"))
+        let closedRestricted = scope.finishRestrictedManagementOperation(current, sessionUserID: second, isLocallyEligible: false)
+        #expect(closedRestricted)
+        #expect(scope.userID == nil)
+        #expect(!scope.accepts(current, sessionUserID: second))
+    }
+
+    @Test func guestRejectsAStaleAuthenticatedSession() {
+        var scope = SubscriptionOperationScope()
+        let userID = UUID()
+        scope.activate(userID)
+        scope.deactivate()
+        #expect(scope.capture(sessionUserID: userID, accessToken: "synthetic-old-token") == nil)
+    }
+
+    @Test func accountSwitchInvalidatesAnInflightOperation() throws {
+        var scope = SubscriptionOperationScope()
+        let firstUser = UUID()
+        let secondUser = UUID()
+        scope.activate(firstUser)
+        let operation = try #require(scope.capture(sessionUserID: firstUser, accessToken: "synthetic-a"))
+        // The provider session can change before its auth event is consumed.
+        #expect(!scope.accepts(operation, sessionUserID: secondUser))
+        scope.activate(secondUser)
+        #expect(!scope.accepts(operation, sessionUserID: secondUser))
+        #expect(operation.userID == firstUser)
+        #expect(operation.accessToken == "synthetic-a")
+    }
+
+    @Test func returningToSameAccountDoesNotReviveAnOldOperation() throws {
+        var scope = SubscriptionOperationScope()
+        let userID = UUID()
+        scope.activate(userID)
+        let oldOperation = try #require(scope.capture(sessionUserID: userID, accessToken: "synthetic-before-logout"))
+        scope.deactivate()
+        scope.activate(userID)
+        #expect(!scope.accepts(oldOperation, sessionUserID: userID))
+        let newOperation = try #require(scope.capture(sessionUserID: userID, accessToken: "synthetic-after-login"))
+        #expect(scope.accepts(newOperation, sessionUserID: userID))
+    }
+
+    @Test func sameAccountRefreshKeepsTheRequestTokenPinned() throws {
+        var scope = SubscriptionOperationScope()
+        let userID = UUID()
+        scope.activate(userID)
+        let operation = try #require(scope.capture(sessionUserID: userID, accessToken: "synthetic-first-token"))
+        scope.activate(userID)
+        let refreshed = try #require(scope.capture(sessionUserID: userID, accessToken: "synthetic-refreshed-token"))
+        #expect(scope.accepts(operation, sessionUserID: userID))
+        #expect(operation.accessToken == "synthetic-first-token")
+        #expect(refreshed.accessToken == "synthetic-refreshed-token")
+        #expect(!scope.accepts(operation, sessionUserID: nil))
+    }
+}

@@ -1,9 +1,10 @@
 // App Store Server Notifications V2 수신. Apple은 200을 받을 때까지 재전송하므로
 // 우리 쪽 일시 장애는 503, 우리와 무관하거나 이미 처리한 알림은 200으로 답한다.
 import {
+  signedDateMillis,
   TransactionFacts,
-  TransactionRejected,
   transactionFacts,
+  TransactionRejected,
 } from "../_shared/storekit-facts.ts";
 
 export interface VerifiedNotification {
@@ -17,13 +18,14 @@ export interface NotificationRecord {
   notificationType: string;
   subtype: string | null;
   appleEnvironment: "Sandbox" | "Production";
+  signedAt: string;
   facts: TransactionFacts | null;
 }
 
 export interface NotificationDeps {
   /** signedPayload와 중첩 JWS를 모두 검증한다. 실패하면 던진다. */
   verifyNotification(signedPayload: string): Promise<VerifiedNotification>;
-  /** mora_storekit_apply_notification. 실패하면 던진다. */
+  /** mora_storekit_apply_notification_v2. 실패하면 던진다. */
   applyNotification(record: NotificationRecord): Promise<string>;
   expectedBundleId: string;
   now(): Date;
@@ -44,8 +46,13 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-export async function handleNotification(req: Request, deps: NotificationDeps): Promise<Response> {
-  if (req.method !== "POST") return json(405, { error: { code: "method_not_allowed" } });
+export async function handleNotification(
+  req: Request,
+  deps: NotificationDeps,
+): Promise<Response> {
+  if (req.method !== "POST") {
+    return json(405, { error: { code: "method_not_allowed" } });
+  }
 
   let body: unknown;
   try {
@@ -54,7 +61,10 @@ export async function handleNotification(req: Request, deps: NotificationDeps): 
     return json(400, { error: { code: "invalid_request_body" } });
   }
   const signedPayload = isRecord(body) ? body.signedPayload : undefined;
-  if (typeof signedPayload !== "string" || signedPayload.length > MAX_PAYLOAD_LENGTH) {
+  if (
+    typeof signedPayload !== "string" ||
+    signedPayload.length > MAX_PAYLOAD_LENGTH
+  ) {
     return json(400, { error: { code: "invalid_request_body" } });
   }
 
@@ -73,7 +83,8 @@ export async function handleNotification(req: Request, deps: NotificationDeps): 
   const environment = data?.environment;
   if (
     typeof notificationType !== "string" || !TYPE.test(notificationType) ||
-    (subtype !== null && (typeof subtype !== "string" || !TYPE.test(subtype))) ||
+    (subtype !== null &&
+      (typeof subtype !== "string" || !TYPE.test(subtype))) ||
     typeof notificationUUID !== "string" || !UUID.test(notificationUUID) ||
     (environment !== "Sandbox" && environment !== "Production")
   ) {
@@ -82,6 +93,14 @@ export async function handleNotification(req: Request, deps: NotificationDeps): 
   // 다른 앱의 알림이면 처리하지 않는다. (서명은 Apple 것이라 재전송을 멈추도록 200)
   if (data?.bundleId !== deps.expectedBundleId) {
     return json(200, { result: "ignored_other_app" });
+  }
+
+  let signedAt: string;
+  try {
+    signedAt = new Date(signedDateMillis(notification.signedDate, deps.now()))
+      .toISOString();
+  } catch {
+    return json(400, { error: { code: "invalid_signed_date" } });
   }
 
   let facts: TransactionFacts | null = null;
@@ -96,6 +115,12 @@ export async function handleNotification(req: Request, deps: NotificationDeps): 
       });
     } catch (error) {
       if (!(error instanceof TransactionRejected)) throw error;
+      if (
+        error.code === "invalid_signed_date" ||
+        error.code === "invalid_purchase_date"
+      ) {
+        return json(400, { error: { code: error.code } });
+      }
       // 가족 공유·다른 상품 등 우리가 권한을 주지 않는 거래. 기록만 남긴다.
       facts = null;
     }
@@ -107,12 +132,20 @@ export async function handleNotification(req: Request, deps: NotificationDeps): 
       notificationType,
       subtype: subtype as string | null,
       appleEnvironment: environment,
+      signedAt,
       facts,
     });
-    console.info("app_store_notification_processed", { notificationType, subtype, result });
+    console.info("app_store_notification_processed", {
+      notificationType,
+      subtype,
+      result,
+    });
     return json(200, { result });
   } catch {
-    console.error("app_store_notification_failed", { notificationType, subtype });
+    console.error("app_store_notification_failed", {
+      notificationType,
+      subtype,
+    });
     return json(503, { error: { code: "notification_backend_unavailable" } });
   }
 }

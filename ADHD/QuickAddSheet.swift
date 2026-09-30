@@ -42,7 +42,7 @@ struct QuickAddSheet: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(NoEffectButtonStyle())
-                .accessibilityLabel("Close")
+                .accessibilityLabel(L.t("Close", "닫기", "閉じる"))
             }
 
             // 이름 입력
@@ -66,7 +66,7 @@ struct QuickAddSheet: View {
                     .cornerRadius(6)
                     .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
                     .onTapGesture { showTimePicker = true }
-                    .accessibilityLabel("Set time")
+                    .accessibilityLabel(L.t("Set time", "시간 설정", "時刻を設定"))
                     .accessibilityAddTraits(.isButton)
 
                 Button(action: {
@@ -96,7 +96,7 @@ struct QuickAddSheet: View {
                 HStack(spacing: 6) {
                     Image(systemName: "calendar")
                         .font(.caption)
-                    Text(date.formatted(date: .abbreviated, time: .omitted))
+                    Text(date.formatted(.dateTime.year().month(.abbreviated).day().locale(Locale(identifier: langManager.currentLanguage.rawValue))))
                         .font(DesignSystem.Typography.labelSm)
                 }
                 .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))

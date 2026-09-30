@@ -2,8 +2,8 @@
 // 인증·서명 검증·DB 호출은 주입받아 테스트에서 가짜로 바꿀 수 있다.
 import {
   TransactionFacts,
-  TransactionRejected,
   transactionFacts,
+  TransactionRejected,
 } from "../_shared/storekit-facts.ts";
 
 export type SyncAction = "register" | "rebind";
@@ -13,8 +13,12 @@ export interface SyncDeps {
   authenticate(authorization: string): Promise<string | null>;
   /** Apple 서명·체인 검증을 통과한 payload를 돌려준다. 실패하면 던진다. */
   verifyTransaction(jws: string): Promise<Record<string, unknown>>;
-  /** mora_storekit_apply_transaction. DB 예외 메시지는 DatabaseRejected로 던진다. */
-  applyTransaction(userId: string, action: SyncAction, facts: TransactionFacts): Promise<string>;
+  /** mora_storekit_apply_transaction_v2. DB 예외 메시지는 DatabaseRejected로 던진다. */
+  applyTransaction(
+    userId: string,
+    action: SyncAction,
+    facts: TransactionFacts,
+  ): Promise<string>;
   now(): Date;
 }
 
@@ -41,6 +45,9 @@ const DATABASE_ERROR_STATUS: Record<string, number> = {
   invalid_transaction_id: 422,
   invalid_subscription_state: 422,
   invalid_apple_environment: 422,
+  invalid_signed_date: 422,
+  invalid_purchase_date: 422,
+  stale_transaction_evidence: 409,
 };
 
 function json(status: number, body: Record<string, unknown>): Response {
@@ -58,7 +65,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-export async function handleSync(req: Request, deps: SyncDeps): Promise<Response> {
+export async function handleSync(
+  req: Request,
+  deps: SyncDeps,
+): Promise<Response> {
   if (req.method !== "POST") return failure(405, "method_not_allowed");
 
   const authorization = req.headers.get("Authorization");
@@ -75,8 +85,12 @@ export async function handleSync(req: Request, deps: SyncDeps): Promise<Response
   if (!isRecord(body)) return failure(400, "invalid_request_body");
   const action = body.action;
   const jws = body.signedTransaction;
-  if (action !== "register" && action !== "rebind") return failure(400, "invalid_action");
-  if (typeof jws !== "string" || jws.length === 0 || jws.length > MAX_JWS_LENGTH) {
+  if (action !== "register" && action !== "rebind") {
+    return failure(400, "invalid_action");
+  }
+  if (
+    typeof jws !== "string" || jws.length === 0 || jws.length > MAX_JWS_LENGTH
+  ) {
     return failure(400, "invalid_signed_transaction");
   }
 

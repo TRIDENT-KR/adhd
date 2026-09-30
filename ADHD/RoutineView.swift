@@ -36,6 +36,7 @@ struct RoutineView: View {
     }
 
     @EnvironmentObject private var taskManager: TaskManager
+    @EnvironmentObject private var authManager: AuthManager
     @Environment(\.modelContext) private var modelContext
 
     @ObservedObject var langManager = LocalizationManager.shared
@@ -72,6 +73,8 @@ struct RoutineView: View {
                             .font(DesignSystem.Typography.displayLg)
                             .foregroundColor(DesignSystem.Colors.primary)
                             .tracking(-0.5)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.6)
                         Spacer()
                         Button(action: { showQuickAdd = true }) {
                             Image(systemName: "plus")
@@ -91,7 +94,7 @@ struct RoutineView: View {
                                 .contentShape(Circle())
                         }
                         .buttonStyle(NoEffectButtonStyle())
-                        .accessibilityLabel("Search tasks")
+                        .accessibilityLabel(L.t("Search tasks", "일정 검색", "タスクを検索"))
                         .frame(minWidth: 44, minHeight: 44)
                     }
                     .padding(.top, 16)
@@ -110,6 +113,8 @@ struct RoutineView: View {
                                 }
                             }) {
                                 Text(section.label)
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.6)
                                     .font(DesignSystem.Typography.labelSm)
                                     .tracking(0.3)
                                     .foregroundColor(isSelected ? .white : DesignSystem.Colors.onSurfaceVariant)
@@ -138,8 +143,9 @@ struct RoutineView: View {
                                 .frame(minWidth: 44, minHeight: 44)
                                 .contentShape(Rectangle())
                         }
-                        .accessibilityLabel(isReordering ? "Finish reordering" : "Reorder tasks")
+                        .accessibilityLabel(isReordering ? L.t("Finish reordering", "순서 변경 완료", "並べ替えを完了") : L.t("Reorder tasks", "일정 순서 변경", "タスクを並べ替える"))
                     }
+                    .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
                     .padding(.horizontal, 32)
 
                     // 선택된 섹션의 태스크 목록
@@ -149,7 +155,7 @@ struct RoutineView: View {
                         if currentTasks.isEmpty {
                             // Empty State: 안정적인 레이아웃 구조로 변경 (GeometryReader 제거)
                             VStack(spacing: 20) {
-                                Image(systemName: "mic.fill")
+                                Image(systemName: authManager.accessState.isGuest ? "plus.circle" : "mic.fill")
                                     .font(.system(size: 48))
                                     .foregroundColor(DesignSystem.Colors.primary.opacity(0.5))
                                     .accessibilityHidden(true)
@@ -164,9 +170,13 @@ struct RoutineView: View {
                             .frame(minHeight: 300)
                             .contentShape(Rectangle())
                             .onTapGesture {
-                                if reduceMotion { activeTab = .voice } else { withAnimation(.spring()) { activeTab = .voice } }
+                                if authManager.accessState.isGuest { showQuickAdd = true }
+                                else if reduceMotion { activeTab = .voice }
+                                else { withAnimation(.spring()) { activeTab = .voice } }
                             }
-                            .accessibilityLabel("No tasks yet. Tap to add tasks with voice")
+                            .accessibilityLabel(authManager.accessState.isGuest
+                                ? L.t("No tasks yet. Add a task", "아직 일정이 없어요. 일정 추가", "予定はまだありません。タスクを追加")
+                                : L.t("No tasks yet. Add with voice", "아직 일정이 없어요. 음성으로 추가", "予定はまだありません。音声で追加"))
                             .accessibilityAddTraits(.isButton)
                         } else if isReordering {
                             // 정렬 모드: 부드러운 드래그 리오더
@@ -242,8 +252,8 @@ struct TaskRow: View {
             .frame(minWidth: 44, minHeight: 44)
             .contentShape(Rectangle())
             .disabled(isEditing)
-            .accessibilityLabel(task.isCompleted ? "\(task.task), completed" : "\(task.task), not completed")
-            .accessibilityHint("Double tap to toggle completion")
+            .accessibilityLabel("\(task.task), \(task.isCompleted ? L.t("completed", "완료", "完了") : L.t("not completed", "미완료", "未完了"))")
+            .accessibilityHint(L.t("Double tap to toggle completion", "완료 상태를 바꾸려면 이중 탭하세요", "完了状態を切り替えるにはダブルタップ"))
 
             if isEditing {
                 // ── 편집 모드 ──
@@ -304,7 +314,7 @@ struct TaskRow: View {
                             .frame(minWidth: 44, minHeight: 44)
                             .contentShape(Rectangle())
                     }
-                    .accessibilityLabel("Delete task")
+                    .accessibilityLabel(L.t("Delete task", "일정 삭제", "タスクを削除"))
 
                     Button(action: { finishEditing() }) {
                         Image(systemName: "checkmark")
@@ -313,7 +323,7 @@ struct TaskRow: View {
                             .frame(minWidth: 44, minHeight: 44)
                             .contentShape(Rectangle())
                     }
-                    .accessibilityLabel("Save changes")
+                    .accessibilityLabel(L.t("Save changes", "변경사항 저장", "変更を保存"))
                 }
 
             } else {
@@ -322,8 +332,9 @@ struct TaskRow: View {
 
                     // 1행: 아이콘 + 제목
                     HStack(alignment: .top, spacing: 8) {
-                        Image(systemName: cachedCategoryIcon)
-                            .font(.footnote)
+                            Image(systemName: cachedCategoryIcon)
+                                .font(.footnote)
+                                .dynamicTypeSize(...DynamicTypeSize.large)
                             .foregroundColor(DesignSystem.Colors.primary.opacity(task.isCompleted ? 0.3 : 0.6))
                             .frame(width: 18)
                             .padding(.top, 3)
@@ -376,8 +387,8 @@ struct TaskRow: View {
                     withAnimation { startEditing() }
                     Haptic.impact(.light)
                 }
-                .accessibilityLabel("Edit \(task.task)")
-                .accessibilityHint("Double tap to edit")
+                .accessibilityLabel(L.t("Edit \(task.task)", "\(task.task) 수정", "\(task.task)を編集"))
+                .accessibilityHint(L.t("Double tap to edit", "수정하려면 이중 탭하세요", "編集するにはダブルタップ"))
             }
         }
         .padding(.horizontal, 32)
@@ -511,14 +522,17 @@ struct WeeklyBar: View {
     }
 
     private var weeklyAccessibilityLabel: String {
-        let days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: LocalizationManager.shared.currentLanguage.rawValue)
+        let weekdays = formatter.weekdaySymbols!
+        let days = Array(weekdays.dropFirst()) + [weekdays[0]]
         var parts: [String] = []
         for i in 0..<7 {
             if i < todayIndex {
                 let done = task.weeklyCompletions.indices.contains(i) && task.weeklyCompletions[i]
-                parts.append("\(days[i]): \(done ? "completed" : "missed")")
+                parts.append("\(days[i]): \(done ? L.t("completed", "완료", "完了") : L.t("missed", "미완료", "未完了"))")
             } else if i == todayIndex {
-                parts.append("\(days[i]): today, \(task.isCompleted ? "completed" : "not completed")")
+                parts.append("\(days[i]): \(L.calendarToday), \(task.isCompleted ? L.t("completed", "완료", "完了") : L.t("not completed", "미완료", "未完了"))")
             }
         }
         return parts.joined(separator: ", ")
@@ -530,6 +544,7 @@ struct RoutineView_Previews: PreviewProvider {
     static var previews: some View {
         RoutineView(activeTab: .constant(.routine))
             .environmentObject(TaskManager())
+            .environmentObject(AuthManager())
     }
 }
 
@@ -559,7 +574,7 @@ struct TimePickerModal: View {
 
     var body: some View {
         VStack(spacing: 20) {
-            Text("Select Time")
+            Text(L.t("Select Time", "시간 선택", "時刻を選択"))
                 .font(DesignSystem.Typography.titleSm)
                 .padding(.top, 32)
 
@@ -567,7 +582,7 @@ struct TimePickerModal: View {
                 .datePickerStyle(.wheel)
                 .labelsHidden()
 
-            Button("Done") {
+            Button(L.settings.done) {
                 timeString  = Self.timeFormatter.string(from: selectedDate)
                 isPresented = false
             }
@@ -589,6 +604,7 @@ struct SwipeToDeleteModifier: ViewModifier {
     let onDelete: () -> Void
     @State private var offset: CGFloat = 0
     @State private var showDelete = false
+    @State private var contentWidth: CGFloat = 0
     private let threshold: CGFloat = -80
 
     func body(content: Content) -> some View {
@@ -599,7 +615,7 @@ struct SwipeToDeleteModifier: ViewModifier {
                     Spacer()
                     Button(action: {
                         withAnimation(.spring(response: 0.3)) {
-                            offset = -UIScreen.main.bounds.width
+                            offset = -max(contentWidth, abs(threshold))
                         }
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
                             onDelete()
@@ -638,6 +654,11 @@ struct SwipeToDeleteModifier: ViewModifier {
                         }
                 )
         }
+        .onGeometryChange(for: CGFloat.self) { proxy in
+            proxy.size.width
+        } action: { width in
+            contentWidth = width
+        }
     }
 }
 
@@ -660,4 +681,3 @@ private extension Array {
         return (matching, rest)
     }
 }
-

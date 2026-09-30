@@ -4,6 +4,7 @@ struct MainTabView: View {
     @State var activeTab: TabSelection = .voice
     @EnvironmentObject private var networkMonitor: NetworkMonitor
     @EnvironmentObject private var taskManager: TaskManager
+    @EnvironmentObject private var authManager: AuthManager
     @StateObject private var alarmManager = AlarmCoordinator.shared
     @ObservedObject private var langManager = LocalizationManager.shared
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -12,7 +13,7 @@ struct MainTabView: View {
     @State private var loadedTabs: Set<TabSelection> = [.voice]
     /// HomeVoiceInterfaceView에서 모달이 열려 있는지 여부
     @State private var isVoiceModalVisible = false
-    /// 위젯 잠금 딥링크(mora://paywall)로 열리는 페이월 시트 (D13)
+    /// 이전 버전의 저장된 페이월 딥링크 호환.
     @State private var showPaywall = false
     @State private var isPlayingPresentationDemo = false
 
@@ -56,11 +57,20 @@ struct MainTabView: View {
 
             // 3. 글로벌 바텀 바
             CustomBottomBar(activeTab: $activeTab)
-                .accessibilityElement(children: .contain)
-                .accessibilityLabel(L.voice.a11yTabBar)
                 .blur(radius: isVoiceModalVisible ? 12 : 0)
                 .opacity(isVoiceModalVisible ? 0.6 : 1)
                 .animation(reduceMotion ? .none : .spring(response: 0.4, dampingFraction: 0.7), value: isVoiceModalVisible)
+        }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if case .lockedInvalidSession = authManager.accessState {
+                Text(L.authRelease.sessionExpired)
+                    .font(.footnote)
+                    .foregroundStyle(DesignSystem.Colors.onSurfaceVariant)
+                    .padding(12)
+                    .frame(maxWidth: .infinity)
+                    .background(DesignSystem.Colors.surfaceContainerLow)
+                    .accessibilityAddTraits(.updatesFrequently)
+            }
         }
         // 4. 오프라인 / Back Online 배너
         .overlay(alignment: .top) {
@@ -105,7 +115,7 @@ struct MainTabView: View {
             AlarmOverlayView(alarm: alarm)
                 .interactiveDismissDisabled(true)
         }
-        // 7. 위젯 잠금 탭 → 페이월 (D13)
+        // 7. 이전 버전의 페이월 딥링크 호환
         .onReceive(NotificationCenter.default.publisher(for: .openPaywall)) { _ in
             showPaywall = true
         }
@@ -113,6 +123,10 @@ struct MainTabView: View {
             NavigationView { PaywallView() }
         }
         .task {
+            if authManager.accessState.accountUserID == nil && !MoraApp.presentationDemoMode {
+                loadedTabs.insert(.routine)
+                activeTab = .routine
+            }
             guard MoraApp.presentationDemoMode, !isPlayingPresentationDemo else { return }
             isPlayingPresentationDemo = true
             try? await Task.sleep(nanoseconds: 5_000_000_000)
@@ -128,7 +142,7 @@ struct MainTabView: View {
 // MARK: - Widget Deep Link Notification
 extension Notification.Name {
     static let widgetDeepLink = Notification.Name("widgetDeepLink")
-    /// 위젯 잠금 뷰 탭(mora://paywall) → 앱 내 페이월 시트 오픈 (D13)
+    /// 이전 버전의 mora://paywall 링크 호환.
     static let openPaywall = Notification.Name("openPaywall")
 }
 
@@ -162,7 +176,7 @@ struct UndoSnackbar: View {
                     .contentShape(Rectangle())
             }
             .accessibilityLabel(L.voice.a11yUndo)
-            .accessibilityHint("Double tap to undo the last action")
+            .accessibilityHint(L.t("Double tap to undo the last action", "마지막 작업을 되돌리려면 이중 탭하세요", "最後の操作を取り消すにはダブルタップ"))
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 14)

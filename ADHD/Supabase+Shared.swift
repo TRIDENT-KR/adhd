@@ -2,6 +2,22 @@ import Foundation
 import Supabase
 
 struct SupabaseConfig {
+    /// Each request uses the initiating account's token, even if the shared auth session changes.
+    static func requestClient(accessToken: String, session: URLSession = .shared) -> SupabaseClient {
+        SupabaseClient(
+            supabaseURL: url,
+            supabaseKey: anonKey,
+            options: SupabaseClientOptions(
+                auth: .init(
+                    storageKey: "mora-fixed-request-session",
+                    autoRefreshToken: false,
+                    accessToken: { accessToken }
+                ),
+                global: .init(session: session)
+            )
+        )
+    }
+
     static let url: URL = {
         guard let path = Bundle.main.path(forResource: "Config", ofType: "plist"),
               let dict = NSDictionary(contentsOfFile: path) as? [String: Any],

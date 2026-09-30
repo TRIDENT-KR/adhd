@@ -10,6 +10,7 @@ enum AccountSessionCleanupReason: String {
     case invalidSession
     case deletionPending
     case deletionCompleted
+    case eligibilityRestricted
 }
 
 extension Notification.Name {
@@ -26,6 +27,16 @@ extension Notification.Name {
 
 @MainActor
 final class AccountSessionCleanupCoordinator {
+    private var cleanupTask: Task<Void, Never>?
+    private let cleanupOverride: ((TaskManager, AccountSessionCleanupReason) async -> Void)?
+
+    init(cleanupOverride: ((TaskManager, AccountSessionCleanupReason) async -> Void)? = nil) {
+        self.cleanupOverride = cleanupOverride
+    }
+
+    func waitForPendingCleanup() async {
+        if let cleanupTask { await cleanupTask.value }
+    }
     private enum SharedKey {
         static let widgetPayload = "widgetTaskPayload"
         static let pendingWidgetToggles = "pendingWidgetToggles"
@@ -34,6 +45,26 @@ final class AccountSessionCleanupCoordinator {
 
     /// 일정 본문은 건드리지 않고 현재 계정의 로컬 노출·실행 경로만 잠급니다.
     func lockLocalExposure(
+        taskManager: TaskManager,
+        reason: AccountSessionCleanupReason
+    ) async {
+        if let cleanupTask {
+            await cleanupTask.value
+            return
+        }
+        let task = Task { @MainActor in
+            if let cleanupOverride = self.cleanupOverride {
+                await cleanupOverride(taskManager, reason)
+            } else {
+                await self.performCleanup(taskManager: taskManager, reason: reason)
+            }
+        }
+        cleanupTask = task
+        await task.value
+        cleanupTask = nil
+    }
+
+    private func performCleanup(
         taskManager: TaskManager,
         reason: AccountSessionCleanupReason
     ) async {

@@ -56,6 +56,8 @@ private struct AnalyzeTaskErrorResponse: Decodable {
 }
 
 enum CloudLLMError: Error, Equatable {
+    case adultEligibilityRequired
+    case consentRequired
     case quotaExhausted
     case authenticationRequired
     case requestRejected
@@ -73,6 +75,9 @@ class CloudLLMManager: ObservableObject {
     private static let requestTimeout: TimeInterval = 15
 
     func analyzeText(text: String) async throws -> [LLMFunctionCall] {
+        guard let consentScope = AccountPreferences.activeScope,
+              AIDataConsent.isGranted() else { throw CloudLLMError.consentRequired }
+
         await MainActor.run { self.isProcessing = true }
         defer { Task { @MainActor in self.isProcessing = false } }
 
@@ -94,17 +99,31 @@ class CloudLLMManager: ObservableObject {
         var lastError: Error?
         for attempt in 0..<maxRetries {
             try Task.checkCancellation()
+            guard AccountPreferences.activeScope == consentScope,
+                  AIDataConsent.isGranted() else { throw CloudLLMError.consentRequired }
+
             do {
                 let response = try await withThrowingTaskGroup(of: AnalyzeTaskResponse.self) { group in
                     // API 호출 태스크
-                    group.addTask {
-                        var headers: [String: String] = [:]
-                        if let session = try? await supabase.auth.session {
-                            headers["Authorization"] = "Bearer \(session.accessToken)"
+                    group.addTask { @MainActor in
+                        let session = try await supabase.auth.session
+                        try Task.checkCancellation()
+                        guard AccountPreferences.activeScope == consentScope,
+                              AccountPreferences.scope(for: session.user.id) == consentScope,
+                              AIDataConsent.isGranted(for: session.user.id) else {
+                            throw CloudLLMError.consentRequired
                         }
-
-                        let options = FunctionInvokeOptions(headers: headers, body: payload)
-                        let result: AnalyzeTaskResponse = try await supabase.functions.invoke(
+                        try await AdultEligibilityManager.shared.requireServerEligibility(
+                            userID: session.user.id, accessToken: session.accessToken
+                        )
+                        try Task.checkCancellation()
+                        guard AccountPreferences.activeScope == consentScope,
+                              AIDataConsent.isGranted(for: session.user.id) else {
+                            throw CloudLLMError.consentRequired
+                        }
+                        let requestClient = SupabaseConfig.requestClient(accessToken: session.accessToken)
+                        let options = FunctionInvokeOptions(body: payload)
+                        let result: AnalyzeTaskResponse = try await requestClient.functions.invoke(
                             "analyze-task",
                             options: options
                         )
@@ -123,6 +142,9 @@ class CloudLLMManager: ObservableObject {
                     group.cancelAll()
                     return result
                 }
+                try Task.checkCancellation()
+                guard AccountPreferences.activeScope == consentScope,
+                      AIDataConsent.isGranted() else { throw CloudLLMError.consentRequired }
                 guard response.requestId == logicalRequestID,
                       response.quota.isValid,
                       !response.calls.isEmpty,
@@ -169,6 +191,7 @@ class CloudLLMManager: ObservableObject {
     }
 
     private func shouldRetry(_ error: Error) -> Bool {
+        if error is AdultEligibilityError { return false }
         if let cloudError = error as? CloudLLMError {
             return cloudError == .serverUnavailable
         }
@@ -200,6 +223,9 @@ class CloudLLMManager: ObservableObject {
     }
 
     private func mappedError(_ error: Error) -> CloudLLMError {
+        if let error = error as? AdultEligibilityError {
+            return error == .unavailable ? .serverUnavailable : .adultEligibilityRequired
+        }
         if let cloudError = error as? CloudLLMError { return cloudError }
         guard let functionsError = error as? FunctionsError else {
             return error is DecodingError ? .invalidResponse : .serverUnavailable
@@ -210,6 +236,7 @@ class CloudLLMManager: ObservableObject {
             return .serverUnavailable
         case .httpError(let status, let data):
             let code = structuredErrorCode(from: data)
+            if code == "adult_eligibility_required" { return .adultEligibilityRequired }
             if code == "quota_exhausted" || status == 429 {
                 return .quotaExhausted
             }
@@ -225,5 +252,40 @@ class CloudLLMManager: ObservableObject {
 
     private func structuredErrorCode(from data: Data) -> String? {
         try? JSONDecoder().decode(AnalyzeTaskErrorResponse.self, from: data).error.code
+    }
+}
+
+struct AIDataConsentView: View {
+    let userID: UUID?
+    var onAllowed: () -> Void = {}
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    Text(L.aiPrivacy.explanation)
+                    Text(L.aiPrivacy.choice)
+                    Link(L.settings.privacyPolicy, destination: URL(string: "https://trident-kr.github.io/waitwhat-site/privacy/")!)
+                    Link(L.aiPrivacy.googlePolicy, destination: URL(string: "https://ai.google.dev/gemini-api/terms")!)
+                    Button(L.aiPrivacy.allow) {
+                        guard let userID,
+                              AccountPreferences.activeScope == AccountPreferences.scope(for: userID) else { return }
+                        AIDataConsent.setGranted(true, for: userID)
+                        dismiss()
+                        onAllowed()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(userID == nil)
+                    Button(L.aiPrivacy.notNow) { dismiss() }
+                        .frame(minHeight: 44)
+                }
+                .padding(24)
+            }
+            .background(DesignSystem.Colors.background)
+            .navigationTitle(L.aiPrivacy.title)
+            .navigationBarTitleDisplayMode(.inline)
+        }
+        .tint(DesignSystem.Colors.primary)
     }
 }

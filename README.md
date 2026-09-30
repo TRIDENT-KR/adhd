@@ -43,7 +43,7 @@
 - **Frontend**: Native iOS (SwiftUI)
 - **Local Storage**: SwiftData (오프라인 퍼시스턴스 + 로컬 알림)
 - **Backend**: Supabase (Auth — Apple Sign-in, PostgreSQL, Edge Functions)
-- **AI**: Google Gemini 2.0 Flash (Supabase Edge Function `analyze-task`를 통해 음성 텍스트를 구조화된 함수 호출로 변환)
+- **AI**: Google Gemini 3.5 Flash-Lite (`GEMINI_MODEL`로 변경 가능) (Supabase Edge Function `analyze-task`를 통해 음성 텍스트를 구조화된 함수 호출로 변환)
 - **Security**: Edge Function에 JWT 인증, CORS 제한, Rate Limiting(분당 30회), 입력 길이 제한(1,000자), PII 로그 차단 적용
 - **Monetization**: StoreKit 2 기반 구독 결제 (PaywallView + SubscriptionManager)
 - **Architecture Note (Roadmap)**: 향후 온디바이스(On-device) SLM 탑재를 검토 중입니다. Apple Neural Engine 활용 시 레이턴시 개선 및 오프라인 AI 처리가 가능합니다.
@@ -54,3 +54,10 @@
 - `main` 브랜치는 항상 실행 가능한 배포 상태를 유지합니다. (Direct Push 금지)
 - 새로운 기능 개발이나 버그 수정 시 `main`에서 새로운 브랜치를 생성합니다. (예: `feature/home-ui`, `fix/routine-bug`)
 - 작업 완료 시 Pull Request(PR)를 생성하여 팀원 간 코드 리뷰 진행 후 `main`에 병합(Merge)합니다.
+
+## 7. 출시 준비와 검증
+
+- [출시 QA 계획](MORA_RELEASE_QA_PLAN.md): 앱 QA와 Luna LLM 평가를 분리한 gate/실기기 시나리오.
+- [2026-09-29 출시 준비 결과](MORA_RELEASE_READINESS.md): 실제 배포·검증 결과와 미완료 제출 조건.
+- AI 분석은 계정별 명시적 동의 후 Supabase를 통해 Google Gemini로 전송한다. 설정에서 철회할 수 있으며 수동 일정 입력은 AI 동의 없이 사용할 수 있다.
+- `bash scripts/release-preflight.sh`는 secret 이름, 배포 소스 hash, gateway, migration 이력과 로컬 테스트를 검사한다. 실제 구매·복원·삭제 검증은 별도로 필요하다.

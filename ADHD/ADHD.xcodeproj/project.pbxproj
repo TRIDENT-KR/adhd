@@ -7,6 +7,13 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		B0E65CF08B1133DE41A1BCB3 /* AdultEligibilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AABE44F4658FCB85DEA5C8D /* AdultEligibilityTests.swift */; };
+		BC15186E8923D5767DEE3B45 /* AdultEligibilityStrings.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0D4B212A0D090A28DCA5586 /* AdultEligibilityStrings.swift */; };
+		0BB517A001449C30DAD6FA62 /* AdultEligibilityView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82BE3D23B4BDCAAB8E595409 /* AdultEligibilityView.swift */; };
+		0EA516B200370639AEE36362 /* AdultEligibility.swift in Sources */ = {isa = PBXBuildFile; fileRef = D209802CE63250BBC33C047A /* AdultEligibility.swift */; };
+		FA3000030000000000000001 /* ThirdPartyNotices.txt in Resources */ = {isa = PBXBuildFile; fileRef = FA3000040000000000000001 /* ThirdPartyNotices.txt */; };
+		FA3000010000000000000001 /* AuthReleaseStrings.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA3000020000000000000001 /* AuthReleaseStrings.swift */; };
+		AB3900010000000000000001 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = AB3900020000000000000001 /* InfoPlist.strings */; };
 		09A02A8B9E43463FABAA10AD /* Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF1CC5EA265049FBB8EE3A58 /* Localization.swift */; };
 		EE0000010000000000000001 /* SystemAlarmScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE0000020000000000000001 /* SystemAlarmScheduler.swift */; };
 		AA0000010000000000000001 /* QuickAddSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000020000000000000001 /* QuickAddSheet.swift */; };
@@ -100,6 +107,15 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		0AABE44F4658FCB85DEA5C8D /* AdultEligibilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdultEligibilityTests.swift; sourceTree = "<group>"; };
+		E0D4B212A0D090A28DCA5586 /* AdultEligibilityStrings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdultEligibilityStrings.swift; sourceTree = "<group>"; };
+		82BE3D23B4BDCAAB8E595409 /* AdultEligibilityView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdultEligibilityView.swift; sourceTree = "<group>"; };
+		D209802CE63250BBC33C047A /* AdultEligibility.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdultEligibility.swift; sourceTree = "<group>"; };
+		FA3000040000000000000001 /* ThirdPartyNotices.txt */ = {isa = PBXFileReference; lastKnownFileType = text; name = ThirdPartyNotices.txt; path = Resources/ThirdPartyNotices.txt; sourceTree = "<group>"; };
+		FA3000020000000000000001 /* AuthReleaseStrings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AuthReleaseStrings.swift; path = AuthReleaseStrings.swift; sourceTree = "<group>"; };
+		AB3900050000000000000001 /* ja */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ja; path = ja.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		AB3900040000000000000001 /* ko */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ko; path = ko.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		AB3900030000000000000001 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		99526AD82F7A3EB2000CD3EE /* ADHDWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ADHDWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		99526AD92F7A3EB2000CD3EE /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		99526ADB2F7A3EB2000CD3EE /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
@@ -227,6 +243,7 @@
 				EF00000400000000000000A1 /* SaveAndRetryContractTests.swift */,
 				AD1000060000000000000001 /* AccountStoreLayoutTests.swift */,
 				AE2000020000000000000001 /* SubscriptionEntitlementTests.swift */,
+				0AABE44F4658FCB85DEA5C8D /* AdultEligibilityTests.swift */,
 			);
 			path = ADHDTests;
 			sourceTree = "<group>";
@@ -246,11 +263,17 @@
 			children = (
 				F3A1C19C2F7E6AB800FC011B /* Assets.xcassets */,
 				EF00000200000000000000A1 /* PrivacyInfo.xcprivacy */,
+				AB3900020000000000000001 /* InfoPlist.strings */,
 				99526AFE2F7A411E000CD3EE /* ADHDWidgetExtension.entitlements */,
 				F3D9E4BE2F74D25900DA9A5A /* ADHD.entitlements */,
 				99526ADD2F7A3EB2000CD3EE /* ADHDWidget */,
 				F3D9E4792F74CF5200DA9A5A /* Products */,
 				F3D9E4A22F74CF5C00DA9A5A /* AuthManager.swift */,
+				FA3000040000000000000001 /* ThirdPartyNotices.txt */,
+				FA3000020000000000000001 /* AuthReleaseStrings.swift */,
+				E0D4B212A0D090A28DCA5586 /* AdultEligibilityStrings.swift */,
+				82BE3D23B4BDCAAB8E595409 /* AdultEligibilityView.swift */,
+				D209802CE63250BBC33C047A /* AdultEligibility.swift */,
 				AD1000020000000000000001 /* AccountStoreController.swift */,
 				AD1000040000000000000001 /* AccountSessionCleanup.swift */,
 				F3D9E4A32F74CF5C00DA9A5A /* CloudLLMManager.swift */,
@@ -436,6 +459,8 @@
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				en,
+				ko,
+				ja,
 				Base,
 			);
 			mainGroup = F3D9E46F2F74CF5200DA9A5A;
@@ -457,6 +482,15 @@
 		};
 /* End PBXProject section */
 
+/* Begin PBXVariantGroup section */
+        AB3900020000000000000001 /* InfoPlist.strings */ = {
+            isa = PBXVariantGroup;
+            children = (AB3900030000000000000001, AB3900040000000000000001, AB3900050000000000000001);
+            name = InfoPlist.strings;
+            sourceTree = "<group>";
+        };
+/* End PBXVariantGroup section */
+
 /* Begin PBXResourcesBuildPhase section */
 		99526AD62F7A3EB2000CD3EE /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
@@ -471,6 +505,8 @@
 			files = (
 				F3A1C19D2F7E6AB800FC011B /* Assets.xcassets in Resources */,
 				EF00000100000000000000A1 /* PrivacyInfo.xcprivacy in Resources */,
+				FA3000030000000000000001 /* ThirdPartyNotices.txt in Resources */,
+				AB3900010000000000000001 /* InfoPlist.strings in Resources */,
 				F3D9E4B22F74D07100DA9A5A /* Config.plist in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -506,6 +542,10 @@
 			files = (
 				09A02A8B9E43463FABAA10AD /* Localization.swift in Sources */,
 				F3D9E4B02F74D07100DA9A5A /* AuthManager.swift in Sources */,
+				FA3000010000000000000001 /* AuthReleaseStrings.swift in Sources */,
+				BC15186E8923D5767DEE3B45 /* AdultEligibilityStrings.swift in Sources */,
+				0BB517A001449C30DAD6FA62 /* AdultEligibilityView.swift in Sources */,
+				0EA516B200370639AEE36362 /* AdultEligibility.swift in Sources */,
 				AD1000010000000000000001 /* AccountStoreController.swift in Sources */,
 				AD1000030000000000000001 /* AccountSessionCleanup.swift in Sources */,
 				F3D9E4B12F74D07100DA9A5A /* CloudLLMManager.swift in Sources */,
@@ -554,6 +594,7 @@
 				EF00000300000000000000A1 /* SaveAndRetryContractTests.swift in Sources */,
 				AD1000050000000000000001 /* AccountStoreLayoutTests.swift in Sources */,
 				AE2000010000000000000001 /* SubscriptionEntitlementTests.swift in Sources */,
+				B0E65CF08B1133DE41A1BCB3 /* AdultEligibilityTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -592,11 +633,11 @@
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
 				CODE_SIGN_ENTITLEMENTS = ADHDWidgetExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 5;
 				DEVELOPMENT_TEAM = 5S3Y6973X6;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ADHDWidget/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = ADHDWidget;
+				INFOPLIST_KEY_CFBundleDisplayName = Mora;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -624,11 +665,11 @@
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
 				CODE_SIGN_ENTITLEMENTS = ADHDWidgetExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 5;
 				DEVELOPMENT_TEAM = 5S3Y6973X6;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ADHDWidget/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = ADHDWidget;
+				INFOPLIST_KEY_CFBundleDisplayName = Mora;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -779,14 +820,14 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = ADHD.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 5;
 				DEVELOPMENT_TEAM = 5S3Y6973X6;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Mora;
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "This app requires microphone access to record audio for its features.";
-				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "This app uses speech recognition to convert your voice into text for better interaction.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Mora uses the microphone to create an editable speech draft when you tap the microphone. You can type instead.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Mora uses Apple speech recognition to transcribe your voice into an editable task draft. Audio may be processed by Apple. You can type instead.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -815,14 +856,14 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = ADHD.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 5;
 				DEVELOPMENT_TEAM = 5S3Y6973X6;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Mora;
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "This app requires microphone access to record audio for its features.";
-				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "This app uses speech recognition to convert your voice into text for better interaction.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Mora uses the microphone to create an editable speech draft when you tap the microphone. You can type instead.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Mora uses Apple speech recognition to transcribe your voice into an editable task draft. Audio may be processed by Apple. You can type instead.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

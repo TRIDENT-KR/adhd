@@ -33,22 +33,29 @@ Deno.serve(async (req: Request) => {
       return error || !user ? null : user.id;
     },
     verifyTransaction: (jws) =>
-      verifyAppleJws(jws, { pinnedRootsDer: PINNED_ROOTS, expectedBundleId: APP_BUNDLE_ID }),
+      verifyAppleJws(jws, {
+        pinnedRootsDer: PINNED_ROOTS,
+        expectedBundleId: APP_BUNDLE_ID,
+      }),
     applyTransaction: async (userId, action, facts) => {
-      const { data, error } = await admin.rpc("mora_storekit_apply_transaction", {
-        p_user_id: userId,
-        p_mode: action,
-        p_apple_environment: facts.appleEnvironment,
-        p_original_transaction_id: facts.originalTransactionId,
-        p_transaction_id: facts.transactionId,
-        p_app_account_token: facts.appAccountToken,
-        p_product_id: facts.productId,
-        p_state: facts.state,
-        p_purchased_at: facts.purchasedAt,
-        p_expires_at: facts.expiresAt,
-        p_grace_expires_at: facts.graceExpiresAt,
-        p_revoked_at: facts.revokedAt,
-      });
+      const { data, error } = await admin.rpc(
+        "mora_storekit_apply_transaction_v2",
+        {
+          p_user_id: userId,
+          p_mode: action,
+          p_apple_environment: facts.appleEnvironment,
+          p_original_transaction_id: facts.originalTransactionId,
+          p_transaction_id: facts.transactionId,
+          p_app_account_token: facts.appAccountToken,
+          p_product_id: facts.productId,
+          p_state: facts.state,
+          p_purchased_at: facts.purchasedAt,
+          p_expires_at: facts.expiresAt,
+          p_grace_expires_at: facts.graceExpiresAt,
+          p_revoked_at: facts.revokedAt,
+          p_signed_at: facts.signedAt,
+        },
+      );
       if (error) throw new DatabaseRejected(error.message);
       return typeof data?.result === "string" ? data.result : "updated";
     },

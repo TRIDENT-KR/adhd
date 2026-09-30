@@ -29,21 +29,25 @@ Deno.serve(async (req: Request) => {
       verifyAppleNotification(signedPayload, { pinnedRootsDer: PINNED_ROOTS }),
     applyNotification: async (record) => {
       const facts = record.facts;
-      const { data, error } = await admin.rpc("mora_storekit_apply_notification", {
-        p_notification_uuid: record.notificationUUID,
-        p_notification_type: record.notificationType,
-        p_subtype: record.subtype,
-        p_apple_environment: record.appleEnvironment,
-        p_original_transaction_id: facts?.originalTransactionId ?? null,
-        p_transaction_id: facts?.transactionId ?? null,
-        p_app_account_token: facts?.appAccountToken ?? null,
-        p_product_id: facts?.productId ?? null,
-        p_state: facts?.state ?? null,
-        p_purchased_at: facts?.purchasedAt ?? null,
-        p_expires_at: facts?.expiresAt ?? null,
-        p_grace_expires_at: facts?.graceExpiresAt ?? null,
-        p_revoked_at: facts?.revokedAt ?? null,
-      });
+      const { data, error } = await admin.rpc(
+        "mora_storekit_apply_notification_v2",
+        {
+          p_notification_uuid: record.notificationUUID,
+          p_notification_type: record.notificationType,
+          p_subtype: record.subtype,
+          p_apple_environment: record.appleEnvironment,
+          p_original_transaction_id: facts?.originalTransactionId ?? null,
+          p_transaction_id: facts?.transactionId ?? null,
+          p_app_account_token: facts?.appAccountToken ?? null,
+          p_product_id: facts?.productId ?? null,
+          p_state: facts?.state ?? null,
+          p_purchased_at: facts?.purchasedAt ?? null,
+          p_expires_at: facts?.expiresAt ?? null,
+          p_grace_expires_at: facts?.graceExpiresAt ?? null,
+          p_revoked_at: facts?.revokedAt ?? null,
+          p_signed_at: record.signedAt,
+        },
+      );
       if (error) throw new Error("notification_rpc_failed");
       return typeof data?.result === "string" ? data.result : "recorded";
     },

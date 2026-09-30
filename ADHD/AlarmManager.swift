@@ -13,7 +13,7 @@ struct AlarmEntry: Identifiable {
 /// 알림 "완료" 액션 / AlarmKit Stop 인텐트 → 태스크 완료를 앱으로 전달하는 App Group 큐.
 /// 백그라운드에서 실행돼도 유실되지 않고, 앱이 살아 있으면 NotificationCenter로 즉시 처리됩니다.
 enum AlarmCompletionRelay {
-    static let queueKey = "pendingAlarmCompletions"
+    nonisolated static let queueKey = "pendingAlarmCompletions"
 
     /// 인텐트(비메인 스레드 실행 가능)와 앱(메인)이 같은 큐를 읽고-수정-쓰기 하므로
     /// 락으로 직렬화하지 않으면 동시 enqueue/drain 시 완료 요청이 유실된다.
