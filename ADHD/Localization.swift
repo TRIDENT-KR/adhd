@@ -310,6 +310,7 @@ struct VoiceStrings {
     func actionUnknown(_ cmd: String) -> String { t("Unknown command (\(cmd))", "알 수 없는 명령 (\(cmd))", "不明なコマンド (\(cmd))") }
 
     var guideTitle: String { t("Try saying...", "이렇게 말해보세요...", "こう言ってみてください...") }
+    var guideStart: String { t("Got it, let's start", "시작하기", "始めましょう") }
 
     var exampleAdd: String { t("\"Take medicine at 9 AM\"", "\"오전 9시에 약 먹기\"", "\"午前9時に薬を飲む\"") }
     var exampleAppointment: String { t("\"Meeting tomorrow at 3 PM\"", "\"내일 오후 3시에 회의\"", "\"明日午後3時に会議\"") }

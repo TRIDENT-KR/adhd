@@ -71,7 +71,7 @@
 
 1.  **Read & Load**: `sample_inputs.json`을 비동기로 로드하여 테스트 케이스 배열 생성.
 2.  **Prompt Assembly**: `SYSTEM_PROMPT`와 `input` 텍스트를 결합하여 Gemini API 페이로드 구성.
-3.  **LLM Inference**: `gemini-2.0-flash` 모델을 통한 추론 (Response MIME: `application/json` 고정).
+3.  **LLM Inference**: `gemini-3.5-flash-lite` 모델을 통한 추론 (환경변수 `GEMINI_MODEL` 로 교체 가능, Response MIME: `application/json` 고정).
 4.  **Cleaning**: 응답 텍스트 내 Markdown 코드 블록(```) 제거 및 불필요한 공백 제거.
 5.  **Schema Enforcement**: 
     - `Object` 형태일 경우 즉시 `Array`로 강제 변환.

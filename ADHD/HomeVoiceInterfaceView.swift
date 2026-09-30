@@ -77,7 +77,9 @@ struct HomeVoiceInterfaceView: View {
                                 .frame(minWidth: 44, minHeight: 44)
                                 .contentShape(Rectangle())
                         }
-                        .accessibilityLabel(showTextInput ? "Switch to voice input" : "Switch to text input")
+                        .accessibilityLabel(showTextInput
+                            ? L.t("Switch to voice input", "음성 입력으로 전환", "音声入力に切り替え")
+                            : L.t("Switch to text input", "키보드 입력으로 전환", "キーボード入力に切り替え"))
 
                         // F2/D7: 음성 가이드 상시 진입점
                         Button(action: { showVoiceGuide = true }) {
@@ -414,7 +416,7 @@ struct HomeVoiceInterfaceView: View {
             if !hasSeenVoiceOnboarding { hasSeenVoiceOnboarding = true }
         }) {
             VoiceGuideSheet()
-                .presentationDetents([.medium])
+                .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
         }
         .onChange(of: voiceManager.lastError) { _, newError in
@@ -1303,44 +1305,65 @@ struct VoiceGuideSheet: View {
     ]
 
     var body: some View {
-        VStack(spacing: 28) {
-            VStack(spacing: 8) {
-                Image(systemName: "mic.circle.fill")
-                    .font(.system(size: 48))
-                    .foregroundColor(DesignSystem.Colors.primary)
-                    .accessibilityHidden(true)
+        VStack(spacing: 0) {
+            // 큰 글씨에서도 예시가 잘리지 않도록 본문만 스크롤하고 버튼은 아래에 고정한다.
+            ScrollView {
+                VStack(spacing: 28) {
+                    VStack(spacing: 8) {
+                        Image(systemName: "mic.circle.fill")
+                            .font(.system(size: 48))
+                            .foregroundColor(DesignSystem.Colors.primary)
+                            .accessibilityHidden(true)
 
-                Text(L.voice.guideTitle)
-                    .font(.title2.weight(.semibold))
-                    .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
-            }
-            .padding(.top, 24)
-
-            VStack(spacing: 16) {
-                ForEach(Array(examples.enumerated()), id: \.offset) { _, example in
-                    HStack(spacing: 16) {
-                        Image(systemName: example.icon)
-                            .font(.title3)
-                            .foregroundColor(example.color)
-                            .frame(width: 36)
-
-                        Text(example.text)
-                            .font(.body.weight(.medium))
+                        Text(L.voice.guideTitle)
+                            .font(.title2.weight(.semibold))
                             .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
-
-                        Spacer()
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 16)
-                    .background(
-                        RoundedRectangle(cornerRadius: 14)
-                            .fill(DesignSystem.Colors.surfaceContainerLow)
-                    )
+                    .padding(.top, 24)
+
+                    VStack(spacing: 16) {
+                        ForEach(Array(examples.enumerated()), id: \.offset) { _, example in
+                            HStack(spacing: 16) {
+                                Image(systemName: example.icon)
+                                    .font(.title3)
+                                    .foregroundColor(example.color)
+                                    .frame(width: 36)
+
+                                Text(example.text)
+                                    .font(.body.weight(.medium))
+                                    .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
+                                    .fixedSize(horizontal: false, vertical: true)
+
+                                Spacer()
+                            }
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 16)
+                            .background(
+                                RoundedRectangle(cornerRadius: 14)
+                                    .fill(DesignSystem.Colors.surfaceContainerLow)
+                            )
+                        }
+                    }
+                    .padding(.horizontal, 24)
                 }
+                .padding(.bottom, 16)
+            }
+            .scrollBounceBehavior(.basedOnSize)
+
+            // 쓸어내리기 외에도 닫을 수 있게 명시적인 버튼을 둔다.
+            Button { dismiss() } label: {
+                Text(L.voice.guideStart)
+                    .font(.headline)
+                    .frame(maxWidth: .infinity, minHeight: 52)
+                    .foregroundStyle(.white)
+                    .background(LinearGradient(
+                        colors: [DesignSystem.Colors.primary, DesignSystem.Colors.primary.opacity(0.78)],
+                        startPoint: .topLeading, endPoint: .bottomTrailing
+                    ), in: Capsule())
             }
             .padding(.horizontal, 24)
-
-            Spacer()
+            .padding(.top, 8)
+            .padding(.bottom, 16)
         }
         .background(DesignSystem.Colors.background)
     }

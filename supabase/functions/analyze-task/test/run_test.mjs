@@ -14,6 +14,7 @@ const testData = JSON.parse(fs.readFileSync(sampleInputsPath, 'utf8'));
 
 async function callGemini(text) {
   const apiKey = process.env.GEMINI_API_KEY;
+  const model = process.env.GEMINI_MODEL ?? "gemini-3.5-flash-lite";
   if (!apiKey) throw new Error("GEMINI_API_KEY environment variable is missing.");
 
   const start = Date.now();
@@ -29,7 +30,7 @@ async function callGemini(text) {
     .replaceAll("{{TOMORROW}}", tomorrowStr);
 
   const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
