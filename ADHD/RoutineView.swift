@@ -266,7 +266,7 @@ struct TaskRow: View {
                         .onSubmit { finishEditing() }
 
                     HStack(spacing: 8) {
-                        Text(localTime.isEmpty ? "Set Time" : localTime)
+                        Text(localTime.isEmpty ? L.t("Set time", "시간 설정", "時刻を設定") : localTime)
                             .font(DesignSystem.Typography.labelSm)
                             .padding(.vertical, 4)
                             .padding(.horizontal, 8)

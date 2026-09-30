@@ -417,7 +417,7 @@ struct EventCard: View {
 
                 // 하단: 시간 + 알림 pill
                 HStack(spacing: 8) {
-                    Text(localTime.isEmpty ? "Set Time" : localTime)
+                    Text(localTime.isEmpty ? L.t("Set time", "시간 설정", "時刻を設定") : localTime)
                         .font(DesignSystem.Typography.labelSm)
                         .padding(.vertical, 5)
                         .padding(.horizontal, 10)
