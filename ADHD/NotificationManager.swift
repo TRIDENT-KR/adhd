@@ -90,7 +90,7 @@ enum AccountPreferences {
         defaults.set(value, forKey: namespaced)
     }
 
-    static func scope(for userID: UUID) -> String {
+    nonisolated static func scope(for userID: UUID) -> String {
         SHA256.hash(data: Data(userID.uuidString.lowercased().utf8))
             .map { String(format: "%02x", $0) }
             .joined()

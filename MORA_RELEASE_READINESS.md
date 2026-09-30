@@ -1,12 +1,16 @@
 # Mora 출시 준비 결과 — 2026-09-30
 
-**확인된 앱·서버 결함을 수정하고 서버에 반영했다. 아직 App Store에 제출할 수 있는 상태는 아니다.** 남은 필수 조건은 성인 전용 이용 조건의 실제 반영, Apple/AI 제공자 계정 설정, 공개 정책 게시, 배포 서명과 실제 Apple·실기기 QA다. 심사 통과를 보장하거나 실행하지 않은 검사를 통과로 기록하지 않는다.
+**확인된 출시 전 코드 결함과 성인 전용 이용 확인을 구현했다. 아직 App Store 제출 완료 상태는 아니다.** 9/29 서버 수정은 운영 반영됐지만 이번 adult-v1 변경은 미배포다. 남은 조건은 코드 인수·순차 배포, Apple/Google 계정 설정, 공개 정책 게시, 서명과 실제 기기 QA다. 심사 통과를 보장하거나 실행하지 않은 검사를 통과로 기록하지 않는다.
 
 앱 [PR #65](https://github.com/TRIDENT-KR/adhd/pull/65) · 웹 [PR #1](https://github.com/TRIDENT-KR/waitwhat-site/pull/1). 작업은 관리 worktree에서 했으며 원래 checkout의 Luna 하네스·prompt 미커밋 변경을 보존했다. 팀원 PR #57의 필요한 Gemini/페이월 동작은 통합됐고 해당 구 브랜치를 통째로 병합할 필요는 없다.
 
-**9/30 재확인 결과:** [출시 잔여 점검](MORA_RELEASE_REMAINING_20260930.md)을 우선한다. 이하 테스트/빌드 증거는9/29 실행 결과이며 오늘 재실행한 것이 아니다.
+**9/30 코드 구현 결과:** [출시 잔여 점검](MORA_RELEASE_REMAINING_20260930.md)을 우선한다. 아래 새 검증표 외 기존 배포·실제 HTTP·UI 증거는9/29 이력이다. Apple 계정 작업은 사용자 요청으로 보류했다.
 
 ## 이번에 완료한 구현
+
+- **성인 전용:** 온보딩/앱 진입 전 명시적18+ 자기 확인, 게스트와 계정 분리, 미성년 응답의 기기 제한·확인창·정정 지원, 제한 중 관리/탈퇴/복원 접근. 서버는 인증계정의 adult-v1·확인 시각만 저장하며 AI와 새 구매 전 확인한다. 확인 오류는 서버 기능을 차단한다. 삭제 시 계정 승인 기록도 삭제한다. 기존 미승인/구정책 AI 요청은 quota·cache·LLM 전에403, 조회 장애503이다.
+- **연령 확인 한계:** 생년월일·신분증 수집이나 실명 나이 인증이 아니다. 로컬 미성년 응답은 다른 기기의 기존 서버 승인을 취소하지 않는다. 이를 신원 기반 전 기기 차단으로 설명하지 않는다.
+- **경합·컴파일:** 계정 정리 완료 전 화면·위젯 재노출을 막고 취소된 알림 권한 작업을 중단한다. 순수 값의 actor 격리 경고와 UIScreen.main 의존을 정리했다. Other Data manifest와3언어 웹·스토어 설명을 맞췄다.
 
 - **로그인 없이 기본 사용:** 일정·루틴·기본 알림을 별도 게스트 저장소에서 사용한다. 계정 데이터와 섞지 않으며 로그인 후 명시적으로 복사한다. 원본 보존·중복 복사 방지·다른 계정 범위 거부를 구현했다. 게스트는 서버 계정 ID나 Pro 권한을 받지 않는다.
 - **삭제 복구:** Apple 재인증 요구가 영구 상태와 UI에 반영된다. 서버 완료 뒤 기기 파일·설정·캐시 정리를 마칠 때까지 표식을 남겨 종료/재실행/삭제 오류에서 복구한다. 지연·완료 안내와 구독 별도 해지 안내를 제공한다.
@@ -22,19 +26,19 @@
 
 | 검사 | 결과 | 증거와 한계 |
 |---|---|---|
-| Swift | **111 passed / 0 failed / 0 skipped**, 19 suites | 실제 전송 토큰 고정, 계정 전환/삭제 복구, 게스트 영구 저장/복사 포함. UI 현지화 후속 변경은 별도 빌드·화면 확인 |
-| Deno | **60 passed / 0 failed** | 현재 서버 단위·계약·민감 로그 정책. Luna eval/레거시 유료 러너 제외 |
-| PostgreSQL | **68 passed / 0 failed** | 임시 로컬 DB. 전체 migration·기존 원장 업그레이드·grace/환불/소유권·보관 물리 삭제. 운영 DB에 fixture 없음 |
+| Swift 9/30 | **121 passed / 0 failed / 0 skipped**, 20 suites | 성인 확인9개·관리복원 범위1개 추가, 기존 인증·삭제·저장 회귀 포함. 최종 테스트 빌드 경고0 |
+| Deno 9/30 | **61 passed (9 steps) / 0 failed** | 성인 확인 실제 handler 차단 포함. Luna eval/레거시 유료 러너 제외 |
+| PostgreSQL 9/30 | **86 passed / 0 failed** | 임시DB 전체 migration·연령 RPC 권한/삭제·기존 원장/환불/소유권/보관 회귀. 운영 fixture 없음 |
 | 배포 소스 | **4개 함수 PASS** | 실제 다운로드한 모든 상대 import 소스 SHA-256·ACTIVE·gateway 설정 일치 |
 | 실제 HTTP 차단 | **4개 경로 PASS** | analyze/delete/storekit 무인증401, 알림 위조 서명400. 실제 Apple 거래 성공의 증거 아님 |
-| UI 표본 | **PASS** | 1대 iPhone17/iOS26.4.1 simulator에서 아래 흐름 확인. 실기기 E2E 대체 아님 |
-| Release / 배포 서명 | **무서명 archive PASS / 서명 BLOCKED** | 앱·위젯 arm64, 1.0(4), iOS26.2, manifest·3언어 권한·OSS 포함. 개발 profile에 Time Sensitive 누락; 자동 갱신도 Xcode 팀 로그인 부재로 실패. 업로드용 산출물 아님 |
+| UI 표본 9/30 | **PASS** | iPhone17/iOS26.4 한 대로 성인 확인/거절/재실행/관리 접근. 실기기 E2E 대체 아님 |
+| Release 9/30 / 배포 서명 | **무서명 archive PASS / 서명 보류** | 앱·위젯 arm64, 1.0(5), 최소iOS26.2, manifest·3언어 권한·OSS 포함. 경고0. Apple 계정/서명은 이번 요청 범위에서 보류; 업로드용 산출물 아님 |
 
-Release 빌드에는 기존 경고8개가 남는다: 불변 문자열·순수 scope 계산의 actor 격리 참조7개와 UIScreen.main deprecation1개다. 이번 컴파일에서 오류는 없었고 데이터 변이 경쟁으로 확인된 경로는 아니지만, 향후 Swift 격리 전환·다중 창 화면 크기 처리는 별도 정리 대상이다. 경고 원문은 archive-inspection.json에 보존했다.
+9/29 테스트 초기 실패·수정 이력은 기존 evidence 폴더에 보존했다. 이번 실행 결과와 혼합하지 않는다.
 
-새 테스트는 처음 #expect의 변경 메서드 호출4곳에서 컴파일 오류가 났고, 수정 뒤 테스트가 닫힌 SwiftData 모델을 읽어 한 번 종료됐다. .ips로 테스트 수명 위반을 확인해 값 스냅샷 비교로 고쳤다. 게스트3개 단독 통과 후 전체111개를 재실행해 통과했다. 실패 로그도 보존했다. 기존 테스트를 제외하거나 실패를 숨겨 통과 수치를 만들지 않았다.
+**9/30 UI에서 직접 확인:** 확인 전 차단, 관리용 로그인 취소,18+ 게스트 진입과 기존 합성 일정 보존, 설정의 연령 응답, 미성년 확인창 취소/확정, 재실행 제한 유지와 관리 링크 접근. 실제 계정·Apple 거래·탈퇴는 실행하지 않았다. iPhone17/iOS26.4 시뮬레이터1대만 사용했고 종료했다.
 
-**UI에서 직접 확인:** 온보딩 스킵, 알림 권한 거절 후 기본 사용, 게스트 수동 일정 저장·완료, 종료/재시작 후 일정·완료 상태 보존, 게스트 AI 안내와 로그인 취소, 무료/게스트의 Apple 구독 관리 링크, 일본어 설정·라이선스 본문, 빈 플래너에서 로그인 없는 수동 추가. 새 일정은 합성 QA 문장만 사용했다. 실제 Apple 로그인·구매·복원·음성 전사·알람 전달을 PASS로 기록하지 않았다.
+**9/29 UI에서 직접 확인:** 온보딩 스킵, 알림 권한 거절 후 기본 사용, 게스트 수동 일정 저장·완료, 종료/재시작 후 일정·완료 상태 보존, 게스트 AI 안내와 로그인 취소, 무료/게스트의 Apple 구독 관리 링크, 일본어 설정·라이선스 본문, 빈 플래너에서 로그인 없는 수동 추가. 새 일정은 합성 QA 문장만 사용했다. 실제 Apple 로그인·구매·복원·음성 전사·알람 전달을 PASS로 기록하지 않았다.
 
 이전 실제 Gemini smoke에서는 지정 임시 staging Auth 계정의 합성 입력3회 성공, 동일 요청 replay 무차감, 네 번째 무료 요청429를 확인했다. 이번에는 모델/분석 서버를 바꾸지 않았고 추가 유료 호출은 하지 않았다. 이 결과는 LLM 의미 정확도나 p95 성능 점수가 아니며 Luna 평가와 별개다.
 
@@ -55,7 +59,7 @@ Supabase 프로젝트 `nmjtswtqwwxxwiolgsnk`, backend `86117cd`:
 
 ## 지금 남은 필수 조건
 
-1. **제품 방향 변경(9/30):** 성인 전용으로 출시하며 Gemini를 유지한다. 이전의 AI 교체 계획은 취소한다. 앱 이용 자격 확인·미성년자 진입 처리·약관·스토어 연령/지역 설정 반영은 남아 있다. 성인 전용 결정만으로 이 항목을 PASS 처리하지 않는다.
+1. **코드 인수·배포:** 성인 전용 앱·서버·웹 구현 완료. 새 migration → 호환 앱 → analyze-task gate 순서로 적용하고 공개 정책을 게시한다. 운영 gate는 이번에 배포하지 않았다. 스토어 연령/지역 설정은 별도다.
 2. **Google 설정:** 실제 API 프로젝트의 활성 결제·유료 데이터 조건·지원 지역·요청 한도와 비용 알림 확인. API키가 있다는 사실만으로 완료가 아니다. [Gemini 조건](https://ai.google.dev/gemini-api/terms)
 3. **Apple 계정:** APPLE_CLIENT_SECRET 설정·갱신 관리, 유료 앱 계약/세금/은행, 월/연 구독 상품·같은 그룹/혜택 수준·가격·지역·설명·심사 screenshot, 서버 알림 V2 Production/Sandbox URL 설정·Apple 테스트 수신. 첫 구독은 앱 버전과 함께 심사 제출한다.
 4. **공개 정보·서명:** 성인 전용 조건과 실제 Gemini 처리 방식을 반영한 웹 PR 게시 후 support/privacy/terms 실제 확인, ASC Privacy·연령·DSA/암호화/심사 연락처, 배포 인증서·앱/위젯 프로파일·TestFlight 업로드.
@@ -67,7 +71,7 @@ Supabase 프로젝트 `nmjtswtqwwxxwiolgsnk`, backend `86117cd`:
 
 | 순서 | 해야 할 일 | 담당과 완료 기준 |
 |---|---|---|
-| 1 | 성인 전용 이용 조건 반영, Gemini 유지 | Codex: 앱·약관·안내 정리. 소유자와 스토어 연령/지역·Google 결제 확인 |
+| 1 | 구현한 성인 전용 코드 인수·배포 | 앱/웹PR 검토·병합, 새DB→새앱→AI gate 순서. Google 결제·판매 지역 확인 |
 | 2 | Apple에서 앱을 올리고 판매할 준비 | 소유자: Xcode/Apple 계정 로그인, 계약·세금·은행 확인. Codex: 배포 파일·월/연 구독·결제 알림 연결 점검 |
 | 3 | 탈퇴할 때 Apple 로그인 연결도 끊기도록 설정 | 소유자: Apple 개발자 키 준비. Codex: 서버 설정 → 테스트 계정 탈퇴 완료 확인. 키를 채팅에 붙이지 않음 |
 | 4 | 심사자가 볼 안내 페이지와 앱 소개 완성 | Codex: 개인정보·약관·지원 페이지, 설명·스크린샷·심사 안내 준비. 소유자: 실제 연락처·권리자 확인 |
@@ -77,6 +81,8 @@ Supabase 프로젝트 `nmjtswtqwwxxwiolgsnk`, backend `86117cd`:
 
 ## 산출물과 인수
 
-`outputs/release-readiness/20260929-final-implementation/`에 Swift xcresult/JSON·Deno·DB 수정 전후·배포/migration/source hash·HTTP 차단·UI 스크린샷을 보존했다. 토큰·키 값·실사용자 일정은 저장하지 않았다. 이전 검증은 각 outputs 폴더에 역사로 남고 최신 PASS를 대신하지 않는다.
+최신 `outputs/release-readiness/20260930-adult-release/`에 Swift121 xcresult·Deno61·DB86·3장 UI 캡처·소스 hash와 이번 실행 로그를 보존했다. Deno handler 시험은 처음 stub descriptor 오류가 발생해 수정 후61개 재실행 통과했으며 실패 로그도 보존했다.
 
-[CLAUDE.md](CLAUDE.md)의 “NEVER attempt a programmatic force-push or merge to main”에 따라 main을 자동 병합하지 않았다. 검토 후 앱은 `gh pr merge 65 --repo TRIDENT-KR/adhd --squash --delete-branch`로 인수한다. 웹은 성인 전용과 개인정보 조건을 확정한 뒤 PR #1을 병합·게시한다.
+기존 `outputs/release-readiness/20260929-final-implementation/`에 Swift xcresult/JSON·Deno·DB 수정 전후·배포/migration/source hash·HTTP 차단·UI 스크린샷을 보존했다. 토큰·키 값·실사용자 일정은 저장하지 않았다. 이전 검증은 각 outputs 폴더에 역사로 남고 최신 PASS를 대신하지 않는다.
+
+[CLAUDE.md](CLAUDE.md)의 “NEVER attempt a programmatic force-push or merge to main”에 따라 main을 자동 병합하지 않았다. 검토 후 앱은 `gh pr merge 65 --repo TRIDENT-KR/adhd --squash --delete-branch`로 인수한다. 웹은 성인 전용 수정이 포함된 PR #1을 검토·병합·게시한다.

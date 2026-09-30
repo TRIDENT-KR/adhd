@@ -10,6 +10,7 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
 
     @ObservedObject var langManager = LocalizationManager.shared
+    @ObservedObject private var adultEligibility = AdultEligibilityManager.shared
 
     @State private var showLogoutConfirm = false
     @State private var showDeleteFlow = false
@@ -24,6 +25,7 @@ struct SettingsView: View {
     @State private var showGuestCopyConfirmation = false
     @State private var guestCopyAccountID: UUID?
     @State private var guestCopyMessage: String?
+    @State private var showAdultEligibility = false
 
     // Notifications
     @State private var routineReminders = true
@@ -114,6 +116,15 @@ struct SettingsView: View {
                 }
 
                 // ── Subscription ──
+                Section {
+                    Text(L.adultEligibility.acceptedStatus)
+                    Text(L.adultEligibility.settingsExplanation).font(.footnote)
+                    Button(L.adultEligibility.reviewDeclaration) { showAdultEligibility = true }
+                    if let error = adultEligibility.lastError {
+                        Text(L.adultEligibility.error(error)).font(.footnote).foregroundStyle(.red)
+                    }
+                } header: { Text(L.adultEligibility.title) }
+
                 Section {
                     HStack {
                         ZStack {
@@ -358,6 +369,7 @@ struct SettingsView: View {
 
                 // ── About ──
                 Section {
+                    Link(L.adultEligibility.support, destination: URL(string: "https://trident-kr.github.io/waitwhat-site/")!)
                     NavigationLink {
                         ThirdPartyNoticesView()
                     } label: {
@@ -469,6 +481,9 @@ struct SettingsView: View {
         }
         .sheet(isPresented: $showLogin) {
             LoginView().environmentObject(authManager)
+        }
+        .sheet(isPresented: $showAdultEligibility) {
+            if let scopeID = preferenceUserID { AdultEligibilityView(scopeID: scopeID) }
         }
         .sheet(isPresented: $showPaywall) {
             NavigationView {
@@ -589,7 +604,8 @@ private struct ThirdPartyNoticesView: View {
     }
 }
 
-private struct AccountDeletionFlowView: View {
+struct AccountDeletionFlowView: View {
+    var showsExactTaskCount = true
     @EnvironmentObject private var authManager: AuthManager
     @EnvironmentObject private var taskManager: TaskManager
     @EnvironmentObject private var subscriptionManager: SubscriptionManager
@@ -665,7 +681,7 @@ private struct AccountDeletionFlowView: View {
 
                 Section {
                     Button(role: .destructive) {
-                        previewTaskCount = taskManager.taskCount()
+                        if showsExactTaskCount { previewTaskCount = taskManager.taskCount() }
                         showFinalConfirmation = true
                     } label: {
                         if isWorking {
@@ -703,10 +719,13 @@ private struct AccountDeletionFlowView: View {
                     }
                 }
             } message: {
-                Text(L.settings.deletionFinalPreview(
-                    account: authManager.userEmail ?? "Apple ID",
-                    taskCount: previewTaskCount
-                ))
+                if showsExactTaskCount {
+                    Text(L.settings.deletionFinalPreview(
+                        account: authManager.userEmail ?? "Apple ID", taskCount: previewTaskCount
+                    ))
+                } else {
+                    Text(L.adultEligibility.deletionWithoutCount)
+                }
             }
         }
     }

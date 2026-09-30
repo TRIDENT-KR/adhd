@@ -4,6 +4,7 @@ import Foundation
 
 // MARK: - LLMFunctionCall 디코딩 Tests
 /// Gemini 응답 JSON → 함수 8종 라우팅 + 카테고리 정규화 + 편집 규약 검증
+@MainActor
 struct LLMFunctionCallDecodingTests {
 
     private func decode(_ json: String) throws -> LLMFunctionCall {
@@ -159,6 +160,7 @@ struct LLMFunctionCallDecodingTests {
     }
 }
 
+@MainActor
 struct ServerAIQuotaSnapshotTests {
     @Test func acceptsStrictKSTFreeQuotaSnapshot() {
         let snapshot = ServerAIQuotaSnapshot(

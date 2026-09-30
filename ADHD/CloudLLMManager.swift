@@ -56,6 +56,7 @@ private struct AnalyzeTaskErrorResponse: Decodable {
 }
 
 enum CloudLLMError: Error, Equatable {
+    case adultEligibilityRequired
     case consentRequired
     case quotaExhausted
     case authenticationRequired
@@ -109,6 +110,14 @@ class CloudLLMManager: ObservableObject {
                         try Task.checkCancellation()
                         guard AccountPreferences.activeScope == consentScope,
                               AccountPreferences.scope(for: session.user.id) == consentScope,
+                              AIDataConsent.isGranted(for: session.user.id) else {
+                            throw CloudLLMError.consentRequired
+                        }
+                        try await AdultEligibilityManager.shared.requireServerEligibility(
+                            userID: session.user.id, accessToken: session.accessToken
+                        )
+                        try Task.checkCancellation()
+                        guard AccountPreferences.activeScope == consentScope,
                               AIDataConsent.isGranted(for: session.user.id) else {
                             throw CloudLLMError.consentRequired
                         }
@@ -182,6 +191,7 @@ class CloudLLMManager: ObservableObject {
     }
 
     private func shouldRetry(_ error: Error) -> Bool {
+        if error is AdultEligibilityError { return false }
         if let cloudError = error as? CloudLLMError {
             return cloudError == .serverUnavailable
         }
@@ -213,6 +223,9 @@ class CloudLLMManager: ObservableObject {
     }
 
     private func mappedError(_ error: Error) -> CloudLLMError {
+        if let error = error as? AdultEligibilityError {
+            return error == .unavailable ? .serverUnavailable : .adultEligibilityRequired
+        }
         if let cloudError = error as? CloudLLMError { return cloudError }
         guard let functionsError = error as? FunctionsError else {
             return error is DecodingError ? .invalidResponse : .serverUnavailable
@@ -223,6 +236,7 @@ class CloudLLMManager: ObservableObject {
             return .serverUnavailable
         case .httpError(let status, let data):
             let code = structuredErrorCode(from: data)
+            if code == "adult_eligibility_required" { return .adultEligibilityRequired }
             if code == "quota_exhausted" || status == 429 {
                 return .quotaExhausted
             }

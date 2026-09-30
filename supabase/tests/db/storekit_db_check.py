@@ -156,6 +156,96 @@ def binding(original):
                           f"WHERE apple_environment = 'Production' AND original_transaction_id = '{original}';"))
 
 
+def adult_eligibility_checks():
+    accepted = {"eligible": True, "policyVersion": "adult-v1"}
+    absent = {"eligible": False, "policyVersion": "adult-v1"}
+    accept = "SELECT public.accept_adult_eligibility('adult-v1');"
+    get = "SELECT public.get_adult_eligibility();"
+    user, token = new_account()
+    other, _ = new_account()
+    count = f"SELECT count(*) FROM mora_internal.adult_eligibility WHERE user_id='{user}';"
+    check("성인 확인: 신규 계정은 현재 정책 버전과 eligible=false를 받는다",
+          json.loads(sql(get, user=user)) == absent and sql(count) == "0")
+    check("성인 확인: anon과 service role은 자기확인 RPC에 접근할 수 없다",
+          all("permission denied" in sql_error(query, role=role)
+              for role in ["anon", "service_role"] for query in [accept, get]))
+    check("성인 확인: authenticated 역할도 인증 UID가 없으면 거부한다",
+          all("unauthorized" in sql_error(query, role="authenticated") for query in [accept, get]))
+    check("성인 확인: 거절 값·빈 값·알 수 없는 버전은 기록되지 않는다",
+          all("unsupported_adult_policy_version" in sql_error(
+              f"SELECT public.accept_adult_eligibility({value});", user=user)
+              for value in ["null", "''", "'false'", "'declined'", "'adult-v0'", "'adult-v2'", "' adult-v1 '"])
+          and sql(count) == "0")
+    check("성인 확인: 호출자가 다른 사용자 ID를 전달할 수 없다",
+          "does not exist" in sql_error(
+              f"SELECT public.accept_adult_eligibility(p_policy_version => 'adult-v1', p_user_id => '{other}');",
+              user=user))
+    check("성인 확인: 명시적인 현재 정책 자기확인만 본인 계정에 저장한다",
+          json.loads(sql(accept, user=user)) == accepted
+          and json.loads(sql(get, user=user)) == accepted
+          and json.loads(sql(get, user=other)) == absent)
+    timestamp = sql(f"SELECT accepted_at FROM mora_internal.adult_eligibility WHERE user_id='{user}';")
+    sql(accept, user=user)
+    check("성인 확인: 재시도는 최초 확인 시각을 변경하지 않는다",
+          timestamp == sql(f"SELECT accepted_at FROM mora_internal.adult_eligibility WHERE user_id='{user}';"))
+    check("성인 확인: 스키마는 UID·정책 버전·확인 시각 3개만 보관한다",
+          sql("SELECT string_agg(column_name, ',' ORDER BY ordinal_position) FROM information_schema.columns "
+              "WHERE table_schema='mora_internal' AND table_name='adult_eligibility';")
+          == "user_id,policy_version,accepted_at")
+    check("성인 확인: RLS 활성화, 앱·anon·service의 직접 읽기/쓰기는 금지한다",
+          sql("SELECT relrowsecurity FROM pg_class WHERE oid='mora_internal.adult_eligibility'::regclass;") == "t"
+          and all("permission denied" in sql_error(query, user=user, role=role)
+                  for role in ["authenticated", "anon", "service_role"]
+                  for query in ["SELECT * FROM mora_internal.adult_eligibility;",
+                                f"INSERT INTO mora_internal.adult_eligibility(user_id,policy_version) VALUES ('{other}','adult-v1');"]))
+    sql(f"UPDATE mora_internal.adult_eligibility SET policy_version='adult-v0', accepted_at='2000-01-01' WHERE user_id='{user}';")
+    check("성인 확인: 저장된 구버전은 승인되지 않으며 재확인이 필요하다",
+          json.loads(sql(get, user=user)) == absent
+          and json.loads(sql(accept, user=user)) == accepted
+          and sql(f"SELECT (accepted_at > '2000-01-02')::text FROM mora_internal.adult_eligibility WHERE user_id='{user}';") == "true")
+    check("성인 확인: RPC 조회·수락은 AI 사용량이나 분석 요청을 생성하지 않는다",
+          sql(f"SELECT (SELECT count(*) FROM mora_prod_private.ai_daily_quota WHERE user_id='{user}') + "
+              f"(SELECT count(*) FROM mora_prod_private.ai_analysis_requests WHERE user_id='{user}');") == "0")
+    check("성인 확인: 환경 claim 변경으로 기존 계정 경계를 바꿀 수 없다",
+          all("environment_binding_mismatch" in sql_error(query, user=user, environment="staging")
+              for query in [get, accept]))
+
+    request_id, token_hash = str(uuid.uuid4()), uuid.uuid4().hex * 2
+    args = f"'{request_id}', '{token_hash}'"
+    sql(f"SELECT mora_begin_account_deletion('{user}', {args});", role="service_role")
+    check("성인 확인: 삭제 진행 중 조회·재수락은 거부한다",
+          all("account_deletion_pending" in sql_error(query, user=user) for query in [get, accept]))
+    sql(f"SELECT mora_claim_account_deletion({args});", role="service_role")
+    sql(f"SELECT mora_mark_account_deletion_apple_revoked({args});", role="service_role")
+    sql(f"SELECT mora_purge_account_deletion_data({args});", role="service_role")
+    check("성인 확인: Auth 삭제를 기다리는 데이터 purge 단계에서 이미 기록이 삭제된다",
+          sql(count) == "0" and sql(f"SELECT count(*) FROM auth.users WHERE id='{user}';") == "1")
+    sql(f"DELETE FROM auth.users WHERE id='{user}';")
+    sql(f"SELECT mora_complete_account_deletion({args});", role="service_role")
+    direct, _ = new_account()
+    sql(accept, user=direct)
+    sql(f"DELETE FROM auth.users WHERE id='{direct}';")
+    check("성인 확인: 직접 Auth 삭제도 cascade로 별도 보관 없이 기록을 지운다",
+          sql(f"SELECT count(*) FROM mora_internal.adult_eligibility WHERE user_id='{direct}';") == "0")
+
+    # Restore/management is deliberately available without adult self-attestation.
+    # Registration syncs a transaction already charged by Apple; it is not a new
+    # purchase API. The compatible app gates a new purchase before StoreKit.
+    owner, owner_token = new_account()
+    apply_tx(owner, "register", "990100", "990101", owner_token)
+    check("성인 미확인 계정도 기존 거래 동기화와 구독 권한 조회는 가능하다",
+          json.loads(sql(get, user=owner)) == absent and entitlement(owner)["isPro"])
+    delete_account(owner)
+    restore_user, _ = new_account()
+    check("성인 미확인 계정도 명시적 구독 복원을 할 수 있다",
+          result(apply_tx(restore_user, "rebind", "990100", "990101", owner_token)) == "rebound"
+          and entitlement(restore_user)["isPro"]
+          and json.loads(sql(get, user=restore_user)) == absent)
+    delete_account(restore_user)
+    check("성인 미확인 계정도 계정 탈퇴를 완료할 수 있다",
+          sql(f"SELECT count(*) FROM auth.users WHERE id='{restore_user}';") == "0")
+
+
 def evidence_and_retention_checks():
     # Stable timestamps let us test actual ordering rather than the test runner's speed.
     times = json.loads(sql("SELECT json_build_object("
@@ -461,6 +551,7 @@ def run():
 
 
     evidence_and_retention_checks()
+    adult_eligibility_checks()
 
     # 11. Bounded retention must not shrink the 90-day aggregate on repeated runs.
     for duration in [10, 20]:

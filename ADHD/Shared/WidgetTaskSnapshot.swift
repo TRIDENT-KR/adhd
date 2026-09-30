@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - App Group Identifier
 /// 메인 앱과 위젯 간 데이터 공유를 위한 App Group ID
-let appGroupID = "group.trident-KR.ADHD"
+nonisolated let appGroupID = "group.trident-KR.ADHD"
 
 /// 위젯이 현재 로그인한 Mora 계정의 데이터만 읽도록 하는 App Group 범위입니다.
 enum WidgetAccountScope {

@@ -664,6 +664,13 @@ struct HomeVoiceInterfaceView: View {
                     activeAnalysisID = nil
                     analysisTask = nil
                 }
+            } catch CloudLLMError.adultEligibilityRequired {
+                await MainActor.run {
+                    guard activeAnalysisID == analysisID else { return }
+                    activeAnalysisID = nil
+                    analysisTask = nil
+                    triggerErrorFeedback(message: L.adultEligibility.serverRequired)
+                }
             } catch CloudLLMError.consentRequired {
                 await MainActor.run {
                     guard activeAnalysisID == analysisID else { return }

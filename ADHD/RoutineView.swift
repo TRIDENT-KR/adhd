@@ -604,6 +604,7 @@ struct SwipeToDeleteModifier: ViewModifier {
     let onDelete: () -> Void
     @State private var offset: CGFloat = 0
     @State private var showDelete = false
+    @State private var contentWidth: CGFloat = 0
     private let threshold: CGFloat = -80
 
     func body(content: Content) -> some View {
@@ -614,7 +615,7 @@ struct SwipeToDeleteModifier: ViewModifier {
                     Spacer()
                     Button(action: {
                         withAnimation(.spring(response: 0.3)) {
-                            offset = -UIScreen.main.bounds.width
+                            offset = -max(contentWidth, abs(threshold))
                         }
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
                             onDelete()
@@ -652,6 +653,11 @@ struct SwipeToDeleteModifier: ViewModifier {
                             }
                         }
                 )
+        }
+        .onGeometryChange(for: CGFloat.self) { proxy in
+            proxy.size.width
+        } action: { width in
+            contentWidth = width
         }
     }
 }

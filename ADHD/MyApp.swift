@@ -19,12 +19,14 @@ struct MoraApp: App {
     @StateObject private var authManager = AuthManager()
     @StateObject private var networkMonitor = NetworkMonitor.shared
     @StateObject private var subscriptionManager = SubscriptionManager()
+    @StateObject private var adultEligibility = AdultEligibilityManager.shared
     @AppStorage("appTheme") private var appTheme: String = "system"
     /// 언어 변경을 감지하여 environment(locale) 전파. .id()는 사용하지 않아 NavigationStack을 보존
     @AppStorage("appLanguage") private var appLanguage: String = "en"
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     @Environment(\.scenePhase) private var scenePhase
     @State private var hasSeededPresentationDemo = false
+    @State private var exposedScopeID: UUID?
     private let sessionCleanupCoordinator = AccountSessionCleanupCoordinator()
 
     private var isPresentationDemoMode: Bool {
@@ -86,7 +88,7 @@ struct MoraApp: App {
                 } message: {
                     Text(L.authRelease.deletionCompleteMessage)
                 }
-                .task(id: authManager.accessState) {
+                .task(id: AdultGateContext(auth: authManager.accessState, revision: adultEligibility.revision)) {
                     await synchronizeAccountStoreWithAuthState()
                 }
                 .task(id: networkMonitor.isConnected) {
@@ -133,7 +135,9 @@ struct MoraApp: App {
 
             case .authenticatedOnline(let userID),
                  .authenticatedOfflineLimited(let userID):
-                if accountStoreController.activeUserID == userID,
+                if !adultEligibility.allowsLocalUse(for: userID) {
+                    adultEligibilityContent(scopeID: userID)
+                } else if exposedScopeID == userID, accountStoreController.activeUserID == userID,
                    let container = accountStoreController.container {
                     accountContent(container: container, userID: userID)
                 } else {
@@ -141,7 +145,10 @@ struct MoraApp: App {
                 }
 
             case .signedOut, .lockedInvalidSession:
-                if accountStoreController.activeUserID == LocalGuestIdentity.storageID,
+                if !adultEligibility.allowsLocalUse(for: LocalGuestIdentity.storageID) {
+                    adultEligibilityContent(scopeID: LocalGuestIdentity.storageID)
+                } else if exposedScopeID == LocalGuestIdentity.storageID,
+                          accountStoreController.activeUserID == LocalGuestIdentity.storageID,
                    let container = accountStoreController.container {
                     accountContent(container: container, userID: LocalGuestIdentity.storageID)
                 } else {
@@ -157,6 +164,16 @@ struct MoraApp: App {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(DesignSystem.Colors.background.ignoresSafeArea())
             .preferredColorScheme(colorScheme)
+    }
+
+    private func adultEligibilityContent(scopeID: UUID) -> some View {
+        AdultEligibilityView(scopeID: scopeID)
+            .id(scopeID)
+            .environmentObject(authManager)
+            .environmentObject(taskManager)
+            .environmentObject(subscriptionManager)
+            .preferredColorScheme(colorScheme)
+            .environment(\.locale, Locale(identifier: appLanguage))
     }
 
     @ViewBuilder
@@ -185,6 +202,9 @@ struct MoraApp: App {
             .modelContainer(container)
             .preferredColorScheme(colorScheme)
             .task {
+                guard isPresentationDemoMode || (authManager.accessState.localStorageUserID.map {
+                    adultEligibility.allowsLocalUse(for: $0)
+                } == true), !Task.isCancelled else { return }
                 taskManager.configure(context: container.mainContext)
                 if isPresentationDemoMode && !hasSeededPresentationDemo {
                     seedPresentationDemoData(in: container)
@@ -200,7 +220,11 @@ struct MoraApp: App {
             }
             .task {
                 if !isPresentationDemoMode {
-                    try? await Task.sleep(nanoseconds: 500_000_000)
+                    do { try await Task.sleep(nanoseconds: 500_000_000) }
+                    catch { return }
+                    guard !Task.isCancelled,
+                          let scopeID = authManager.accessState.localStorageUserID,
+                          adultEligibility.allowsLocalUse(for: scopeID) else { return }
                     NotificationManager.shared.requestAuthorization()
                 }
             }
@@ -233,22 +257,42 @@ struct MoraApp: App {
 
     @MainActor
     private func synchronizeAccountStoreWithAuthState() async {
+        exposedScopeID = nil
         if isPresentationDemoMode {
             accountStoreController.activatePresentationStore()
             return
         }
 
+        let expectedState = authManager.accessState
+        adultEligibility.activate(
+            scopeID: expectedState.localStorageUserID,
+            accountID: expectedState.accountUserID,
+            isOnline: authManager.canUseServerFeatures
+        )
+
         if let userID = authManager.pendingLocalDeletionUserID {
             await removeCompletedAccountStore(for: userID)
             return
         }
-        let expectedState = authManager.accessState
+        if let scopeID = expectedState.localStorageUserID,
+           AdultEligibilityGatePolicy.requiresGate(auth: expectedState, status: adultEligibility.status(for: scopeID)) {
+            guard accountStoreController.saveBeforeSwitch() else { return }
+            await sessionCleanupCoordinator.lockLocalExposure(taskManager: taskManager, reason: .eligibilityRestricted)
+            guard !Task.isCancelled, authManager.accessState == expectedState,
+                  !adultEligibility.allowsLocalUse(for: scopeID) else { return }
+            accountStoreController.lock()
+            subscriptionManager.activateGuestScope()
+            return
+        }
         switch expectedState {
         case .booting:
             return
 
         case .authenticatedOnline(let userID),
              .authenticatedOfflineLimited(let userID):
+            await sessionCleanupCoordinator.waitForPendingCleanup()
+            guard !Task.isCancelled, authManager.accessState == expectedState,
+                  adultEligibility.allowsLocalUse(for: userID) else { return }
             if let activeUserID = accountStoreController.activeUserID,
                activeUserID != userID {
                 guard accountStoreController.saveBeforeSwitch() else { return }
@@ -264,8 +308,12 @@ struct MoraApp: App {
             WidgetAccountScope.activate(AccountPreferences.scope(for: userID))
             subscriptionManager.activateLocalAccountScope(userID)
             accountStoreController.activate(for: userID)
+            exposedScopeID = userID
 
         case .signedOut, .lockedInvalidSession:
+            await sessionCleanupCoordinator.waitForPendingCleanup()
+            guard !Task.isCancelled, authManager.accessState == expectedState,
+                  adultEligibility.allowsLocalUse(for: LocalGuestIdentity.storageID) else { return }
             if accountStoreController.activeUserID != LocalGuestIdentity.storageID {
                 guard accountStoreController.saveBeforeSwitch() else { return }
                 await sessionCleanupCoordinator.lockLocalExposure(
@@ -280,6 +328,7 @@ struct MoraApp: App {
             WidgetAccountScope.activate(AccountPreferences.scope(for: LocalGuestIdentity.storageID))
             subscriptionManager.activateGuestScope()
             accountStoreController.activate(for: LocalGuestIdentity.storageID)
+            exposedScopeID = LocalGuestIdentity.storageID
 
         case .deletionPending:
             guard accountStoreController.saveBeforeSwitch() else { return }
@@ -295,6 +344,7 @@ struct MoraApp: App {
     @MainActor
     private func removeCompletedAccountStore(for userID: UUID) async {
         guard authManager.pendingLocalDeletionUserID == userID else { return }
+        exposedScopeID = nil
         if accountStoreController.activeUserID == userID {
             await sessionCleanupCoordinator.lockLocalExposure(
                 taskManager: taskManager,
@@ -308,6 +358,7 @@ struct MoraApp: App {
         accountStoreController.deleteStoreAfterServerCompletion(for: userID)
         guard accountStoreController.failureCode == nil else { return }
         AccountPreferences.removeAll(for: userID)
+        adultEligibility.removeAccountRecord(for: userID)
         subscriptionManager.clearAccountCache(for: userID)
         do {
             try authManager.finishLocalAccountDeletion(for: userID)
@@ -338,6 +389,11 @@ struct MoraApp: App {
         tasks.forEach(context.insert)
         try? context.save()
     }
+}
+
+private struct AdultGateContext: Hashable {
+    let auth: AuthAccessState
+    let revision: Int
 }
 
 private struct AccountDeletionPendingView: View {

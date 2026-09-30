@@ -7,6 +7,7 @@ import {
 } from "./analysis-service.ts";
 
 import { geminiModel } from "./model-config.ts";
+import { requireAdultEligibility } from "./adult-eligibility.ts";
 
 const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
 
@@ -127,6 +128,10 @@ Deno.serve(async (req: Request) => {
         { headers, status: 401 },
       );
     }
+
+    // Check the authenticated account before parsing text, consuming quota,
+    // replaying cached output, or sending any content to the model provider.
+    await requireAdultEligibility(() => supabase.rpc("get_adult_eligibility"));
 
     // Rate limiting: 유저당 분당 30회 초과 시 429 반환
     if (isRateLimited(user.id)) {

@@ -10,6 +10,7 @@ enum AccountSessionCleanupReason: String {
     case invalidSession
     case deletionPending
     case deletionCompleted
+    case eligibilityRestricted
 }
 
 extension Notification.Name {
@@ -27,6 +28,15 @@ extension Notification.Name {
 @MainActor
 final class AccountSessionCleanupCoordinator {
     private var cleanupTask: Task<Void, Never>?
+    private let cleanupOverride: ((TaskManager, AccountSessionCleanupReason) async -> Void)?
+
+    init(cleanupOverride: ((TaskManager, AccountSessionCleanupReason) async -> Void)? = nil) {
+        self.cleanupOverride = cleanupOverride
+    }
+
+    func waitForPendingCleanup() async {
+        if let cleanupTask { await cleanupTask.value }
+    }
     private enum SharedKey {
         static let widgetPayload = "widgetTaskPayload"
         static let pendingWidgetToggles = "pendingWidgetToggles"
@@ -43,7 +53,11 @@ final class AccountSessionCleanupCoordinator {
             return
         }
         let task = Task { @MainActor in
-            await self.performCleanup(taskManager: taskManager, reason: reason)
+            if let cleanupOverride = self.cleanupOverride {
+                await cleanupOverride(taskManager, reason)
+            } else {
+                await self.performCleanup(taskManager: taskManager, reason: reason)
+            }
         }
         cleanupTask = task
         await task.value

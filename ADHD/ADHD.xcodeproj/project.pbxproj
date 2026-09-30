@@ -7,6 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		B0E65CF08B1133DE41A1BCB3 /* AdultEligibilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AABE44F4658FCB85DEA5C8D /* AdultEligibilityTests.swift */; };
+		BC15186E8923D5767DEE3B45 /* AdultEligibilityStrings.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0D4B212A0D090A28DCA5586 /* AdultEligibilityStrings.swift */; };
+		0BB517A001449C30DAD6FA62 /* AdultEligibilityView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82BE3D23B4BDCAAB8E595409 /* AdultEligibilityView.swift */; };
+		0EA516B200370639AEE36362 /* AdultEligibility.swift in Sources */ = {isa = PBXBuildFile; fileRef = D209802CE63250BBC33C047A /* AdultEligibility.swift */; };
 		FA3000030000000000000001 /* ThirdPartyNotices.txt in Resources */ = {isa = PBXBuildFile; fileRef = FA3000040000000000000001 /* ThirdPartyNotices.txt */; };
 		FA3000010000000000000001 /* AuthReleaseStrings.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA3000020000000000000001 /* AuthReleaseStrings.swift */; };
 		AB3900010000000000000001 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = AB3900020000000000000001 /* InfoPlist.strings */; };
@@ -103,6 +107,10 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		0AABE44F4658FCB85DEA5C8D /* AdultEligibilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdultEligibilityTests.swift; sourceTree = "<group>"; };
+		E0D4B212A0D090A28DCA5586 /* AdultEligibilityStrings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdultEligibilityStrings.swift; sourceTree = "<group>"; };
+		82BE3D23B4BDCAAB8E595409 /* AdultEligibilityView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdultEligibilityView.swift; sourceTree = "<group>"; };
+		D209802CE63250BBC33C047A /* AdultEligibility.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdultEligibility.swift; sourceTree = "<group>"; };
 		FA3000040000000000000001 /* ThirdPartyNotices.txt */ = {isa = PBXFileReference; lastKnownFileType = text; name = ThirdPartyNotices.txt; path = Resources/ThirdPartyNotices.txt; sourceTree = "<group>"; };
 		FA3000020000000000000001 /* AuthReleaseStrings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AuthReleaseStrings.swift; path = AuthReleaseStrings.swift; sourceTree = "<group>"; };
 		AB3900050000000000000001 /* ja */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ja; path = ja.lproj/InfoPlist.strings; sourceTree = "<group>"; };
@@ -235,6 +243,7 @@
 				EF00000400000000000000A1 /* SaveAndRetryContractTests.swift */,
 				AD1000060000000000000001 /* AccountStoreLayoutTests.swift */,
 				AE2000020000000000000001 /* SubscriptionEntitlementTests.swift */,
+				0AABE44F4658FCB85DEA5C8D /* AdultEligibilityTests.swift */,
 			);
 			path = ADHDTests;
 			sourceTree = "<group>";
@@ -262,6 +271,9 @@
 				F3D9E4A22F74CF5C00DA9A5A /* AuthManager.swift */,
 				FA3000040000000000000001 /* ThirdPartyNotices.txt */,
 				FA3000020000000000000001 /* AuthReleaseStrings.swift */,
+				E0D4B212A0D090A28DCA5586 /* AdultEligibilityStrings.swift */,
+				82BE3D23B4BDCAAB8E595409 /* AdultEligibilityView.swift */,
+				D209802CE63250BBC33C047A /* AdultEligibility.swift */,
 				AD1000020000000000000001 /* AccountStoreController.swift */,
 				AD1000040000000000000001 /* AccountSessionCleanup.swift */,
 				F3D9E4A32F74CF5C00DA9A5A /* CloudLLMManager.swift */,
@@ -531,6 +543,9 @@
 				09A02A8B9E43463FABAA10AD /* Localization.swift in Sources */,
 				F3D9E4B02F74D07100DA9A5A /* AuthManager.swift in Sources */,
 				FA3000010000000000000001 /* AuthReleaseStrings.swift in Sources */,
+				BC15186E8923D5767DEE3B45 /* AdultEligibilityStrings.swift in Sources */,
+				0BB517A001449C30DAD6FA62 /* AdultEligibilityView.swift in Sources */,
+				0EA516B200370639AEE36362 /* AdultEligibility.swift in Sources */,
 				AD1000010000000000000001 /* AccountStoreController.swift in Sources */,
 				AD1000030000000000000001 /* AccountSessionCleanup.swift in Sources */,
 				F3D9E4B12F74D07100DA9A5A /* CloudLLMManager.swift in Sources */,
@@ -579,6 +594,7 @@
 				EF00000300000000000000A1 /* SaveAndRetryContractTests.swift in Sources */,
 				AD1000050000000000000001 /* AccountStoreLayoutTests.swift in Sources */,
 				AE2000010000000000000001 /* SubscriptionEntitlementTests.swift in Sources */,
+				B0E65CF08B1133DE41A1BCB3 /* AdultEligibilityTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -617,7 +633,7 @@
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
 				CODE_SIGN_ENTITLEMENTS = ADHDWidgetExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 5;
 				DEVELOPMENT_TEAM = 5S3Y6973X6;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ADHDWidget/Info.plist;
@@ -649,7 +665,7 @@
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
 				CODE_SIGN_ENTITLEMENTS = ADHDWidgetExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 5;
 				DEVELOPMENT_TEAM = 5S3Y6973X6;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ADHDWidget/Info.plist;
@@ -804,7 +820,7 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = ADHD.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 5;
 				DEVELOPMENT_TEAM = 5S3Y6973X6;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -840,7 +856,7 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = ADHD.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 5;
 				DEVELOPMENT_TEAM = 5S3Y6973X6;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;

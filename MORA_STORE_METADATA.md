@@ -1,10 +1,8 @@
 # Mora 스토어 입력 초안
 
-> **2026-09-30 결정 변경:** 성인 전용 출시·Gemini 유지. 아래9/29의 전 연령/AI 교체 계획은 폐기한다. 최신 미완료 항목은 [출시 잔여 점검](MORA_RELEASE_REMAINING_20260930.md)을 따른다. 성인 이용 조건의 앱·약관·스토어 반영은 아직 완료되지 않았다.
 
-2026-09-29 · 앱 1.0 (4) 기준. **18세 제한 없는 출시 방향에 맞춰 AI 제공 방식을 전환하고, 어린이 보호 조건·공개 정책·Apple 설정·실기기 QA를 완료한다.** 아래는 복사 가능한 문구이며 ASC에 저장하거나 공개하지 않았다. 의료·치료 효과, 알람 전달 보장, 백업·동기화, 고정 할인율은 주장하지 않는다.
+2026-09-30 · 앱 1.0 (5) 기준. **18세 이상 이용 조건을 적용한 성인 대상 서비스다. 공개 정책·Apple 설정·Google 유료 프로젝트·실기기 QA를 완료한 뒤 제출한다.** 아래는 복사 가능한 문구이며 ASC에 저장하거나 공개하지 않았다. 의료·치료 효과, 알람 전달 보장, 백업·동기화, 고정 할인율은 주장하지 않는다.
 
-아래 Google Gemini 문구는 현재 구현의 설명이다. 대체 제공자 선정·전환 뒤 실제 처리 방식으로 바꾸기 전에는 제출하지 않는다.
 
 ## 공통 입력
 
@@ -17,7 +15,7 @@
 | 고객 지원 | trident1398@gmail.com |
 | 심사 연락처 | 담당자의 실제 성명·전화·이메일을 소유자가 입력 |
 | 저작권 | 실제 권리자·법인명을 소유자가 확인하여 입력. 저장소 조직명이 법적 권리자라고 추정하지 않음 |
-| 연령·국가 | 제품 결정 및 Google 지원 지역과 일치. 기존 13세 미만 제외 문구로 제출하지 않음 |
+| 연령·국가 | 18세 이상 이용 조건과 판매 지역의 성인 기준·Google 지원 지역에 맞춘다. ASC 질문은 사실대로 답하고 더 높은 연령 제한 설정이 필요한지 확인. 앱 자기신고는 신분증 인증이 아님 |
 | 플랫폼 | iPhone, iOS 26.2 이상. 스크린샷·기능 설명은 검증한 실제 화면 기준 |
 
 ## 한국어
@@ -29,6 +27,8 @@
 **키워드:** 할일,루틴,일정,음성,정리,리마인더,계획,체크리스트,습관
 
 **설명:**
+
+Mora는 18세 이상을 위한 일정·루틴 앱이에요.
 
 해야 할 일을 떠올렸을 때, Mora에 적거나 말해 보세요. 음성으로 만든 초안을 확인하고 AI로 일정과 할 일을 정리할 수 있어요.
 
@@ -53,6 +53,8 @@ Mora Pro는 일일 무료 분석 횟수 제한 해제, Pro 알람과 위젯 기�
 
 **Description:**
 
+Mora is a task and routine app for adults aged 18 and older.
+
 Capture a task when it comes to mind. Type it or create a voice draft, review the text, and let Mora’s optional AI analysis help organize it.
 
 Add tasks and routines manually without an account. Use basic reminders and check off completed items. Schedules are stored on your device; this version does not offer cloud task backup or synchronization between devices.
@@ -75,6 +77,8 @@ Terms: https://trident-kr.github.io/waitwhat-site/terms/
 **キーワード:** タスク,ルーティン,予定,音声,リマインダー,計画,チェックリスト,習慣,整理
 
 **説明:**
+
+Moraは18歳以上の方のためのタスク・ルーティンアプリです。
 
 やることを思いついたら、Moraに入力したり話しかけたりしてみましょう。音声で作った下書きを確認し、任意のAI分析でタスクや予定を整理できます。
 
