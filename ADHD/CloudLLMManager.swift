@@ -58,7 +58,10 @@ private struct AnalyzeTaskErrorResponse: Decodable {
 enum CloudLLMError: Error, Equatable {
     case adultEligibilityRequired
     case consentRequired
+    /// 무료 일일 한도를 다 쓴 경우에만 사용합니다. 이 오류만 결제 화면으로 안내합니다.
     case quotaExhausted
+    /// 분당 요청 제한이나 같은 요청의 재시도 한도에 걸린 경우입니다. 잠시 뒤 다시 시도하면 됩니다.
+    case rateLimited
     case authenticationRequired
     case requestRejected
     case serverUnavailable
@@ -69,8 +72,9 @@ class CloudLLMManager: ObservableObject {
     @Published var isProcessing = false
     @Published private(set) var latestQuota: ServerAIQuotaSnapshot?
 
-    /// 최대 재시도 횟수
-    private static let maxRetries = 5
+    /// 같은 requestId로 보내는 최대 시도 횟수.
+    /// 서버 원장은 requestId 하나에 3번까지만 예약을 허용하므로(request_replay_limit) 같은 값으로 맞춥니다.
+    static let maxAttempts = 3
     /// 요청 당 타임아웃 (초)
     private static let requestTimeout: TimeInterval = 15
 
@@ -81,7 +85,7 @@ class CloudLLMManager: ObservableObject {
         await MainActor.run { self.isProcessing = true }
         defer { Task { @MainActor in self.isProcessing = false } }
 
-        let maxRetries = Self.maxRetries
+        let maxAttempts = Self.maxAttempts
         let timeout = Self.requestTimeout
         // 한 번의 사용자 분석 탭에 하나만 만들고, 네트워크 재시도에는 같은 ID를 사용합니다.
         // 서버 원장이 이 ID로 중복 차감과 서로 다른 입력 재사용을 차단합니다.
@@ -97,7 +101,7 @@ class CloudLLMManager: ObservableObject {
         )
 
         var lastError: Error?
-        for attempt in 0..<maxRetries {
+        for attempt in 0..<maxAttempts {
             try Task.checkCancellation()
             guard AccountPreferences.activeScope == consentScope,
                   AIDataConsent.isGranted() else { throw CloudLLMError.consentRequired }
@@ -158,14 +162,14 @@ class CloudLLMManager: ObservableObject {
                     throw CancellationError()
                 }
                 lastError = error
-                print("ai_request_attempt_failed attempt=\(attempt + 1) max=\(maxRetries)")
+                print("ai_request_attempt_failed attempt=\(attempt + 1) max=\(maxAttempts)")
 
                 guard shouldRetry(error) else {
                     throw mappedError(error)
                 }
 
                 // 마지막 시도가 아니면 지수 백오프 대기
-                if attempt < maxRetries - 1 {
+                if attempt < maxAttempts - 1 {
                     let seconds = min(4, Int(pow(2.0, Double(attempt))))
                     let delay = UInt64(seconds) * 1_000_000_000
                     try await Task.sleep(nanoseconds: delay)
@@ -173,7 +177,7 @@ class CloudLLMManager: ObservableObject {
             }
         }
 
-        print("ai_request_failed attempts=\(maxRetries)")
+        print("ai_request_failed attempts=\(maxAttempts)")
         throw mappedError(lastError ?? CloudLLMError.serverUnavailable)
     }
 
@@ -212,14 +216,21 @@ class CloudLLMManager: ObservableObject {
         case .relayError:
             return true
         case .httpError(let status, let data):
-            let code = structuredErrorCode(from: data)
-            if code == "analysis_in_progress" { return true }
-            if status == 503 { return true }
-            if status == 502 {
-                return code == "gemini_request_failed" || code == "analysis_failed"
-            }
-            return false
+            return Self.isRetryableHTTPFailure(status: status, code: structuredErrorCode(from: data))
         }
+    }
+
+    /// 서버가 같은 requestId로 다시 시도해도 된다고 표시한 실패만 자동 재시도합니다.
+    /// 429(한도·요청 제한)는 바로 다시 보내도 같은 결과이므로 재시도하지 않습니다.
+    static func isRetryableHTTPFailure(status: Int, code: String?) -> Bool {
+        if code == "analysis_in_progress" { return true }
+        if status == 503 { return true }
+        if status == 502 {
+            return code == "gemini_request_failed"
+                || code == "gemini_network_failed"
+                || code == "analysis_failed"
+        }
+        return false
     }
 
     private func mappedError(_ error: Error) -> CloudLLMError {
@@ -235,19 +246,24 @@ class CloudLLMManager: ObservableObject {
         case .relayError:
             return .serverUnavailable
         case .httpError(let status, let data):
-            let code = structuredErrorCode(from: data)
-            if code == "adult_eligibility_required" { return .adultEligibilityRequired }
-            if code == "quota_exhausted" || status == 429 {
-                return .quotaExhausted
-            }
-            if status == 401 || status == 403 {
-                return .authenticationRequired
-            }
-            if status == 400 || status == 409 {
-                return .requestRejected
-            }
-            return .serverUnavailable
+            return Self.mappedHTTPError(status: status, code: structuredErrorCode(from: data))
         }
+    }
+
+    /// 서버 HTTP 오류를 화면 동작으로 바꿉니다.
+    /// 결제 화면은 quota_exhausted일 때만 열고, 다른 429(rate_limited·request_replay_limit)는
+    /// Pro 사용자에게도 생길 수 있으므로 잠시 뒤 다시 시도하라는 안내로 보냅니다.
+    static func mappedHTTPError(status: Int, code: String?) -> CloudLLMError {
+        if code == "adult_eligibility_required" { return .adultEligibilityRequired }
+        if code == "quota_exhausted" { return .quotaExhausted }
+        if status == 429 { return .rateLimited }
+        if status == 401 || status == 403 {
+            return .authenticationRequired
+        }
+        if status == 400 || status == 409 {
+            return .requestRejected
+        }
+        return .serverUnavailable
     }
 
     private func structuredErrorCode(from data: Data) -> String? {

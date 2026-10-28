@@ -21,6 +21,8 @@ struct HomeVoiceInterfaceView: View {
     @State private var showErrorToast = false
     @State private var errorToastMessage = ""
     @State private var errorToastOpensSettings = false
+    @State private var errorToastAllowsRetry = true
+    @State private var errorToastStyle: HomeToastStyle = .error
     @State private var errorToastID = UUID()
     @AppStorage("hasSeenVoiceOnboarding") private var hasSeenVoiceOnboarding = false
     @State private var confirmBeforeSave = true
@@ -331,18 +333,22 @@ struct HomeVoiceInterfaceView: View {
                     ))
                 }
                 .ignoresSafeArea()
+                // VoiceOver가 확인 카드 뒤 홈 화면으로 넘어가지 않도록 모달로 알립니다.
+                .accessibilityAddTraits(.isModal)
                 .zIndex(20)
             }
 
-            // ── 에러 토스트 ──
+            // ── 에러·안내 토스트 ──
+            // 확인 카드 위에서도 보이고 눌리도록 카드(zIndex 20)보다 위에 둡니다.
             if showErrorToast {
                 VStack {
                     Spacer()
 
                     HStack(spacing: 12) {
-                        Image(systemName: "exclamationmark.circle.fill")
+                        Image(systemName: errorToastStyle.icon)
                             .font(.body)
                             .foregroundColor(.white.opacity(0.9))
+                            .accessibilityHidden(true)
 
                         Text(errorToastMessage)
                             .font(.footnote.weight(.medium))
@@ -350,28 +356,31 @@ struct HomeVoiceInterfaceView: View {
 
                         Spacer()
 
-                        Button(action: {
-                            withAnimation(reduceMotion ? .none : .easeOut(duration: 0.2)) {
-                                showErrorToast = false
-                            }
-                            if errorToastOpensSettings {
-                                if let url = URL(string: UIApplication.openSettingsURLString) {
-                                    UIApplication.shared.open(url)
+                        // 확인 카드가 떠 있을 때 "다시 시도"는 새 분석을 시작하므로 보여주지 않습니다.
+                        if errorToastOpensSettings || (errorToastAllowsRetry && !showConfirmation) {
+                            Button(action: {
+                                withAnimation(reduceMotion ? .none : .easeOut(duration: 0.2)) {
+                                    showErrorToast = false
                                 }
-                            } else if textInputValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                                handleMicTap()
-                            } else {
-                                showTextInput = true
-                                sendTextInput()
+                                if errorToastOpensSettings {
+                                    if let url = URL(string: UIApplication.openSettingsURLString) {
+                                        UIApplication.shared.open(url)
+                                    }
+                                } else if textInputValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                    handleMicTap()
+                                } else {
+                                    showTextInput = true
+                                    sendTextInput()
+                                }
+                            }) {
+                                Text(errorToastOpensSettings ? L.voice.openSettings : L.voice.tryAgain)
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundColor(DesignSystem.Colors.primaryFixedDim)
+                                    .frame(minWidth: 44, minHeight: 44)
+                                    .contentShape(Rectangle())
                             }
-                        }) {
-                            Text(errorToastOpensSettings ? L.voice.openSettings : L.voice.tryAgain)
-                                .font(.caption.weight(.semibold))
-                                .foregroundColor(DesignSystem.Colors.primaryFixedDim)
-                                .frame(minWidth: 44, minHeight: 44)
-                                .contentShape(Rectangle())
+                            .accessibilityLabel(errorToastOpensSettings ? L.voice.openSettings : L.voice.tryAgain)
                         }
-                        .accessibilityLabel(errorToastOpensSettings ? L.voice.openSettings : L.voice.tryAgain)
                     }
                     .padding(.horizontal, 16)
                     .padding(.vertical, 14)
@@ -387,6 +396,7 @@ struct HomeVoiceInterfaceView: View {
                     .padding(.bottom, 140)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
+                .zIndex(30)
             }
         } // End main ZStack
         .edgesIgnoringSafeArea(.bottom)
@@ -447,6 +457,10 @@ struct HomeVoiceInterfaceView: View {
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase != .active {
                 preserveSpeechDraftAndStopListening()
+            }
+            // 제어 센터·알림 센터를 잠깐 내리는 비활성 상태에서는 분석을 이어갑니다.
+            // 서버는 이미 요청을 처리·차감하고 있으므로, 앱을 실제로 떠날 때만 취소합니다.
+            if newPhase == .background {
                 cancelActiveAnalysis()
             }
         }
@@ -478,15 +492,6 @@ struct HomeVoiceInterfaceView: View {
             if isVisible {
                 preserveSpeechDraftAndStopListening()
                 cancelActiveAnalysis()
-            }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .didReceiveOffTopicChat)) { notification in
-            if let message = notification.userInfo?["message"] as? String {
-                let call = LLMFunctionCall.handleOffTopicChat(OffTopicChatParams(message: message))
-                pendingTasks = [PendingLLMCall(call: call)]
-                withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                    showConfirmation = true
-                }
             }
         }
         .onReceive(
@@ -687,6 +692,14 @@ struct HomeVoiceInterfaceView: View {
                     analysisTask = nil
                     showPaywall = true
                 }
+            } catch CloudLLMError.rateLimited {
+                // 분당 제한·재시도 한도는 한도 소진이 아니므로 결제 화면 대신 잠시 뒤 다시 하도록 안내합니다.
+                await MainActor.run {
+                    guard activeAnalysisID == analysisID else { return }
+                    activeAnalysisID = nil
+                    analysisTask = nil
+                    triggerErrorFeedback(message: L.voice.errorBusy, allowsRetry: false)
+                }
             } catch {
                 print("ai_analysis_failed")
                 await MainActor.run {
@@ -716,10 +729,28 @@ struct HomeVoiceInterfaceView: View {
             subscriptionManager.applyServerQuota(quota)
         }
 
+        // 되묻기·잡담은 저장이 아니므로 성공으로 세지 않고 초안도 그대로 둡니다.
+        // 사용자는 남아 있는 초안을 고쳐 다시 보낼 수 있습니다.
+        let actionCalls = parsedTasks.filter { !$0.isFeedbackOnly }
+        guard !actionCalls.isEmpty else {
+            let questions = parsedTasks.filter(\.isClarification).compactMap(\.feedbackMessage)
+            if !questions.isEmpty {
+                showInfoMessage(questions.joined(separator: "\n"))
+            } else if let offTopic = parsedTasks.first(where: \.isOffTopic) {
+                pendingSubmittedDraft = nil
+                pendingTasks = [PendingLLMCall(call: offTopic)]
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                    showConfirmation = true
+                }
+            }
+            return false
+        }
+
         let mustConfirm = confirmBeforeSave
-            || LLMConfirmationPolicy.requiresExplicitConfirmation(for: parsedTasks)
+            || LLMConfirmationPolicy.requiresExplicitConfirmation(for: actionCalls)
         if mustConfirm {
             pendingSubmittedDraft = submittedText
+            // 되묻기·잡담 카드는 실행할 항목과 함께 보여주되, 확인을 눌러도 실행하지 않습니다.
             pendingTasks = taskManager.preparePendingCalls(
                 parsedTasks.map { PendingLLMCall(call: $0) }
             )
@@ -729,16 +760,24 @@ struct HomeVoiceInterfaceView: View {
             return false
         }
 
-        guard taskManager.execute(llmCalls: parsedTasks) else {
-            triggerErrorFeedback(message: L.voice.errorApi)
-            return false
+        // 바로 저장도 항목별 결과를 받아, 일부만 실패하면 실패한 항목만 확인 카드에 남깁니다.
+        // 초안을 다시 분석하면 이미 저장된 항목이 중복으로 생기기 때문입니다.
+        let result = taskManager.executeDetailed(
+            pendingCalls: taskManager.preparePendingCalls(
+                actionCalls.map { PendingLLMCall(call: $0) }
+            )
+        )
+        let feedbackCards = parsedTasks.filter(\.isFeedbackOnly).map { PendingLLMCall(call: $0) }
+        guard presentExecutionResult(
+            result,
+            submittedDraft: submittedText,
+            feedbackCards: feedbackCards
+        ) else { return false }
+
+        let messages = parsedTasks.compactMap(\.feedbackMessage)
+        if !messages.isEmpty {
+            showInfoMessage(messages.joined(separator: "\n"))
         }
-
-        clearDraftIfUnchanged(submittedText)
-
-        guard !parsedTasks.contains(where: \.isOffTopic) else { return false }
-        showSuccessCheck = true
-        Haptic.notification(.success)
         return true
     }
 
@@ -763,30 +802,17 @@ struct HomeVoiceInterfaceView: View {
 
     // MARK: - Confirmation Actions
     private func confirmPendingTasks() {
-        if let invalidTask = pendingTasks.first(where: { task in
-            guard task.uiAction == "add" else { return false }
-            let isMissingTime = task.uiTime == nil || task.uiTime!.isEmpty
-            let isMissingDate = task.uiDate == nil || task.uiDate!.isEmpty
-            
-            if task.uiCategory == "Routine" && isMissingTime {
-                return true
-            } else if task.uiCategory == "Appointment" && (isMissingDate || isMissingTime) {
-                return true
-            }
-            return false
+        // 시간은 비워 둘 수 있습니다(서버도 말하지 않은 시간은 null로 보냅니다).
+        // 날짜 없는 플래너 일정만 오늘로 맞춘 편집 폼을 열어 날짜를 확인받습니다.
+        if let undatedAppointment = pendingTasks.first(where: { task in
+            guard case .addSingleTask(let params) = task.call else { return false }
+            return params.category == "Appointment"
+                && (params.date ?? "").trimmingCharacters(in: .whitespaces).isEmpty
         }) {
             withAnimation(.spring()) {
-                self.editingTask = invalidTask
+                self.editingTask = undatedAppointment
             }
-            let errorMessage: String
-            if invalidTask.uiCategory == "Routine" {
-                errorMessage = L.voice.errorMissingTime
-            } else {
-                let isMissingDate = invalidTask.uiDate == nil || invalidTask.uiDate!.isEmpty
-                errorMessage = isMissingDate ? L.voice.errorMissingDate : L.voice.errorMissingAppointmentTime
-            }
-            
-            triggerErrorFeedback(message: errorMessage)
+            showInfoMessage(L.voice.errorMissingDate)
             return
         }
 
@@ -800,57 +826,91 @@ struct HomeVoiceInterfaceView: View {
                 refreshed.requiresReconfirmation = true
                 return refreshed
             }
-            triggerErrorFeedback(message: L.voice.reviewUpdatedPreview)
+            triggerErrorFeedback(message: L.voice.reviewUpdatedPreview, allowsRetry: false)
+            return
+        }
+
+        // 되묻기·잡담 카드는 보여주기만 하고 실행하지 않습니다.
+        let actionTasks = pendingTasks.filter { !$0.call.isFeedbackOnly }
+        guard !actionTasks.isEmpty else {
+            cancelPendingTasks()
             return
         }
 
         // 알림 강도와 승인 시점 대상 스냅샷을 포함하여 항목별로 실행합니다.
         let result = taskManager.executeDetailed(
-            pendingCalls: pendingTasks,
+            pendingCalls: actionTasks,
             explicitlyConfirmed: true
         )
 
-        pendingTasks = result.remainingCalls
+        guard presentExecutionResult(result, submittedDraft: pendingSubmittedDraft) else { return }
+        scheduleSuccessCheckDismiss()
+    }
+
+    /// 항목별 실행 결과를 화면에 반영합니다. 모두 저장됐으면 true입니다.
+    /// 하나라도 저장됐다면 초안을 비워 같은 내용을 다시 분석해 중복 저장하지 않게 하고,
+    /// 실패한 항목만 확인 카드에 남겨 다시 분석하지 않고 고칠 수 있게 합니다.
+    @MainActor
+    private func presentExecutionResult(
+        _ result: LLMExecutionBatchResult,
+        submittedDraft: String?,
+        feedbackCards: [PendingLLMCall] = []
+    ) -> Bool {
         editingTask = nil
+        if result.hasAnySuccess {
+            clearDraftIfUnchanged(submittedDraft)
+            pendingSubmittedDraft = nil
+        } else {
+            pendingSubmittedDraft = submittedDraft
+        }
 
-        guard result.hasAnySuccess else {
-            let message: String
-            if result.items.contains(where: {
-                $0.issue == .staleTarget || $0.issue == .previewRequired
-            }) {
-                message = L.voice.reviewUpdatedPreview
-            } else if result.items.contains(where: { $0.issue == .noMatchingTarget }) {
-                message = L.voice.noMatchingTarget
-            } else if result.items.contains(where: {
-                $0.issue == .persistenceFailed
-                    || $0.issue == .notExecutedAfterStoreFailure
-            }) {
-                message = L.voice.saveFailedPreserved
-            } else {
-                message = L.voice.errorApi
+        guard result.allSucceeded else {
+            pendingTasks = result.remainingCalls + feedbackCards
+            if !showConfirmation {
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                    showConfirmation = true
+                }
             }
-            triggerErrorFeedback(message: message)
-            return
+            if result.hasAnySuccess {
+                Haptic.notification(.success)
+                triggerErrorFeedback(message: L.voice.partialSaveResult, allowsRetry: false)
+            } else {
+                triggerErrorFeedback(message: Self.failureMessage(for: result), allowsRetry: false)
+            }
+            return false
         }
 
-        let successID = UUID()
-        successPresentationID = successID
-        clearDraftIfUnchanged(pendingSubmittedDraft)
-        pendingSubmittedDraft = nil
-
-        // 성공 카드는 제거하고 실패/변경 충돌 카드만 남깁니다. 원문 재분석은 하지 않습니다.
-        guard result.remainingCalls.isEmpty else {
-            Haptic.notification(.success)
-            triggerErrorFeedback(message: L.voice.partialSaveResult)
-            return
-        }
-
+        pendingTasks = []
         withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
             showConfirmation = false
             showSuccessCheck = true
         }
         Haptic.notification(.success)
+        return true
+    }
 
+    private static func failureMessage(for result: LLMExecutionBatchResult) -> String {
+        if result.items.contains(where: {
+            $0.issue == .staleTarget || $0.issue == .previewRequired
+        }) {
+            return L.voice.reviewUpdatedPreview
+        }
+        if result.items.contains(where: { $0.issue == .noMatchingTarget }) {
+            return L.voice.noMatchingTarget
+        }
+        if result.items.contains(where: {
+            $0.issue == .persistenceFailed
+                || $0.issue == .notExecutedAfterStoreFailure
+        }) {
+            return L.voice.saveFailedPreserved
+        }
+        return L.voice.errorApi
+    }
+
+    @MainActor
+    private func scheduleSuccessCheckDismiss() {
+        let successID = UUID()
+        successPresentationID = successID
         Task {
             try? await Task.sleep(nanoseconds: 1_500_000_000)
             await MainActor.run {
@@ -879,7 +939,13 @@ struct HomeVoiceInterfaceView: View {
     }
 
     // MARK: - Error Feedback
-    private func triggerErrorFeedback(message: String, openSettings: Bool = false) {
+    /// 실패를 알립니다. allowsRetry가 false면 "다시 시도" 버튼을 숨깁니다
+    /// (확인 카드 안의 안내, 잠시 뒤 다시 해야 하는 경우 등).
+    private func triggerErrorFeedback(
+        message: String,
+        openSettings: Bool = false,
+        allowsRetry: Bool = true
+    ) {
         withAnimation(.spring(response: 0.1, dampingFraction: 0.2)) {
             shakeOffset = 12
         }
@@ -901,15 +967,50 @@ struct HomeVoiceInterfaceView: View {
 
         Haptic.notification(.error)
 
+        presentToast(
+            message: message,
+            style: .error,
+            openSettings: openSettings,
+            allowsRetry: allowsRetry,
+            duration: 4
+        )
+    }
+
+    /// 실패가 아닌 안내(되묻기 질문 등)를 홈 화면 토스트로 차분하게 보여줍니다.
+    /// 흔들림·오류 햅틱 없이, 읽을 시간을 조금 더 둡니다.
+    private func showInfoMessage(_ message: String) {
+        let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        Haptic.impact(.light)
+        presentToast(
+            message: trimmed,
+            style: .notice,
+            openSettings: false,
+            allowsRetry: false,
+            duration: 8
+        )
+    }
+
+    private func presentToast(
+        message: String,
+        style: HomeToastStyle,
+        openSettings: Bool,
+        allowsRetry: Bool,
+        duration: TimeInterval
+    ) {
         errorToastMessage = message
+        errorToastStyle = style
         errorToastOpensSettings = openSettings
+        errorToastAllowsRetry = allowsRetry
         let toastID = UUID()
         errorToastID = toastID
         withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
             showErrorToast = true
         }
+        // VoiceOver 사용자는 화면 아래 토스트를 놓치기 쉬우므로 내용을 바로 읽어줍니다.
+        AccessibilityNotification.Announcement(message).post()
         guard !openSettings else { return }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
             guard errorToastID == toastID else { return }
             withAnimation(.easeOut(duration: 0.3)) {
                 showErrorToast = false
@@ -999,22 +1100,46 @@ private struct BlinkingCursor: View {
     }
 }
 
+// MARK: - Home Toast Style
+/// 홈 화면 토스트 종류. 실패와 안내(되묻기 등)를 아이콘으로 구분합니다.
+private enum HomeToastStyle {
+    case error
+    case notice
+
+    var icon: String {
+        switch self {
+        case .error: return "exclamationmark.circle.fill"
+        case .notice: return "text.bubble.fill"
+        }
+    }
+}
+
 // MARK: - Voice Confirmation Sheet (Floating Glass Card)
 struct VoiceConfirmationSheet: View {
     @Binding var tasks: [PendingLLMCall]
     @Binding var editingTask: PendingLLMCall?
-    
+
     // Edit fields
     @State private var editName: String = ""
     @State private var editCategory: String = "Routine"
     @State private var editDateTime: Date = Date()
-    
+    @State private var editHasNoTime = false
+    /// 편집을 시작할 때의 값. 수정 카드는 이 값과 달라진 항목만 반영합니다.
+    @State private var editBaseline: PendingCallEditDraft?
+    @State private var loadedEditID: UUID?
+
     var onConfirm: () -> Void
     var onCancel: () -> Void
-    
-    // OOV(재치 있는 메시지) 상태 확인
+
+    // OOV(재치 있는 메시지)만 있는 카드인지 확인 — 실행할 항목이 섞여 있으면 일반 확인 카드로 보여줍니다.
     private var isOffTopic: Bool {
-        tasks.contains { $0.call.isOffTopic }
+        !tasks.isEmpty && tasks.allSatisfy { $0.call.isOffTopic }
+    }
+
+    /// 편집 중인 카드 위치. 폼 값이 그 카드로 채워진 뒤에만 편집 화면을 보여줍니다.
+    private var editingIndex: Int? {
+        guard let editingTask, loadedEditID == editingTask.id else { return nil }
+        return tasks.firstIndex(where: { $0.id == editingTask.id })
     }
 
     var body: some View {
@@ -1025,9 +1150,9 @@ struct VoiceConfirmationSheet: View {
                 Text(titleText)
                     .font(.title3.weight(.bold))
                     .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
-                
+
                 Spacer()
-                
+
                 Button(action: onCancel) {
                     Image(systemName: "xmark.circle.fill")
                         .font(.title3)
@@ -1043,231 +1168,29 @@ struct VoiceConfirmationSheet: View {
             .padding(.top, 24)
             .padding(.bottom, 16)
 
-            ScrollView(showsIndicators: false) {
-                if let currentEdit = editingTask, let index = tasks.firstIndex(where: { $0.id == currentEdit.id }) {
-                    // --- Inline Edit Mode (Bubbles Style) ---
-                    VStack(alignment: .leading, spacing: 20) {
-                        VStack(alignment: .leading, spacing: 16) {
-                            // Category Selection (Segmented)
-                            Picker(L.voice.fieldCategory, selection: $editCategory) {
-                                Text(L.voice.confirmAppointment).tag("Appointment")
-                                Text(L.voice.confirmRoutine).tag("Routine")
-                            }
-                            .pickerStyle(.segmented)
-                            
-                            // Task Name Bubble
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text(L.voice.fieldName)
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.7))
-                                
-                                TextField(L.voice.fieldName, text: $editName)
-                                    .padding(14)
-                                    .background(Color(UIColor.systemBackground).opacity(0.6))
-                                    .cornerRadius(12)
-                            }
-                            
-                            // Time Bubble (Minimalist Picker)
-                            HStack {
-                                Text(L.voice.fieldTime)
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.7))
-                                Spacer()
-                                DatePicker("", selection: $editDateTime, displayedComponents: editCategory == "Appointment" ? [.date, .hourAndMinute] : [.hourAndMinute])
-                                    .labelsHidden()
-                                    .datePickerStyle(.compact)
-                            }
-                            .padding(14)
-                            .background(Color(UIColor.systemBackground).opacity(0.6))
-                            .cornerRadius(12)
-                        }
-                        .padding(4)
-
-                        // Internal Save/Cancel
-                        HStack(spacing: 12) {
-                            Button(L.voice.cancel) {
-                                withAnimation(.spring()) { editingTask = nil }
-                            }
-                            .font(.subheadline.weight(.bold))
-                            .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
-
-                            Button(L.voice.save) {
-                                // 기기 언어 형식("오후 3:00")으로 저장하면 알림·정렬이 읽지 못하므로 저장 형식을 고정합니다.
-                                let numStr = StoredTaskFormat.time.string(from: editDateTime)
-                                let newDateStr = StoredTaskFormat.date.string(from: editDateTime)
-
-                                var updatedCall = tasks[index].call
-                                if tasks[index].executionIssue == .noMatchingTarget {
-                                    updatedCall.retargetForRetry(
-                                        taskName: editName,
-                                        date: newDateStr,
-                                        category: editCategory
-                                    )
-                                } else {
-                                    updatedCall.updateFields(
-                                        taskName: editName,
-                                        time: numStr,
-                                        date: newDateStr,
-                                        category: editCategory
-                                    )
-                                }
-                                tasks[index].call = updatedCall
-                                tasks[index].invalidatePreparedTargets()
-                                Haptic.impact(.light)
-                                withAnimation(.spring()) { editingTask = nil }
-                            }
-                            .buttonStyle(SatisfyingButtonStyle(color: DesignSystem.Colors.primary))
-                            .frame(maxWidth: .infinity)
-                        }
-                    }
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 20)
-                    .onAppear {
-                        editName = currentEdit.call.uiTaskName
-                        editCategory = currentEdit.call.uiCategory
-                        
-                        let dateRaw = currentEdit.call.uiSmartDateRaw
-                        let timeRaw = currentEdit.call.uiTime ?? ""
-                        
-                        var finalDate = StoredTaskFormat.date.date(from: dateRaw) ?? Date()
-
-                        if let time = StoredTaskFormat.hourMinute(from: timeRaw) {
-                            finalDate = Calendar.current.date(bySettingHour: time.hour, minute: time.minute, second: 0, of: finalDate) ?? finalDate
-                        }
-                        
-                        editDateTime = finalDate
-                    }
-                } else {
-                    // --- List Mode ---
-                    VStack(spacing: 14) {
-                        ForEach(tasks) { task in
-                            VStack(alignment: .leading, spacing: 10) {
-                                if !task.call.isOffTopic {
-                                    HStack {
-                                        let isPlanner = task.uiCategory == "Appointment"
-                                        
-                                        // High Contrast Badge
-                                        let useCalendar = isPlanner && task.urgency == .strong
-                                        Label(isPlanner ? L.voice.confirmAppointment : L.voice.confirmRoutine,
-                                              systemImage: useCalendar ? "calendar" : (isPlanner ? "clock" : "repeat"))
-                                            .font(.caption.weight(.bold))
-                                            .foregroundColor(isPlanner ? DesignSystem.Colors.tertiary : DesignSystem.Colors.primary)
-                                            .padding(.horizontal, 10)
-                                            .padding(.vertical, 6)
-                                            .background(isPlanner ? DesignSystem.Colors.tertiary.opacity(0.15) : DesignSystem.Colors.primary.opacity(0.15))
-                                            .cornerRadius(8)
-
-                                        Spacer()
-                                        
-                                        if task.uiAction != "add" {
-                                            Text(task.uiActionLabel)
-                                                .font(.caption2.weight(.black))
-                                                .padding(.horizontal, 8)
-                                                .padding(.vertical, 4)
-                                                .background(task.uiAction == "delete" ? Color.red.opacity(0.15) : Color.blue.opacity(0.15))
-                                                .foregroundColor(task.uiAction == "delete" ? .red : .blue)
-                                                .cornerRadius(6)
-                                        }
-                                    }
-                                }
-
-                                // Large Task Title
-                                Text(task.uiTaskName)
-                                    .font(.body.weight(.bold))
-                                    .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
-                                
-                                let smartDateTimeStr = task.uiSmartDateTime
-                                if !smartDateTimeStr.isEmpty {
-                                    HStack(spacing: 6) {
-                                        Image(systemName: "clock.fill")
-                                            .font(.caption)
-                                            .accessibilityHidden(true)
-                                        Text(smartDateTimeStr)
-                                            .font(.footnote.weight(.semibold))
-                                        
-                                        Spacer()
-                                        
-                                        // Urgency Toggle (Strong/Weak)
-                                        HStack(spacing: 4) {
-                                            let isStrong = task.urgency == .strong
-                                            Button {
-                                                if let idx = tasks.firstIndex(where: { $0.id == task.id }) {
-                                                    tasks[idx].urgency = isStrong ? .weak : .strong
-                                                }
-                                            } label: {
-                                                HStack(spacing: 4) {
-                                                    Image(systemName: isStrong ? "bolt.fill" : "bolt")
-                                                        .font(.caption2.weight(.bold))
-                                                    Text(isStrong ? L.voice.urgencyStrong : L.voice.urgencyWeak)
-                                                        .font(.caption2.weight(.bold))
-                                                }
-                                                .padding(.horizontal, 10)
-                                                .padding(.vertical, 6)
-                                                .background(isStrong ? Color.orange.opacity(0.2) : Color.gray.opacity(0.1))
-                                                .foregroundColor(isStrong ? .orange : Color.gray)
-                                                .cornerRadius(20)
-                                            }
-                                        }
-                                    }
-                                    .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
-                                }
-
-                                if task.call.requiresPreparedTargets {
-                                    HStack(spacing: 6) {
-                                        Image(systemName: "scope")
-                                            .accessibilityHidden(true)
-                                        Text(L.voice.affectedCount(task.targetSnapshots?.count ?? 0))
-                                        if task.requiresReconfirmation {
-                                            Text("• \(L.voice.reviewUpdatedPreview)")
-                                        }
-                                    }
-                                    .font(.caption2.weight(.semibold))
-                                    .foregroundColor(
-                                        task.requiresReconfirmation
-                                            ? .orange
-                                            : DesignSystem.Colors.onSurfaceVariant.opacity(0.6)
-                                    )
-                                }
-                            }
-                            .padding(.vertical, 16)
-                            .padding(.horizontal, 20)
-                            // Clean white/dark surface background
-                            .background(Color(UIColor.systemBackground).opacity(0.7))
-                            .cornerRadius(24)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 24)
-                                    .stroke(Color.white.opacity(0.5), lineWidth: 0.5)
-                            )
-                            .shadow(color: .black.opacity(0.03), radius: 8, x: 0, y: 4)
-                            .onTapGesture {
-                                switch task.call {
-                                case .addSingleTask, .updateTask, .deleteSpecificTask, .markTaskComplete:
-                                    withAnimation(.spring()) { editingTask = task }
-                                default:
-                                    break
-                                }
-                            }
-                        }
-                    }
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 24)
-                    
-                    // The "Satisfying Hub" Confirm Button
-                    Button(action: isOffTopic ? onCancel : onConfirm) {
-                        HStack(spacing: 8) {
-                            Image(systemName: "sparkles")
-                            Text(isOffTopic ? L.voice.askAgain : L.voice.confirmButton)
-                        }
-                        .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(SatisfyingButtonStyle(color: DesignSystem.Colors.primary))
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 28)
+            // 화면에 들어가면 내용 높이에 맞추고, 항목이 많거나 글씨가 크면 스크롤합니다.
+            ViewThatFits(in: .vertical) {
+                cardContent
+                ScrollView(showsIndicators: false) {
+                    cardContent
                 }
+                .scrollBounceBehavior(.basedOnSize)
             }
-            .fixedSize(horizontal: false, vertical: true) // shrink-wraps height for < 4 items
+
+            if editingIndex == nil {
+                // The "Satisfying Hub" Confirm Button
+                // 스크롤 밖에 두어 항목 수·글씨 크기와 상관없이 항상 누를 수 있게 합니다.
+                Button(action: isOffTopic ? onCancel : onConfirm) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "sparkles")
+                        Text(isOffTopic ? L.voice.askAgain : L.voice.confirmButton)
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(SatisfyingButtonStyle(color: DesignSystem.Colors.primary))
+                .padding(.horizontal, 20)
+                .padding(.bottom, 28)
+            }
         }
         .frame(maxWidth: 340) // slightly narrower
         // The modal background & glow
@@ -1277,6 +1200,303 @@ struct VoiceConfirmationSheet: View {
         .shadow(color: DesignSystem.Colors.onSurfaceVariant.opacity(0.05), radius: 10, x: 0, y: 5)
         .padding(.horizontal, 24)
         .padding(.vertical, 40)
+        .onAppear { loadEditFields() }
+        .onChange(of: editingTask?.id) { _, _ in loadEditFields() }
+    }
+
+    @ViewBuilder
+    private var cardContent: some View {
+        if let index = editingIndex, let baseline = editBaseline {
+            editForm(index: index, baseline: baseline)
+        } else {
+            taskList
+        }
+    }
+
+    // MARK: Inline Edit Mode (Bubbles Style)
+    private func editForm(index: Int, baseline: PendingCallEditDraft) -> some View {
+        VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: 16) {
+                if baseline.scope == .allFields {
+                    // Category Selection (Segmented)
+                    Picker(L.voice.fieldCategory, selection: $editCategory) {
+                        Text(L.voice.confirmAppointment).tag("Appointment")
+                        Text(L.voice.confirmRoutine).tag("Routine")
+                    }
+                    .pickerStyle(.segmented)
+                }
+
+                // Task Name Bubble
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(L.voice.fieldName)
+                        .font(.caption.weight(.semibold))
+                        .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.7))
+
+                    TextField(L.voice.fieldName, text: $editName)
+                        .padding(14)
+                        .background(Color(UIColor.systemBackground).opacity(0.6))
+                        .cornerRadius(12)
+                }
+
+                // 삭제·완료 카드는 찾을 대상 이름만 고칠 수 있어 날짜·시간 칸을 두지 않습니다.
+                if baseline.scope == .allFields {
+                    timeBubble
+                }
+            }
+            .padding(4)
+
+            // Internal Save/Cancel
+            HStack(spacing: 12) {
+                Button(L.voice.cancel) {
+                    withAnimation(.spring()) { editingTask = nil }
+                }
+                .font(.subheadline.weight(.bold))
+                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+
+                Button(L.voice.save) {
+                    saveEdit(at: index, baseline: baseline)
+                }
+                .buttonStyle(SatisfyingButtonStyle(color: DesignSystem.Colors.primary))
+                .frame(maxWidth: .infinity)
+            }
+        }
+        .padding(.horizontal, 20)
+        .padding(.bottom, 20)
+    }
+
+    // Time Bubble (Minimalist Picker)
+    private var timeBubble: some View {
+        let isAppointment = editCategory == "Appointment"
+        let components: DatePickerComponents = isAppointment
+            ? (editHasNoTime ? [.date] : [.date, .hourAndMinute])
+            : (editHasNoTime ? [] : [.hourAndMinute])
+
+        return VStack(spacing: 12) {
+            if !components.isEmpty {
+                HStack {
+                    Text(isAppointment && editHasNoTime ? L.voice.fieldDate : L.voice.fieldTime)
+                        .font(.caption.weight(.semibold))
+                        .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.7))
+                    Spacer()
+                    DatePicker("", selection: $editDateTime, displayedComponents: components)
+                        .labelsHidden()
+                        .datePickerStyle(.compact)
+                }
+            }
+
+            // 말하지 않은 시간은 비워 둘 수 있습니다. 켜 두면 시간 없이 저장합니다.
+            Toggle(isOn: $editHasNoTime) {
+                Text(L.voice.noTime)
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.7))
+            }
+            .tint(DesignSystem.Colors.primary)
+        }
+        .padding(14)
+        .background(Color(UIColor.systemBackground).opacity(0.6))
+        .cornerRadius(12)
+    }
+
+    // MARK: List Mode
+    private var taskList: some View {
+        VStack(spacing: 14) {
+            ForEach(tasks) { task in
+                taskCard(task)
+            }
+        }
+        .padding(.horizontal, 20)
+        .padding(.bottom, 24)
+    }
+
+    private func taskCard(_ task: PendingLLMCall) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if !task.call.isOffTopic {
+                HStack {
+                    if task.call.isClarification {
+                        // 되묻기는 일정이 아니므로 루틴·플래너 대신 질문으로 표시합니다.
+                        Label(task.uiActionLabel, systemImage: "questionmark.circle")
+                            .font(.caption.weight(.bold))
+                            .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(DesignSystem.Colors.onSurfaceVariant.opacity(0.1))
+                            .cornerRadius(8)
+                    } else {
+                        let isPlanner = task.uiCategory == "Appointment"
+
+                        // High Contrast Badge
+                        let useCalendar = isPlanner && task.urgency == .strong
+                        Label(isPlanner ? L.voice.confirmAppointment : L.voice.confirmRoutine,
+                              systemImage: useCalendar ? "calendar" : (isPlanner ? "clock" : "repeat"))
+                            .font(.caption.weight(.bold))
+                            .foregroundColor(isPlanner ? DesignSystem.Colors.tertiary : DesignSystem.Colors.primary)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(isPlanner ? DesignSystem.Colors.tertiary.opacity(0.15) : DesignSystem.Colors.primary.opacity(0.15))
+                            .cornerRadius(8)
+                    }
+
+                    Spacer()
+
+                    if task.uiAction == "delete" || task.uiAction == "update" {
+                        Text(task.uiActionLabel)
+                            .font(.caption2.weight(.black))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(task.uiAction == "delete" ? Color.red.opacity(0.15) : Color.blue.opacity(0.15))
+                            .foregroundColor(task.uiAction == "delete" ? .red : .blue)
+                            .cornerRadius(6)
+                    }
+                }
+            }
+
+            // Large Task Title
+            Text(task.uiTaskName)
+                .font(.body.weight(.bold))
+                .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
+
+            let smartDateTimeStr = task.uiSmartDateTime
+            if !smartDateTimeStr.isEmpty {
+                HStack(spacing: 6) {
+                    Image(systemName: "clock.fill")
+                        .font(.caption)
+                        .accessibilityHidden(true)
+                    Text(smartDateTimeStr)
+                        .font(.footnote.weight(.semibold))
+
+                    Spacer()
+
+                    // Urgency Toggle (Strong/Weak) — 새로 추가하는 항목에만 적용됩니다.
+                    if task.uiAction == "add" {
+                        HStack(spacing: 4) {
+                            let isStrong = task.urgency == .strong
+                            Button {
+                                if let idx = tasks.firstIndex(where: { $0.id == task.id }) {
+                                    tasks[idx].urgency = isStrong ? .weak : .strong
+                                }
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Image(systemName: isStrong ? "bolt.fill" : "bolt")
+                                        .font(.caption2.weight(.bold))
+                                    Text(isStrong ? L.voice.urgencyStrong : L.voice.urgencyWeak)
+                                        .font(.caption2.weight(.bold))
+                                }
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .background(isStrong ? Color.orange.opacity(0.2) : Color.gray.opacity(0.1))
+                                .foregroundColor(isStrong ? .orange : Color.gray)
+                                .cornerRadius(20)
+                            }
+                        }
+                    }
+                }
+                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
+            }
+
+            if task.call.requiresPreparedTargets {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "scope")
+                            .accessibilityHidden(true)
+                        Text(L.voice.affectedCount(task.targetSnapshots?.count ?? 0))
+                        if task.requiresReconfirmation {
+                            Text("• \(L.voice.reviewUpdatedPreview)")
+                        }
+                    }
+                    // 개수만으로는 무엇이 바뀌는지 알기 어려워 실제 대상 이름을 함께 보여줍니다.
+                    if let names = task.targetNamesSummary {
+                        Text(names)
+                            .lineLimit(2)
+                    }
+                }
+                .font(.caption2.weight(.semibold))
+                .foregroundColor(
+                    task.requiresReconfirmation
+                        ? .orange
+                        : DesignSystem.Colors.onSurfaceVariant.opacity(0.6)
+                )
+            }
+
+            // 실패해서 남은 카드는 이유를 카드 안에서 바로 보여줍니다.
+            if let issueMessage = task.inlineIssueMessage {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Image(systemName: "exclamationmark.circle")
+                        .accessibilityHidden(true)
+                    Text(issueMessage)
+                }
+                .font(.caption2.weight(.semibold))
+                .foregroundColor(.orange)
+            }
+        }
+        .padding(.vertical, 16)
+        .padding(.horizontal, 20)
+        // Clean white/dark surface background
+        .background(Color(UIColor.systemBackground).opacity(0.7))
+        .cornerRadius(24)
+        .overlay(
+            RoundedRectangle(cornerRadius: 24)
+                .stroke(Color.white.opacity(0.5), lineWidth: 0.5)
+        )
+        .shadow(color: .black.opacity(0.03), radius: 8, x: 0, y: 4)
+        .onTapGesture {
+            switch task.call {
+            case .addSingleTask, .updateTask, .deleteSpecificTask, .markTaskComplete:
+                withAnimation(.spring()) { editingTask = task }
+            default:
+                break
+            }
+        }
+    }
+
+    // MARK: Edit State
+    /// 편집할 카드의 현재 값으로 폼을 채웁니다. 날짜가 없는 플래너 일정은 오늘이 기본값입니다.
+    private func loadEditFields() {
+        guard let editingTask,
+              let current = tasks.first(where: { $0.id == editingTask.id }),
+              let draft = current.makeEditDraft() else {
+            editBaseline = nil
+            loadedEditID = nil
+            return
+        }
+
+        editName = draft.name
+        editCategory = draft.category
+        editHasNoTime = draft.time == nil
+
+        var initialDate = draft.date.flatMap { StoredTaskFormat.date.date(from: $0) } ?? Date()
+        if let time = draft.time.flatMap({ StoredTaskFormat.hourMinute(from: $0) }) {
+            initialDate = Calendar.current.date(
+                bySettingHour: time.hour,
+                minute: time.minute,
+                second: 0,
+                of: initialDate
+            ) ?? initialDate
+        }
+        editDateTime = initialDate
+        editBaseline = draft
+        loadedEditID = editingTask.id
+    }
+
+    private func saveEdit(at index: Int, baseline: PendingCallEditDraft) {
+        guard tasks.indices.contains(index) else { return }
+        // 기기 언어 형식("오후 3:00")으로 저장하면 알림·정렬이 읽지 못하므로 저장 형식을 고정합니다.
+        let edited = PendingCallEditDraft(
+            scope: baseline.scope,
+            name: editName,
+            category: editCategory,
+            date: editCategory == "Appointment"
+                ? StoredTaskFormat.date.string(from: editDateTime)
+                : nil,
+            time: editHasNoTime ? nil : StoredTaskFormat.time.string(from: editDateTime)
+        )
+        // 바뀐 내용이 있을 때만 승인 대상을 다시 고정하도록 무효화합니다.
+        if tasks[index].applyEdit(edited, from: baseline) {
+            tasks[index].invalidatePreparedTargets()
+        }
+        Haptic.impact(.light)
+        withAnimation(.spring()) { editingTask = nil }
     }
 }
 
@@ -1354,11 +1574,6 @@ struct VoiceGuideSheet: View {
         }
         .background(DesignSystem.Colors.background)
     }
-}
-
-// MARK: - Notifications
-extension Notification.Name {
-    static let didReceiveOffTopicChat = Notification.Name("didReceiveOffTopicChat")
 }
 
 // MARK: - Preview

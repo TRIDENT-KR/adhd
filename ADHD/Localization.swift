@@ -339,7 +339,9 @@ struct VoiceStrings {
     var confirmRoutine: String { t("Routine", "루틴", "ルーティン") }
     var confirmAppointment: String { t("Planner", "플래너", "プランナー") }
     var confirmTask: String { t("Today's Task", "오늘 할 일", "今日のタスク") }
-    var confirmToday: String { t("Today", "오늘 할 일", "今日") }
+    var confirmToday: String { t("Today", "오늘", "今日") }
+    var confirmTomorrow: String { t("Tomorrow", "내일", "明日") }
+    var confirmClarify: String { t("Question", "질문", "質問") }
     var confirmButton: String { t("Confirm", "확인", "確認") }
     var confirmCancel: String { t("Cancel", "취소", "キャンセル") }
     var confirmSending: String { t("Sending...", "전송 중...", "送信中...") }
@@ -349,6 +351,7 @@ struct VoiceStrings {
     var fieldTime: String { t("Time", "시간", "時間") }
     var fieldDate: String { t("Date", "날짜", "日付") }
     var fieldCategory: String { t("Category", "카테고리", "カテゴリー") }
+    var noTime: String { t("No time", "시간 없음", "時間なし") }
     var save: String { t("Save", "저장", "保存") }
     var cancel: String { t("Cancel", "취소", "キャンセル") }
 
@@ -371,6 +374,13 @@ struct VoiceStrings {
     var reviewUpdatedPreview: String { t("The target changed. Review the updated preview and confirm again", "대상이 변경됐어요. 최신 미리보기를 확인하고 다시 승인해주세요", "対象が変更されました。最新のプレビューを確認してもう一度承認してください") }
     var partialSaveResult: String { t("Saved successful items. Review the items still shown", "성공한 항목은 저장했어요. 남은 항목을 확인해주세요", "成功した項目を保存しました。残りの項目を確認してください") }
     var noMatchingTarget: String { t("No matching task was found", "일치하는 대상을 찾지 못했어요", "一致する対象が見つかりませんでした") }
+    var noMatchingTargetInline: String { t("Couldn't find this task. Tap to fix the name.", "이 일정을 찾지 못했어요. 눌러서 이름을 고칠 수 있어요.", "この予定が見つかりませんでした。タップして名前を直せます。") }
+    var itemNotSaved: String { t("This item wasn't saved.", "이 항목은 저장하지 못했어요.", "この項目は保存できませんでした。") }
+    func targetNames(_ names: [String], more: Int) -> String {
+        let joined = names.joined(separator: ", ")
+        guard more > 0 else { return joined }
+        return t("\(joined) and \(more) more", "\(joined) 외 \(more)개", "\(joined) ほか\(more)件")
+    }
     var saveFailedPreserved: String { t("Couldn't save. Your existing data was preserved", "저장하지 못했어요. 기존 데이터는 보존됐습니다", "保存できませんでした。既存のデータは保持されています") }
     func postponeResult(_ count: Int) -> String { t("\(count) task(s) postponed", "\(count)개 일정 연기됨", "\(count)件延期しました") }
     var postponeNone: String { t("No tasks to postpone", "연기할 일정이 없어요", "延期する予定はありません") }
@@ -410,9 +420,8 @@ struct VoiceStrings {
     var a11yTabBar: String { t("Tab navigation", "탭 내비게이션", "タブナビゲーション") }
     var a11yUndo: String { t("Undo last action", "마지막 작업 되돌리기", "最後の操作を元に戻す") }
 
-    var errorMissingTime: String { t("Please set the time for the routine.", "루틴 시간을 설정해주세요.", "ルーティンの時間を設定してください。") }
-    var errorMissingDate: String { t("Please set the date for the planner.", "플래너 날짜를 설정해주세요.", "プランナーの日付を設定してください。") }
-    var errorMissingAppointmentTime: String { t("Please set the time for the planner.", "플래너 시간을 설정해주세요.", "プランナーの時間を設定してください。") }
+    var errorMissingDate: String { t("Check the date. It's set to today for now.", "날짜를 확인해 주세요. 우선 오늘로 맞춰 뒀어요.", "日付を確認してください。ひとまず今日にしています。") }
+    var errorBusy: String { t("Lots of requests right now. Please try again in a moment.", "잠깐 요청이 몰렸어요. 조금 뒤에 다시 해 주세요.", "リクエストが集中しています。少し時間をおいてからもう一度お試しください。") }
 
     var urgencyStrong: String { t("Strong Alert", "기습 알림", "強い通知") }
     var urgencyWeak: String { t("Gentle Alert", "잔잔 알림", "優しい通知") }
