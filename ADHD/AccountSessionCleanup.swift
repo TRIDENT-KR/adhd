@@ -85,6 +85,7 @@ final class AccountSessionCleanupCoordinator {
 
         let inAppAlarmCoordinator = AlarmCoordinator.shared
         inAppAlarmCoordinator.onTaskConfirmed = nil
+        inAppAlarmCoordinator.isTaskCompleted = nil
         await drainInAppAlarmQueue(inAppAlarmCoordinator)
 
         let notificationCenter = UNUserNotificationCenter.current()

@@ -1114,7 +1114,7 @@ STT 최종 문장을 공용 입력 초안으로 옮기고 사용자의 명시적
 |---|---|---|---|
 | `booting` | 숨김 | 숨김·미예약 | 금지 |
 | `authenticatedOnline(account)` | 현재 계정만 표시 | 현재 계정만 활성 | 허용 |
-| `authenticatedOfflineLimited(account)` | 만료되지 않은 저장 세션의 현재 계정만 표시·수정 | 기존 미래 예약은 계정 범위로 유지 | AI·Pro 확인·계정 변경·삭제 금지 |
+| `authenticatedOfflineLimited(account)` | 저장 세션의 현재 계정만 표시·수정. 만료된 세션은 갱신이 네트워크·서버 일시 장애(URLError, 429, 5xx)로만 실패한 경우에 한해 허용하고, refresh token을 보존한 채 연결 복구 시와 15초~5분 간격으로 재검증 | 기존 미래 예약은 계정 범위로 유지 | AI·Pro 확인·계정 변경·삭제 금지 |
 | `signedOut` | 보존하되 숨김 | 모두 취소·스냅샷 제거 | 금지 |
 | `deletionPending(job)` | 보존하되 잠금·숨김, 서버 완료 시 해당 store 삭제 | 모두 취소·제거 | 삭제 상태 확인·재시도만 허용 |
 | `lockedInvalidSession` | 보존하되 숨김 | 모두 취소·스냅샷 제거 | 재인증 전 금지 |

@@ -11,8 +11,20 @@ enum AlarmKitScheduleKind: Sendable {
     case daily(hour: Int, minute: Int)
     /// 매주 같은 요일 반복
     case weekly(weekday: Locale.Weekday, hour: Int, minute: Int)
+    /// 오늘 미리 완료한 매일 루틴: 오늘 요일만 뺀 요일마다 반복 (다음 날 초기화 때 daily로 복원)
+    case weekdays([Locale.Weekday], hour: Int, minute: Int)
     /// 일회성 또는 biweekly/monthly/yearly의 "다음 발생일" (재무장 방식)
     case fixed(Date)
+}
+
+// MARK: - Skip Today Plan
+/// 오늘 회차를 이미 완료한 매일·매주 태스크에서 오늘 아직 울리지 않은 알림만 빼는 예약 형태.
+/// iOS 반복 알림은 특정 회차만 건너뛸 수 없어서, 다음 날 일일 초기화 전까지 아래 형태로 바꿔 둡니다.
+enum SkipTodayPlan: Sendable {
+    /// 매일 루틴: 오늘을 뺀 요일(1=일 … 7=토)마다 매주 반복
+    case otherWeekdays([Int])
+    /// 매주 반복: 다음 주 같은 요일 1회
+    case nextWeek(Date)
 }
 
 // MARK: - Alarm Spec
@@ -27,6 +39,8 @@ struct AlarmSpec: Sendable {
     let fireDate: Date          // remindBefore가 이미 반영된 기준 시각
     let urgency: Urgency
     let alarmKitSchedule: AlarmKitScheduleKind?
+    /// non-nil이면 오늘 회차를 건너뛰는 UN 예약을 씁니다.
+    let skipToday: SkipTodayPlan?
 }
 
 // MARK: - Mark Task Done Intent
@@ -123,6 +137,11 @@ final class SystemAlarmScheduler: Sendable {
             schedule = .relative(.init(
                 time: .init(hour: hour, minute: minute),
                 repeats: .weekly([weekday])
+            ))
+        case .weekdays(let weekdays, let hour, let minute):
+            schedule = .relative(.init(
+                time: .init(hour: hour, minute: minute),
+                repeats: .weekly(weekdays)
             ))
         case .fixed(let date):
             guard date > Date() else { return }

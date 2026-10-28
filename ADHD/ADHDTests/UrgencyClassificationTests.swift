@@ -97,3 +97,64 @@ struct UrgencyClassificationTests {
         #expect(ids == ["ABC-123-f1", "ABC-123-f2", "ABC-123-snooze"])
     }
 }
+
+// MARK: - 오늘 미리 완료한 반복 태스크의 알림 건너뛰기
+
+@MainActor
+struct SkipTodayPlanTests {
+    private var calendar: Calendar {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "Asia/Seoul")!
+        return cal
+    }
+
+    /// 2026-10-28(수) 지정 시각
+    private func wednesday(_ hour: Int, _ minute: Int = 0) -> Date {
+        calendar.date(from: DateComponents(year: 2026, month: 10, day: 28, hour: hour, minute: minute))!
+    }
+
+    private func plan(rule: String?, anchor: Date?, fireDate: Date, hour: Int, now: Date, lead: Int = 0) -> SkipTodayPlan? {
+        NotificationManager.skipTodayPlan(
+            recurrenceRule: rule, anchor: anchor, fireDate: fireDate,
+            hour: hour, minute: 0, leadMinutes: lead, now: now, calendar: calendar
+        )
+    }
+
+    @Test func dailyRoutineCompletedBeforeTodaysAlarmSkipsOnlyToday() {
+        // 20:30에 21:00 루틴 완료 → 수요일(4)만 빼고 매주 반복
+        guard case .otherWeekdays(let weekdays) = plan(rule: nil, anchor: nil, fireDate: wednesday(21), hour: 21, now: wednesday(20, 30)) else {
+            Issue.record("expected otherWeekdays"); return
+        }
+        #expect(weekdays == [1, 2, 3, 5, 6, 7])
+    }
+
+    @Test func dailyRoutineCompletedAfterTodaysAlarmKeepsNormalRepeat() {
+        #expect(plan(rule: nil, anchor: nil, fireDate: wednesday(9), hour: 9, now: wednesday(10)) == nil)
+    }
+
+    @Test func leadTimeAlreadyPassedKeepsNormalRepeat() {
+        // 21:00 루틴, 10분 전 알림(20:50)이 이미 지난 20:55에 완료
+        #expect(plan(rule: nil, anchor: nil, fireDate: wednesday(20, 50), hour: 21, now: wednesday(20, 55), lead: 10) == nil)
+    }
+
+    @Test func weeklyCompletedOnItsDaySchedulesNextWeekOnce() {
+        let anchor = calendar.date(byAdding: .day, value: -14, to: wednesday(0))!
+        guard case .nextWeek(let date) = plan(rule: "weekly", anchor: anchor, fireDate: wednesday(19), hour: 19, now: wednesday(8)) else {
+            Issue.record("expected nextWeek"); return
+        }
+        #expect(date == calendar.date(byAdding: .day, value: 7, to: wednesday(19)))
+    }
+
+    @Test func weeklyOnAnotherWeekdayOrNotStartedKeepsNormalRepeat() {
+        let thursdayFire = calendar.date(byAdding: .day, value: 1, to: wednesday(19))!
+        #expect(plan(rule: "weekly", anchor: thursdayFire, fireDate: thursdayFire, hour: 19, now: wednesday(8)) == nil)
+        let futureAnchor = calendar.date(byAdding: .day, value: 7, to: wednesday(0))!
+        #expect(plan(rule: "weekly", anchor: futureAnchor, fireDate: wednesday(19), hour: 19, now: wednesday(8)) == nil)
+    }
+
+    @Test func skipIdentifiersAreSeparateFromFollowUps() {
+        let skipIDs = NotificationManager.skipDayIdentifiers(for: "ABC")
+        #expect(skipIDs.count == 7)
+        #expect(Set(skipIDs).isDisjoint(with: NotificationManager.followUpIdentifiers(for: "ABC")))
+    }
+}

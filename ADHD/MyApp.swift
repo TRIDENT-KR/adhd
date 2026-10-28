@@ -3,8 +3,21 @@ import SwiftData
 import UIKit
 import AuthenticationServices
 
+/// 알림 delegate는 앱 실행이 끝나기 전에 연결해야 합니다.
+/// 잠금화면 알림 액션으로 백그라운드에서 깨어나면 SwiftUI 화면이 만들어지지 않기 때문입니다.
+final class MoraAppDelegate: NSObject, UIApplicationDelegate {
+    func application(
+        _ application: UIApplication,
+        willFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
+    ) -> Bool {
+        NotificationManager.shared.configureNotificationHandling()
+        return true
+    }
+}
+
 @main
 struct MoraApp: App {
+    @UIApplicationDelegateAdaptor(MoraAppDelegate.self) private var appDelegate
     static let presentationDemoMode: Bool = {
         #if DEBUG
         ProcessInfo.processInfo.arguments.contains("-moraPresentationDemo")
@@ -217,6 +230,9 @@ struct MoraApp: App {
                 AlarmCoordinator.shared.onTaskConfirmed = { taskId in
                     taskManager.completeTask(id: taskId)
                 }
+                AlarmCoordinator.shared.isTaskCompleted = { taskId in
+                    taskManager.isTaskCompleted(id: taskId)
+                }
             }
             .task {
                 if !isPresentationDemoMode {
@@ -233,9 +249,10 @@ struct MoraApp: App {
             }
             .onChange(of: scenePhase) { _, newPhase in
                 if newPhase == .active {
+                    // 알림·알람에서 누른 '완료'는 그날의 완료이므로 날짜 초기화보다 먼저 반영합니다.
+                    taskManager.processPendingAlarmCompletions()
                     taskManager.checkAndResetDailyTasks()
                     taskManager.syncWidgetToggles()
-                    taskManager.processPendingAlarmCompletions()
                     taskManager.rescheduleStrongTasksIfNeeded()
                     handlePendingDeepLink()
                     Task { @MainActor in

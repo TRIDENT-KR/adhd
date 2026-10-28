@@ -302,3 +302,34 @@ public struct CategoryIconResolver {
         return "circle.fill"
     }
 }
+
+// MARK: - Stored Format
+/// 저장·서버 계약에 쓰는 시간·날짜 문자열 형식입니다("03:00 PM", "2026-10-28").
+/// 화면 표시용이 아니며, 기기 언어·달력 설정과 무관하게 항상 같은 문자열을 만듭니다.
+enum StoredTaskFormat {
+    static let time: DateFormatter = posixFormatter("hh:mm a")
+    static let date: DateFormatter = posixFormatter("yyyy-MM-dd")
+
+    private static let timeParsers: [DateFormatter] = ["hh:mm a", "h:mm a", "HH:mm"].map(posixFormatter)
+
+    /// 저장된 시간 문자열에서 시·분을 읽습니다. 읽을 수 없으면 nil입니다.
+    static func hourMinute(from string: String) -> (hour: Int, minute: Int)? {
+        let trimmed = string.trimmingCharacters(in: .whitespaces)
+        for parser in timeParsers {
+            if let parsed = parser.date(from: trimmed) {
+                let components = parser.calendar.dateComponents([.hour, .minute], from: parsed)
+                guard let hour = components.hour, let minute = components.minute else { return nil }
+                return (hour, minute)
+            }
+        }
+        return nil
+    }
+
+    private static func posixFormatter(_ format: String) -> DateFormatter {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = format
+        return formatter
+    }
+}
