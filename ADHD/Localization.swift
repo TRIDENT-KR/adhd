@@ -17,8 +17,13 @@ class LocalizationManager: ObservableObject {
     }
 
     private init() {
-        let saved = UserDefaults.standard.string(forKey: "appLanguage") ?? "en"
-        self.currentLanguage = AppLanguage(rawValue: saved) ?? .en
+        let saved = UserDefaults.standard.string(forKey: "appLanguage").flatMap(AppLanguage.init(rawValue:))
+        let initial = saved ?? AppLanguage.preferred()
+        self.currentLanguage = initial
+        if saved == nil {
+            // 첫 실행: 기기 언어를 기본값으로 저장 (@AppStorage("appLanguage")도 같은 값을 읽음)
+            UserDefaults.standard.set(initial.rawValue, forKey: "appLanguage")
+        }
         // 앱 업데이트 직후에도 위젯이 언어를 즉시 읽을 수 있도록 App Group에 1회 시딩
         UserDefaults(suiteName: appGroupID)?.set(self.currentLanguage.rawValue, forKey: "appLanguage")
     }
@@ -49,6 +54,16 @@ enum AppLanguage: String, CaseIterable {
         LocalizationManager.shared.currentLanguage
     }
     
+    /// 저장된 선택이 없을 때 기기 언어 순서에서 지원 언어를 고릅니다. 없으면 영어입니다.
+    static func preferred(from identifiers: [String] = Locale.preferredLanguages) -> AppLanguage {
+        for identifier in identifiers {
+            let code = Locale(identifier: identifier).language.languageCode?.identifier
+                ?? String(identifier.prefix(2))
+            if let match = AppLanguage(rawValue: code) { return match }
+        }
+        return .en
+    }
+
     var localeIdentifier: String {
         switch self {
         case .en: return "en-US"

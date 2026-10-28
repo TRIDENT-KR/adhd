@@ -325,6 +325,22 @@ enum StoredTaskFormat {
         return nil
     }
 
+    /// 저장된 시간 문자열을 앱 언어 형식으로 보여줍니다("오후 3:00", "3:00 PM", "15:00").
+    /// 읽을 수 없는 값은 원문 그대로 돌려줍니다.
+    static func displayTime(
+        _ stored: String,
+        language: AppLanguage = LocalizationManager.shared.currentLanguage
+    ) -> String {
+        guard let clock = hourMinute(from: stored),
+              let date = Calendar(identifier: .gregorian).date(
+                from: DateComponents(year: 2000, month: 1, day: 1, hour: clock.hour, minute: clock.minute)
+              ) else { return stored }
+        return date.formatted(
+            Date.FormatStyle(date: .omitted, time: .shortened)
+                .locale(Locale(identifier: language.localeIdentifier))
+        )
+    }
+
     private static func posixFormatter(_ format: String) -> DateFormatter {
         let formatter = DateFormatter()
         formatter.calendar = Calendar(identifier: .gregorian)

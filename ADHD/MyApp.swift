@@ -35,7 +35,7 @@ struct MoraApp: App {
     @StateObject private var adultEligibility = AdultEligibilityManager.shared
     @AppStorage("appTheme") private var appTheme: String = "system"
     /// 언어 변경을 감지하여 environment(locale) 전파. .id()는 사용하지 않아 NavigationStack을 보존
-    @AppStorage("appLanguage") private var appLanguage: String = "en"
+    @AppStorage("appLanguage") private var appLanguage: String = AppLanguage.preferred().rawValue
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     @Environment(\.scenePhase) private var scenePhase
     @State private var hasSeededPresentationDemo = false
