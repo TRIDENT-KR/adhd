@@ -338,7 +338,7 @@ struct SettingsView: View {
                 // ── Data Management ──
                 Section {
                     Button(action: {
-                        clearCompletedCount = taskManager.taskCount(completedOnly: true)
+                        clearCompletedCount = taskManager.completedClearableCount()
                         showClearCompletedConfirm = true
                     }) {
                         HStack {

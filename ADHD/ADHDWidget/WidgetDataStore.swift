@@ -30,7 +30,7 @@ struct WidgetDataStore {
         guard let payload = try? JSONDecoder().decode(WidgetDataPayload.self, from: data),
               let activeScope = WidgetAccountScope.active,
               payload.accountScope == activeScope else { return nil }
-        return payload
+        return payload.normalized(for: Date())
     }
 
     /// D13: 메인 앱이 App Group에 기록한 Pro 여부 (위젯 잠금 게이팅)

@@ -262,14 +262,25 @@ final class NotificationManager {
     func scheduleNotification(for task: AppTask) {
         cancelledIds.remove(task.id)   // 재등록이므로 이전 취소 기록 해제
 
+        // 끝난 일회성 일정은 수정·되돌리기를 거쳐도 다시 울리지 않게 합니다.
+        if task.isCompleted && !task.hasRepeatingSchedule {
+            cancelNotification(for: task)
+            return
+        }
+
         // 카테고리별 토글 확인
         if task.category == "Routine" && !routineRemindersEnabled { return }
         if task.category == "Appointment" && !appointmentRemindersEnabled { return }
 
-        guard let time = task.time, !time.isEmpty else { return }
+        // 시간을 지웠거나 읽을 수 없으면 예전 시각의 알림이 남지 않게 지웁니다.
+        guard let time = task.time, !time.isEmpty else {
+            cancelNotification(for: task)
+            return
+        }
         let calendar = Calendar.current
         guard let clock = parseTimeComponents(time, calendar: calendar) else {
             print("notification_time_parse_failed")
+            cancelNotification(for: task)
             return
         }
 

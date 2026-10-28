@@ -72,3 +72,36 @@ struct WidgetDataPayload: Codable {
         (routines.filter(\.isCompleted).count, routines.count)
     }
 }
+
+// MARK: - 날짜가 지난 위젯 데이터
+extension WidgetDataPayload {
+    /// 앱이 오늘 아직 열리지 않아 어제 기록이 남아 있으면 오늘 기준으로 고칩니다.
+    /// 루틴은 미완료로 되돌리고, 날짜가 있던 일정은 오늘 것이 아니므로 숨깁니다.
+    func normalized(for now: Date, calendar: Calendar = .current) -> WidgetDataPayload {
+        guard !calendar.isDate(updatedAt, inSameDayAs: now) else { return self }
+        return WidgetDataPayload(
+            accountScope: accountScope,
+            routines: routines.map {
+                WidgetTaskSnapshot(
+                    id: $0.id,
+                    task: $0.task,
+                    time: $0.time,
+                    category: $0.category,
+                    isCompleted: false,
+                    recurrenceLabel: $0.recurrenceLabel
+                )
+            },
+            appointments: [],
+            updatedAt: updatedAt
+        )
+    }
+
+    /// 다음 위젯 갱신 시각: 15분 뒤와 자정 중 빠른 쪽. 자정이 지나도 어제 상태가 남지 않게 합니다.
+    static func nextRefreshDate(after now: Date, calendar: Calendar = .current) -> Date {
+        let quarterHour = now.addingTimeInterval(15 * 60)
+        guard let midnight = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: now)) else {
+            return quarterHour
+        }
+        return min(quarterHour, midnight)
+    }
+}

@@ -23,7 +23,7 @@ struct LockScreenProvider: TimelineProvider {
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<LockScreenEntry>) -> Void) {
         let entry = makeEntry()
-        let nextRefresh = Calendar.current.date(byAdding: .minute, value: 15, to: .now)!
+        let nextRefresh = WidgetDataPayload.nextRefreshDate(after: .now)
         completion(Timeline(entries: [entry], policy: .after(nextRefresh)))
     }
 

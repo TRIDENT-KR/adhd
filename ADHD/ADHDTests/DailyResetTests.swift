@@ -104,6 +104,45 @@ struct DailyResetTests {
         #expect(defaults.object(forKey: "mora.account.scopeA.lastResetDate.v1") as? Date == today)
     }
 
+    @Test func clearingCompletedKeepsRoutinesAndRepeatingSeries() throws {
+        let manager = try makeManager()
+        let context = manager.modelContext!
+        let past = date(2026, 7, 1)
+        let doneOnce = AppTask(task: "치과", date: past, category: "Appointment", isCompleted: true)
+        let doneWeekly = AppTask(task: "상담", date: past, category: "Appointment", isCompleted: true, recurrenceRule: "weekly")
+        let doneRoutine = AppTask(task: "약", category: "Routine", isCompleted: true)
+        let openOnce = AppTask(task: "회의", date: past, category: "Appointment")
+        for task in [doneOnce, doneWeekly, doneRoutine, openOnce] { context.insert(task) }
+
+        #expect(manager.completedClearableCount() == 1)
+        manager.deleteCompleted()
+
+        let remaining = Set(try context.fetch(FetchDescriptor<AppTask>()).map(\.task))
+        #expect(remaining == ["상담", "약", "회의"])
+        manager.undo()
+        #expect(try context.fetch(FetchDescriptor<AppTask>()).count == 4)
+    }
+
+    @Test func staleWidgetPayloadShowsTodayState() {
+        let yesterday = date(2026, 7, 7)
+        let today = date(2026, 7, 8)
+        let routine = WidgetTaskSnapshot(id: UUID(), task: "약", time: "09:00 PM", category: "Routine", isCompleted: true, recurrenceLabel: nil)
+        let appointment = WidgetTaskSnapshot(id: UUID(), task: "치과", time: "03:00 PM", category: "Appointment", isCompleted: false, recurrenceLabel: nil)
+        let payload = WidgetDataPayload(accountScope: "s", routines: [routine], appointments: [appointment], updatedAt: yesterday)
+
+        let normalized = payload.normalized(for: today)
+        #expect(normalized.routines.first?.isCompleted == false)
+        #expect(normalized.appointments.isEmpty)
+        #expect(payload.normalized(for: yesterday).routines.first?.isCompleted == true)
+    }
+
+    @Test func widgetRefreshesAtMidnightAtTheLatest() {
+        let lateNight = cal.date(from: DateComponents(year: 2026, month: 7, day: 7, hour: 23, minute: 55))!
+        #expect(WidgetDataPayload.nextRefreshDate(after: lateNight, calendar: cal) == date(2026, 7, 8))
+        let noon = cal.date(from: DateComponents(year: 2026, month: 7, day: 7, hour: 12))!
+        #expect(WidgetDataPayload.nextRefreshDate(after: noon, calendar: cal) == noon.addingTimeInterval(900))
+    }
+
     @Test func accountWithoutOwnResetDateInheritsLegacyValueOnce() throws {
         let manager = try makeManager()
         let defaults = freshDefaults("test.dailyreset.legacy")

@@ -118,9 +118,12 @@ class TaskManager: ObservableObject {
         isReady = true
         Task { @MainActor in
             // 콜드 런치에는 scenePhase 변화가 오지 않으므로, 앱이 꺼진 동안
-            // 알림·알람에서 누른 '완료'를 여기서 날짜 초기화보다 먼저 반영합니다.
+            // 알림·알람·위젯에서 누른 완료를 여기서 날짜 초기화 앞뒤로 반영합니다.
             processPendingAlarmCompletions()
+            syncWidgetToggles()
             checkAndResetDailyTasks()
+            syncWidgetToggles()
+            writeWidgetSnapshot()
         }
     }
 
@@ -153,13 +156,24 @@ class TaskManager: ObservableObject {
     /// - 매일: 리셋 전 어제 완료 여부를 weeklyCompletions에 기록
     /// - 주 경계(일→월): weeklyCompletions 전체 초기화
     /// now/defaults 파라미터는 단위 테스트 주입용 (기존 무인자 호출은 그대로 유효)
-    func checkAndResetDailyTasks(now: Date = Date(), defaults: UserDefaults = .standard) {
-        guard let context = modelContext else { return }
-        // 저장소가 계정마다 따로이므로 기준일도 계정별로 둡니다. 게스트는 기존 전역 키를 씁니다.
-        // 계정 키가 아직 없으면(업데이트 직후) 기존 전역 값을 한 번 이어받습니다.
+    /// 저장소가 계정마다 따로이므로 기준일도 계정별로 둡니다. 게스트는 기존 전역 키를 씁니다.
+    /// 계정 키가 아직 없으면(업데이트 직후) 기존 전역 값을 한 번 이어받습니다.
+    private func lastResetRecord(defaults: UserDefaults) -> (key: String, date: Date?) {
         let resetKey = AccountPreferences.scopedKey(AccountPreferences.lastResetDateBase, defaults: defaults)
             ?? lastResetKey
-        let lastReset = (defaults.object(forKey: resetKey) ?? defaults.object(forKey: lastResetKey)) as? Date
+        let date = (defaults.object(forKey: resetKey) ?? defaults.object(forKey: lastResetKey)) as? Date
+        return (resetKey, date)
+    }
+
+    /// 오늘 일일 초기화가 아직이면(저장된 완료 상태가 이전 날짜 기준이면) true입니다.
+    func isDailyResetPending(now: Date = Date(), defaults: UserDefaults = .standard) -> Bool {
+        guard let lastReset = lastResetRecord(defaults: defaults).date else { return true }
+        return !Calendar.current.isDate(lastReset, inSameDayAs: now)
+    }
+
+    func checkAndResetDailyTasks(now: Date = Date(), defaults: UserDefaults = .standard) {
+        guard let context = modelContext else { return }
+        let (resetKey, lastReset) = lastResetRecord(defaults: defaults)
 
         guard lastReset == nil || !Calendar.current.isDate(lastReset!, inSameDayAs: now) else { return }
 
@@ -270,7 +284,7 @@ class TaskManager: ObservableObject {
         guard let context = modelContext else { return }
         do {
             let all = try context.fetch(FetchDescriptor<AppTask>())
-            for task in all where task.urgency == .strong && !task.isCompleted {
+            for task in all where task.urgency == .strong && (!task.isCompleted || task.hasRepeatingSchedule) {
                 NotificationManager.shared.scheduleNotification(for: task)
             }
         } catch {
@@ -302,7 +316,8 @@ class TaskManager: ObservableObject {
             let tasks = try context.fetch(FetchDescriptor<AppTask>())
             for task in tasks {
                 NotificationManager.shared.cancelNotification(for: task)
-                if !task.isCompleted {
+                // 반복 태스크는 오늘 완료했어도 다음 회차 알림을 다시 겁니다(오늘 남은 회차는 예약 단계에서 뺌).
+                if !task.isCompleted || task.hasRepeatingSchedule {
                     NotificationManager.shared.scheduleNotification(for: task)
                 }
             }
@@ -430,16 +445,29 @@ class TaskManager: ObservableObject {
     }
 
     // MARK: - Bulk Delete (Settings)
+    /// '완료한 일정 지우기' 대상: 끝난 일회성 일정만. 루틴과 반복 일정은 오늘 회차만 완료된 것이라 빼야
+    /// 시리즈 전체(미래 회차 포함)가 지워지지 않습니다.
+    private func isClearableCompleted(_ task: AppTask) -> Bool {
+        task.isCompleted && task.category != "Routine" && !task.hasRepeatingSchedule
+    }
+
+    func completedClearableCount() -> Int {
+        guard let context = modelContext else { return 0 }
+        return ((try? context.fetch(FetchDescriptor<AppTask>())) ?? []).filter(isClearableCompleted).count
+    }
+
     func deleteCompleted() {
         guard let context = modelContext else { return }
         do {
-            let all = try context.fetch(FetchDescriptor<AppTask>())
-            for task in all where task.isCompleted && task.category != "Routine" {
-                // 반복 일정은 완료 시 본체 알림을 살려두므로 삭제 시 반드시 취소해야 함
+            let targets = try context.fetch(FetchDescriptor<AppTask>()).filter(isClearableCompleted)
+            guard !targets.isEmpty else { return }
+            let snapshots = targets.map(AppTaskSnapshot.init)
+            for task in targets {
                 NotificationManager.shared.cancelNotification(for: task)
                 context.delete(task)
             }
             safeSave()
+            setUndoAction(.deleted(snapshots), message: L.voice.undoDeleted(snapshots.count))
         } catch {
             print("completed_task_delete_failed")
         }
@@ -605,7 +633,11 @@ class TaskManager: ObservableObject {
 
     // MARK: - Widget Toggle Sync
     /// 위젯에서 토글된 태스크를 SwiftData에 반영합니다.
-    func syncWidgetToggles() {
+    /// 일일 초기화 앞뒤로 한 번씩 호출합니다. 큐 항목은 "scope:id:바뀐상태(1|0):누른시각(초)"이며,
+    /// 예전 위젯이 남긴 "scope:id"는 뒤집기로 처리합니다.
+    /// - 반복 태스크: 어제 누른 체크는 초기화 전에만(어제 칸에 기록되도록), 오늘 누른 체크는 초기화 뒤에만 반영합니다.
+    /// - 반영할 때 알림도 앱 안 완료/해제와 같은 경로로 정리·재예약합니다.
+    func syncWidgetToggles(now: Date = Date()) {
         guard let context = modelContext,
               let defaults = UserDefaults(suiteName: "group.trident-KR.ADHD") else { return }
 
@@ -616,23 +648,49 @@ class TaskManager: ObservableObject {
         // 처리 완료 표시 (중복 방지)
         defaults.removeObject(forKey: "pendingWidgetToggles")
 
+        let resetPending = isDailyResetPending(now: now)
+        let startOfToday = Calendar.current.startOfDay(for: now)
+        var deferred: [String] = []
+
         do {
             let descriptor = FetchDescriptor<AppTask>()
             let allTasks = try context.fetch(descriptor)
 
             for scopedToggle in pendingToggles {
-                let parts = scopedToggle.split(separator: ":", maxSplits: 1).map(String.init)
-                guard parts.count == 2, parts[0] == activeScope else { continue }
-                let idString = parts[1]
-                guard let uuid = UUID(uuidString: idString),
+                let parts = scopedToggle.split(separator: ":").map(String.init)
+                guard parts.count >= 2, parts[0] == activeScope,
+                      let uuid = UUID(uuidString: parts[1]),
                       let task = allTasks.first(where: { $0.id == uuid }) else { continue }
-                task.isCompleted.toggle()
+
+                let pressedAt = parts.count >= 4 ? Double(parts[3]).map(Date.init(timeIntervalSince1970:)) : nil
+                let pressedBeforeToday = pressedAt.map { $0 < startOfToday } ?? false
+                if task.isRecurring || task.date == nil {
+                    if pressedBeforeToday && !resetPending { continue }        // 이미 오늘로 넘어감: 어제 체크는 버림
+                    if !pressedBeforeToday && resetPending {                   // 초기화 뒤에 오늘 상태로 반영
+                        deferred.append(scopedToggle)
+                        continue
+                    }
+                }
+
+                let target = parts.count >= 3 ? parts[2] == "1" : !task.isCompleted
+                guard task.isCompleted != target else { continue }
+                task.isCompleted = target
+                if target {
+                    clearNotificationsAfterCompletion(of: task)
+                } else {
+                    NotificationManager.shared.scheduleNotification(for: task)
+                }
             }
 
             try context.save()
-            print("✅ 위젯 토글 \(pendingToggles.count)개 동기화 완료")
+            print("✅ 위젯 토글 \(pendingToggles.count - deferred.count)개 동기화 완료")
         } catch {
             print("widget_toggle_sync_failed")
+        }
+
+        if !deferred.isEmpty {
+            let arrivedMeanwhile = defaults.stringArray(forKey: "pendingWidgetToggles") ?? []
+            defaults.set(deferred + arrivedMeanwhile, forKey: "pendingWidgetToggles")
         }
     }
 

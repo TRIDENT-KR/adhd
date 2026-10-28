@@ -24,7 +24,7 @@ struct TodayRoutinesProvider: TimelineProvider {
     func getTimeline(in context: Context, completion: @escaping (Timeline<TodayRoutinesEntry>) -> Void) {
         let routines = WidgetDataStore.read()?.routines ?? []
         let entry = TodayRoutinesEntry(date: .now, routines: routines, isPreview: false)
-        let nextRefresh = Calendar.current.date(byAdding: .minute, value: 15, to: .now)!
+        let nextRefresh = WidgetDataPayload.nextRefreshDate(after: .now)
         completion(Timeline(entries: [entry], policy: .after(nextRefresh)))
     }
 

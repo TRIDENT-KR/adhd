@@ -180,6 +180,9 @@ final class AppTask {
     /// 반복 여부
     var isRecurring: Bool { recurrenceRule != nil }
 
+    /// 알림이 반복되는 태스크(매일 루틴·반복 일정)인지. 오늘 완료해도 다음 회차 알림은 남겨야 합니다.
+    var hasRepeatingSchedule: Bool { isRecurring || date == nil }
+
     // MARK: - 정렬용 시간 키 (24시간 형식)
     /// "02:00 PM" → "14:00", "09:00 AM" → "09:00", nil → "99:99" (맨 뒤)
     var sortableTime: String {

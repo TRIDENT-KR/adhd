@@ -130,7 +130,7 @@ final class AccountSessionCleanupCoordinator {
 
         do {
             let tasks = try context.fetch(FetchDescriptor<AppTask>())
-            for task in tasks where !task.isCompleted {
+            for task in tasks where !task.isCompleted || task.hasRepeatingSchedule {
                 NotificationManager.shared.scheduleNotification(for: task)
             }
             taskManager.writeWidgetSnapshot()

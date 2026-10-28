@@ -40,7 +40,7 @@ struct DailyOverviewProvider: TimelineProvider {
             appointments: payload?.appointments ?? [],
             isPreview: false
         )
-        let nextRefresh = Calendar.current.date(byAdding: .minute, value: 15, to: .now)!
+        let nextRefresh = WidgetDataPayload.nextRefreshDate(after: .now)
         completion(Timeline(entries: [entry], policy: .after(nextRefresh)))
     }
 

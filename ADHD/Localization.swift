@@ -281,9 +281,9 @@ struct SettingsStrings {
     }
     func clearCompletedPreview(_ count: Int) -> String {
         t(
-            "Target: \(count) completed task(s), all types and dates. Delete permanently?",
-            "대상: 완료된 태스크 \(count)개, 모든 유형·날짜. 영구 삭제할까요?",
-            "対象: 完了タスク\(count)件、全種類・全日付。完全に削除しますか？"
+            "Deletes \(count) finished one-time appointment(s). Routines and repeating appointments stay. You can undo right after.",
+            "끝난 일회성 일정 \(count)개를 지워요. 루틴과 반복 일정은 그대로 둬요. 지운 직후에는 되돌릴 수 있어요.",
+            "完了した単発の予定\(count)件を削除します。ルーティンと繰り返しの予定は残ります。削除直後は元に戻せます。"
         )
     }
     func clearAllPreview(_ count: Int) -> String {
