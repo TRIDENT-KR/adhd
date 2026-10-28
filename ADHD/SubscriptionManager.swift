@@ -178,6 +178,21 @@ nonisolated enum SubscriptionAccessPolicy {
         )
     }
 
+    /// 서버 일시 장애 동안 마지막 서버 확인을 믿는 최대 시간 (제품 결정, 2026-10-28)
+    static let serverOutageGrace: TimeInterval = 24 * 60 * 60
+
+    /// 서버가 5xx로 응답하지 못할 때: 마지막 서버 확인이 24시간 안이고 구독 기간도 남아 있으면 Pro를 유지합니다.
+    static func allowsProDuringServerOutage(
+        _ cached: CachedSubscriptionEntitlement,
+        confirmedAt: Date?,
+        at now: Date
+    ) -> Bool {
+        guard let confirmedAt,
+              confirmedAt <= now.addingTimeInterval(60),           // 기기 시계가 크게 뒤로 간 경우 거부
+              now.timeIntervalSince(confirmedAt) <= serverOutageGrace else { return false }
+        return allowsOfflinePro(cached, at: now)
+    }
+
     static func allowsOfflinePro(
         _ cached: CachedSubscriptionEntitlement,
         at now: Date
@@ -234,6 +249,10 @@ nonisolated struct SubscriptionAccountCache {
         "mora.subscription.\(namespace(for: userID)).entitlement.v1"
     }
 
+    static func serverConfirmedKey(for userID: UUID) -> String {
+        "mora.subscription.\(namespace(for: userID)).server-confirmed-at.v1"
+    }
+
     static func appAccountTokenKey(for userID: UUID) -> String {
         "mora.subscription.\(namespace(for: userID)).app-account-token.v1"
     }
@@ -252,6 +271,16 @@ nonisolated struct SubscriptionAccountCache {
 
     func clearEntitlement(for userID: UUID) {
         defaults.removeObject(forKey: Self.entitlementKey(for: userID))
+        defaults.removeObject(forKey: Self.serverConfirmedKey(for: userID))
+    }
+
+    /// 서버가 Pro를 마지막으로 확인한 시각 (서버 일시 장애 때 유지 기간 계산용)
+    func markServerConfirmed(for userID: UUID, at date: Date) {
+        defaults.set(date, forKey: Self.serverConfirmedKey(for: userID))
+    }
+
+    func serverConfirmedAt(for userID: UUID) -> Date? {
+        defaults.object(forKey: Self.serverConfirmedKey(for: userID)) as? Date
     }
 
     func appAccountToken(for userID: UUID) -> UUID? {
@@ -293,6 +322,14 @@ nonisolated enum SubscriptionFailureClassifier {
             .callIsActive,
             .dataNotAllowed,
         ].contains(code)
+    }
+
+    /// 서버가 잠깐 응답하지 못한 경우(HTTP 5xx, 예: subscription_backend_unavailable 503).
+    /// '이 사용자는 Pro가 아니다'라는 확정 응답이 아니므로 마지막 서버 확인을 잠시 믿습니다.
+    static func isTransientServerFailure(_ error: Error) -> Bool {
+        if case let FunctionsError.httpError(code, _) = error { return code >= 500 }
+        if let httpError = error as? HTTPError { return httpError.response.statusCode >= 500 }
+        return false
     }
 }
 
@@ -753,6 +790,10 @@ final class SubscriptionManager: ObservableObject {
             guard isCurrentOperation(operation) else { return }
             if SubscriptionFailureClassifier.permitsOfflineCache(error) {
                 applyCachedEntitlement(for: userID)
+            } else if SubscriptionFailureClassifier.isTransientServerFailure(error),
+                      keepCachedEntitlementDuringOutage(for: userID) {
+                // 서버 일시 장애(5xx): 결제한 사용자의 Pro를 바로 끄지 않고 다음 갱신 때 다시 확인합니다.
+                print("server_entitlement_refresh_deferred_outage")
             } else {
                 accountCache.clearEntitlement(for: userID)
                 publishPremium(false)
@@ -918,11 +959,25 @@ final class SubscriptionManager: ObservableObject {
         guard activeUserID == userID else { return }
         if let cached = SubscriptionAccessPolicy.cacheRecord(from: entitlement, at: now()) {
             accountCache.save(entitlement: cached, for: userID)
+            accountCache.markServerConfirmed(for: userID, at: now())
             publishPremium(AdultEligibilityManager.shared.allowsLocalUse(for: userID))
         } else {
             accountCache.clearEntitlement(for: userID)
             publishPremium(false)
         }
+    }
+
+    /// 서버 일시 장애 동안 마지막 서버 확인(24시간 이내)을 믿고 Pro를 유지합니다. 유지하지 못하면 false.
+    private func keepCachedEntitlementDuringOutage(for userID: UUID) -> Bool {
+        guard AdultEligibilityManager.shared.allowsLocalUse(for: userID),
+              let cached = accountCache.entitlement(for: userID),
+              SubscriptionAccessPolicy.allowsProDuringServerOutage(
+                cached,
+                confirmedAt: accountCache.serverConfirmedAt(for: userID),
+                at: now()
+              ) else { return false }
+        publishPremium(true)
+        return true
     }
 
     private func applyCachedEntitlement(for userID: UUID) {
