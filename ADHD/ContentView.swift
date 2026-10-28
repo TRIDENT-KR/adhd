@@ -57,7 +57,6 @@ struct TabBarItem: View {
                 Text(verbatim: label)
                     .font(DesignSystem.Typography.labelSm)
                     .fontWeight(isActive ? .semibold : .regular)
-                    .opacity(isActive ? 1 : 0.7)
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
 
@@ -69,7 +68,8 @@ struct TabBarItem: View {
                     .offset(y: 2)
             }
             .foregroundColor(
-                isActive ? DesignSystem.Colors.primary : DesignSystem.Colors.onSurfaceVariant.opacity(0.5)
+                // 비활성 탭도 4.5:1 이상 (예전 0.5×0.7 투명도는 1.8:1이었음)
+                isActive ? DesignSystem.Colors.primary : DesignSystem.Colors.onSurfaceMeta
             )
             .frame(maxWidth: .infinity, minHeight: 56)
             .contentShape(Rectangle())

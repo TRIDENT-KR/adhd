@@ -199,14 +199,14 @@ struct AlarmStrings {
     var countdownTitle: String { t("Snoozed", "다시 알림", "再通知") }
 
     // 풀스크린 오버레이 (Pro 폴백 UI)
-    var overlaySubtitle: String { t("Check it off right now", "지금 바로 확인하고 완료하세요", "今すぐ確認して完了しましょう") }
+    var overlaySubtitle: String { t("It's time. No need to rush.", "할 시간이에요. 천천히 해도 괜찮아요.", "時間です。ゆっくりで大丈夫です。") }
     var overlayConfirm: String { t("Done", "다 했어요", "完了") }
     var overlaySnooze: String { t("Remind me in 5 min", "5분 뒤 다시 알려줘요", "5分後にもう一度") }
     var overlaySnoozeA11yHint: String { t("Stops the alarm and reminds you again in 5 minutes", "알람을 끄고 5분 뒤에 다시 알려줘요", "アラームを止めて5分後にもう一度お知らせします") }
     func overlayA11yLabel(_ name: String) -> String {
-        t("Alarm: \(name). Check it off right now",
-          "알람: \(name). 지금 바로 확인하고 완료하세요",
-          "アラーム: \(name)。今すぐ確認して完了しましょう")
+        t("Alarm: \(name). It's time.",
+          "알람: \(name). 할 시간이에요.",
+          "アラーム: \(name)。時間です。")
     }
     func overlayA11yHint(_ name: String) -> String {
         t("Marks \(name) as done and stops the alarm",

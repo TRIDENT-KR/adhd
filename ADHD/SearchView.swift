@@ -160,24 +160,13 @@ struct SearchResultRow: View {
     var body: some View {
         HStack(spacing: 14) {
             // Completion indicator
-            ZStack {
-                Circle()
-                    .stroke(DesignSystem.Colors.onSurfaceVariant.opacity(0.4), lineWidth: 1.5)
-                    .frame(width: 24, height: 24)
-                if task.isCompleted {
-                    Circle()
-                        .fill(DesignSystem.Colors.tertiary)
-                        .frame(width: 24, height: 24)
-                    Image(systemName: "checkmark")
-                        .font(.caption2.weight(.bold))
-                        .foregroundColor(.white)
-                }
-            }
+            TaskCheckCircle(isCompleted: task.isCompleted, size: 24)
+                .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(task.task)
                     .font(DesignSystem.Typography.bodyMd)
-                    .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
+                    .foregroundColor(DesignSystem.Colors.onSurface)
                     .strikethrough(task.isCompleted)
                     .lineLimit(1)
 

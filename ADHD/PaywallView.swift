@@ -207,11 +207,11 @@ struct PaywallView: View {
                 ZStack {
                     if subscriptionManager.isLoading {
                         ProgressView()
-                            .tint(.white)
+                            .tint(DesignSystem.Colors.onPrimary)
                     } else {
                         Text(needsSignIn ? L.paywall.signIn : ctaTitle)
                             .font(.headline)
-                            .foregroundColor(.white)
+                            .foregroundColor(DesignSystem.Colors.onPrimary)
                     }
                 }
                 .frame(maxWidth: .infinity)
@@ -366,7 +366,7 @@ private struct PlanCard: View {
                         if let badgeText {
                             Text(badgeText)
                                 .font(.system(size: 10, weight: .bold))
-                                .foregroundColor(.white)
+                                .foregroundColor(DesignSystem.Colors.onPrimary)
                                 .padding(.horizontal, 7)
                                 .padding(.vertical, 3)
                                 .background(Capsule().fill(DesignSystem.Colors.primary))

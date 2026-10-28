@@ -255,7 +255,7 @@ private struct OfflineBanner: View {
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .foregroundColor(.white)
+        .foregroundColor(DesignSystem.Colors.background)
         .padding(.horizontal, 20)
         .padding(.vertical, 12)
         .background(
@@ -279,7 +279,7 @@ private struct BackOnlineBanner: View {
             Text(L.network.backOnline)
                 .font(DesignSystem.Typography.labelSm)
         }
-        .foregroundColor(.white)
+        .foregroundColor(DesignSystem.Colors.onTertiary)
         .padding(.horizontal, 20)
         .padding(.vertical, 12)
         .background(
