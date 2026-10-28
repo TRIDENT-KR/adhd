@@ -514,6 +514,31 @@ final class NotificationManager {
         print("notification_snoozed interval=\(Int(Self.snoozeInterval))")
     }
 
+    /// 앱 안 알람 화면의 '5분 뒤 다시': 같은 할 일을 5분 뒤 강한 알림으로 한 번 더 알려줍니다.
+    func scheduleSnooze(taskID: UUID, taskName: String) {
+        let content = UNMutableNotificationContent()
+        content.title = L.alarm.countdownTitle
+        content.subtitle = L.alarm.notifSubtitleFollowUp
+        content.body = "「\(taskName)」"
+        content.userInfo = [
+            "taskId": taskID.uuidString,
+            "taskName": taskName,
+            "urgency": Urgency.strong.rawValue,
+        ]
+        content.interruptionLevel = .timeSensitive
+        content.sound = .defaultRingtone
+        content.categoryIdentifier = Self.strongCategoryID
+
+        let snoozeID = "\(taskID.uuidString)-snooze"
+        center.removePendingNotificationRequests(withIdentifiers: [snoozeID])
+        center.add(UNNotificationRequest(
+            identifier: snoozeID,
+            content: content,
+            trigger: UNTimeIntervalNotificationTrigger(timeInterval: Self.snoozeInterval, repeats: false)
+        ))
+        print("overlay_snoozed interval=\(Int(Self.snoozeInterval))")
+    }
+
     // MARK: - Cancel
     /// 본체 + 파생(팔로업/스누즈) + AlarmKit까지 전부 취소 (삭제/일회성 완료 시)
     func cancelNotification(for task: AppTask) {

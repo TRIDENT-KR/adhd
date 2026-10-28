@@ -44,7 +44,8 @@ struct AlarmSpec: Sendable {
 }
 
 // MARK: - Mark Task Done Intent
-/// AlarmKit 알람의 Stop("완료") 버튼이 실행하는 인텐트.
+/// 이전 버전에서 예약된 AlarmKit 알람의 Stop 버튼이 실행하는 인텐트(호환용).
+/// 새로 예약하는 알람은 Stop이 알람만 끄고 이 인텐트를 쓰지 않습니다.
 /// LiveActivityIntent는 앱 프로세스에서 실행되므로(앱이 꺼져 있으면 백그라운드 기동)
 /// App Group 큐에 적재 → 앱이 다음 활성화(또는 즉시 수신)에 태스크를 완료 처리합니다.
 struct MarkTaskDoneIntent: LiveActivityIntent {
@@ -166,11 +167,11 @@ final class SystemAlarmScheduler: Sendable {
             metadata: MoraAlarmMetadata(taskName: spec.title),
             tintColor: Color(red: 0x93 / 255.0, green: 0x4A / 255.0, blue: 0x2E / 255.0)
         )
+        // 시스템 알람의 '중단'은 알람만 끕니다. 할 일 완료는 앱·위젯·알림의 '완료'로만 합니다(제품 결정 2026-10-28).
         let configuration = AlarmKit.AlarmManager.AlarmConfiguration(
             countdownDuration: AlarmKit.Alarm.CountdownDuration(preAlert: nil, postAlert: Self.snoozeDuration),
             schedule: schedule,
-            attributes: attributes,
-            stopIntent: MarkTaskDoneIntent(taskID: spec.id.uuidString)
+            attributes: attributes
         )
 
         do {

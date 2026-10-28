@@ -116,16 +116,27 @@ struct AlarmOverlayView: View {
                 .accessibilityLabel(L.alarm.overlayConfirm)
                 .accessibilityHint(L.alarm.overlayA11yHint(alarm.taskName))
 
-                // 스와이프 힌트
-                HStack(spacing: 6) {
-                    Image(systemName: "hand.tap")
-                        .font(.caption)
-                    Text(L.alarm.overlayHint)
-                        .font(.caption)
+                // 완료하지 않고 알람만 미루기 (완료 버튼과 동작을 분리)
+                Button(action: {
+                    Haptic.impact(.light)
+                    alarmManager.snooze()
+                }) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "zzz")
+                            .font(.body.weight(.semibold))
+                        Text(L.alarm.overlaySnooze)
+                            .font(.body.weight(.semibold))
+                    }
+                    .foregroundColor(.white.opacity(0.85))
+                    .frame(maxWidth: .infinity)
+                    .frame(minHeight: 52)
+                    .contentShape(Rectangle())
+                    .padding(.horizontal, 40)
                 }
-                .foregroundColor(.white.opacity(0.5))
-                .padding(.bottom, 40)
-                .accessibilityHidden(true)
+                .buttonStyle(AlarmDismissButtonStyle())
+                .accessibilityHint(L.alarm.overlaySnoozeA11yHint)
+                .padding(.top, 8)
+                .padding(.bottom, 32)
             }
         }
         .scaleEffect(scale)

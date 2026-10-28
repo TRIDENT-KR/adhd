@@ -200,17 +200,18 @@ struct AlarmStrings {
 
     // 풀스크린 오버레이 (Pro 폴백 UI)
     var overlaySubtitle: String { t("Check it off right now", "지금 바로 확인하고 완료하세요", "今すぐ確認して完了しましょう") }
-    var overlayConfirm: String { t("Done", "확인", "確認") }
-    var overlayHint: String { t("Tap to dismiss", "탭하여 알람 끄기", "タップしてアラームを消す") }
+    var overlayConfirm: String { t("Done", "다 했어요", "完了") }
+    var overlaySnooze: String { t("Remind me in 5 min", "5분 뒤 다시 알려줘요", "5分後にもう一度") }
+    var overlaySnoozeA11yHint: String { t("Stops the alarm and reminds you again in 5 minutes", "알람을 끄고 5분 뒤에 다시 알려줘요", "アラームを止めて5分後にもう一度お知らせします") }
     func overlayA11yLabel(_ name: String) -> String {
         t("Alarm: \(name). Check it off right now",
           "알람: \(name). 지금 바로 확인하고 완료하세요",
           "アラーム: \(name)。今すぐ確認して完了しましょう")
     }
     func overlayA11yHint(_ name: String) -> String {
-        t("Double tap to dismiss the alarm for \(name)",
-          "탭하여 \(name) 알람을 끕니다",
-          "タップして\(name)のアラームを消します")
+        t("Marks \(name) as done and stops the alarm",
+          "\(name) 할 일을 완료로 표시하고 알람을 꺼요",
+          "\(name)を完了にしてアラームを止めます")
     }
 }
 
