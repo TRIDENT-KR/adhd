@@ -14,6 +14,7 @@ struct QuickAddSheet: View {
     let mode: QuickAddMode
     @EnvironmentObject private var taskManager: TaskManager
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @ObservedObject private var langManager = LocalizationManager.shared
     @State private var name = ""
     @State private var time = ""                 // "" = 시간 미정 (AppTask.time nil 규약)
@@ -126,7 +127,8 @@ struct QuickAddSheet: View {
         .padding(.top, 28)
         .padding(.bottom, 24)
         .background(DesignSystem.Colors.background)
-        .presentationDetents([.height(360)])
+        // 큰 글자(접근성 크기)에서는 고정 높이에 버튼이 잘리므로 전체 높이로 엽니다.
+        .presentationDetents(dynamicTypeSize.isAccessibilitySize ? [.large] : [.height(360)])
         .presentationDragIndicator(.visible)
         .sheet(isPresented: $showTimePicker) {
             TimePickerModal(timeString: $time, isPresented: $showTimePicker)

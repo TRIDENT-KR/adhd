@@ -511,7 +511,9 @@ class TaskManager: ObservableObject {
             }
         }
         undoDismissWorkItem = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + 5, execute: workItem)
+        // VoiceOver로 '되돌리기'까지 찾아가려면 5초로는 부족합니다.
+        let visibleSeconds: Double = UIAccessibility.isVoiceOverRunning ? 15 : 5
+        DispatchQueue.main.asyncAfter(deadline: .now() + visibleSeconds, execute: workItem)
     }
 
     /// 이름 기반 AppTask 삭제 (배치, save 호출 안함)

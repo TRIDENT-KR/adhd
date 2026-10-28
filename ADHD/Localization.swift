@@ -230,6 +230,9 @@ struct SettingsStrings {
     var deleteAccount: String { t("Delete Account", "계정 삭제", "アカウント削除") }
     var languageLabel: String { t("Language", "언어", "言語") }
     var notifications: String { t("Notifications", "알림", "通知") }
+    var notificationsOffTitle: String { t("Notifications are off", "알림이 꺼져 있어요", "通知がオフになっています") }
+    var notificationsOffBody: String { t("Turn on Mora notifications in iPhone Settings so your reminders can ring.", "iPhone 설정에서 Mora 알림을 켜야 리마인더가 울려요.", "リマインダーを鳴らすには、iPhoneの設定でMoraの通知をオンにしてください。") }
+    var openNotificationSettings: String { t("Open Notification Settings", "알림 설정 열기", "通知設定を開く") }
     var routineReminders: String { t("Routine Reminders", "루틴 알림", "ルーティン通知") }
     var appointmentReminders: String { t("Appointment Reminders", "일정 알림", "予定通知") }
     var remindBefore: String { t("Remind Before", "사전 알림", "事前通知") }

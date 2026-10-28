@@ -102,6 +102,18 @@ struct MainTabView: View {
             reduceMotion ? .none : .spring(response: 0.4, dampingFraction: 0.7),
             value: taskManager.showUndoSnackbar
         )
+        // 잠깐 떴다 사라지는 안내는 VoiceOver 사용자에게 소리로 알려 줍니다.
+        .onChange(of: taskManager.showUndoSnackbar) { _, isShown in
+            guard isShown else { return }
+            AccessibilityNotification.Announcement(taskManager.undoSnackbarMessage).post()
+        }
+        .onChange(of: networkMonitor.bannerState) { _, _ in
+            if networkMonitor.isOfflineBannerVisible {
+                AccessibilityNotification.Announcement(L.offlineText).post()
+            } else if networkMonitor.isBackOnlineBannerVisible {
+                AccessibilityNotification.Announcement(L.network.backOnline).post()
+            }
+        }
         .onReceive(NotificationCenter.default.publisher(for: .widgetDeepLink)) { notification in
             if let tab = notification.object as? TabSelection {
                 if !loadedTabs.contains(tab) {

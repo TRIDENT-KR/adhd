@@ -552,6 +552,7 @@ struct RoutineView_Previews: PreviewProvider {
 struct TimePickerModal: View {
     @Binding var timeString: String
     @Binding var isPresented: Bool
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var selectedDate: Date
 
     private static let timeFormatter: DateFormatter = {
@@ -594,7 +595,8 @@ struct TimePickerModal: View {
             .padding(.horizontal, 32)
             .padding(.bottom, 32)
         }
-        .presentationDetents([.height(350)])
+        // 큰 글자(접근성 크기)에서는 고정 높이에 버튼이 잘리므로 전체 높이로 엽니다.
+        .presentationDetents(dynamicTypeSize.isAccessibilitySize ? [.large] : [.height(350)])
         .presentationDragIndicator(.visible)
     }
 }

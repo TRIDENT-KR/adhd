@@ -214,6 +214,11 @@ final class NotificationManager {
         center.delegate = AlarmCoordinator.shared
     }
 
+    /// 사용자가 iPhone 설정에서 알림을 거부했는지 확인합니다. 아직 묻지 않았으면 false입니다.
+    func isAuthorizationDenied() async -> Bool {
+        await center.notificationSettings().authorizationStatus == .denied
+    }
+
     // MARK: - Permission Request
     /// App 실행 시 onAppear에서 한 번 호출합니다.
     func requestAuthorization() {
