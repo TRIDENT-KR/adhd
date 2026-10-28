@@ -87,4 +87,34 @@ struct DailyResetTests {
 
         #expect(routine.isCompleted == true)   // 같은 날 2번째 호출은 no-op
     }
+
+    @Test func accountResetDateIsIndependentFromOtherStores() throws {
+        let manager = try makeManager()
+        let defaults = freshDefaults("test.dailyreset.scoped")
+        let today = date(2026, 7, 8)
+        defaults.set("scopeA", forKey: "mora.active-account-preference-scope.v1")
+        defaults.set(date(2026, 7, 7), forKey: "mora.account.scopeA.lastResetDate.v1")
+        defaults.set(today, forKey: "lastResetDate")   // 게스트 저장소가 오늘 먼저 초기화함
+
+        let routine = AppTask(task: "루틴", category: "Routine", isCompleted: true)
+        manager.modelContext!.insert(routine)
+
+        manager.checkAndResetDailyTasks(now: today, defaults: defaults)
+        #expect(routine.isCompleted == false)   // 계정 A 기준일은 어제라 초기화되어야 함
+        #expect(defaults.object(forKey: "mora.account.scopeA.lastResetDate.v1") as? Date == today)
+    }
+
+    @Test func accountWithoutOwnResetDateInheritsLegacyValueOnce() throws {
+        let manager = try makeManager()
+        let defaults = freshDefaults("test.dailyreset.legacy")
+        let today = date(2026, 7, 8)
+        defaults.set("scopeB", forKey: "mora.active-account-preference-scope.v1")
+        defaults.set(today, forKey: "lastResetDate")   // 업데이트 전 전역 값
+
+        let routine = AppTask(task: "루틴", category: "Routine", isCompleted: true)
+        manager.modelContext!.insert(routine)
+
+        manager.checkAndResetDailyTasks(now: today, defaults: defaults)
+        #expect(routine.isCompleted == true)   // 오늘 이미 초기화된 것으로 이어받음
+    }
 }

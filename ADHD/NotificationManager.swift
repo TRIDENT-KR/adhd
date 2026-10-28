@@ -78,6 +78,15 @@ enum AccountPreferences {
                 forKey: "mora.account.\(accountScope).\(key.rawValue).v1"
             )
         }
+        defaults.removeObject(forKey: "mora.account.\(accountScope).\(lastResetDateBase).v1")
+    }
+
+    /// 계정별 일일 초기화 기준일 키의 바탕 이름입니다(TaskManager가 사용).
+    static let lastResetDateBase = "lastResetDate"
+
+    /// 활성 계정 범위로 묶인 키입니다. 활성 계정이 없으면(게스트) nil입니다.
+    static func scopedKey(_ base: String, defaults: UserDefaults = .standard) -> String? {
+        defaults.string(forKey: activeScopeKey).map { "mora.account.\($0).\(base).v1" }
     }
 
     static func set(

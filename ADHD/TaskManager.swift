@@ -155,7 +155,11 @@ class TaskManager: ObservableObject {
     /// now/defaults 파라미터는 단위 테스트 주입용 (기존 무인자 호출은 그대로 유효)
     func checkAndResetDailyTasks(now: Date = Date(), defaults: UserDefaults = .standard) {
         guard let context = modelContext else { return }
-        let lastReset = defaults.object(forKey: lastResetKey) as? Date
+        // 저장소가 계정마다 따로이므로 기준일도 계정별로 둡니다. 게스트는 기존 전역 키를 씁니다.
+        // 계정 키가 아직 없으면(업데이트 직후) 기존 전역 값을 한 번 이어받습니다.
+        let resetKey = AccountPreferences.scopedKey(AccountPreferences.lastResetDateBase, defaults: defaults)
+            ?? lastResetKey
+        let lastReset = (defaults.object(forKey: resetKey) ?? defaults.object(forKey: lastResetKey)) as? Date
 
         guard lastReset == nil || !Calendar.current.isDate(lastReset!, inSameDayAs: now) else { return }
 
@@ -189,7 +193,7 @@ class TaskManager: ObservableObject {
             }
             let resetCount = resetTasks.count
 
-            defaults.set(now, forKey: lastResetKey)
+            defaults.set(now, forKey: resetKey)
             safeSave()
 
             // 4) 어제 완료하면서 '오늘만 건너뛰기'로 바꿔 둔 알림을 원래 반복 예약으로 되돌림
