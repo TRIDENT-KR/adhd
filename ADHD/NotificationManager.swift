@@ -9,6 +9,8 @@ enum AccountPreferenceKey: String {
     case notificationSoundDisabled
     case confirmBeforeSave
     case aiDataConsentVersion
+    /// 로그인 직후 '기기 일정 가져오기'를 이미 물어봤는지 (계정마다 한 번)
+    case guestImportOffered
 }
 
 /// 계정별 설정을 raw Mora UUID가 노출되지 않는 UserDefaults namespace에 저장합니다.
@@ -73,11 +75,21 @@ enum AccountPreferences {
             .notificationSoundDisabled,
             .confirmBeforeSave,
             .aiDataConsentVersion,
+            .guestImportOffered,
         ] {
             defaults.removeObject(
                 forKey: "mora.account.\(accountScope).\(key.rawValue).v1"
             )
         }
+        defaults.removeObject(forKey: "mora.account.\(accountScope).\(lastResetDateBase).v1")
+    }
+
+    /// 계정별 일일 초기화 기준일 키의 바탕 이름입니다(TaskManager가 사용).
+    static let lastResetDateBase = "lastResetDate"
+
+    /// 활성 계정 범위로 묶인 키입니다. 활성 계정이 없으면(게스트) nil입니다.
+    static func scopedKey(_ base: String, defaults: UserDefaults = .standard) -> String? {
+        defaults.string(forKey: activeScopeKey).map { "mora.account.\($0).\(base).v1" }
     }
 
     static func set(
@@ -205,6 +217,11 @@ final class NotificationManager {
         center.delegate = AlarmCoordinator.shared
     }
 
+    /// 사용자가 iPhone 설정에서 알림을 거부했는지 확인합니다. 아직 묻지 않았으면 false입니다.
+    func isAuthorizationDenied() async -> Bool {
+        await center.notificationSettings().authorizationStatus == .denied
+    }
+
     // MARK: - Permission Request
     /// App 실행 시 onAppear에서 한 번 호출합니다.
     func requestAuthorization() {
@@ -253,14 +270,25 @@ final class NotificationManager {
     func scheduleNotification(for task: AppTask) {
         cancelledIds.remove(task.id)   // 재등록이므로 이전 취소 기록 해제
 
+        // 끝난 일회성 일정은 수정·되돌리기를 거쳐도 다시 울리지 않게 합니다.
+        if task.isCompleted && !task.hasRepeatingSchedule {
+            cancelNotification(for: task)
+            return
+        }
+
         // 카테고리별 토글 확인
         if task.category == "Routine" && !routineRemindersEnabled { return }
         if task.category == "Appointment" && !appointmentRemindersEnabled { return }
 
-        guard let time = task.time, !time.isEmpty else { return }
+        // 시간을 지웠거나 읽을 수 없으면 예전 시각의 알림이 남지 않게 지웁니다.
+        guard let time = task.time, !time.isEmpty else {
+            cancelNotification(for: task)
+            return
+        }
         let calendar = Calendar.current
         guard let clock = parseTimeComponents(time, calendar: calendar) else {
             print("notification_time_parse_failed")
+            cancelNotification(for: task)
             return
         }
 
@@ -489,6 +517,31 @@ final class NotificationManager {
         print("notification_snoozed interval=\(Int(Self.snoozeInterval))")
     }
 
+    /// 앱 안 알람 화면의 '5분 뒤 다시': 같은 할 일을 5분 뒤 강한 알림으로 한 번 더 알려줍니다.
+    func scheduleSnooze(taskID: UUID, taskName: String) {
+        let content = UNMutableNotificationContent()
+        content.title = L.alarm.countdownTitle
+        content.subtitle = L.alarm.notifSubtitleFollowUp
+        content.body = "「\(taskName)」"
+        content.userInfo = [
+            "taskId": taskID.uuidString,
+            "taskName": taskName,
+            "urgency": Urgency.strong.rawValue,
+        ]
+        content.interruptionLevel = .timeSensitive
+        content.sound = .defaultRingtone
+        content.categoryIdentifier = Self.strongCategoryID
+
+        let snoozeID = "\(taskID.uuidString)-snooze"
+        center.removePendingNotificationRequests(withIdentifiers: [snoozeID])
+        center.add(UNNotificationRequest(
+            identifier: snoozeID,
+            content: content,
+            trigger: UNTimeIntervalNotificationTrigger(timeInterval: Self.snoozeInterval, repeats: false)
+        ))
+        print("overlay_snoozed interval=\(Int(Self.snoozeInterval))")
+    }
+
     // MARK: - Cancel
     /// 본체 + 파생(팔로업/스누즈) + AlarmKit까지 전부 취소 (삭제/일회성 완료 시)
     func cancelNotification(for task: AppTask) {
@@ -618,7 +671,7 @@ final class NotificationManager {
     }
 
     /// Calendar weekday(1=일 … 7=토) → Locale.Weekday
-    private static func localeWeekday(_ calendarWeekday: Int) -> Locale.Weekday {
+    nonisolated private static func localeWeekday(_ calendarWeekday: Int) -> Locale.Weekday {
         switch calendarWeekday {
         case 1: return .sunday
         case 2: return .monday

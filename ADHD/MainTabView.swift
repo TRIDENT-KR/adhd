@@ -5,7 +5,6 @@ struct MainTabView: View {
     @EnvironmentObject private var networkMonitor: NetworkMonitor
     @EnvironmentObject private var taskManager: TaskManager
     @EnvironmentObject private var authManager: AuthManager
-    @StateObject private var alarmManager = AlarmCoordinator.shared
     @ObservedObject private var langManager = LocalizationManager.shared
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -16,6 +15,11 @@ struct MainTabView: View {
     /// 이전 버전의 저장된 페이월 딥링크 호환.
     @State private var showPaywall = false
     @State private var isPlayingPresentationDemo = false
+    @EnvironmentObject private var accountStoreController: AccountStoreController
+    /// 로그인 직후 기기(게스트) 일정 가져오기 제안
+    @State private var guestImportCount = 0
+    @State private var showGuestImportOffer = false
+    @State private var guestImportResult: String?
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -102,25 +106,50 @@ struct MainTabView: View {
             reduceMotion ? .none : .spring(response: 0.4, dampingFraction: 0.7),
             value: taskManager.showUndoSnackbar
         )
+        // 잠깐 떴다 사라지는 안내는 VoiceOver 사용자에게 소리로 알려 줍니다.
+        .onChange(of: taskManager.showUndoSnackbar) { _, isShown in
+            guard isShown else { return }
+            AccessibilityNotification.Announcement(taskManager.undoSnackbarMessage).post()
+        }
+        .onChange(of: networkMonitor.bannerState) { _, _ in
+            if networkMonitor.isOfflineBannerVisible {
+                AccessibilityNotification.Announcement(L.offlineText).post()
+            } else if networkMonitor.isBackOnlineBannerVisible {
+                AccessibilityNotification.Announcement(L.network.backOnline).post()
+            }
+        }
         .onReceive(NotificationCenter.default.publisher(for: .widgetDeepLink)) { notification in
             if let tab = notification.object as? TabSelection {
                 if !loadedTabs.contains(tab) {
                     loadedTabs.insert(tab)
                 }
-                withAnimation { activeTab = tab }
+                withAnimation(.timingCurve(0.4, 0, 0.2, 1, duration: 0.3)) { activeTab = tab }
             }
         }
-        // 6. 강한 알림 오버레이
-        .fullScreenCover(item: $alarmManager.activeAlarm) { alarm in
-            AlarmOverlayView(alarm: alarm)
-                .interactiveDismissDisabled(true)
-        }
+        // 6. 강한 알림 오버레이: 시트가 떠 있어도 보이도록 별도 창(AlarmOverlayWindowPresenter)에 띄웁니다.
+        .onAppear { AlarmOverlayWindowPresenter.shared.start() }
         // 7. 이전 버전의 페이월 딥링크 호환
         .onReceive(NotificationCenter.default.publisher(for: .openPaywall)) { _ in
             showPaywall = true
         }
         .sheet(isPresented: $showPaywall) {
             NavigationView { PaywallView() }
+        }
+        // 8. 로그인 직후: 계정이 비어 있고 기기에 게스트 일정이 있으면 한 번 가져오기를 제안
+        .task(id: authManager.accessState.accountUserID) { offerGuestImportIfNeeded() }
+        .alert(L.authRelease.importGuestTitle, isPresented: $showGuestImportOffer) {
+            Button(L.authRelease.importGuestAction) { importGuestTasks() }
+            Button(L.authRelease.importGuestLater, role: .cancel) {}
+        } message: {
+            Text(L.authRelease.importGuestMessage(guestImportCount))
+        }
+        .alert(L.authRelease.copyGuestTasks, isPresented: Binding(
+            get: { guestImportResult != nil },
+            set: { if !$0 { guestImportResult = nil } }
+        )) {
+            Button(L.settings.done) { guestImportResult = nil }
+        } message: {
+            Text(guestImportResult ?? "")
         }
         .task {
             if authManager.accessState.accountUserID == nil && !MoraApp.presentationDemoMode {
@@ -135,6 +164,34 @@ struct MainTabView: View {
             withAnimation { activeTab = .planner }
             try? await Task.sleep(nanoseconds: 5_000_000_000)
             withAnimation { activeTab = .voice }
+        }
+    }
+}
+
+extension MainTabView {
+    /// 로그인하면 게스트 일정의 알림이 멈추므로, 계정이 비어 있을 때 한 번만 가져오기를 묻습니다.
+    /// 이미 일정이 있는 계정이거나 한 번 물어본 계정은 설정의 '기기 일정을 이 계정으로 복사'를 씁니다.
+    fileprivate func offerGuestImportIfNeeded() {
+        guard let userID = authManager.accessState.accountUserID,
+              accountStoreController.activeUserID == userID,
+              !AccountPreferences.bool(.guestImportOffered, default: false, for: userID),
+              accountStoreController.activeTaskCount() == 0 else { return }
+        let count = accountStoreController.guestTaskCountNotInActiveAccount()
+        guard count > 0 else { return }
+        AccountPreferences.set(true, for: .guestImportOffered, userID: userID)
+        guestImportCount = count
+        showGuestImportOffer = true
+    }
+
+    fileprivate func importGuestTasks() {
+        guard let userID = authManager.accessState.accountUserID else { return }
+        do {
+            let count = try accountStoreController.copyGuestTasks(to: userID)
+            taskManager.reconcileNotificationsWithPreferences()
+            taskManager.writeWidgetSnapshot()
+            guestImportResult = L.authRelease.copiedGuestTasks(count)
+        } catch {
+            guestImportResult = L.authRelease.copyGuestFailed
         }
     }
 }

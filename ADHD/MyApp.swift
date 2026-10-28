@@ -35,7 +35,7 @@ struct MoraApp: App {
     @StateObject private var adultEligibility = AdultEligibilityManager.shared
     @AppStorage("appTheme") private var appTheme: String = "system"
     /// 언어 변경을 감지하여 environment(locale) 전파. .id()는 사용하지 않아 NavigationStack을 보존
-    @AppStorage("appLanguage") private var appLanguage: String = "en"
+    @AppStorage("appLanguage") private var appLanguage: String = AppLanguage.preferred().rawValue
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     @Environment(\.scenePhase) private var scenePhase
     @State private var hasSeededPresentationDemo = false
@@ -250,7 +250,9 @@ struct MoraApp: App {
             .onChange(of: scenePhase) { _, newPhase in
                 if newPhase == .active {
                     // 알림·알람에서 누른 '완료'는 그날의 완료이므로 날짜 초기화보다 먼저 반영합니다.
+                    // 위젯 체크는 누른 날짜에 따라 초기화 앞(어제 체크)·뒤(오늘 체크)로 나눠 반영합니다.
                     taskManager.processPendingAlarmCompletions()
+                    taskManager.syncWidgetToggles()
                     taskManager.checkAndResetDailyTasks()
                     taskManager.syncWidgetToggles()
                     taskManager.rescheduleStrongTasksIfNeeded()

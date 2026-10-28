@@ -207,7 +207,11 @@ struct GuestAccountStorageTests {
         let accountContext = try #require(controller.container?.mainContext)
         #expect(try accountContext.fetchCount(FetchDescriptor<AppTask>()) == 0)
         #expect(controller.layout.storeURL(for: firstAccount) != controller.layout.storeURL(for: LocalGuestIdentity.storageID))
+        #expect(controller.activeTaskCount() == 0)
+        #expect(controller.guestTaskCountNotInActiveAccount() == 1)   // 로그인 직후 가져오기 제안 대상
         #expect(try controller.copyGuestTasks(to: firstAccount) == 1)
+        #expect(controller.activeTaskCount() == 1)
+        #expect(controller.guestTaskCountNotInActiveAccount() == 0)   // 이미 가져온 일정은 다시 세지 않음
         let imported = try #require(accountContext.fetch(FetchDescriptor<AppTask>()).first)
         #expect(imported.id == originalID)
         #expect(imported.recurrenceRule == "monthly")

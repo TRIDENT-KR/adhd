@@ -33,6 +33,8 @@ struct SettingsView: View {
     @State private var remindBefore = 0
     @State private var notificationSound = true
     @State private var loadedPreferenceAccountID: UUID?
+    @State private var notificationsDenied = false
+    @Environment(\.scenePhase) private var scenePhase
 
     // Appearance
     @AppStorage("appTheme") private var appTheme: String = "system"
@@ -225,7 +227,7 @@ struct SettingsView: View {
                         }
                     }
                     .onChange(of: confirmBeforeSave) { _, value in
-                        persist(value, for: .confirmBeforeSave)
+                        persist(value, for: .confirmBeforeSave, default: true)
                     }
                 } header: {
                     Text(L.tabVoice)
@@ -255,6 +257,28 @@ struct SettingsView: View {
 
                 // ── Notifications ──
                 Section {
+                    // 시스템에서 알림을 거부하면 아래 토글이 켜져 있어도 아무것도 울리지 않습니다.
+                    if notificationsDenied {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Label(L.settings.notificationsOffTitle, systemImage: "bell.slash")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundColor(DesignSystem.Colors.primary)
+                            Text(L.settings.notificationsOffBody)
+                                .font(.footnote)
+                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Button(L.settings.openNotificationSettings) {
+                                if let url = URL(string: UIApplication.openNotificationSettingsURLString) {
+                                    UIApplication.shared.open(url)
+                                }
+                            }
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundColor(DesignSystem.Colors.primary)
+                            .buttonStyle(.borderless)
+                        }
+                        .padding(.vertical, 4)
+                    }
+
                     Toggle(isOn: $routineReminders) {
                         HStack {
                             Image(systemName: "bell")
@@ -263,8 +287,9 @@ struct SettingsView: View {
                         }
                     }
                     .onChange(of: routineReminders) { _, val in
-                        persist(!val, for: .routineRemindersDisabled)
-                        taskManager.reconcileNotificationsWithPreferences()
+                        if persist(!val, for: .routineRemindersDisabled) {
+                            taskManager.reconcileNotificationsWithPreferences()
+                        }
                     }
 
                     Toggle(isOn: $appointmentReminders) {
@@ -275,8 +300,9 @@ struct SettingsView: View {
                         }
                     }
                     .onChange(of: appointmentReminders) { _, val in
-                        persist(!val, for: .appointmentRemindersDisabled)
-                        taskManager.reconcileNotificationsWithPreferences()
+                        if persist(!val, for: .appointmentRemindersDisabled) {
+                            taskManager.reconcileNotificationsWithPreferences()
+                        }
                     }
 
                     Picker(selection: $remindBefore) {
@@ -291,8 +317,9 @@ struct SettingsView: View {
                         }
                     }
                     .onChange(of: remindBefore) { _, val in
-                        persist(val, for: .remindBeforeMinutes)
-                        taskManager.reconcileNotificationsWithPreferences()
+                        if persist(val, for: .remindBeforeMinutes) {
+                            taskManager.reconcileNotificationsWithPreferences()
+                        }
                     }
 
                     Toggle(isOn: $notificationSound) {
@@ -303,8 +330,9 @@ struct SettingsView: View {
                         }
                     }
                     .onChange(of: notificationSound) { _, val in
-                        persist(!val, for: .notificationSoundDisabled)
-                        taskManager.reconcileNotificationsWithPreferences()
+                        if persist(!val, for: .notificationSoundDisabled) {
+                            taskManager.reconcileNotificationsWithPreferences()
+                        }
                     }
                 } header: {
                     Text(L.settings.notifications)
@@ -338,7 +366,7 @@ struct SettingsView: View {
                 // ── Data Management ──
                 Section {
                     Button(action: {
-                        clearCompletedCount = taskManager.taskCount(completedOnly: true)
+                        clearCompletedCount = taskManager.completedClearableCount()
                         showClearCompletedConfirm = true
                     }) {
                         HStack {
@@ -509,6 +537,12 @@ struct SettingsView: View {
             AIDataConsentView(userID: accountUserID)
         }
         .onAppear(perform: loadAccountPreferences)
+        .task { notificationsDenied = await NotificationManager.shared.isAuthorizationDenied() }
+        .onChange(of: scenePhase) { _, phase in
+            // iPhone 설정에서 알림을 켜고 돌아오면 안내를 바로 거둡니다.
+            guard phase == .active else { return }
+            Task { notificationsDenied = await NotificationManager.shared.isAuthorizationDenied() }
+        }
         .onChange(of: preferenceUserID) { _, _ in
             loadAccountPreferences()
         }
@@ -554,16 +588,24 @@ struct SettingsView: View {
         loadedPreferenceAccountID = userID
     }
 
-    private func persist(_ value: Bool, for key: AccountPreferenceKey) {
+    /// 저장값이 실제로 바뀐 경우에만 true입니다. 화면을 열며 저장값을 불러올 때는 onChange가 불려도
+    /// 값이 같으므로 알림 재정리(받은 알림·스누즈 삭제 포함)가 돌지 않습니다.
+    @discardableResult
+    private func persist(_ value: Bool, for key: AccountPreferenceKey, default defaultValue: Bool = false) -> Bool {
         guard let userID = preferenceUserID,
-              loadedPreferenceAccountID == userID else { return }
+              loadedPreferenceAccountID == userID,
+              AccountPreferences.bool(key, default: defaultValue, for: userID) != value else { return false }
         AccountPreferences.set(value, for: key, userID: userID)
+        return true
     }
 
-    private func persist(_ value: Int, for key: AccountPreferenceKey) {
+    @discardableResult
+    private func persist(_ value: Int, for key: AccountPreferenceKey) -> Bool {
         guard let userID = preferenceUserID,
-              loadedPreferenceAccountID == userID else { return }
+              loadedPreferenceAccountID == userID,
+              AccountPreferences.integer(key, default: 0, for: userID) != value else { return false }
         AccountPreferences.set(value, for: key, userID: userID)
+        return true
     }
 
     private func copyGuestTasks() {

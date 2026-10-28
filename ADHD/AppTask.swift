@@ -180,6 +180,9 @@ final class AppTask {
     /// 반복 여부
     var isRecurring: Bool { recurrenceRule != nil }
 
+    /// 알림이 반복되는 태스크(매일 루틴·반복 일정)인지. 오늘 완료해도 다음 회차 알림은 남겨야 합니다.
+    var hasRepeatingSchedule: Bool { isRecurring || date == nil }
+
     // MARK: - 정렬용 시간 키 (24시간 형식)
     /// "02:00 PM" → "14:00", "09:00 AM" → "09:00", nil → "99:99" (맨 뒤)
     var sortableTime: String {
@@ -325,7 +328,23 @@ enum StoredTaskFormat {
         return nil
     }
 
-    private static func posixFormatter(_ format: String) -> DateFormatter {
+    /// 저장된 시간 문자열을 앱 언어 형식으로 보여줍니다("오후 3:00", "3:00 PM", "15:00").
+    /// 읽을 수 없는 값은 원문 그대로 돌려줍니다.
+    static func displayTime(
+        _ stored: String,
+        language: AppLanguage = LocalizationManager.shared.currentLanguage
+    ) -> String {
+        guard let clock = hourMinute(from: stored),
+              let date = Calendar(identifier: .gregorian).date(
+                from: DateComponents(year: 2000, month: 1, day: 1, hour: clock.hour, minute: clock.minute)
+              ) else { return stored }
+        return date.formatted(
+            Date.FormatStyle(date: .omitted, time: .shortened)
+                .locale(Locale(identifier: language.localeIdentifier))
+        )
+    }
+
+    nonisolated private static func posixFormatter(_ format: String) -> DateFormatter {
         let formatter = DateFormatter()
         formatter.calendar = Calendar(identifier: .gregorian)
         formatter.locale = Locale(identifier: "en_US_POSIX")

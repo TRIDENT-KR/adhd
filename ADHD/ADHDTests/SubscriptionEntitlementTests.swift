@@ -201,6 +201,32 @@ struct SubscriptionEntitlementTests {
         #expect(rejected)
     }
 
+    @Test func serverOutageKeepsProOnlyWithinGraceAfterLastConfirmation() {
+        let cached = CachedSubscriptionEntitlement(
+            status: .active,
+            productID: SubscriptionProductID.allIDs.first!,
+            verifiedAt: date("2026-10-01T00:00:00Z"),
+            expiresAt: date("2026-11-30T00:00:00Z"),
+            graceExpiresAt: nil,
+            accessUntil: date("2026-11-30T00:00:00Z")
+        )
+        let confirmed = date("2026-10-28T00:00:00Z")
+
+        #expect(SubscriptionAccessPolicy.allowsProDuringServerOutage(
+            cached, confirmedAt: confirmed, at: date("2026-10-28T23:00:00Z")
+        ))
+        #expect(!SubscriptionAccessPolicy.allowsProDuringServerOutage(
+            cached, confirmedAt: confirmed, at: date("2026-10-29T01:00:00Z")
+        ))
+        #expect(!SubscriptionAccessPolicy.allowsProDuringServerOutage(
+            cached, confirmedAt: nil, at: date("2026-10-28T01:00:00Z")
+        ))
+        // 구독 기간이 끝났으면 서버 장애 중이라도 유지하지 않음
+        #expect(!SubscriptionAccessPolicy.allowsProDuringServerOutage(
+            cached, confirmedAt: date("2026-11-29T23:00:00Z"), at: date("2026-11-30T01:00:00Z")
+        ))
+    }
+
     @Test func onlyTransportFailuresPermitOfflineCache() {
         #expect(SubscriptionFailureClassifier.permitsOfflineCache(
             URLError(.notConnectedToInternet)

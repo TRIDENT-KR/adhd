@@ -183,7 +183,7 @@ struct SearchResultRow: View {
 
                 HStack(spacing: 6) {
                     if let time = task.time, !time.isEmpty {
-                        Text(time)
+                        Text(StoredTaskFormat.displayTime(time))
                             .font(DesignSystem.Typography.labelSm)
                     }
                     if let date = task.date, let fmt = dateFormatter {
@@ -213,7 +213,7 @@ struct SearchResultRow: View {
         .padding(.vertical, 12)
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(task.task)\(task.isCompleted ? L.t(", completed", ", 완료", ", 完了") : "")\(task.time.map { ", \($0)" } ?? "")")
+        .accessibilityLabel("\(task.task)\(task.isCompleted ? L.t(", completed", ", 완료", ", 完了") : "")\(task.time.map { ", \(StoredTaskFormat.displayTime($0))" } ?? "")")
         .accessibilityHint(L.t("Double tap to navigate to this task", "이 일정으로 이동하려면 이중 탭하세요", "このタスクに移動するにはダブルタップ"))
     }
 }

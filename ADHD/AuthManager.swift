@@ -346,14 +346,13 @@ class AuthManager: NSObject, ObservableObject {
         let fallbackSession = session ?? supabase.auth.currentSession ?? startupCachedSession
 
         do {
-            let refreshedSession = try await supabase.auth.session
+            let (refreshedSession, currentUser) = try await Self.validateProviderSession()
             guard sessionTransition.permitsBackgroundResult(startedGeneration) else { return }
             guard !refreshedSession.isExpired else {
                 await lockInvalidSessionAndClearProviderCache()
                 return
             }
 
-            let currentUser = try await supabase.auth.user(jwt: refreshedSession.accessToken)
             guard sessionTransition.permitsBackgroundResult(startedGeneration),
                   matchesCurrentProviderSession(refreshedSession) else { return }
             guard currentUser.id == refreshedSession.user.id else {
@@ -375,6 +374,27 @@ class AuthManager: NSObject, ObservableObject {
             } else {
                 await lockInvalidSessionAndClearProviderCache()
             }
+        }
+    }
+
+    /// 실행 때 서버 검증이 오래 걸려도 빈 로딩 화면에 묶이지 않도록 제한 시간을 둡니다.
+    /// 시간을 넘기면 URLError(.timedOut)로 끝나 일시 장애처럼 오프라인 제한 상태로 열고, 연결되면 다시 검증합니다.
+    private static func validateProviderSession(timeout: TimeInterval = 8) async throws -> (Session, User) {
+        let client = supabase
+        let timeoutNanoseconds = UInt64(timeout * 1_000_000_000)
+        return try await withThrowingTaskGroup(of: (Session, User).self) { group in
+            group.addTask {
+                let session = try await client.auth.session
+                let user = try await client.auth.user(jwt: session.accessToken)
+                return (session, user)
+            }
+            group.addTask {
+                try await Task.sleep(nanoseconds: timeoutNanoseconds)
+                throw URLError(.timedOut)
+            }
+            defer { group.cancelAll() }
+            guard let result = try await group.next() else { throw URLError(.timedOut) }
+            return result
         }
     }
 
@@ -762,8 +782,10 @@ class AuthManager: NSObject, ObservableObject {
     @MainActor
     private func lockInvalidSessionAndClearProviderCache() async {
         sessionTransition.invalidate()
-        deletionNoticeDefaults.set(2, forKey: Self.localSessionLockKey)
         lastKnownUserID = session?.user.id ?? startupCachedSession?.user.id ?? lastKnownUserID
+        // 로그인한 적 없는 게스트(세션 없음)는 '만료' 상태(2)로 남기지 않습니다.
+        // 2로 저장하면 다음 실행부터 계정을 만든 적도 없는 사용자에게 만료 배너가 뜹니다.
+        deletionNoticeDefaults.set(lastKnownUserID == nil ? 1 : 2, forKey: Self.localSessionLockKey)
         session = nil
         startupCachedSession = nil
         sessionExpiryTask?.cancel()

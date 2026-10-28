@@ -106,7 +106,9 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
 
     override init() {
         super.init()
-        let localeId = UserDefaults.standard.string(forKey: Self.speechLocaleKey) ?? "ko-KR"
+        // 설정에서 언어를 바꾼 적이 없으면 앱 언어로 받아쓰기합니다.
+        let localeId = UserDefaults.standard.string(forKey: Self.speechLocaleKey)
+            ?? LocalizationManager.shared.currentLanguage.localeIdentifier
         currentLocaleId = localeId
         // SFSpeechRecognizer와 권한 요청은 첫 사용 시까지 지연
 
