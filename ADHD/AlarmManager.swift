@@ -77,6 +77,9 @@ final class AlarmCoordinator: NSObject, ObservableObject, UNUserNotificationCent
     /// 알람 확인 시 호출될 클로저 (Task를 완료 상태로 변경하는 등의 용도)
     var onTaskConfirmed: ((UUID) -> Void)?
 
+    /// 앱 사용 중 도착한 알림이 이미 완료한 태스크의 것인지 확인하는 클로저 (저장소가 열린 뒤 설정됨)
+    var isTaskCompleted: ((UUID) -> Bool)?
+
     /// D14: 풀스크린 오버레이는 Pro 전용
     private var isPremium: Bool {
         UserDefaults(suiteName: appGroupID)?.bool(forKey: SubscriptionManager.premiumFlagKey) ?? false
@@ -95,6 +98,15 @@ final class AlarmCoordinator: NSObject, ObservableObject, UNUserNotificationCent
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
         let userInfo = notification.request.content.userInfo
+
+        // 이미 완료한 할 일이면 앱 사용 중에는 울리지 않습니다 (위젯·다른 경로로 먼저 완료한 경우의 안전망).
+        // 저장소 조회는 메인 스레드에서만 합니다.
+        if Thread.isMainThread,
+           let taskId = (userInfo["taskId"] as? String).flatMap(UUID.init),
+           isTaskCompleted?(taskId) == true {
+            completionHandler([])
+            return
+        }
 
         if urgency(from: userInfo) == .strong && isPremium {
             // 강한 알림(Pro): 오버레이 표시 + 시스템 배너 없음

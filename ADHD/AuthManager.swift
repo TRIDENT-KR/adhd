@@ -93,6 +93,24 @@ struct AuthSessionTransitionGuard {
     static func expiryCheckDelay(expiresAt: TimeInterval, now: TimeInterval) -> TimeInterval {
         max(0.1, expiresAt - now + 0.1)
     }
+
+    /// 만료된 세션을 네트워크 문제로 갱신하지 못했을 때 다시 시도하기까지의 대기 시간입니다.
+    static func offlineRefreshRetryDelay(afterFailures failures: Int) -> TimeInterval {
+        min(300, 15 * pow(2, Double(min(max(failures, 0), 5))))
+    }
+}
+
+/// 세션 갱신 실패 중 '세션이 무효'가 아니라 '지금 확인할 수 없음'에 해당하는 오류를 가립니다.
+/// 이 경우 refresh token을 지우지 않고 오프라인 제한 상태로 두었다가 다시 시도합니다.
+enum AuthRefreshFailurePolicy {
+    static func isTransient(_ error: Error) -> Bool {
+        if error is URLError { return true }
+        if (error as NSError).domain == NSURLErrorDomain { return true }
+        if let authError = error as? AuthError, case .api(_, _, _, let response) = authError {
+            return response.statusCode == 429 || (500...599).contains(response.statusCode)
+        }
+        return false
+    }
 }
 
 private enum AuthValidationError: Error {
@@ -262,6 +280,7 @@ class AuthManager: NSObject, ObservableObject {
     private var lastKnownUserID: UUID?
     private var authStateObservationTask: Task<Void, Never>?
     private var sessionExpiryTask: Task<Void, Never>?
+    private var offlineRefreshFailures = 0
     private var deletionPollingTask: Task<Void, Never>?
     private let deletionPollingStore: any AccountDeletionPersistence
     private let deletionNoticeDefaults: UserDefaults
@@ -345,8 +364,9 @@ class AuthManager: NSObject, ObservableObject {
             guard sessionTransition.permitsBackgroundResult(startedGeneration) else { return }
             if isDefinitiveInvalidSession(error) {
                 await lockInvalidSessionAndClearProviderCache()
-            } else if let fallbackSession, !fallbackSession.isExpired,
-                      matchesCurrentProviderSession(fallbackSession) {
+            } else if let fallbackSession, matchesCurrentProviderSession(fallbackSession),
+                      !fallbackSession.isExpired || AuthRefreshFailurePolicy.isTransient(error) {
+                // 만료된 세션이라도 갱신 실패가 네트워크·서버 일시 장애 때문이면 무효로 보지 않습니다.
                 acceptAuthenticatedSession(fallbackSession, isOnline: false)
             } else if fallbackSession == nil {
                 session = nil
@@ -372,8 +392,8 @@ class AuthManager: NSObject, ObservableObject {
         }
         if !isConnected {
             let fallbackSession = session ?? supabase.auth.currentSession ?? startupCachedSession
-            if let fallbackSession, !fallbackSession.isExpired,
-               matchesCurrentProviderSession(fallbackSession) {
+            // 연결이 끊긴 것 자체는 세션 무효의 근거가 아닙니다. 만료됐더라도 다시 연결되면 갱신합니다.
+            if let fallbackSession, matchesCurrentProviderSession(fallbackSession) {
                 acceptAuthenticatedSession(fallbackSession, isOnline: false)
             } else if fallbackSession == nil {
                 session = nil
@@ -731,7 +751,12 @@ class AuthManager: NSObject, ObservableObject {
             ? .authenticatedOnline(userID: session.user.id)
             : .authenticatedOfflineLimited(userID: session.user.id)
         isSessionLoaded = true
-        scheduleExpiryCheck(for: session)
+        if session.isExpired {
+            scheduleOfflineRefreshRetry(for: session.user.id)
+        } else {
+            offlineRefreshFailures = 0
+            scheduleExpiryCheck(for: session)
+        }
     }
 
     @MainActor
@@ -820,6 +845,25 @@ class AuthManager: NSObject, ObservableObject {
         }
     }
 
+    /// 만료된 오프라인 세션은 간격을 늘려 가며 갱신을 다시 시도합니다.
+    @MainActor
+    private func scheduleOfflineRefreshRetry(for userID: UUID) {
+        sessionExpiryTask?.cancel()
+        let delay = AuthSessionTransitionGuard.offlineRefreshRetryDelay(afterFailures: offlineRefreshFailures)
+        offlineRefreshFailures += 1
+        let nanoseconds = UInt64(delay * 1_000_000_000)
+
+        sessionExpiryTask = Task { [weak self] in
+            do {
+                try await Task.sleep(nanoseconds: nanoseconds)
+            } catch {
+                return
+            }
+            guard !Task.isCancelled else { return }
+            await self?.handleSessionRefreshBoundary(for: userID)
+        }
+    }
+
     @MainActor
     private func handleSessionRefreshBoundary(for userID: UUID) async {
         guard let session, session.user.id == userID else { return }
@@ -829,9 +873,11 @@ class AuthManager: NSObject, ObservableObject {
             return
         }
 
-        if case .authenticatedOnline = accessState {
+        switch accessState {
+        case .authenticatedOnline, .authenticatedOfflineLimited:
+            // checkSession이 갱신 성공, 일시 장애(오프라인 유지), 확정 무효(잠금)를 가릅니다.
             await checkSession()
-        } else {
+        default:
             await lockInvalidSessionAndClearProviderCache()
         }
     }

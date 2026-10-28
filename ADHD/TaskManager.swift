@@ -117,6 +117,9 @@ class TaskManager: ObservableObject {
         // 메인 화면을 즉시 표시한 뒤 무거운 초기화를 실행 (첫 실행 렉 방지)
         isReady = true
         Task { @MainActor in
+            // 콜드 런치에는 scenePhase 변화가 오지 않으므로, 앱이 꺼진 동안
+            // 알림·알람에서 누른 '완료'를 여기서 날짜 초기화보다 먼저 반영합니다.
+            processPendingAlarmCompletions()
             checkAndResetDailyTasks()
         }
     }
@@ -179,14 +182,20 @@ class TaskManager: ObservableObject {
             }
 
             // 3) isCompleted 리셋
-            var resetCount = 0
+            var resetTasks: [AppTask] = []
             for task in routineTasks where task.isCompleted {
                 task.isCompleted = false
-                resetCount += 1
+                resetTasks.append(task)
             }
+            let resetCount = resetTasks.count
 
             defaults.set(now, forKey: lastResetKey)
             safeSave()
+
+            // 4) 어제 완료하면서 '오늘만 건너뛰기'로 바꿔 둔 알림을 원래 반복 예약으로 되돌림
+            for task in resetTasks {
+                NotificationManager.shared.scheduleNotification(for: task)
+            }
             print("✅ \(resetCount)개의 태스크 초기화 완료.")
         } catch {
             print("daily_reset_failed")
@@ -217,17 +226,14 @@ class TaskManager: ObservableObject {
     }
 
     /// 완료 시 알림 정리:
-    /// 반복 태스크(루틴/반복 일정)는 본체 스케줄을 살려두고 파생(팔로업/스누즈)만 제거 —
-    /// 기존처럼 전부 취소하면 다음 회차 알림이 영구히 죽는 버그가 있었음.
+    /// 반복 태스크(루틴/반복 일정)는 파생(팔로업/스누즈)을 지우고, 오늘 아직 울리지 않은 회차만 뺀
+    /// 예약으로 바꿉니다(다음 회차는 유지). 다음 날 일일 초기화가 원래 반복 예약으로 되돌립니다.
     /// 일회성은 본체+파생+AlarmKit 전부 취소.
     func clearNotificationsAfterCompletion(of task: AppTask) {
         let isRepeating = task.isRecurring || task.date == nil
         if isRepeating {
             NotificationManager.shared.cancelFollowUps(taskIdString: task.id.uuidString)
-            // 격주·월간·연간은 one-shot이므로 완료 처리 시 다음 기준일 회차를 즉시 재무장합니다.
-            if RecurrenceEngine.requiresOneShotNotification(task.recurrenceRule) {
-                NotificationManager.shared.scheduleNotification(for: task)
-            }
+            NotificationManager.shared.scheduleNotification(for: task)
         } else {
             NotificationManager.shared.cancelNotification(for: task)
         }
@@ -235,6 +241,13 @@ class TaskManager: ObservableObject {
 
     /// 알림 액션/AlarmKit Stop이 App Group 큐에 적재한 완료 요청을 일괄 처리합니다.
     /// (scenePhase active 및 .alarmTaskCompleted 수신 시 호출)
+    /// 포그라운드에 도착한 알림이 이미 완료한 태스크의 것인지 확인합니다.
+    func isTaskCompleted(id: UUID) -> Bool {
+        guard let context = modelContext else { return false }
+        let descriptor = FetchDescriptor<AppTask>(predicate: #Predicate { $0.id == id })
+        return (try? context.fetch(descriptor).first?.isCompleted) ?? false
+    }
+
     func processPendingAlarmCompletions() {
         let queue = AlarmCompletionRelay.drain()
         guard !queue.isEmpty else { return }

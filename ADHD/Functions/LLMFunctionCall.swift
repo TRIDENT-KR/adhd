@@ -409,9 +409,7 @@ extension LLMFunctionCall: Identifiable {
         case "update": return L.voice.confirmUpdate
         default:
             if uiCategory == "Appointment" {
-                let df = DateFormatter()
-                df.dateFormat = "yyyy-MM-dd"
-                let todayString = df.string(from: Date())
+                let todayString = StoredTaskFormat.date.string(from: Date())
                 if uiDate == todayString {
                     return L.voice.confirmTask
                 }
@@ -481,10 +479,8 @@ extension LLMFunctionCall: Identifiable {
             return timeString
         } else {
             guard let dateString = uiDate, !dateString.isEmpty else { return timeString }
-            
-            let df = DateFormatter()
-            df.dateFormat = "yyyy-MM-dd"
-            let todayString = df.string(from: Date())
+
+            let todayString = StoredTaskFormat.date.string(from: Date())
             
             let datePrefix = (dateString == todayString) ? L.voice.confirmToday : dateString
             

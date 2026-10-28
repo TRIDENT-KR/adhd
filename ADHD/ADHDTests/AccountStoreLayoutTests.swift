@@ -417,4 +417,20 @@ struct AuthSessionTransitionTests {
         #expect(delay < 61)
         #expect(AuthSessionTransitionGuard.expiryCheckDelay(expiresAt: now - 1, now: now) == 0.1)
     }
+
+    @Test func offlineRefreshRetryBacksOffAndCaps() {
+        #expect(AuthSessionTransitionGuard.offlineRefreshRetryDelay(afterFailures: 0) == 15)
+        #expect(AuthSessionTransitionGuard.offlineRefreshRetryDelay(afterFailures: 1) == 30)
+        #expect(AuthSessionTransitionGuard.offlineRefreshRetryDelay(afterFailures: 2) == 60)
+        #expect(AuthSessionTransitionGuard.offlineRefreshRetryDelay(afterFailures: 10) == 300)
+        #expect(AuthSessionTransitionGuard.offlineRefreshRetryDelay(afterFailures: -1) == 15)
+    }
+
+    @Test func onlyConnectivityFailuresKeepAnExpiredSessionUsableOffline() {
+        #expect(AuthRefreshFailurePolicy.isTransient(URLError(.notConnectedToInternet)))
+        #expect(AuthRefreshFailurePolicy.isTransient(URLError(.timedOut)))
+        #expect(AuthRefreshFailurePolicy.isTransient(NSError(domain: NSURLErrorDomain, code: NSURLErrorNetworkConnectionLost)))
+        #expect(!AuthRefreshFailurePolicy.isTransient(DecodingError.dataCorrupted(.init(codingPath: [], debugDescription: "bad"))))
+        #expect(!AuthRefreshFailurePolicy.isTransient(NSError(domain: "Other", code: 1)))
+    }
 }

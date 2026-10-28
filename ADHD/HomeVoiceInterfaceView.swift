@@ -1076,7 +1076,6 @@ struct VoiceConfirmationSheet: View {
                                 DatePicker("", selection: $editDateTime, displayedComponents: editCategory == "Appointment" ? [.date, .hourAndMinute] : [.hourAndMinute])
                                     .labelsHidden()
                                     .datePickerStyle(.compact)
-                                    .environment(\.locale, Locale.current)
                             }
                             .padding(14)
                             .background(Color(UIColor.systemBackground).opacity(0.6))
@@ -1095,15 +1094,10 @@ struct VoiceConfirmationSheet: View {
                             .padding(.vertical, 14)
 
                             Button(L.voice.save) {
-                                let tf = DateFormatter()
-                                tf.timeStyle = .short
-                                tf.dateStyle = .none
-                                let numStr = tf.string(from: editDateTime)
-                                
-                                let df = DateFormatter()
-                                df.dateFormat = "yyyy-MM-dd"
-                                let newDateStr = df.string(from: editDateTime)
-                                
+                                // 기기 언어 형식("오후 3:00")으로 저장하면 알림·정렬이 읽지 못하므로 저장 형식을 고정합니다.
+                                let numStr = StoredTaskFormat.time.string(from: editDateTime)
+                                let newDateStr = StoredTaskFormat.date.string(from: editDateTime)
+
                                 var updatedCall = tasks[index].call
                                 if tasks[index].executionIssue == .noMatchingTarget {
                                     updatedCall.retargetForRetry(
@@ -1137,17 +1131,10 @@ struct VoiceConfirmationSheet: View {
                         let dateRaw = currentEdit.call.uiSmartDateRaw
                         let timeRaw = currentEdit.call.uiTime ?? ""
                         
-                        let df = DateFormatter()
-                        df.dateFormat = "yyyy-MM-dd"
-                        var finalDate = df.date(from: dateRaw) ?? Date()
-                        
-                        if !timeRaw.isEmpty {
-                            let tf = DateFormatter()
-                            tf.timeStyle = .short
-                            if let parsedTime = tf.date(from: timeRaw) {
-                                let timeComponents = Calendar.current.dateComponents([.hour, .minute], from: parsedTime)
-                                finalDate = Calendar.current.date(bySettingHour: timeComponents.hour ?? 0, minute: timeComponents.minute ?? 0, second: 0, of: finalDate) ?? finalDate
-                            }
+                        var finalDate = StoredTaskFormat.date.date(from: dateRaw) ?? Date()
+
+                        if let time = StoredTaskFormat.hourMinute(from: timeRaw) {
+                            finalDate = Calendar.current.date(bySettingHour: time.hour, minute: time.minute, second: 0, of: finalDate) ?? finalDate
                         }
                         
                         editDateTime = finalDate
