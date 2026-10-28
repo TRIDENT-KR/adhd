@@ -344,7 +344,7 @@ enum StoredTaskFormat {
         )
     }
 
-    private static func posixFormatter(_ format: String) -> DateFormatter {
+    nonisolated private static func posixFormatter(_ format: String) -> DateFormatter {
         let formatter = DateFormatter()
         formatter.calendar = Calendar(identifier: .gregorian)
         formatter.locale = Locale(identifier: "en_US_POSIX")

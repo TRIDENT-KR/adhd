@@ -643,7 +643,7 @@ final class NotificationManager {
     }
 
     /// Calendar weekday(1=일 … 7=토) → Locale.Weekday
-    private static func localeWeekday(_ calendarWeekday: Int) -> Locale.Weekday {
+    nonisolated private static func localeWeekday(_ calendarWeekday: Int) -> Locale.Weekday {
         switch calendarWeekday {
         case 1: return .sunday
         case 2: return .monday
