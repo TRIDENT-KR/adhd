@@ -198,7 +198,7 @@ struct TodayRoutinesMediumView: View {
 
             // 시간
             if let time = routine.time, !time.isEmpty {
-                Text(time)
+                Text(routine.displayTime ?? time)
                     .font(WDS.Typography.caption)
                     .foregroundStyle(WDS.Colors.onSurfaceVariant.opacity(0.4))
             }

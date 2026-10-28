@@ -59,7 +59,7 @@ struct QuickAddSheet: View {
 
             // 칩 행: 시간 + 긴급도 (TaskRow 편집 모드와 동일 시각 패턴)
             HStack(spacing: 8) {
-                Text(time.isEmpty ? L.voice.fieldTime : time)
+                Text(time.isEmpty ? L.voice.fieldTime : StoredTaskFormat.displayTime(time))
                     .font(DesignSystem.Typography.labelSm)
                     .padding(.vertical, 4)
                     .padding(.horizontal, 8)

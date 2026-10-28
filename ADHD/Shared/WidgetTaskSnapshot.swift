@@ -34,6 +34,22 @@ struct WidgetTaskSnapshot: Codable, Identifiable {
     let isCompleted: Bool
     let recurrenceLabel: String?
 
+    /// 위젯에 보여줄 시간: 앱 언어(App Group에 복제된 값) 형식으로 "오후 3:00", "3:00 PM", "15:00".
+    /// 읽을 수 없는 값은 원문 그대로입니다.
+    var displayTime: String? {
+        guard let time, !time.isEmpty else { return nil }
+        let clock = sortableTime.split(separator: ":").compactMap { Int($0) }
+        guard clock.count == 2,
+              let date = Calendar(identifier: .gregorian).date(
+                from: DateComponents(year: 2000, month: 1, day: 1, hour: clock[0], minute: clock[1])
+              ) else { return time }
+        let language = UserDefaults(suiteName: appGroupID)?.string(forKey: "appLanguage") ?? "en"
+        let localeID = ["ko": "ko-KR", "ja": "ja-JP"][language] ?? "en-US"
+        return date.formatted(
+            Date.FormatStyle(date: .omitted, time: .shortened).locale(Locale(identifier: localeID))
+        )
+    }
+
     /// 정렬용 24시간 형식 시간 키
     var sortableTime: String {
         guard let time, !time.isEmpty else { return "99:99" }

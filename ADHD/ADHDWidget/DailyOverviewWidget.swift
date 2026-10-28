@@ -197,7 +197,7 @@ struct DailyOverviewWidgetView: View {
                     Spacer()
 
                     if let time = routine.time, !time.isEmpty {
-                        Text(time)
+                        Text(routine.displayTime ?? time)
                             .font(WDS.Typography.caption)
                             .foregroundStyle(WDS.Colors.onSurfaceVariant.opacity(0.35))
                     }
@@ -232,7 +232,7 @@ struct DailyOverviewWidgetView: View {
                 HStack(spacing: 7) {
                     // 시간 태그
                     if let time = appointment.time, !time.isEmpty {
-                        Text(time)
+                        Text(appointment.displayTime ?? time)
                             .font(.system(size: 10, weight: .semibold, design: .rounded))
                             .foregroundStyle(WDS.Colors.primary)
                             .frame(width: 58, alignment: .leading)

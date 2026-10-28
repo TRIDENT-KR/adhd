@@ -144,7 +144,7 @@ struct PlannerView: View {
                             .onTapGesture {
                                 if authManager.accessState.isGuest { showQuickAdd = true }
                                 else if reduceMotion { activeTab = .voice }
-                                else { withAnimation(.spring()) { activeTab = .voice } }
+                                else { withAnimation(.timingCurve(0.4, 0, 0.2, 1, duration: 0.3)) { activeTab = .voice } }
                             }
                             .accessibilityLabel(authManager.accessState.isGuest
                                 ? L.t("No tasks yet. Add a task", "아직 일정이 없어요. 일정 추가", "予定はまだありません。タスクを追加")
@@ -417,7 +417,7 @@ struct EventCard: View {
 
                 // 하단: 시간 + 알림 pill
                 HStack(spacing: 8) {
-                    Text(localTime.isEmpty ? L.t("Set time", "시간 설정", "時刻を設定") : localTime)
+                    Text(localTime.isEmpty ? L.t("Set time", "시간 설정", "時刻を設定") : StoredTaskFormat.displayTime(localTime))
                         .font(DesignSystem.Typography.labelSm)
                         .padding(.vertical, 5)
                         .padding(.horizontal, 10)
@@ -540,7 +540,7 @@ struct EventCard: View {
                         // 2행: 시간 + 반복 + 알림 (아이콘 좌측 정렬)
                         HStack(spacing: 5) {
                             if let time = task.time, !time.isEmpty {
-                                Text(time)
+                                Text(StoredTaskFormat.displayTime(time))
                                     .font(DesignSystem.Typography.labelSm)
                                     .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(task.isCompleted ? 0.3 : 0.5))
                             }

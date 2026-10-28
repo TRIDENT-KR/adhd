@@ -78,7 +78,7 @@ struct NextTaskSmallView: View {
                         HStack(spacing: 4) {
                             Image(systemName: "clock.fill")
                                 .font(.system(size: 10))
-                            Text(time)
+                            Text(task.displayTime ?? time)
                                 .font(WDS.Typography.bodyMd)
                         }
                         .foregroundStyle(WDS.Colors.primary)
@@ -193,7 +193,7 @@ struct NextTaskMediumView: View {
                                 .foregroundStyle(WDS.Colors.onSurfaceVariant.opacity(0.3))
 
                             if let time = task.time, !time.isEmpty {
-                                Text(time)
+                                Text(task.displayTime ?? time)
                                     .font(WDS.Typography.caption)
                                     .foregroundStyle(WDS.Colors.onSurfaceVariant.opacity(0.4))
                             }

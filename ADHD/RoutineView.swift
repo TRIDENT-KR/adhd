@@ -172,7 +172,7 @@ struct RoutineView: View {
                             .onTapGesture {
                                 if authManager.accessState.isGuest { showQuickAdd = true }
                                 else if reduceMotion { activeTab = .voice }
-                                else { withAnimation(.spring()) { activeTab = .voice } }
+                                else { withAnimation(.timingCurve(0.4, 0, 0.2, 1, duration: 0.3)) { activeTab = .voice } }
                             }
                             .accessibilityLabel(authManager.accessState.isGuest
                                 ? L.t("No tasks yet. Add a task", "아직 일정이 없어요. 일정 추가", "予定はまだありません。タスクを追加")
@@ -266,7 +266,7 @@ struct TaskRow: View {
                         .onSubmit { finishEditing() }
 
                     HStack(spacing: 8) {
-                        Text(localTime.isEmpty ? L.t("Set time", "시간 설정", "時刻を設定") : localTime)
+                        Text(localTime.isEmpty ? L.t("Set time", "시간 설정", "時刻を設定") : StoredTaskFormat.displayTime(localTime))
                             .font(DesignSystem.Typography.labelSm)
                             .padding(.vertical, 4)
                             .padding(.horizontal, 8)
@@ -361,7 +361,7 @@ struct TaskRow: View {
                                     .foregroundColor(DesignSystem.Colors.primary.opacity(0.45))
                                     .accessibilityHidden(true)
                             }
-                            Text(time)
+                            Text(StoredTaskFormat.displayTime(time))
                                 .font(DesignSystem.Typography.labelSm)
                                 .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(
                                     task.isCompleted ? 0.3 : 0.5))
@@ -438,7 +438,13 @@ struct WeeklyBar: View {
 
     @EnvironmentObject private var taskManager: TaskManager
 
-    private let dayLabels = ["M", "T", "W", "T", "F", "S", "S"]
+    /// 월요일부터 시작하는 앱 언어 요일 한 글자 (월화수목금토일 / MTWTFSS / 月火水木金土日)
+    private var dayLabels: [String] {
+        var cal = Calendar(identifier: .gregorian)
+        cal.locale = Locale(identifier: LocalizationManager.shared.currentLanguage.localeIdentifier)
+        let sundayFirst = cal.veryShortStandaloneWeekdaySymbols
+        return Array(sundayFirst.dropFirst()) + [sundayFirst[0]]
+    }
 
     /// ISO 8601 기준 오늘 요일 인덱스 (0=월, 6=일)
     private var todayIndex: Int {

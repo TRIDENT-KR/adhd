@@ -119,7 +119,7 @@ struct MainTabView: View {
                 if !loadedTabs.contains(tab) {
                     loadedTabs.insert(tab)
                 }
-                withAnimation { activeTab = tab }
+                withAnimation(.timingCurve(0.4, 0, 0.2, 1, duration: 0.3)) { activeTab = tab }
             }
         }
         // 6. 강한 알림 오버레이

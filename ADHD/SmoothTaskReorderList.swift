@@ -137,7 +137,7 @@ struct SmoothTaskReorderList: View {
                     .lineLimit(1)
                 if let time = task.time, !time.isEmpty {
                     HStack(spacing: 4) {
-                        Text(time)
+                        Text(StoredTaskFormat.displayTime(time))
                         if let label = task.recurrenceLabel {
                             Image(systemName: "repeat").font(.system(size: 9))
                             Text(label)
