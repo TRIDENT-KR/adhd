@@ -5,7 +5,6 @@ struct MainTabView: View {
     @EnvironmentObject private var networkMonitor: NetworkMonitor
     @EnvironmentObject private var taskManager: TaskManager
     @EnvironmentObject private var authManager: AuthManager
-    @StateObject private var alarmManager = AlarmCoordinator.shared
     @ObservedObject private var langManager = LocalizationManager.shared
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -122,11 +121,8 @@ struct MainTabView: View {
                 withAnimation(.timingCurve(0.4, 0, 0.2, 1, duration: 0.3)) { activeTab = tab }
             }
         }
-        // 6. 강한 알림 오버레이
-        .fullScreenCover(item: $alarmManager.activeAlarm) { alarm in
-            AlarmOverlayView(alarm: alarm)
-                .interactiveDismissDisabled(true)
-        }
+        // 6. 강한 알림 오버레이: 시트가 떠 있어도 보이도록 별도 창(AlarmOverlayWindowPresenter)에 띄웁니다.
+        .onAppear { AlarmOverlayWindowPresenter.shared.start() }
         // 7. 이전 버전의 페이월 딥링크 호환
         .onReceive(NotificationCenter.default.publisher(for: .openPaywall)) { _ in
             showPaywall = true

@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 
 // MARK: - AlarmOverlayView
 /// 강한 알림 발생 시 화면 전체를 덮는 풀스크린 알람 UI.
@@ -159,5 +160,53 @@ private struct AlarmDismissButtonStyle: ButtonStyle {
         configuration.label
             .scaleEffect(configuration.isPressed ? 0.96 : 1.0)
             .animation(reduceMotion ? .none : .easeInOut(duration: 0.15), value: configuration.isPressed)
+    }
+}
+
+// MARK: - Overlay Window
+/// 알람 오버레이를 앱 화면과 별개인 창에 띄웁니다.
+/// 화면 안의 fullScreenCover는 설정·빠른 추가·페이월 같은 시트가 이미 떠 있으면 표시되지 못해,
+/// 강한 알림이 소리만 나고 완료·스누즈 화면이 나오지 않았습니다.
+@MainActor
+final class AlarmOverlayWindowPresenter {
+    static let shared = AlarmOverlayWindowPresenter()
+    private init() {}
+
+    private var window: UIWindow?
+    private var subscription: AnyCancellable?
+
+    /// 저장소가 열린 뒤 한 번 호출합니다. 여러 번 불러도 구독은 하나입니다.
+    func start() {
+        guard subscription == nil else { return }
+        subscription = AlarmCoordinator.shared.$activeAlarm
+            .removeDuplicates { $0?.id == $1?.id }
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] alarm in self?.show(alarm) }
+    }
+
+    private func show(_ alarm: AlarmEntry?) {
+        guard let alarm else {
+            hide()
+            return
+        }
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        guard let scene = scenes.first(where: { $0.activationState == .foregroundActive }) ?? scenes.first else { return }
+
+        let host = UIHostingController(rootView: AlarmOverlayView(alarm: alarm))
+        host.view.backgroundColor = .clear
+        let overlayWindow = window ?? UIWindow(windowScene: scene)
+        overlayWindow.windowLevel = .alert + 1
+        overlayWindow.rootViewController = host
+        overlayWindow.makeKeyAndVisible()
+        window = overlayWindow
+    }
+
+    private func hide() {
+        guard let overlayWindow = window else { return }
+        overlayWindow.isHidden = true
+        overlayWindow.rootViewController = nil
+        window = nil
+        // 알람 전에 쓰던 앱 창으로 키 입력·VoiceOver 초점을 돌려줍니다.
+        overlayWindow.windowScene?.windows.first { $0 !== overlayWindow && !$0.isHidden }?.makeKey()
     }
 }
