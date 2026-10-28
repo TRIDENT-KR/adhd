@@ -9,6 +9,8 @@ enum AccountPreferenceKey: String {
     case notificationSoundDisabled
     case confirmBeforeSave
     case aiDataConsentVersion
+    /// 로그인 직후 '기기 일정 가져오기'를 이미 물어봤는지 (계정마다 한 번)
+    case guestImportOffered
 }
 
 /// 계정별 설정을 raw Mora UUID가 노출되지 않는 UserDefaults namespace에 저장합니다.
@@ -73,6 +75,7 @@ enum AccountPreferences {
             .notificationSoundDisabled,
             .confirmBeforeSave,
             .aiDataConsentVersion,
+            .guestImportOffered,
         ] {
             defaults.removeObject(
                 forKey: "mora.account.\(accountScope).\(key.rawValue).v1"

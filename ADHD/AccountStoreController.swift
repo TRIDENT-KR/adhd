@@ -218,23 +218,44 @@ final class AccountStoreController: ObservableObject {
         failureCode = "MORA-DATA-DELETE-001"
     }
 
-    /// 게스트 원본은 유지합니다. 로그인만으로 가져오지 않으며 Settings의 명시 확인 뒤 호출합니다.
+    /// 게스트 원본은 유지합니다. 로그인만으로 가져오지 않으며 사용자가 확인한 뒤에만 호출합니다
+    /// (로그인 직후 가져오기 제안 또는 Settings).
     func copyGuestTasks(to userID: UUID) throws -> Int {
         guard userID != LocalGuestIdentity.storageID,
               activeUserID == userID,
               let container else { throw GuestTaskImportError.accountUnavailable }
+        guard let guestContainer = try openGuestContainer() else { return 0 }
+        return try GuestTaskImport.copy(
+            from: guestContainer.mainContext, to: container.mainContext
+        )
+    }
+
+    /// 현재 열린 계정 저장소의 일정 수입니다.
+    func activeTaskCount() -> Int {
+        guard let container else { return 0 }
+        return (try? container.mainContext.fetchCount(FetchDescriptor<AppTask>())) ?? 0
+    }
+
+    /// 아직 이 계정으로 가져오지 않은 게스트 일정 수입니다. 게스트 저장소가 없거나 읽지 못하면 0입니다.
+    func guestTaskCountNotInActiveAccount() -> Int {
+        guard activeUserID != LocalGuestIdentity.storageID,
+              let container,
+              let guestContainer = try? openGuestContainer(),
+              let guestIDs = try? guestContainer.mainContext.fetch(FetchDescriptor<AppTask>()).map(\.id) else { return 0 }
+        let accountIDs = Set((try? container.mainContext.fetch(FetchDescriptor<AppTask>()).map(\.id)) ?? [])
+        return guestIDs.filter { !accountIDs.contains($0) }.count
+    }
+
+    private func openGuestContainer() throws -> ModelContainer? {
         let guestURL = layout.storeURL(for: LocalGuestIdentity.storageID)
-        guard fileManager.fileExists(atPath: guestURL.path) else { return 0 }
+        guard fileManager.fileExists(atPath: guestURL.path) else { return nil }
         let schema = Schema([AppTask.self])
-        let guestContainer = try ModelContainer(
+        return try ModelContainer(
             for: schema,
             configurations: [ModelConfiguration(
                 "MoraAccount", schema: schema, url: guestURL,
                 allowsSave: true, cloudKitDatabase: .none
             )]
-        )
-        return try GuestTaskImport.copy(
-            from: guestContainer.mainContext, to: container.mainContext
         )
     }
 }
