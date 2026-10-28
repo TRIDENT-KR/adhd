@@ -52,81 +52,39 @@ struct PlannerView: View {
             DesignSystem.Colors.background.ignoresSafeArea()
 
             ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 40) {
+                VStack(alignment: .leading, spacing: 24) {
 
-                    // Header
-                    let headerLayout = dynamicTypeSize.isAccessibilitySize
-                        ? AnyLayout(VStackLayout(alignment: .leading, spacing: 16))
-                        : AnyLayout(HStackLayout())
-                    headerLayout {
-                        Text(verbatim: "Planner")
-                            .font(DesignSystem.Typography.displayLg)
-                            .foregroundColor(DesignSystem.Colors.primary)
-                            .tracking(-0.5)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.6)
-
-                        if !dynamicTypeSize.isAccessibilitySize { Spacer() }
-
-                        HStack(spacing: 0) {
-                        Button(action: { showQuickAdd = true }) {
-                            Image(systemName: "plus")
-                                .font(.title3.weight(.light))
-                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
-                                .padding(8)
-                                .contentShape(Circle())
-                        }
-                        .buttonStyle(NoEffectButtonStyle())
-                        .accessibilityLabel(L.quickAdd.title)
-                        .frame(minWidth: 44, minHeight: 44)
-
-                        Button(action: {
-                            let anim: Animation? = reduceMotion ? .none : .spring(response: 0.3, dampingFraction: 0.8)
-                            withAnimation(anim) {
-                                isReordering.toggle()
-                                if isReordering { editingTaskId = nil }
-                            }
-                        }) {
-                            Image(systemName: isReordering ? "checkmark.circle.fill" : "arrow.up.arrow.down")
-                                .font(.body.weight(.light))
-                                .foregroundColor(isReordering ? DesignSystem.Colors.tertiary : DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
-                                .padding(8)
-                                .contentShape(Circle())
-                        }
-                        .buttonStyle(NoEffectButtonStyle())
-                        .accessibilityLabel(isReordering ? L.t("Finish reordering", "순서 변경 완료", "並べ替えを完了") : L.t("Reorder tasks", "일정 순서 변경", "タスクを並べ替える"))
-                        .frame(minWidth: 44, minHeight: 44)
-
-                        Button(action: { showSearch = true }) {
-                            Image(systemName: "magnifyingglass")
-                                .font(.title3.weight(.light))
-                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
-                                .padding(8)
-                                .contentShape(Circle())
-                        }
-                        .buttonStyle(NoEffectButtonStyle())
-                        .accessibilityLabel(L.t("Search tasks", "일정 검색", "タスクを検索"))
-                        .frame(minWidth: 44, minHeight: 44)
-
+                    // 제목 + 더보기(달력·검색·순서 변경) + 추가
+                    ScreenHeader(title: "Planner", addLabel: L.quickAdd.title, onAdd: { showQuickAdd = true }) {
                         Button(action: { isCalendarPresented.toggle() }) {
-                            Image(systemName: "calendar")
-                                .font(.title2.weight(.light))
-                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
-                                .padding(12)
-                                .contentShape(Circle())
+                            Label(L.t("Open calendar", "달력 열기", "カレンダーを開く"), systemImage: "calendar")
                         }
-                        .buttonStyle(NoEffectButtonStyle())
-                        .accessibilityLabel(L.t("Open calendar", "달력 열기", "カレンダーを開く"))
-                        .accessibilityHint(L.t("Double tap to pick a date", "날짜를 선택하려면 이중 탭하세요", "日付を選ぶにはダブルタップ"))
+                        Button(action: { showSearch = true }) {
+                            Label(L.t("Search tasks", "일정 검색", "タスクを検索"), systemImage: "magnifyingglass")
                         }
-                        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+                        Button(action: toggleReordering) {
+                            Label(L.t("Reorder tasks", "일정 순서 변경", "タスクを並べ替える"), systemImage: "arrow.up.arrow.down")
+                        }
                     }
                     .padding(.top, 16)
-                    .padding(.leading, 32)
-                    .padding(.trailing, 20)
+                    .padding(.horizontal, 20)
 
                     // 요일 선택 바: 오늘 | 나머지 요일
                     weekDateSelector
+
+                    if isReordering {
+                        HStack {
+                            Spacer()
+                            Button(action: toggleReordering) {
+                                Text(L.t("Done", "완료", "完了"))
+                                    .font(.subheadline.weight(.bold))
+                                    .foregroundColor(DesignSystem.Colors.tertiary)
+                                    .frame(minWidth: 44, minHeight: 44)
+                            }
+                            .accessibilityLabel(L.t("Finish reordering", "순서 변경 완료", "並べ替えを完了"))
+                        }
+                        .padding(.horizontal, 20)
+                    }
 
                     // 타임라인
                     if filteredAppointments.isEmpty {
@@ -156,7 +114,7 @@ struct PlannerView: View {
                         // 정렬 모드: 부드러운 드래그 리오더
                         SmoothTaskReorderList(tasks: filteredAppointments, taskManager: taskManager)
                     } else {
-                        LazyVStack(spacing: 32) {
+                        LazyVStack(spacing: 12) {
                             ForEach(filteredAppointments) { task in
                                 EventCard(task: task, editingTaskId: $editingTaskId)
                                     .swipeToDelete {
@@ -254,10 +212,10 @@ struct PlannerView: View {
                 VStack(spacing: 4) {
                     Text(weekdayFormatter.string(from: today))
                         .font(.caption.weight(.bold))
-                        .foregroundColor(isTodaySelected ? .white : DesignSystem.Colors.primary)
+                        .foregroundColor(isTodaySelected ? DesignSystem.Colors.onPrimary : DesignSystem.Colors.primary)
                     Text(dayFormatter.string(from: today))
                         .font(.title2.weight(.bold))
-                        .foregroundColor(isTodaySelected ? .white : DesignSystem.Colors.primary)
+                        .foregroundColor(isTodaySelected ? DesignSystem.Colors.onPrimary : DesignSystem.Colors.primary)
                         .minimumScaleFactor(0.8)
                 }
                 .padding(.vertical, 10)
@@ -265,7 +223,7 @@ struct PlannerView: View {
                 .overlay(alignment: .bottom) {
                     if hasEvents(on: today) {
                         Circle()
-                            .fill(isTodaySelected ? .white : DesignSystem.Colors.primary)
+                            .fill(isTodaySelected ? DesignSystem.Colors.onPrimary : DesignSystem.Colors.primary)
                             .frame(width: 5, height: 5)
                             .offset(y: -6)
                     }
@@ -277,11 +235,8 @@ struct PlannerView: View {
             }
             .buttonStyle(NoEffectButtonStyle())
 
-            // 구분선
-            Rectangle()
-                .fill(DesignSystem.Colors.onSurfaceVariant.opacity(0.12))
-                .frame(width: 1, height: 36)
-                .padding(.horizontal, 12)
+            // 오늘과 나머지 요일 사이는 선 대신 여백으로 나눕니다 (DESIGN.md No-Line)
+            Spacer().frame(width: 16)
 
             // 우측: 선택 날짜 ±7일 스크롤 뷰
             ScrollViewReader { proxy in
@@ -298,10 +253,10 @@ struct PlannerView: View {
                                 VStack(spacing: 4) {
                                     Text(weekdayFormatter.string(from: date))
                                         .font(.caption2.weight(.medium))
-                                        .foregroundColor(isSelected ? .white : DesignSystem.Colors.onSurfaceVariant.opacity(0.7))
+                                        .foregroundColor(isSelected ? DesignSystem.Colors.onPrimary : DesignSystem.Colors.onSurfaceVariant.opacity(0.7))
                                     Text(dayFormatter.string(from: date))
                                         .font(.title3.weight(isSelected ? .bold : .semibold))
-                                        .foregroundColor(isSelected ? .white : DesignSystem.Colors.onSurfaceVariant)
+                                        .foregroundColor(isSelected ? DesignSystem.Colors.onPrimary : DesignSystem.Colors.onSurfaceVariant)
                                         .minimumScaleFactor(0.8)
                                 }
                                 .padding(.vertical, 10)
@@ -309,7 +264,7 @@ struct PlannerView: View {
                                 .overlay(alignment: .bottom) {
                                     if hasEvents(on: date) {
                                         Circle()
-                                            .fill(isSelected ? .white : DesignSystem.Colors.primaryContainer)
+                                            .fill(isSelected ? DesignSystem.Colors.onPrimary : DesignSystem.Colors.primaryContainer)
                                             .frame(width: 5, height: 5)
                                             .offset(y: -6)
                                     }
@@ -356,6 +311,16 @@ struct PlannerView: View {
         }
         .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
         .padding(.leading, 24)
+    }
+}
+
+extension PlannerView {
+    fileprivate func toggleReordering() {
+        let anim: Animation? = reduceMotion ? .none : .timingCurve(0.4, 0, 0.2, 1, duration: 0.3)
+        withAnimation(anim) {
+            isReordering.toggle()
+            if isReordering { editingTaskId = nil }
+        }
     }
 }
 
@@ -407,8 +372,8 @@ struct EventCard: View {
 
                     Button(action: { finishEditing() }) {
                         Image(systemName: "checkmark")
-                            .font(.footnote.weight(.semibold))
-                            .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.4))
+                            .font(.body.weight(.bold))
+                            .foregroundColor(DesignSystem.Colors.primary)
                             .frame(minWidth: 44, minHeight: 44)
                             .contentShape(Rectangle())
                     }
@@ -421,9 +386,9 @@ struct EventCard: View {
                         .font(DesignSystem.Typography.labelSm)
                         .padding(.vertical, 5)
                         .padding(.horizontal, 10)
-                        .background(DesignSystem.Colors.onSurfaceVariant.opacity(0.08))
+                        .background(DesignSystem.Colors.background)
                         .cornerRadius(8)
-                        .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.7))
+                        .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
                         .onTapGesture { showingTimePicker = true }
                         .sheet(isPresented: $showingTimePicker) {
                             TimePickerModal(timeString: $localTime, isPresented: $showingTimePicker)
@@ -439,10 +404,10 @@ struct EventCard: View {
                             Text(localUrgency == .strong ? L.voice.urgencyStrong : L.voice.urgencyWeak)
                                 .font(.caption2.weight(.medium))
                         }
-                        .foregroundColor(localUrgency == .strong ? .orange : DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
+                        .foregroundColor(localUrgency == .strong ? DesignSystem.Colors.primary : DesignSystem.Colors.onSurfaceMeta)
                         .padding(.vertical, 5)
                         .padding(.horizontal, 10)
-                        .background((localUrgency == .strong ? Color.orange : DesignSystem.Colors.onSurfaceVariant).opacity(0.1))
+                        .background(localUrgency == .strong ? DesignSystem.Colors.primary.opacity(0.12) : DesignSystem.Colors.background)
                         .cornerRadius(8)
                     }
                     .buttonStyle(NoEffectButtonStyle())
@@ -462,19 +427,7 @@ struct EventCard: View {
                         }
                         Haptic.impact(.medium)
                     }) {
-                        ZStack {
-                            Circle()
-                                .stroke(DesignSystem.Colors.onSurfaceVariant.opacity(0.3), lineWidth: 1.5)
-                                .frame(width: 26, height: 26)
-                            if task.isCompleted {
-                                Circle()
-                                    .fill(DesignSystem.Colors.tertiary)
-                                    .frame(width: 26, height: 26)
-                                Image(systemName: "checkmark")
-                                    .font(.system(size: 11, weight: .bold))
-                                    .foregroundColor(.white)
-                            }
-                        }
+                        TaskCheckCircle(isCompleted: task.isCompleted)
                     }
                     .frame(minWidth: 44, minHeight: 44)
                     .contentShape(Rectangle())
@@ -489,24 +442,22 @@ struct EventCard: View {
                             Image(systemName: cachedCategoryIcon)
                                 .font(.footnote)
                                 .dynamicTypeSize(...DynamicTypeSize.large)
-                                .foregroundColor(DesignSystem.Colors.primary.opacity(task.isCompleted ? 0.3 : 0.55))
+                                .foregroundColor(task.isCompleted ? DesignSystem.Colors.onSurfaceMeta : DesignSystem.Colors.primary)
                                 .frame(width: 18)
                                 .padding(.top, 3)
                                 .accessibilityHidden(true)
 
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(task.task)
-                                    .font(DesignSystem.Typography.bodyMd)
-                                    .strikethrough(task.isCompleted, color: DesignSystem.Colors.onSurfaceVariant)
-                                    .foregroundColor(task.isCompleted
-                                        ? DesignSystem.Colors.onSurfaceVariant.opacity(0.4)
-                                        : DesignSystem.Colors.onSurfaceVariant)
+                                    .font(.body.weight(.semibold))
+                                    .strikethrough(task.isCompleted, color: DesignSystem.Colors.onSurfaceMeta)
+                                    .foregroundColor(task.isCompleted ? DesignSystem.Colors.onSurfaceMeta : DesignSystem.Colors.onSurface)
                                     .lineLimit(isExpanded ? nil : 2)
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                     .background(
                                         GeometryReader { constrainedGeo in
                                             Text(task.task)
-                                                .font(DesignSystem.Typography.bodyMd)
+                                                .font(.body.weight(.semibold))
                                                 .fixedSize(horizontal: false, vertical: true)
                                                 .hidden()
                                                 .background(
@@ -527,7 +478,7 @@ struct EventCard: View {
                                     }) {
                                         Image(systemName: isExpanded ? "chevron.compact.up" : "chevron.compact.down")
                                             .font(.system(size: 12, weight: .medium))
-                                            .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.3))
+                                            .foregroundColor(DesignSystem.Colors.onSurfaceMeta)
                                             .frame(maxWidth: .infinity)
                                             .frame(height: 16)
                                             .contentShape(Rectangle())
@@ -541,21 +492,19 @@ struct EventCard: View {
                         HStack(spacing: 5) {
                             if let time = task.time, !time.isEmpty {
                                 Text(StoredTaskFormat.displayTime(time))
-                                    .font(DesignSystem.Typography.labelSm)
-                                    .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(task.isCompleted ? 0.3 : 0.5))
+                                    .font(.subheadline)
+                                    .foregroundColor(DesignSystem.Colors.onSurfaceMeta)
                             }
                             if task.isRecurring {
                                 Image(systemName: "repeat")
-                                    .font(.system(size: 9))
-                                    .foregroundColor(DesignSystem.Colors.primary.opacity(0.5))
+                                    .font(.caption2.weight(.semibold))
+                                    .foregroundColor(DesignSystem.Colors.onSurfaceMeta)
                             }
                             Image(systemName: task.urgency == .strong ? "bolt.fill" : "bolt")
-                                .font(.system(size: 10))
-                                .foregroundColor(task.urgency == .strong
-                                    ? .orange.opacity(0.8)
-                                    : DesignSystem.Colors.onSurfaceVariant.opacity(0.18))
+                                .font(.caption.weight(.semibold))
+                                .foregroundColor(task.urgency == .strong ? DesignSystem.Colors.primary : DesignSystem.Colors.onSurfaceMeta)
                         }
-                        .padding(.top, 5)
+                        .padding(.top, 4)
                         .accessibilityLabel(task.urgency == .strong ? L.voice.urgencyStrong : L.voice.urgencyWeak)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -569,11 +518,12 @@ struct EventCard: View {
                 }
             }
         }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(DesignSystem.Colors.surfaceContainerLow)
+        )
         .padding(.horizontal, 20)
-        .padding(.vertical, 16)
-        .background(DesignSystem.Colors.primary.opacity(0.05))
-        .cornerRadius(18)
-        .padding(.horizontal, 32)
         .opacity(isDimmed ? 0.3 : 1.0)
         .onAppear {
             localTaskName = task.task

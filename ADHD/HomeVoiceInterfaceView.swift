@@ -543,7 +543,7 @@ struct HomeVoiceInterfaceView: View {
                         .font(.body.weight(.semibold))
                         .padding(.horizontal, 24)
                         .padding(.vertical, 16)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(DesignSystem.Colors.onPrimary)
                         .background(DesignSystem.Gradients.primaryCTA, in: Capsule())
                 }
                 Button { activeTab = .routine } label: {
@@ -570,7 +570,7 @@ struct HomeVoiceInterfaceView: View {
 
             Image(systemName: voiceManager.isListening ? "stop.fill" : "mic.fill")
                 .font(.system(size: 40, weight: .medium))
-                .foregroundColor(.white)
+                .foregroundColor(DesignSystem.Colors.onPrimary)
                 .contentTransition(.symbolEffect(.replace))
         }
 
@@ -1562,7 +1562,7 @@ struct VoiceGuideSheet: View {
                 Text(L.voice.guideStart)
                     .font(.headline)
                     .frame(maxWidth: .infinity, minHeight: 52)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(DesignSystem.Colors.onPrimary)
                     .background(LinearGradient(
                         colors: [DesignSystem.Colors.primary, DesignSystem.Colors.primary.opacity(0.78)],
                         startPoint: .topLeading, endPoint: .bottomTrailing

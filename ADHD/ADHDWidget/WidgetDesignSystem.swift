@@ -5,9 +5,10 @@ import SwiftUI
 struct WDS {
     // MARK: Colors
     struct Colors {
+        // 앱(DesignSystem)과 같은 따뜻한 다크 팔레트
         static let background = Color(UIColor { traits in
             traits.userInterfaceStyle == .dark
-                ? UIColor(red: 0x1A/255.0, green: 0x1A/255.0, blue: 0x1A/255.0, alpha: 1)
+                ? UIColor(red: 0x1C/255.0, green: 0x1A/255.0, blue: 0x19/255.0, alpha: 1)
                 : UIColor(red: 0xF9/255.0, green: 0xF9/255.0, blue: 0xF7/255.0, alpha: 1)
         })
 
@@ -19,7 +20,7 @@ struct WDS {
 
         static let primaryContainer = Color(UIColor { traits in
             traits.userInterfaceStyle == .dark
-                ? UIColor(red: 0x7C/255.0, green: 0x3F/255.0, blue: 0x24/255.0, alpha: 1)
+                ? UIColor(red: 0xF0/255.0, green: 0xA0/255.0, blue: 0x80/255.0, alpha: 1)
                 : UIColor(red: 0xD2/255.0, green: 0x7C/255.0, blue: 0x5C/255.0, alpha: 1)
         })
 
@@ -31,13 +32,13 @@ struct WDS {
 
         static let surfaceContainerLow = Color(UIColor { traits in
             traits.userInterfaceStyle == .dark
-                ? UIColor(red: 0x25/255.0, green: 0x25/255.0, blue: 0x25/255.0, alpha: 1)
-                : UIColor(red: 0xF4/255.0, green: 0xF4/255.0, blue: 0xF2/255.0, alpha: 1)
+                ? UIColor(red: 0x2A/255.0, green: 0x26/255.0, blue: 0x24/255.0, alpha: 1)
+                : UIColor(red: 0xF1/255.0, green: 0xEE/255.0, blue: 0xEB/255.0, alpha: 1)
         })
 
         static let tertiary = Color(UIColor { traits in
             traits.userInterfaceStyle == .dark
-                ? UIColor(red: 0x4F/255.0, green: 0xDB/255.0, blue: 0xD1/255.0, alpha: 1)
+                ? UIColor(red: 0x6F/255.0, green: 0xD8/255.0, blue: 0xCF/255.0, alpha: 1)
                 : UIColor(red: 0x00/255.0, green: 0x6A/255.0, blue: 0x63/255.0, alpha: 1)
         })
 

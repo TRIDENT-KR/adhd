@@ -65,48 +65,26 @@ struct RoutineView: View {
                 .ignoresSafeArea()
 
             ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 48) {
+                VStack(alignment: .leading, spacing: 24) {
 
-                    // 제목 + 검색 버튼
-                    HStack {
-                        Text(verbatim: "Routine")
-                            .font(DesignSystem.Typography.displayLg)
-                            .foregroundColor(DesignSystem.Colors.primary)
-                            .tracking(-0.5)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.6)
-                        Spacer()
-                        Button(action: { showQuickAdd = true }) {
-                            Image(systemName: "plus")
-                                .font(.title3.weight(.light))
-                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
-                                .padding(12)
-                                .contentShape(Circle())
-                        }
-                        .buttonStyle(NoEffectButtonStyle())
-                        .accessibilityLabel(L.quickAdd.title)
-                        .frame(minWidth: 44, minHeight: 44)
+                    // 제목 + 더보기(검색·순서 변경) + 추가
+                    ScreenHeader(title: "Routine", addLabel: L.quickAdd.title, onAdd: { showQuickAdd = true }) {
                         Button(action: { showSearch = true }) {
-                            Image(systemName: "magnifyingglass")
-                                .font(.title3.weight(.light))
-                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
-                                .padding(12)
-                                .contentShape(Circle())
+                            Label(L.t("Search tasks", "일정 검색", "タスクを検索"), systemImage: "magnifyingglass")
                         }
-                        .buttonStyle(NoEffectButtonStyle())
-                        .accessibilityLabel(L.t("Search tasks", "일정 검색", "タスクを検索"))
-                        .frame(minWidth: 44, minHeight: 44)
+                        Button(action: toggleReordering) {
+                            Label(L.t("Reorder tasks", "일정 순서 변경", "タスクを並べ替える"), systemImage: "arrow.up.arrow.down")
+                        }
                     }
                     .padding(.top, 16)
-                    .padding(.leading, 32)
-                    .padding(.trailing, 20)
+                    .padding(.horizontal, 20)
 
-                    // 섹션 토글 + 정렬 버튼
-                    HStack(spacing: 12) {
+                    // 섹션 토글 (순서 변경 중에는 '완료' 버튼)
+                    HStack(spacing: 8) {
                         ForEach(RoutineSection.allCases, id: \.self) { section in
                             let isSelected = selectedSection == section
                             Button(action: {
-                                let anim: Animation? = reduceMotion ? .none : .spring(response: 0.3, dampingFraction: 0.8)
+                                let anim: Animation? = reduceMotion ? .none : .timingCurve(0.4, 0, 0.2, 1, duration: 0.3)
                                 withAnimation(anim) {
                                     selectedSection = section
                                     isReordering = false
@@ -114,39 +92,31 @@ struct RoutineView: View {
                             }) {
                                 Text(section.label)
                                     .lineLimit(1)
-                                    .minimumScaleFactor(0.6)
-                                    .font(DesignSystem.Typography.labelSm)
-                                    .tracking(0.3)
-                                    .foregroundColor(isSelected ? .white : DesignSystem.Colors.onSurfaceVariant)
-                                    .padding(.vertical, 10)
-                                    .padding(.horizontal, 16)
+                                    .font(.subheadline.weight(isSelected ? .bold : .medium))
+                                    .foregroundColor(isSelected ? DesignSystem.Colors.onPrimary : DesignSystem.Colors.onSurfaceVariant)
+                                    .padding(.horizontal, 18)
+                                    .frame(minHeight: 44)
                                     .background(
-                                        Capsule().fill(isSelected ? DesignSystem.Colors.primary : DesignSystem.Colors.onSurfaceVariant.opacity(0.08))
+                                        Capsule().fill(isSelected ? DesignSystem.Colors.primary : DesignSystem.Colors.surfaceContainerLow)
                                     )
                             }
-                            .buttonStyle(PlainButtonStyle())
+                            .buttonStyle(PressScaleButtonStyle())
                             .accessibilityAddTraits(isSelected ? .isSelected : [])
                         }
                         Spacer()
 
-                        // 정렬 모드 토글
-                        Button(action: {
-                            let anim: Animation? = reduceMotion ? .none : .spring(response: 0.3, dampingFraction: 0.8)
-                            withAnimation(anim) {
-                                isReordering.toggle()
-                                if isReordering { editingTaskId = nil }
+                        if isReordering {
+                            Button(action: toggleReordering) {
+                                Text(L.t("Done", "완료", "完了"))
+                                    .font(.subheadline.weight(.bold))
+                                    .foregroundColor(DesignSystem.Colors.tertiary)
+                                    .frame(minWidth: 44, minHeight: 44)
                             }
-                        }) {
-                            Image(systemName: isReordering ? "checkmark.circle.fill" : "arrow.up.arrow.down")
-                                .font(.body.weight(.medium))
-                                .foregroundColor(isReordering ? DesignSystem.Colors.tertiary : DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
-                                .frame(minWidth: 44, minHeight: 44)
-                                .contentShape(Rectangle())
+                            .accessibilityLabel(L.t("Finish reordering", "순서 변경 완료", "並べ替えを完了"))
                         }
-                        .accessibilityLabel(isReordering ? L.t("Finish reordering", "순서 변경 완료", "並べ替えを完了") : L.t("Reorder tasks", "일정 순서 변경", "タスクを並べ替える"))
                     }
                     .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
-                    .padding(.horizontal, 32)
+                    .padding(.horizontal, 20)
 
                     // 선택된 섹션의 태스크 목록
                     Group {
@@ -183,7 +153,7 @@ struct RoutineView: View {
                             SmoothTaskReorderList(tasks: currentTasks, taskManager: taskManager)
                         } else {
                             let (incomplete, completed) = currentTasks.partitioned { !$0.isCompleted }
-                            LazyVStack(spacing: 32) {
+                            LazyVStack(spacing: 12) {
                                 ForEach(incomplete) { task in
                                     TaskRow(task: task, editingTaskId: $editingTaskId)
                                 }
@@ -208,6 +178,16 @@ struct RoutineView: View {
         }
     }
 
+}
+
+extension RoutineView {
+    fileprivate func toggleReordering() {
+        let anim: Animation? = reduceMotion ? .none : .timingCurve(0.4, 0, 0.2, 1, duration: 0.3)
+        withAnimation(anim) {
+            isReordering.toggle()
+            if isReordering { editingTaskId = nil }
+        }
+    }
 }
 
 // MARK: - Task Row Component
@@ -238,16 +218,7 @@ struct TaskRow: View {
                 }
                 Haptic.impact(.medium)
             }) {
-                ZStack {
-                    Circle()
-                        .stroke(DesignSystem.Colors.onSurfaceVariant.opacity(0.3), lineWidth: 1.5)
-                        .frame(width: 32, height: 32)
-                    if task.isCompleted {
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.45))
-                    }
-                }
+                TaskCheckCircle(isCompleted: task.isCompleted)
             }
             .frame(minWidth: 44, minHeight: 44)
             .contentShape(Rectangle())
@@ -270,8 +241,8 @@ struct TaskRow: View {
                             .font(DesignSystem.Typography.labelSm)
                             .padding(.vertical, 4)
                             .padding(.horizontal, 8)
-                            .background(DesignSystem.Colors.onSurfaceVariant.opacity(0.1))
-                            .cornerRadius(6)
+                            .background(DesignSystem.Colors.background)
+                            .cornerRadius(8)
                             .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
                             .onTapGesture { showingTimePicker = true }
                             .sheet(isPresented: $showingTimePicker) {
@@ -288,11 +259,11 @@ struct TaskRow: View {
                                 Text(localUrgency == .strong ? L.voice.urgencyStrong : L.voice.urgencyWeak)
                                     .font(.caption2.weight(.medium))
                             }
-                            .foregroundColor(localUrgency == .strong ? .orange : DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
+                            .foregroundColor(localUrgency == .strong ? DesignSystem.Colors.primary : DesignSystem.Colors.onSurfaceMeta)
                             .padding(.vertical, 4)
                             .padding(.horizontal, 8)
-                            .background((localUrgency == .strong ? Color.orange : DesignSystem.Colors.onSurfaceVariant).opacity(0.12))
-                            .cornerRadius(6)
+                            .background(localUrgency == .strong ? DesignSystem.Colors.primary.opacity(0.12) : DesignSystem.Colors.background)
+                            .cornerRadius(8)
                         }
                         .buttonStyle(NoEffectButtonStyle())
                     }
@@ -318,8 +289,8 @@ struct TaskRow: View {
 
                     Button(action: { finishEditing() }) {
                         Image(systemName: "checkmark")
-                            .font(.footnote.weight(.semibold))
-                            .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.4))
+                            .font(.body.weight(.bold))
+                            .foregroundColor(DesignSystem.Colors.primary)
                             .frame(minWidth: 44, minHeight: 44)
                             .contentShape(Rectangle())
                     }
@@ -335,18 +306,15 @@ struct TaskRow: View {
                             Image(systemName: cachedCategoryIcon)
                                 .font(.footnote)
                                 .dynamicTypeSize(...DynamicTypeSize.large)
-                            .foregroundColor(DesignSystem.Colors.primary.opacity(task.isCompleted ? 0.3 : 0.6))
+                            .foregroundColor(task.isCompleted ? DesignSystem.Colors.onSurfaceMeta : DesignSystem.Colors.primary)
                             .frame(width: 18)
                             .padding(.top, 3)
                             .accessibilityHidden(true)
 
                         Text(task.task)
-                            .font(DesignSystem.Typography.bodyMd)
-                            .foregroundColor(
-                                task.isCompleted
-                                    ? DesignSystem.Colors.onSurfaceVariant.opacity(0.38)
-                                    : DesignSystem.Colors.onSurfaceVariant
-                            )
+                            .font(.body.weight(.semibold))
+                            .foregroundColor(task.isCompleted ? DesignSystem.Colors.onSurfaceMeta : DesignSystem.Colors.onSurface)
+                            .strikethrough(task.isCompleted, color: DesignSystem.Colors.onSurfaceMeta)
                             .lineLimit(nil)
                             .fixedSize(horizontal: false, vertical: true)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -357,23 +325,20 @@ struct TaskRow: View {
                         if let time = task.time, !time.isEmpty {
                             if task.isRecurring {
                                 Image(systemName: "repeat")
-                                    .font(.system(size: 8))
-                                    .foregroundColor(DesignSystem.Colors.primary.opacity(0.45))
+                                    .font(.caption2.weight(.semibold))
+                                    .foregroundColor(DesignSystem.Colors.onSurfaceMeta)
                                     .accessibilityHidden(true)
                             }
                             Text(StoredTaskFormat.displayTime(time))
-                                .font(DesignSystem.Typography.labelSm)
-                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(
-                                    task.isCompleted ? 0.3 : 0.5))
+                                .font(.subheadline)
+                                .foregroundColor(DesignSystem.Colors.onSurfaceMeta)
                         }
                         Image(systemName: task.urgency == .strong ? "bolt.fill" : "bolt")
-                            .font(.system(size: 10))
-                            .foregroundColor(task.urgency == .strong
-                                ? .orange.opacity(0.8)
-                                : DesignSystem.Colors.onSurfaceVariant.opacity(0.18))
-                            .accessibilityLabel(task.urgency == .strong ? "High urgency" : "Low urgency")
+                            .font(.caption.weight(.semibold))
+                            .foregroundColor(task.urgency == .strong ? DesignSystem.Colors.primary : DesignSystem.Colors.onSurfaceMeta)
+                            .accessibilityLabel(task.urgency == .strong ? L.voice.urgencyStrong : L.voice.urgencyWeak)
                     }
-                    .padding(.top, 5)
+                    .padding(.top, 4)
 
                     // 3행: WeeklyBar (Routine만)
                     if task.category == "Routine" {
@@ -391,7 +356,12 @@ struct TaskRow: View {
                 .accessibilityHint(L.t("Double tap to edit", "수정하려면 이중 탭하세요", "編集するにはダブルタップ"))
             }
         }
-        .padding(.horizontal, 32)
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(DesignSystem.Colors.surfaceContainerLow)
+        )
+        .padding(.horizontal, 20)
         .opacity(isDimmed ? 0.3 : 1.0)
         .onAppear {
             localTaskName = task.task
@@ -458,12 +428,8 @@ struct WeeklyBar: View {
             ForEach(0..<7, id: \.self) { i in
                 VStack(spacing: 6) {
                     Text(dayLabels[i])
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundColor(
-                            i == todayIndex
-                                ? DesignSystem.Colors.primary
-                                : DesignSystem.Colors.onSurfaceVariant.opacity(0.35)
-                        )
+                        .font(.caption.weight(i == todayIndex ? .bold : .medium))
+                        .foregroundColor(i == todayIndex ? DesignSystem.Colors.primary : DesignSystem.Colors.onSurfaceMeta)
 
                     dayButton(for: i)
                 }
@@ -486,15 +452,20 @@ struct WeeklyBar: View {
                 Haptic.impact(.light)
             }) {
                 ZStack {
-                    Circle()
-                        .fill(completed
-                            ? DesignSystem.Colors.tertiary.opacity(0.85)
-                            : DesignSystem.Colors.onSurfaceVariant.opacity(0.08))
-                        .frame(width: 26, height: 26)
+                    if completed {
+                        Circle()
+                            .fill(DesignSystem.Colors.tertiary)
+                            .frame(width: 26, height: 26)
+                    } else {
+                        // 지나간 미완료: 실패처럼 칠하지 않고 점선 테두리로만 표시
+                        Circle()
+                            .strokeBorder(DesignSystem.Colors.outline, style: StrokeStyle(lineWidth: 1.5, dash: [3, 3]))
+                            .frame(width: 26, height: 26)
+                    }
                     if completed {
                         Image(systemName: "checkmark")
                             .font(.system(size: 9, weight: .bold))
-                            .foregroundColor(.white)
+                            .foregroundColor(DesignSystem.Colors.onTertiary)
                     }
                 }
             }
@@ -514,15 +485,15 @@ struct WeeklyBar: View {
                 if completed {
                     Image(systemName: "checkmark")
                         .font(.system(size: 9, weight: .bold))
-                        .foregroundColor(.white)
+                        .foregroundColor(DesignSystem.Colors.onTertiary)
                 }
             }
             .frame(width: 36, height: 36)
         } else {
             // 미래 요일: 작은 점
             Circle()
-                .fill(DesignSystem.Colors.onSurfaceVariant.opacity(0.12))
-                .frame(width: 6, height: 6)
+                .fill(DesignSystem.Colors.outline.opacity(0.4))
+                .frame(width: 7, height: 7)
                 .frame(width: 36, height: 36)
         }
     }
@@ -594,7 +565,7 @@ struct TimePickerModal: View {
                 isPresented = false
             }
             .font(.body.weight(.semibold))
-            .foregroundColor(.white)
+            .foregroundColor(DesignSystem.Colors.onPrimary)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 16)
             .background(Capsule().fill(DesignSystem.Colors.primary))
@@ -687,5 +658,28 @@ private extension Array {
             else { rest.append(element) }
         }
         return (matching, rest)
+    }
+}
+
+// MARK: - Task Check Circle
+/// 할 일 행 공용 체크 원: 미완료는 테두리, 완료는 틸 채움 + 체크 (루틴·플래너·검색 공통)
+struct TaskCheckCircle: View {
+    let isCompleted: Bool
+    var size: CGFloat = 28
+
+    var body: some View {
+        ZStack {
+            if isCompleted {
+                Circle()
+                    .fill(DesignSystem.Colors.tertiary)
+                Image(systemName: "checkmark")
+                    .font(.system(size: size * 0.45, weight: .bold))
+                    .foregroundColor(DesignSystem.Colors.onTertiary)
+            } else {
+                Circle()
+                    .strokeBorder(DesignSystem.Colors.outline, lineWidth: 2)
+            }
+        }
+        .frame(width: size, height: size)
     }
 }
