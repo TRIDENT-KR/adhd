@@ -1,4 +1,6 @@
 // 앱이 구매·복원 직후 보내는 StoreKit 2 거래 JWS를 검증해 현재 Mora 계정에 귀속한다.
+// claim은 재설치·다른 기기의 새(익명) 계정이 같은 Apple ID 구독을 함께 쓰는 경로로,
+// register와 같은 Apple 서명·번들·환경 검증을 거친 뒤 DB가 현재 권한 여부를 판단한다.
 // 인증·서명 검증·DB 호출은 주입받아 테스트에서 가짜로 바꿀 수 있다.
 import {
   TransactionFacts,
@@ -6,7 +8,7 @@ import {
   TransactionRejected,
 } from "../_shared/storekit-facts.ts";
 
-export type SyncAction = "register" | "rebind";
+export type SyncAction = "register" | "rebind" | "claim";
 
 export interface SyncDeps {
   /** Authorization 헤더로 Supabase 사용자를 확인한다. 실패하면 null. */
@@ -48,6 +50,7 @@ const DATABASE_ERROR_STATUS: Record<string, number> = {
   invalid_signed_date: 422,
   invalid_purchase_date: 422,
   stale_transaction_evidence: 409,
+  claim_not_active: 409,
 };
 
 function json(status: number, body: Record<string, unknown>): Response {
@@ -85,7 +88,7 @@ export async function handleSync(
   if (!isRecord(body)) return failure(400, "invalid_request_body");
   const action = body.action;
   const jws = body.signedTransaction;
-  if (action !== "register" && action !== "rebind") {
+  if (action !== "register" && action !== "rebind" && action !== "claim") {
     return failure(400, "invalid_action");
   }
   if (

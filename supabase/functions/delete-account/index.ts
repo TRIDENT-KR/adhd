@@ -4,9 +4,11 @@ import {
   type User,
 } from "@supabase/supabase-js";
 import {
+  beginContractMismatch,
   deletionStatusToken,
-  isBeginRequest,
   isStatusRequest,
+  isVerifiedAnonymousUser,
+  parseBeginRequest,
   sha256Hex,
 } from "./contract.ts";
 
@@ -93,17 +95,20 @@ Deno.serve(async (request: Request) => {
       return responseForJob(advanced);
     }
 
-    if (!isBeginRequest(body)) {
+    const begin = parseBeginRequest(body);
+    if (!begin) {
       return jsonError(400, "invalid_request", requestId);
     }
 
-    const authenticated = await authenticateRecentAppleSession(
-      request,
-      service,
+    const authenticated = await authenticateRecentSession(request, service);
+    const mismatch = beginContractMismatch(
+      begin,
+      authenticated.appleSubject === null,
     );
+    if (mismatch) throw new DeletionFailure(mismatch.code, mismatch.status);
     const statusToken = await deletionStatusToken(
       authenticated.user.id,
-      body.requestId,
+      begin.requestId,
       requiredEnv("DELETION_STATUS_SECRET"),
     );
     const tokenHash = await sha256Hex(statusToken);
@@ -112,28 +117,33 @@ Deno.serve(async (request: Request) => {
       "mora_begin_account_deletion",
       {
         p_user_id: authenticated.user.id,
-        p_request_id: body.requestId,
+        p_request_id: begin.requestId,
         p_status_token_hash: tokenHash,
       },
     );
     if (!begun) throw new DeletionFailure("deletion_begin_failed", 503, true);
 
     try {
+      // Anonymous accounts pass no Apple credentials; advanceDeletion re-checks
+      // with Auth that the account is still anonymous before skipping revoke.
       const advanced = await advanceDeletion(
         service,
-        body.requestId,
+        begin.requestId,
         tokenHash,
-        {
-          authorizationCode: body.appleAuthorizationCode,
-          expectedAppleSubject: authenticated.appleSubject,
-        },
+        authenticated.appleSubject === null ||
+          begin.appleAuthorizationCode === null
+          ? undefined
+          : {
+            authorizationCode: begin.appleAuthorizationCode,
+            expectedAppleSubject: authenticated.appleSubject,
+          },
       );
       return responseForJob(advanced, statusToken);
     } catch (error) {
       if (error instanceof DeletionFailure && error.requiresAppleReauth) {
         const retryJob = await markRetry(
           service,
-          body.requestId,
+          begin.requestId,
           tokenHash,
           error.code,
           true,
@@ -141,7 +151,7 @@ Deno.serve(async (request: Request) => {
         return jsonError(
           409,
           "apple_reauth_required",
-          body.requestId,
+          begin.requestId,
           retryJob,
           undefined,
           statusToken,
@@ -179,10 +189,16 @@ async function advanceDeletion(
   if (!job.userId) {
     throw new DeletionFailure("deletion_state_invalid", 503, true);
   }
+  const jobUserId = job.userId;
 
   try {
     if (!job.appleRevokedAt) {
-      if (!apple) {
+      if (apple) {
+        await exchangeValidateAndRevokeAppleTokens(
+          apple.authorizationCode,
+          apple.expectedAppleSubject,
+        );
+      } else if (!(await isAnonymousAuthUser(service, jobUserId))) {
         await markRetry(
           service,
           requestId,
@@ -192,10 +208,7 @@ async function advanceDeletion(
         );
         throw new DeletionFailure("apple_reauth_required", 409, false, true);
       }
-      await exchangeValidateAndRevokeAppleTokens(
-        apple.authorizationCode,
-        apple.expectedAppleSubject,
-      );
+      // A verified anonymous account has no Sign in with Apple tokens to revoke.
       job = await rpc<DeletionJob>(
         service,
         "mora_mark_account_deletion_apple_revoked",
@@ -256,10 +269,22 @@ async function markRetry(
   });
 }
 
-async function authenticateRecentAppleSession(
+async function isAnonymousAuthUser(
+  service: SupabaseClient,
+  userId: string,
+): Promise<boolean> {
+  const { data, error } = await service.auth.admin.getUserById(userId);
+  if (error || !data.user) {
+    throw new DeletionFailure("auth_user_lookup_failed", 503, true);
+  }
+  return isVerifiedAnonymousUser(data.user);
+}
+
+/** appleSubject is null only for an account Auth verified as anonymous. */
+async function authenticateRecentSession(
   request: Request,
   service: SupabaseClient,
-): Promise<{ user: User; appleSubject: string }> {
+): Promise<{ user: User; appleSubject: string | null }> {
   const authorization = request.headers.get("Authorization") ?? "";
   const match = authorization.match(/^Bearer ([^\s]+)$/);
   if (!match) throw new DeletionFailure("authentication_required", 401);
@@ -275,6 +300,9 @@ async function authenticateRecentAppleSession(
     now - claims.iat > 300
   ) {
     throw new DeletionFailure("recent_authentication_required", 401);
+  }
+  if (isVerifiedAnonymousUser(data.user)) {
+    return { user: data.user, appleSubject: null };
   }
 
   const appleIdentity = data.user.identities?.find((identity) =>
