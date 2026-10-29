@@ -535,30 +535,31 @@ struct HomeVoiceInterfaceView: View {
                     .accessibilityLabel(L.settings.title)
                 }
                 Spacer()
-                Image(systemName: "text.bubble")
-                    .font(.system(size: 44))
+                // 한 문장 + 버튼 하나만 둡니다 (DESIGN.md "Embrace the Void"). 직접 추가는 보조 링크로 뒤에 둡니다.
+                Image(systemName: "mic.fill")
+                    .font(.system(size: 40))
                     .foregroundStyle(DesignSystem.Colors.primary)
                     .accessibilityHidden(true)
-                Text(L.t("A little help from AI", "말로 편하게 정리하기", "AIでかんたんに整理"))
-                    .font(DesignSystem.Typography.titleSm)
-                Text(L.t(
-                    "Sign in to turn your words into tasks with AI. You can add tasks and reminders manually without an account.",
-                    "AI로 음성이나 글을 일정으로 정리하려면 로그인해 주세요. 일정과 알림은 계정 없이 직접 추가할 수 있어요.",
-                    "音声や文章をAIでタスクにするにはサインインしてください。タスクや通知はアカウントなしで直接追加できます。"
-                ))
-                .font(DesignSystem.Typography.bodyMd)
-                .foregroundStyle(DesignSystem.Colors.onSurfaceVariant)
-                .fixedSize(horizontal: false, vertical: true)
+                VStack(spacing: 8) {
+                    Text(L.t("Add tasks by voice", "말로 일정 추가하기", "声でタスクを追加"))
+                        .font(.title2.weight(.semibold))
+                        .foregroundStyle(DesignSystem.Colors.onSurface)
+                    Text(L.t("Sign in to use AI.", "AI는 로그인하면 쓸 수 있어요.", "AIはサインインすると使えます。"))
+                        .font(DesignSystem.Typography.bodyMd)
+                        .foregroundStyle(DesignSystem.Colors.onSurfaceMeta)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 Button { showSignIn = true } label: {
-                    Text(L.t("Sign in for AI", "로그인하고 AI 사용하기", "サインインしてAIを使う"))
+                    Text(L.t("Sign in", "로그인", "サインイン"))
                         .font(.body.weight(.semibold))
+                        .frame(minWidth: 160, minHeight: 52)
                         .padding(.horizontal, 24)
-                        .padding(.vertical, 16)
                         .foregroundStyle(DesignSystem.Colors.onPrimary)
                         .background(DesignSystem.Gradients.primaryCTA, in: Capsule())
                 }
+                .buttonStyle(PressScaleButtonStyle())
                 Button { activeTab = .routine } label: {
-                    Text(L.t("Add tasks myself", "직접 일정 추가하기", "自分でタスクを追加"))
+                    Text(L.t("Add it myself", "직접 추가하기", "自分で追加する"))
                         .frame(minHeight: 44)
                 }
                 Spacer()
