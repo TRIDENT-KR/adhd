@@ -1,5 +1,7 @@
 # MORA App Store 제출 인계서
 
+> 2026-10-29 명칭 정리: 평가 도구의 공식 이름은 [MORA Eval — MORA AI 평가 하네스](tools/mora-eval/README.md)입니다. 이전 작업자 이름을 도구 이름으로 사용하지 않습니다. 아래 미커밋·인수 상태는 작성 당시 이력이며, 현재 구현·검증 상태는 새 하네스 문서를 따릅니다.
+
 > **2026-09-30 구현 갱신:** 18세 이상 성인 대상·Gemini 유지. `adult-v1` 자기확인 UI, 계정별 서버 기록, AI·신규 구매 제한과 개인정보 신고 문안을 구현했다. 자기확인은 신원·실제 나이 검증이 아니다. 새 migration과 AI gate는 아직 운영에 배포하지 않았으며, 공개 정책 게시·ASC 입력·Apple 계정 작업·실기기 검증은 남는다.
 
 계정 작업의 담당·순서·정확한 값은 [계정 설정 인계 체크리스트](MORA_ACCOUNT_SETUP_CHECKLIST.md)를 먼저 본다. 이 문서는 입력 초안·검증 순서다. 현재 제출 승인이 아니다. 최신 상태는 [출시 준비 결과](MORA_RELEASE_READINESS.md)를 따른다. 담당자는 아래 결과를 확인한 뒤 ASC에 입력하며, 아직 없는 심사 계정이나 테스트 결과를 만들었다고 기재하지 않는다.
@@ -69,12 +71,12 @@
 2. Free/Pro 각각 약한 알림·전체 화면 알람·위젯을 foreground/background/앱 종료·잠금에서 확인한다. 실제 전달 시각과 알람 취소/반복 재예약을 기록한다.
 3. Sandbox 월간 또는 연간 구매 → 앱 재시작 → 다른 기기 같은 Mora 계정 복원 → 다른 Mora 계정 귀속 거부/정책대로 복구를 확인한다. 취소/pending/만료/grace/환불·역순 알림도 검사한다.
 4. 폐기 전용 계정에서 활성 구독 안내 → Apple 재인증 → 삭제 진행/실패 재개 → 완료 안내와 게스트 화면 복귀, 해당 계정 로컬/서버 삭제를 확인한다. 실제 사용자의 계정으로 시험하지 않는다.
-5. [QA 계획](MORA_RELEASE_QA_PLAN.md)의 나머지 case를 기록하고, Luna의 검수된 LLM 평가를 인수한다. 같은 RC의 internal TestFlight 48시간 관찰을 완료한 뒤 제출한다. 두 기기/48시간은 팀 품질 기준이며 Apple의 일률적 필수 요건은 아니다.
+5. [QA 계획](MORA_RELEASE_QA_PLAN.md)의 나머지 case를 기록하고, MORA Eval의 검수된 LLM 평가를 인수한다. 같은 RC의 internal TestFlight 48시간 관찰을 완료한 뒤 제출한다. 두 기기/48시간은 팀 품질 기준이며 Apple의 일률적 필수 요건은 아니다.
 
 ## Git 인수
 
 - 앱 통합 PR을 먼저 검토·merge한다. PR #57을 별도로 통째로 merge하면 main의 정책/서버 변경과 충돌하므로 인수 스냅샷으로 남긴다.
-- 원래 checkout의 Luna 하네스는 미커밋 상태를 보존했다. 통합 브랜치와 합칠 때 prompt 추출 전후 동일성 및 운영 모델/서버 계약을 다시 검증한다.
+- 당시 원래 checkout의 평가 도구 초안는 미커밋 상태를 보존했다. 통합 브랜치와 합칠 때 prompt 추출 전후 동일성 및 운영 모델/서버 계약을 다시 검증한다.
 - main 자동 merge는 저장소 CLAUDE.md의 명시적 제한으로 수행하지 않았다. 앱 통합 PR은 [#65](https://github.com/TRIDENT-KR/adhd/pull/65)이며 검토 후 `gh pr merge 65 --repo TRIDENT-KR/adhd --squash --delete-branch`로 인수할 수 있다. 웹 PR은 성인 대상·자기확인·Gemini·실제 보관 정책 문안을 검토한 뒤 병합·게시한다. 앱 코드 병합만으로 서버 gate나 공개 정책이 배포된 것으로 처리하지 않는다.
 
 최종9/30 앱 검증: Swift121개(실패/건너뜀0), 앱/위젯1.0(5) 무서명 Release archive, 컴파일 경고0. 성인 게이트·거절 재실행·관리 접근은 단일 시뮬레이터 표본 통과. 실제 Apple 구매/탈퇴와 서명은 별도다. 최신 증거는 `outputs/release-readiness/20260930-adult-release/`.
