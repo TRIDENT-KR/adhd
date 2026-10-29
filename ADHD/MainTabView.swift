@@ -24,6 +24,8 @@ struct MainTabView: View {
     @State private var guestImportResult: String?
     /// 플래너를 아직 한 번도 열지 않았을 때 검색에서 고른 날짜. 플래너를 처음 만들 때 이 날로 엽니다.
     @State private var pendingPlannerDate: Date?
+    /// 처음 탭(게스트는 루틴)을 정했는지. 그 전에 온 위젯 링크는 처음 탭을 정한 직후에 열어, 기본 탭에 덮이지 않게 합니다.
+    @State private var didSetInitialTab = false
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -123,7 +125,9 @@ struct MainTabView: View {
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .widgetDeepLink)) { notification in
-            if let tab = notification.object as? TabSelection {
+            // 위젯 링크는 처음 탭을 정한 뒤에만 꺼냅니다. 그 전이면 아래 .task가 기본 탭 다음에 엽니다.
+            let widgetTab = didSetInitialTab ? WidgetDeepLinkInbox.take() : nil
+            if let tab = (notification.object as? TabSelection) ?? widgetTab {
                 if !loadedTabs.contains(tab) {
                     loadedTabs.insert(tab)
                 }
@@ -176,6 +180,12 @@ struct MainTabView: View {
             if authManager.accessState.accountUserID == nil && !MoraApp.presentationDemoMode {
                 loadedTabs.insert(.routine)
                 activeTab = .routine
+            }
+            // 처음 탭을 정하기 전에 위젯을 눌러 들어왔다면(콜드 런치 등) 그 위젯의 탭을 엽니다. 위 기본 탭보다 우선합니다.
+            didSetInitialTab = true
+            if let widgetTab = WidgetDeepLinkInbox.take() {
+                loadedTabs.insert(widgetTab)
+                activeTab = widgetTab
             }
             guard MoraApp.presentationDemoMode, !isPlayingPresentationDemo else { return }
             isPlayingPresentationDemo = true
@@ -233,8 +243,44 @@ extension MainTabView {
     }
 }
 
+// MARK: - Widget Deep Link
+/// 위젯 링크(mora://tab/routine)와 App Group에 남긴 탭 이름을 앱 탭으로 바꿉니다.
+enum WidgetDeepLink {
+    /// mora://tab/<이름>만 받습니다. 모르는 링크는 nil이라 탭을 바꾸지 않습니다.
+    static func tab(from url: URL) -> TabSelection? {
+        guard url.scheme?.lowercased() == "mora", url.host?.lowercased() == "tab" else { return nil }
+        return tab(named: url.lastPathComponent)
+    }
+
+    static func tab(named name: String) -> TabSelection? {
+        switch name.lowercased() {
+        case "routine": return .routine
+        case "planner": return .planner
+        case "voice":   return .voice
+        default:        return nil
+        }
+    }
+}
+
+/// 위젯에서 고른 탭을 메인 화면이 뜰 때까지 들고 있습니다.
+/// 앱이 꺼져 있을 때 위젯을 누르면 링크가 로딩 화면 중에 도착해, 알림만 보내면 받을 화면이 없기 때문입니다.
+enum WidgetDeepLinkInbox {
+    private static var pendingTab: TabSelection?
+
+    static func store(_ tab: TabSelection) {
+        pendingTab = tab
+    }
+
+    /// 기다리던 탭을 꺼냅니다. 꺼내면 비워서, 화면을 다시 만들 때 예전 링크로 돌아가지 않게 합니다.
+    static func take() -> TabSelection? {
+        defer { pendingTab = nil }
+        return pendingTab
+    }
+}
+
 // MARK: - Widget Deep Link Notification
 extension Notification.Name {
+    /// 탭을 옮깁니다. object가 TabSelection이면 그 탭으로(검색 결과), 없으면 WidgetDeepLinkInbox에서 꺼냅니다(위젯).
     static let widgetDeepLink = Notification.Name("widgetDeepLink")
     /// 플래너의 선택 날짜를 옮깁니다 (object: Date). 검색 결과에서 일정을 고를 때 씁니다.
     static let plannerJumpToDate = Notification.Name("plannerJumpToDate")
