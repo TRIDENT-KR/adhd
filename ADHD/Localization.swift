@@ -580,8 +580,6 @@ struct PaywallStrings {
 
     var featureVoiceTitle: String { t("AI beyond the daily free limit", "AI 일일 무료 횟수 제한 해제", "AIの1日の無料回数制限を解除") }
     var featureVoiceDesc: String { t("Free includes 3 AI analyses per day. Pro removes this daily limit. Excessive requests may be temporarily limited to keep the service available.", "무료 AI 분석은 하루 3회입니다. Pro는 이 일일 횟수 제한을 해제합니다. 안정적인 서비스 운영을 위해 과도한 요청은 일시적으로 제한될 수 있어요.", "無料のAI分析は1日3回です。Proではこの1日の回数制限を解除します。安定したサービス提供のため、過剰なリクエストは一時的に制限される場合があります。") }
-    var featureAITitle: String { t("Smart task sorting", "AI 자동 분류", "AIが自動で分類") }
-    var featureAIDesc: String { t("AI tells apart routines, tasks, and appointments automatically.", "루틴인지, 할 일인지, 일정인지 AI가 알아서 구분해요.", "ルーティンか、タスクか、予定か、AIが自動で判断します。") }
     var featureAlarmsTitle: String { t("Full-screen alarms", "전체 화면 알람", "フルスクリーンアラーム") }
     var featureAlarmsDesc: String { t("Firm reminders show up full-screen, with Done and Snooze right there. Delivery depends on device permissions and settings.", "꼭 알림은 전체 화면으로 알려 주고, 완료와 다시 알림을 바로 누를 수 있어요. 전달은 기기 권한과 설정에 따라 달라져요.", "しっかり通知は全画面で表示され、完了とスヌーズをすぐ操作できます。通知は端末の許可と設定によって異なります。") }
     var featureWidgetsTitle: String { t("Home screen widgets", "홈 화면 위젯", "ホーム画面ウィジェット") }
