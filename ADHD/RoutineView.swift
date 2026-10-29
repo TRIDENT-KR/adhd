@@ -308,11 +308,9 @@ struct WeeklyBar: View {
         return Array(sundayFirst.dropFirst()) + [sundayFirst[0]]
     }
 
-    /// ISO 8601 기준 오늘 요일 인덱스 (0=월, 6=일)
+    /// 오늘 요일 인덱스 (0=월, 6=일)
     private var todayIndex: Int {
-        var cal = Calendar(identifier: .iso8601)
-        cal.timeZone = .current
-        return cal.component(.weekday, from: Date()) - 1
+        WeekdayIndex.mondayBased(Date())
     }
 
     var body: some View {

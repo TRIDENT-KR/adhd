@@ -127,6 +127,15 @@ enum RecurrenceEngine {
     }
 }
 
+// MARK: - Week Index
+/// 주간 완료 기록 칸 번호 (0=월 … 6=일).
+/// Calendar의 `.weekday`는 ISO 8601 달력이어도 항상 1=일요일이므로 그대로 빼면 하루씩 밀립니다.
+enum WeekdayIndex {
+    static func mondayBased(_ date: Date, calendar: Calendar = .current) -> Int {
+        (calendar.component(.weekday, from: date) + 5) % 7
+    }
+}
+
 // MARK: - SwiftData Persistent Model
 /// 영구 저장소에 기록되는 실제 데이터 모델.
 /// ParsedTask(DTO)와 분리하여 Codable 디코딩과의 충돌을 방지합니다.

@@ -142,9 +142,9 @@ class TaskManager: ObservableObject {
         return cal
     }
 
-    /// ISO 8601 weekday 컴포넌트 → 0=월, 1=화, … 6=일
+    /// 0=월, 1=화, … 6=일
     private func isoWeekdayIndex(of date: Date) -> Int {
-        isoCalendar.component(.weekday, from: date) - 1   // iso8601: 1=Mon … 7=Sun
+        WeekdayIndex.mondayBased(date, calendar: isoCalendar)
     }
 
     /// 두 날짜가 서로 다른 ISO 주(週)에 속하는지 확인

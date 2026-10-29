@@ -157,3 +157,22 @@ struct DailyResetTests {
         #expect(routine.isCompleted == true)   // 오늘 이미 초기화된 것으로 이어받음
     }
 }
+
+// MARK: - 주간 기록 칸 번호 (월요일 시작)
+struct WeekdayIndexTests {
+    private var calendar: Calendar {
+        var cal = Calendar(identifier: .iso8601)
+        cal.timeZone = TimeZone(identifier: "Asia/Seoul")!
+        return cal
+    }
+
+    private func day(_ d: Int) -> Date {
+        calendar.date(from: DateComponents(year: 2026, month: 10, day: d, hour: 12))!
+    }
+
+    @Test func mondayIsFirstAndSundayIsLast() {
+        #expect(WeekdayIndex.mondayBased(day(26), calendar: calendar) == 0)   // 월
+        #expect(WeekdayIndex.mondayBased(day(29), calendar: calendar) == 3)   // 목
+        #expect(WeekdayIndex.mondayBased(day(25), calendar: calendar) == 6)   // 일
+    }
+}
