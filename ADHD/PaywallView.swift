@@ -7,12 +7,23 @@ struct PaywallView: View {
     @EnvironmentObject private var authManager: AuthManager
     @Environment(\.dismiss) private var dismiss
 
-    @State private var selectedProductID: String? = SubscriptionProductID.yearly.rawValue
+    /// nil이면 기본 선택(연간, 없으면 남은 상품)을 씁니다.
+    @State private var selectedProductID: String?
     @State private var showError: Bool = false
     @State private var showLogin = false
 
+    /// 상품이 하나만 불러와져도 화면에 보이는 선택과 실제 결제 상품이 같도록 여기서 정합니다.
     private var selectedProduct: Product? {
-        subscriptionManager.products.first { $0.id == selectedProductID }
+        let products = subscriptionManager.products
+        if let selected = products.first(where: { $0.id == selectedProductID }) { return selected }
+        let fallbackID = SubscriptionProductCatalog.defaultSelection(in: products.map(\.id))
+        return products.first { $0.id == fallbackID }
+    }
+
+    private var errorTitle: String {
+        subscriptionManager.purchaseErrorAction == .restore
+            ? L.paywall.restoreErrorTitle
+            : L.paywall.purchaseErrorTitle
     }
 
     var body: some View {
@@ -57,9 +68,12 @@ struct PaywallView: View {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button(L.settings.done) { dismiss() }
                     .foregroundColor(DesignSystem.Colors.primary)
+                    .disabled(subscriptionManager.isLoading)
             }
         }
-        .alert(L.paywall.purchaseErrorTitle, isPresented: $showError) {
+        // 결제 직후 서버 등록 중에 닫으면 등록 오류를 보여 줄 곳이 없어집니다.
+        .interactiveDismissDisabled(subscriptionManager.isLoading)
+        .alert(errorTitle, isPresented: $showError) {
             Button(L.paywall.ok, role: .cancel) { subscriptionManager.purchaseError = nil }
         } message: {
             Text(subscriptionManager.purchaseError ?? "")
@@ -67,7 +81,14 @@ struct PaywallView: View {
         .onChange(of: subscriptionManager.purchaseError) { _, error in
             showError = error != nil
         }
-        .sheet(isPresented: $showLogin) {
+        // 확인하지 못한 오류가 남아 있으면 다시 열 때 보여 줍니다.
+        .onAppear {
+            if subscriptionManager.purchaseError != nil { showError = true }
+        }
+        .sheet(isPresented: $showLogin, onDismiss: {
+            // 로그인하지 않고 닫았다면 페이월로 돌아올 일도 없습니다.
+            if authManager.accessState.accountUserID == nil { PaywallResumeIntent.forget() }
+        }) {
             LoginView()
                 .environmentObject(authManager)
         }
@@ -75,10 +96,17 @@ struct PaywallView: View {
             if canUseServerFeatures { showLogin = false }
         }
         .task {
-            if subscriptionManager.products.isEmpty {
+            // 일부 상품만 받아온 경우에도 빠진 상품을 한 번 더 불러 봅니다.
+            if subscriptionManager.products.count < SubscriptionProductID.allCases.count {
                 await subscriptionManager.loadProducts()
             }
         }
+    }
+
+    /// 로그인하면 메인 화면이 계정 범위로 다시 만들어져 이 시트가 닫히므로, 돌아올 수 있게 기억해 둡니다.
+    private func openLoginFromPaywall() {
+        PaywallResumeIntent.remember()
+        showLogin = true
     }
 
     // MARK: - Header
@@ -93,15 +121,17 @@ struct PaywallView: View {
                     .foregroundColor(DesignSystem.Colors.primary)
             }
             .padding(.top, 32)
+            .accessibilityHidden(true)
 
             Text(L.paywall.title)
-                .font(.system(size: 28, weight: .bold, design: .rounded))
+                .font(.system(.title, design: .rounded, weight: .bold))
                 .foregroundColor(DesignSystem.Colors.primary)
                 .multilineTextAlignment(.center)
+                .accessibilityAddTraits(.isHeader)
 
             Text(L.paywall.subtitle)
                 .font(DesignSystem.Typography.bodyMd)
-                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.8))
+                .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
                 .multilineTextAlignment(.center)
                 .lineSpacing(4)
         }
@@ -111,22 +141,26 @@ struct PaywallView: View {
     private var planSection: some View {
         VStack(spacing: 10) {
             Text(L.paywall.choosePlan)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
+                .font(.footnote.weight(.semibold))
+                .foregroundColor(DesignSystem.Colors.onSurfaceMeta)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityAddTraits(.isHeader)
 
             if subscriptionManager.products.isEmpty {
                 if subscriptionManager.productsLoadFailed {
-                    VStack(spacing: 12) {
+                    VStack(spacing: 4) {
                         Text(L.paywall.loadPlansFailed)
                             .font(DesignSystem.Typography.labelSm)
-                            .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
+                            .foregroundColor(DesignSystem.Colors.onSurfaceMeta)
                         Button {
                             Task { await subscriptionManager.loadProducts() }
                         } label: {
                             Text(L.paywall.retry)
-                                .font(.system(size: 14, weight: .semibold))
+                                .font(.subheadline.weight(.semibold))
                                 .foregroundColor(DesignSystem.Colors.primary)
+                                .frame(minWidth: 44, minHeight: 44)
+                                .padding(.horizontal, 12)
+                                .contentShape(Rectangle())
                         }
                     }
                     .frame(maxWidth: .infinity)
@@ -137,7 +171,7 @@ struct PaywallView: View {
                             .tint(DesignSystem.Colors.primary)
                         Text(L.paywall.loadingPlans)
                             .font(DesignSystem.Typography.labelSm)
-                            .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
+                            .foregroundColor(DesignSystem.Colors.onSurfaceMeta)
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 24)
@@ -146,7 +180,7 @@ struct PaywallView: View {
                 ForEach(subscriptionManager.products, id: \.id) { product in
                     PlanCard(
                         product: product,
-                        isSelected: selectedProductID == product.id,
+                        isSelected: selectedProduct?.id == product.id,
                         badgeText: savingsBadge(for: product)
                     ) {
                         selectedProductID = product.id
@@ -195,7 +229,7 @@ struct PaywallView: View {
 
             Button {
                 if needsSignIn {
-                    showLogin = true
+                    openLoginFromPaywall()
                     return
                 }
                 guard authManager.canUseServerFeatures, let product = selectedProduct else { return }
@@ -229,7 +263,7 @@ struct PaywallView: View {
 
             Button {
                 if needsSignIn {
-                    showLogin = true
+                    openLoginFromPaywall()
                     return
                 }
                 guard authManager.canUseServerFeatures else { return }
@@ -238,9 +272,12 @@ struct PaywallView: View {
                 }
             } label: {
                 Text(L.paywall.restore)
-                    .font(.system(size: 14))
-                    .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
+                    .font(.subheadline.weight(.medium))
+                    .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
                     .underline()
+                    .frame(minHeight: 44)
+                    .padding(.horizontal, 16)
+                    .contentShape(Rectangle())
             }
             .disabled(subscriptionManager.isLoading || (!needsSignIn && !authManager.canUseServerFeatures))
 
@@ -266,13 +303,14 @@ struct PaywallView: View {
                             .font(.system(size: 16, weight: .semibold))
                             .foregroundColor(feature.color)
                     }
+                    .accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(feature.title)
-                            .font(.system(size: 15, weight: .semibold))
+                            .font(.subheadline.weight(.semibold))
                             .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
                         Text(feature.description)
-                            .font(.system(size: 13))
-                            .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.7))
+                            .font(.footnote)
+                            .foregroundColor(DesignSystem.Colors.onSurfaceMeta)
                     }
                     Spacer()
                 }
@@ -291,7 +329,7 @@ struct PaywallView: View {
         VStack(spacing: 6) {
             Text(L.paywall.legalNote)
                 .font(.footnote)
-                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.75))
+                .foregroundColor(DesignSystem.Colors.onSurfaceMeta)
                 .multilineTextAlignment(.center)
                 .lineSpacing(3)
                 .fixedSize(horizontal: false, vertical: true)
@@ -301,7 +339,8 @@ struct PaywallView: View {
                 Link(L.settings.termsOfService, destination: URL(string: "https://trident-kr.github.io/waitwhat-site/terms/")!)
             }
             .font(.footnote.weight(.semibold))
-            .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.85))
+            .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
+            .frame(minHeight: 44)
         }
     }
 
@@ -340,6 +379,14 @@ private struct PlanCard: View {
     let isSelected: Bool
     let badgeText: String?
     let action: () -> Void
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    /// 큰 글자에서는 배지를 플랜 이름 아래로 내려 이름이 글자 단위로 끊기지 않게 합니다.
+    private var nameLayout: AnyLayout {
+        dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
+            : AnyLayout(HStackLayout(spacing: 8))
+    }
 
     var body: some View {
         Button(action: action) {
@@ -347,7 +394,7 @@ private struct PlanCard: View {
                 ZStack {
                     Circle()
                         .strokeBorder(
-                            isSelected ? DesignSystem.Colors.primary : DesignSystem.Colors.onSurfaceVariant.opacity(0.3),
+                            isSelected ? DesignSystem.Colors.primary : DesignSystem.Colors.outline,
                             lineWidth: isSelected ? 2.5 : 1.5
                         )
                         .frame(width: 22, height: 22)
@@ -359,13 +406,13 @@ private struct PlanCard: View {
                 }
 
                 VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 8) {
+                    nameLayout {
                         Text(planName)
-                            .font(.system(size: 15, weight: .semibold))
+                            .font(.subheadline.weight(.semibold))
                             .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
                         if let badgeText {
                             Text(badgeText)
-                                .font(.system(size: 10, weight: .bold))
+                                .font(.caption2.weight(.bold))
                                 .foregroundColor(DesignSystem.Colors.onPrimary)
                                 .padding(.horizontal, 7)
                                 .padding(.vertical, 3)
@@ -373,14 +420,14 @@ private struct PlanCard: View {
                         }
                     }
                     Text(priceSubtitle)
-                        .font(.system(size: 12))
-                        .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
+                        .font(.caption)
+                        .foregroundColor(DesignSystem.Colors.onSurfaceMeta)
                 }
 
                 Spacer()
 
                 Text(product.displayPrice)
-                    .font(.system(size: 16, weight: .bold))
+                    .font(.callout.weight(.bold))
                     .foregroundColor(isSelected ? DesignSystem.Colors.primary : DesignSystem.Colors.onSurfaceVariant)
             }
             .padding(.horizontal, 16)
@@ -398,6 +445,22 @@ private struct PlanCard: View {
             )
         }
         .buttonStyle(SquishyButtonStyle())
+        // 선택은 원과 테두리 색으로만 보이므로 VoiceOver에는 선택 상태와 한 줄 라벨로 알려 줍니다.
+        .accessibilityLabel(accessibilityLabel)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+
+    private var accessibilityLabel: String {
+        L.paywall.planAccessibilityLabel(
+            name: planName, price: product.displayPrice, period: billingPeriod, badge: badgeText
+        )
+    }
+
+    private var billingPeriod: String {
+        switch product.id {
+        case SubscriptionProductID.yearly.rawValue: return L.paywall.billedAnnually
+        default: return L.paywall.billedMonthly
+        }
     }
 
     private var planName: String {
@@ -442,5 +505,50 @@ enum SubscriptionPricing {
         NSDecimalRound(&rounded, &value, 0, .down)
         let percent = NSDecimalNumber(decimal: rounded).intValue
         return (1...99).contains(percent) ? percent : nil
+    }
+}
+
+// MARK: - Paywall Resume After Sign-In
+/// 페이월에서 로그인하면 메인 화면이 계정 범위로 다시 만들어지면서 열린 시트가 모두 닫힙니다.
+/// 로그인 직전에 '페이월로 돌아가기'를 기억해 두고, 계정 메인 화면이 준비되면 MainTabView가 다시 엽니다.
+/// 메모리에만 두므로 앱을 끄면 잊습니다.
+enum PaywallResumeIntent {
+    private(set) static var isPending = false
+
+    static func remember() { isPending = true }
+    static func forget() { isPending = false }
+
+    /// 메인 화면이 나타났을 때 부릅니다. 지금 다시 열어야 하면 기억을 지우고 true를 돌려줍니다.
+    static func resolve(accountUserID: UUID?, mainViewUserID: UUID?, isEligible: Bool) -> Bool {
+        let decision = PaywallResumePolicy.decide(
+            isPending: isPending,
+            accountUserID: accountUserID,
+            mainViewUserID: mainViewUserID,
+            isEligible: isEligible
+        )
+        if decision != .keepWaiting { isPending = false }
+        return decision == .reopen
+    }
+}
+
+nonisolated enum PaywallResumeDecision: Equatable {
+    case reopen
+    case keepWaiting
+    case discard
+}
+
+nonisolated enum PaywallResumePolicy {
+    static func decide(
+        isPending: Bool,
+        accountUserID: UUID?,
+        mainViewUserID: UUID?,
+        isEligible: Bool
+    ) -> PaywallResumeDecision {
+        guard isPending else { return .discard }
+        // 게스트 메인 화면이 새로 나타났다면 로그인으로 이어지지 않은 것이므로 잊습니다.
+        guard let accountUserID else { return .discard }
+        // 계정 저장소가 아직 바뀌는 중이거나 성인 확인 전이면 구매할 수 없으니 기다립니다.
+        guard mainViewUserID == accountUserID, isEligible else { return .keepWaiting }
+        return .reopen
     }
 }
