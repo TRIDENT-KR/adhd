@@ -1,12 +1,12 @@
 ---
 name: ship
-description: Verify the build, commit, push, and open a review-ready PR, then hand the merge command to the user. Use when the user says ship, deploy, push, or create a PR.
+description: Verify the build, commit, push, and open a review-ready PR; merge it too when the user asks. Use when the user says ship, deploy, push, create a PR, or merge.
 ---
 
 # Ship
 
-Take the current work from "done coding" to a review-ready PR. Never merge — the
-user always merges manually (a guard protects main).
+Take the current work from "done coding" to a review-ready PR. Merge it only when
+the user asks to merge. Never force-push or push straight to main.
 
 ## Steps
 
@@ -20,6 +20,7 @@ user always merges manually (a guard protects main).
 4. **Commit** with a Korean imperative message describing what changed and why.
 5. **Push and open the PR** against main with `gh pr create`. PR body covers: what
    changed, why, and how it was verified (build result, tests run).
-6. **Stop.** Print the PR link and the exact merge command for the user:
-   `gh pr merge <N> --squash --delete-branch`
-   Do NOT run the merge. Do NOT poll CI — report the link once and end the turn.
+6. **Merge or stop.** If the user asked to merge, run
+   `gh pr merge <N> --squash --delete-branch`. Before merging, confirm the PR is
+   mergeable and no other open PR uses this branch as its base. Otherwise print the
+   PR link and that command. Do NOT poll CI — report the link once and end the turn.

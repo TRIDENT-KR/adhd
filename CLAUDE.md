@@ -33,9 +33,12 @@ of failing or guessing.
 
 ## Git & PR Workflow
 
-- A guard protects main: NEVER attempt a programmatic force-push or merge to main.
-  Finish the work, open the PR with `gh pr create`, then hand the merge back to the
-  user with the exact command to run (e.g. `gh pr merge <N> --squash --delete-branch`).
+- Never force-push, and never push commits straight to main. Every change lands
+  through a PR opened with `gh pr create`.
+- Claude may merge a PR itself with `gh pr merge <N> --squash --delete-branch`
+  when the user asks to merge. Before merging: the PR is mergeable, the build and
+  tests passed, and no other open PR uses its branch as its base (deleting the
+  branch would close that PR).
 - Do not poll CI in a loop. Push, report the PR link once, and stop — the user
   checks CI on GitHub themselves.
 - Branches are named `feat/...` or `fix/...`. Commit messages are written in Korean.
