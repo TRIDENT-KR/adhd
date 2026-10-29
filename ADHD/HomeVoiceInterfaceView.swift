@@ -21,6 +21,13 @@ struct HomeVoiceInterfaceView: View {
     @State private var showErrorToast = false
     @State private var errorToastMessage = ""
     @State private var errorToastOpensSettings = false
+    /// 음성 입력 권한을 켜는 방법 안내
+    @State private var showPermissionGuide = false
+    @State private var permissionGap = VoicePermissionGap(speechRecognition: true, microphone: false)
+    /// 안내에서 '설정 열기'를 눌러 설정 앱에 다녀오는 중인지
+    @State private var awaitingSettingsReturn = false
+    /// 안내에서 '글로 입력할게요'를 고르면 시트가 닫힌 뒤 입력창을 엽니다.
+    @State private var typeAfterPermissionGuide = false
     @State private var errorToastAllowsRetry = true
     @State private var errorToastStyle: HomeToastStyle = .error
     @State private var errorToastID = UUID()
@@ -363,9 +370,9 @@ struct HomeVoiceInterfaceView: View {
                                     showErrorToast = false
                                 }
                                 if errorToastOpensSettings {
-                                    if let url = URL(string: UIApplication.openSettingsURLString) {
-                                        UIApplication.shared.open(url)
-                                    }
+                                    // iOS는 음성 인식 스위치로 바로 가는 링크가 없어서, 어디를 켜면 되는지 먼저 보여줍니다.
+                                    permissionGap = VoicePermissionGap.current
+                                    showPermissionGuide = true
                                 } else if textInputValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                                     handleMicTap()
                                 } else {
@@ -373,13 +380,13 @@ struct HomeVoiceInterfaceView: View {
                                     sendTextInput()
                                 }
                             }) {
-                                Text(errorToastOpensSettings ? L.voice.openSettings : L.voice.tryAgain)
+                                Text(errorToastOpensSettings ? L.voice.howToTurnOn : L.voice.tryAgain)
                                     .font(.caption.weight(.semibold))
                                     .foregroundColor(DesignSystem.Colors.primaryFixedDim)
                                     .frame(minWidth: 44, minHeight: 44)
                                     .contentShape(Rectangle())
                             }
-                            .accessibilityLabel(errorToastOpensSettings ? L.voice.openSettings : L.voice.tryAgain)
+                            .accessibilityLabel(errorToastOpensSettings ? L.voice.howToTurnOn : L.voice.tryAgain)
                         }
                     }
                     .padding(.horizontal, 16)
@@ -429,6 +436,20 @@ struct HomeVoiceInterfaceView: View {
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
         }
+        .sheet(isPresented: $showPermissionGuide, onDismiss: {
+            awaitingSettingsReturn = false
+            guard typeAfterPermissionGuide else { return }
+            typeAfterPermissionGuide = false
+            showTextInput = true
+            isTextInputFocused = true
+        }) {
+            VoicePermissionGuideSheet(
+                gap: permissionGap,
+                onOpenSettings: { awaitingSettingsReturn = true },
+                onTypeInstead: { typeAfterPermissionGuide = true }
+            )
+            .presentationDragIndicator(.visible)
+        }
         .onChange(of: voiceManager.lastError) { _, newError in
             if let error = newError {
                 triggerErrorFeedback(message: error.message, openSettings: error.needsSettings)
@@ -457,6 +478,16 @@ struct HomeVoiceInterfaceView: View {
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase != .active {
                 preserveSpeechDraftAndStopListening()
+            }
+            // 설정에서 켜고 돌아오면 안내를 닫고 바로 말할 수 있게 합니다. 아직 꺼져 있으면 안내를 그대로 둡니다.
+            if newPhase == .active, awaitingSettingsReturn || (showErrorToast && errorToastOpensSettings) {
+                if voiceManager.refreshPermissionsAfterSettings() {
+                    showPermissionGuide = false
+                    withAnimation(.easeOut(duration: 0.2)) { showErrorToast = false }
+                    Haptic.notification(.success)
+                } else {
+                    permissionGap = VoicePermissionGap.current
+                }
             }
             // 제어 센터·알림 센터를 잠깐 내리는 비활성 상태에서는 분석을 이어갑니다.
             // 서버는 이미 요청을 처리·차감하고 있으므로, 앱을 실제로 떠날 때만 취소합니다.
@@ -1573,6 +1604,115 @@ struct VoiceGuideSheet: View {
             .padding(.bottom, 16)
         }
         .background(DesignSystem.Colors.background)
+    }
+}
+
+// MARK: - Voice Permission Guide
+/// 음성 입력 권한을 껐을 때 iPhone 설정에서 어디를 켜면 되는지 단계별로 알려줍니다.
+/// iOS는 앱 설정 페이지까지만 열 수 있고 기기에 따라 설정 첫 화면이 열리기도 해서, 찾아가는 길까지 적어 둡니다.
+struct VoicePermissionGuideSheet: View {
+    let gap: VoicePermissionGap
+    let onOpenSettings: () -> Void
+    let onTypeInstead: () -> Void
+    @Environment(\.dismiss) private var dismiss
+    /// 단계가 잘리지 않도록 내용 높이에 맞춰 시트를 엽니다 (큰 글씨에서는 넘치면 스크롤).
+    @State private var stepsHeight: CGFloat = 0
+    @State private var footerHeight: CGFloat = 0
+
+    private var fittedDetent: PresentationDetent {
+        guard stepsHeight > 0 else { return .medium }
+        return .height(stepsHeight + footerHeight + 24)
+    }
+
+    private var steps: [String] {
+        [
+            L.voice.permissionStepOpen,
+            L.voice.permissionStepFind,
+            L.voice.permissionStepToggle(speech: gap.speechRecognition, microphone: gap.microphone),
+            L.voice.permissionStepReturn,
+        ]
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(L.voice.permissionGuideTitle)
+                            .font(.title2.weight(.semibold))
+                            .foregroundColor(DesignSystem.Colors.onSurface)
+                            .accessibilityAddTraits(.isHeader)
+                        Text(L.voice.permissionGuideSubtitle)
+                            .font(.body)
+                            .foregroundColor(DesignSystem.Colors.onSurfaceMeta)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(.top, 28)
+
+                    // 단계는 선 대신 간격으로 나눕니다 (DESIGN.md No-Line)
+                    VStack(alignment: .leading, spacing: 18) {
+                        ForEach(Array(steps.enumerated()), id: \.offset) { index, step in
+                            HStack(alignment: .top, spacing: 14) {
+                                Text("\(index + 1)")
+                                    .font(.subheadline.weight(.bold))
+                                    .foregroundColor(DesignSystem.Colors.onPrimary)
+                                    .frame(width: 28, height: 28)
+                                    .background(Circle().fill(DesignSystem.Colors.primary))
+                                Text(step)
+                                    .font(.body)
+                                    .foregroundColor(DesignSystem.Colors.onSurface)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .padding(.top, 3)
+                            }
+                            .accessibilityElement(children: .combine)
+                        }
+                    }
+                    .padding(20)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(
+                        RoundedRectangle(cornerRadius: 20, style: .continuous)
+                            .fill(DesignSystem.Colors.surfaceContainerLow)
+                    )
+                }
+                .padding(.horizontal, 24)
+                .padding(.bottom, 16)
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { stepsHeight = $0 }
+            }
+            .scrollBounceBehavior(.basedOnSize)
+
+            VStack(spacing: 4) {
+                Button {
+                    onOpenSettings()
+                    if let url = URL(string: UIApplication.openSettingsURLString) {
+                        UIApplication.shared.open(url)
+                    }
+                } label: {
+                    Text(L.voice.openSettings)
+                        .font(.headline)
+                        .frame(maxWidth: .infinity, minHeight: 56)
+                        .foregroundStyle(DesignSystem.Colors.onPrimary)
+                        .background(DesignSystem.Gradients.primaryCTA, in: Capsule())
+                }
+                .buttonStyle(PressScaleButtonStyle())
+
+                Button {
+                    onTypeInstead()
+                    dismiss()
+                } label: {
+                    Text(L.voice.typeInstead)
+                        .font(.body.weight(.medium))
+                        .foregroundColor(DesignSystem.Colors.primary)
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .contentShape(Rectangle())
+                }
+            }
+            .padding(.horizontal, 24)
+            .padding(.top, 8)
+            .padding(.bottom, 12)
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { footerHeight = $0 }
+        }
+        .background(DesignSystem.Colors.background)
+        .presentationDetents([fittedDetent, .large])
     }
 }
 
