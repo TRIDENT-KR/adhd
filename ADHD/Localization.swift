@@ -547,11 +547,17 @@ struct PaywallStrings {
     var title: String { t("Mora Pro", "Mora Pro", "Mora Pro") }
     var subtitle: String { t("More room for AI task planning,\nwith advanced reminders and task widgets.", "AI 일정 입력을 더 자유롭게,\n고급 알림과 일정 위젯까지.", "AIで予定をもっと自由に。\n高度なリマインダーとタスクウィジェットも。") }
     var purchaseErrorTitle: String { t("Purchase Error", "구매 오류", "購入エラー") }
+    var restoreErrorTitle: String { t("Restore Error", "복원 오류", "復元エラー") }
     var ok: String { t("OK", "확인", "OK") }
     var choosePlan: String { t("CHOOSE YOUR PLAN", "플랜 선택", "プランを選択") }
     var planMonthly: String { t("Monthly", "월간", "月額") }
     var planYearly: String { t("Yearly", "연간", "年額") }
     var billedMonthly: String { t("Billed monthly", "매월 청구", "毎月請求") }
+    var billedAnnually: String { t("Billed annually", "연 1회 청구", "年1回請求") }
+    /// VoiceOver용 플랜 카드 한 줄: 이름, 가격, 청구 주기
+    func planAccessibilityLabel(name: String, price: String, period: String, badge: String?) -> String {
+        [name, price, period, badge].compactMap { $0 }.joined(separator: t(", ", ", ", "、"))
+    }
     func billedYearly(monthlyEquivalent: String) -> String {
         t(
             "Billed annually · \(monthlyEquivalent)/mo",
@@ -593,6 +599,8 @@ struct PaywallStrings {
     var nothingToRestore: String { t("No active subscription was found to restore.", "복원할 수 있는 활성 구독을 찾지 못했어요.", "復元できる有効なサブスクリプションが見つかりませんでした。") }
     var accountTokenChanged: String { t("The subscription account could not be confirmed. Please contact support.", "구독 계정을 확인할 수 없어요. 고객 지원에 문의해 주세요.", "サブスクリプションのアカウントを確認できませんでした。サポートにお問い合わせください。") }
     var entitlementNotGranted: String { t("Your purchase was received, but Pro access has not been confirmed. Try Restore Purchases before buying again, or contact support.", "구매 정보는 받았지만 Pro 권한을 확인하지 못했어요. 다시 결제하기 전에 구매 복원을 시도하거나 고객 지원에 문의해 주세요.", "購入情報は受信しましたが、Proの利用権限を確認できませんでした。再購入の前に購入を復元するか、サポートにお問い合わせください。") }
+    var paymentNotStarted: String { t("Payment didn't start. Please try again in a moment.", "결제는 시작되지 않았어요. 잠시 후 다시 시도해 주세요.", "お支払いは開始されていません。しばらくしてからもう一度お試しください。") }
+    var restoreFailed: String { t("Couldn't restore your purchase. Please try again in a moment.", "구매를 복원하지 못했어요. 잠시 후 다시 시도해 주세요.", "購入を復元できませんでした。しばらくしてからもう一度お試しください。") }
     var serverUnavailable: String { t("We could not confirm your subscription. Check your connection and try Restore Purchases before buying again.", "구독 상태를 확인하지 못했어요. 연결을 확인하고, 다시 결제하기 전에 구매 복원을 시도해 주세요.", "サブスクリプションを確認できませんでした。接続を確認し、再購入の前に購入の復元をお試しください。") }
 
     var subscriptionSection: String { t("Subscription", "구독", "サブスクリプション") }
