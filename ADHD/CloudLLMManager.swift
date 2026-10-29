@@ -93,31 +93,38 @@ class CloudLLMManager: ObservableObject {
         return min(requestTimeout, remaining)
     }
 
-    func analyzeText(text: String) async throws -> [LLMFunctionCall] {
+    func analyzeText(text: String, context suppliedContext: TaskAnalysisContext? = nil) async throws -> [LLMFunctionCall] {
         guard let consentScope = AccountPreferences.activeScope,
+              let generation = AccountPreferences.sessionGeneration(),
               AIDataConsent.isGranted() else { throw CloudLLMError.consentRequired }
 
-        await MainActor.run { self.isProcessing = true }
+        await MainActor.run { self.isProcessing = true; self.latestQuota = nil }
         defer { Task { @MainActor in self.isProcessing = false } }
 
         let maxAttempts = Self.maxAttempts
         let startedAt = Date()
         // 한 번의 사용자 분석 탭에 하나만 만들고, 네트워크 재시도에는 같은 ID를 사용합니다.
         // 서버 원장이 이 ID로 중복 차감과 서로 다른 입력 재사용을 차단합니다.
-        let logicalRequestID = UUID()
         // 서버는 requestId와 함께 입력 전체(시간·언어 포함)를 hash로 묶습니다.
         // 재시도 중 분이 바뀌거나 언어가 바뀌어도 같은 요청으로 인정받도록 payload를 한 번만 만듭니다.
         let currentLanguage = await MainActor.run { LocalizationManager.shared.currentLanguage.rawValue }
+        let context = suppliedContext ?? TaskAnalysisContext(
+            language: currentLanguage, accountScope: consentScope, accountGeneration: generation
+        )
+        guard context.isCurrentAccount else { throw CancellationError() }
+        let logicalRequestID = context.requestID
         let payload = Self.makeAnalyzePayload(
             requestID: logicalRequestID,
             text: text,
-            now: Date(),
-            language: currentLanguage
+            now: context.now,
+            language: context.language,
+            timeZone: context.timeZone
         )
 
         var lastError: Error?
         for attempt in 0..<maxAttempts {
             try Task.checkCancellation()
+            guard context.isCurrentAccount else { throw CancellationError() }
             guard AccountPreferences.activeScope == consentScope,
                   AIDataConsent.isGranted() else { throw CloudLLMError.consentRequired }
             // 재시도까지 합쳐 30초를 넘기지 않습니다(지하철 등에서 오래 붙잡지 않게).
@@ -129,6 +136,7 @@ class CloudLLMManager: ObservableObject {
                     group.addTask { @MainActor in
                         let session = try await supabase.auth.session
                         try Task.checkCancellation()
+                        guard context.isCurrentAccount else { throw CancellationError() }
                         guard AccountPreferences.activeScope == consentScope,
                               AccountPreferences.scope(for: session.user.id) == consentScope,
                               AIDataConsent.isGranted(for: session.user.id) else {
@@ -138,6 +146,7 @@ class CloudLLMManager: ObservableObject {
                             userID: session.user.id, accessToken: session.accessToken
                         )
                         try Task.checkCancellation()
+                        guard context.isCurrentAccount else { throw CancellationError() }
                         guard AccountPreferences.activeScope == consentScope,
                               AIDataConsent.isGranted(for: session.user.id) else {
                             throw CloudLLMError.consentRequired
@@ -164,12 +173,13 @@ class CloudLLMManager: ObservableObject {
                     return result
                 }
                 try Task.checkCancellation()
+                guard context.isCurrentAccount else { throw CancellationError() }
                 guard AccountPreferences.activeScope == consentScope,
                       AIDataConsent.isGranted() else { throw CloudLLMError.consentRequired }
-                // 항목별 실행 가능 여부는 화면에서 걸러 냅니다. 서버가 검증·차감한 응답을 통째로 버리지 않습니다.
+                // 모든 엔진의 동일한 응답 계약을 통과한 분석만 실행 단계에 전달합니다.
                 guard response.requestId == logicalRequestID,
                       response.quota.isValid,
-                      !response.calls.isEmpty else {
+                      LLMFunctionCall.isValidAnalysis(response.calls) else {
                     throw CloudLLMError.invalidResponse
                 }
                 await MainActor.run { self.latestQuota = response.quota }
@@ -201,11 +211,14 @@ class CloudLLMManager: ObservableObject {
     }
 
     /// 논리 요청 하나에 대응하는 analyze-task 입력. 재시도 동안 절대 다시 만들지 않습니다.
-    static func makeAnalyzePayload(requestID: UUID, text: String, now: Date, language: String) -> [String: String] {
+    static func makeAnalyzePayload(requestID: UUID, text: String, now: Date, language: String, timeZone: TimeZone = .current) -> [String: String] {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd HH:mm"
-        formatter.locale = Locale(identifier: "ko_KR")
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = timeZone
         return [
+            "aiConsentVersion": String(AIDataConsent.currentVersion),
             "requestId": requestID.uuidString.lowercased(),
             "text": text,
             "currentTime": formatter.string(from: now),
@@ -213,7 +226,7 @@ class CloudLLMManager: ObservableObject {
         ]
     }
 
-    private func shouldRetry(_ error: Error) -> Bool {
+    func shouldRetry(_ error: Error) -> Bool {
         if error is AdultEligibilityError { return false }
         if let cloudError = error as? CloudLLMError {
             return cloudError == .serverUnavailable
@@ -248,11 +261,12 @@ class CloudLLMManager: ObservableObject {
             return code == "gemini_request_failed"
                 || code == "gemini_network_failed"
                 || code == "analysis_failed"
+                || code == "model_providers_unavailable"
         }
         return false
     }
 
-    private func mappedError(_ error: Error) -> CloudLLMError {
+    func mappedError(_ error: Error) -> CloudLLMError {
         if let error = error as? AdultEligibilityError {
             return error == .unavailable ? .serverUnavailable : .adultEligibilityRequired
         }
@@ -275,6 +289,7 @@ class CloudLLMManager: ObservableObject {
     /// Pro 사용자에게도 생길 수 있으므로 잠시 뒤 다시 시도하라는 안내로 보냅니다.
     static func mappedHTTPError(status: Int, code: String?) -> CloudLLMError {
         if code == "adult_eligibility_required" { return .adultEligibilityRequired }
+        if code == "ai_consent_required" { return .consentRequired }
         if code == "quota_exhausted" { return .quotaExhausted }
         if code == "input_too_long" { return .inputTooLong }
         if status == 429 { return .rateLimited }
@@ -309,6 +324,7 @@ struct AIDataConsentView: View {
                     Text(L.aiPrivacy.explanation)
                     Text(L.aiPrivacy.choice)
                     Link(L.settings.privacyPolicy, destination: URL(string: "https://trident-kr.github.io/waitwhat-site/privacy/")!)
+                    Link(L.aiPrivacy.anthropicPolicy, destination: URL(string: "https://www.anthropic.com/legal/privacy")!)
                     Link(L.aiPrivacy.googlePolicy, destination: URL(string: "https://ai.google.dev/gemini-api/terms")!)
                     Button(L.aiPrivacy.allow) {
                         guard let userID,

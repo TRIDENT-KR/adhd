@@ -7,29 +7,16 @@ import {
   type QuotaReservation,
 } from "./analysis-service.ts";
 
-import { geminiModel } from "./model-config.ts";
+import { createModelRouter, readBoundedJSON } from "./model-router.ts";
 import { requireAdultEligibility } from "./adult-eligibility.ts";
 
-const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
-
-// 유저당 분당 최대 호출 횟수 (Gemini 비용 증폭 방지)
-const RATE_LIMIT_MAX = 30;
-const RATE_LIMIT_WINDOW_MS = 60_000;
-
-// 인메모리 rate limit 맵 (Edge Function 인스턴스 내 유효)
-const rateLimitMap = new Map<string, number[]>();
-
-function isRateLimited(userId: string): boolean {
-  const now = Date.now();
-  const windowStart = now - RATE_LIMIT_WINDOW_MS;
-  const timestamps = (rateLimitMap.get(userId) ?? []).filter((t) =>
-    t > windowStart
-  );
-  if (timestamps.length >= RATE_LIMIT_MAX) return true;
-  timestamps.push(now);
-  rateLimitMap.set(userId, timestamps);
-  return false;
-}
+const analyzeWithFallback = createModelRouter({
+  anthropicKey: Deno.env.get("ANTHROPIC_API_KEY"),
+  anthropicModel: Deno.env.get("ANTHROPIC_MODEL"),
+  anthropicEnabled: Deno.env.get("ANTHROPIC_ENABLED"),
+  geminiKey: Deno.env.get("GEMINI_API_KEY"),
+  geminiModel: Deno.env.get("GEMINI_MODEL"),
+});
 
 function promptTimeInSeoul(now = new Date()): string {
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -52,17 +39,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function geminiResponseText(value: unknown): string | null {
-  if (!isRecord(value) || !Array.isArray(value.candidates)) return null;
-  const candidate = value.candidates[0];
-  if (
-    !isRecord(candidate) || !isRecord(candidate.content) ||
-    !Array.isArray(candidate.content.parts)
-  ) return null;
-  const part = candidate.content.parts[0];
-  return isRecord(part) && typeof part.text === "string" ? part.text : null;
-}
-
 Deno.serve(async (req: Request) => {
   const traceId = crypto.randomUUID();
   const startedAt = performance.now();
@@ -81,6 +57,7 @@ Deno.serve(async (req: Request) => {
     "Access-Control-Allow-Headers":
       "authorization, x-client-info, apikey, content-type",
     "Content-Type": "application/json",
+    "Cache-Control": "no-store",
   };
 
   if (req.method === "OPTIONS") {
@@ -111,11 +88,10 @@ Deno.serve(async (req: Request) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
-    if (!supabaseUrl || !supabaseAnonKey || !GEMINI_API_KEY) {
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!supabaseUrl || !supabaseAnonKey || !serviceRoleKey) {
       throw new AnalysisServiceError("server_not_configured", 503);
     }
-    const model = geminiModel(Deno.env.get("GEMINI_MODEL"));
-    if (!model) throw new AnalysisServiceError("invalid_model_config", 503);
     const supabase = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader } },
       auth: { persistSession: false, autoRefreshToken: false },
@@ -135,22 +111,29 @@ Deno.serve(async (req: Request) => {
     // replaying cached output, or sending any content to the model provider.
     await requireAdultEligibility(() => supabase.rpc("get_adult_eligibility"));
 
-    // Rate limiting: 유저당 분당 30회 초과 시 429 반환
-    if (isRateLimited(user.id)) {
-      return new Response(
-        JSON.stringify({
-          error: { code: "rate_limited" },
-          requestId: null,
-        }),
-        { headers, status: 429 },
+    const admin = createClient(supabaseUrl, serviceRoleKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    let rawBody: unknown;
+    try {
+      rawBody = await readBoundedJSON(req, 16 * 1024);
+    } catch (error) {
+      throw new AnalysisServiceError(
+        error instanceof Error && error.message === "body_too_large"
+          ? "request_body_too_large"
+          : "invalid_request_body",
+        error instanceof Error && error.message === "body_too_large"
+          ? 413
+          : 400,
       );
     }
-
-    const rawBody: unknown = await req.json();
     if (!isRecord(rawBody)) {
       throw new AnalysisServiceError("invalid_request_body", 400);
     }
     const input: AnalysisInput = {
+      aiConsentVersion: typeof rawBody.aiConsentVersion === "string"
+        ? rawBody.aiConsentVersion
+        : undefined,
       requestId: typeof rawBody.requestId === "string" ? rawBody.requestId : "",
       text: typeof rawBody.text === "string" ? rawBody.text : "",
       currentTime: typeof rawBody.currentTime === "string"
@@ -160,7 +143,9 @@ Deno.serve(async (req: Request) => {
         ? rawBody.language
         : undefined,
     };
-    logicalRequestId = input.requestId || undefined;
+    logicalRequestId = /^[0-9a-f-]{36}$/i.test(input.requestId)
+      ? input.requestId
+      : undefined;
     const text = input.text;
     const localTimeStr = input.currentTime ?? promptTimeInSeoul();
     const userLanguage = input.language ?? "en";
@@ -173,7 +158,8 @@ Deno.serve(async (req: Request) => {
       outputCount: number | null,
       failureCode: string | null,
     ) => {
-      const { error } = await supabase.rpc("mora_record_operational_event", {
+      const { error } = await admin.rpc("mora_record_operational_event_v2", {
+        p_user_id: user.id,
         p_request_id: input.requestId,
         p_event_name: eventName,
         p_status_code: statusCode,
@@ -185,9 +171,11 @@ Deno.serve(async (req: Request) => {
       if (error) console.error("operational_event_write_failed", { traceId });
     };
 
+    let provider = "cache";
     const result = await executeAnalysis(input, {
       reserve: async (requestId, inputHash): Promise<QuotaReservation> => {
-        const { data, error } = await supabase.rpc("mora_reserve_ai_analysis", {
+        const { data, error } = await admin.rpc("mora_reserve_ai_analysis_v2", {
+          p_user_id: user.id,
           p_request_id: requestId,
           p_input_hash: inputHash,
         });
@@ -204,65 +192,36 @@ Deno.serve(async (req: Request) => {
         if (!reservation.allowed) {
           await recordEvent(
             "quota_denied",
-            reservation.reason === "quota_exhausted" ? 429 : 409,
+            ["quota_exhausted", "rate_limited"].includes(
+                reservation.reason ?? "",
+              )
+              ? 429
+              : 409,
             null,
             reservation.reason ?? "quota_denied",
           );
         }
         return reservation;
       },
-      analyze: async () => {
-        let response: Response;
-        try {
-          response = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "x-goog-api-key": GEMINI_API_KEY,
-              },
-              body: JSON.stringify({
-                system_instruction: { parts: [{ text: finalPrompt }] },
-                contents: [{ role: "user", parts: [{ text }] }],
-                generationConfig: {
-                  response_mime_type: "application/json",
-                  temperature: 0.1,
-                },
-              }),
-            },
-          );
-        } catch {
-          throw new AnalysisServiceError("gemini_network_failed", 502);
-        }
-        const data: unknown = await response.json();
-        if (!response.ok) {
-          console.error("gemini_request_failed", {
+      analyze: () =>
+        analyzeWithFallback(finalPrompt, text, (attempt) => {
+          console.log("analysis_provider", {
             traceId,
-            status: response.status,
+            requestId: input.requestId,
+            provider: attempt.provider,
+            model: attempt.model,
+            outcome: attempt.outcome,
+            status: attempt.status,
+            durationMs: attempt.durationMs,
+            failure: attempt.failure,
           });
-          throw new AnalysisServiceError("gemini_request_failed", 502);
-        }
-        const responseText = geminiResponseText(data);
-        if (!responseText) {
-          console.error("gemini_response_empty", { traceId });
-          throw new AnalysisServiceError("invalid_model_response", 502);
-        }
-        const cleanedText = responseText.replace(/```json/g, "").replace(
-          /```/g,
-          "",
-        )
-          .trim();
-        try {
-          return JSON.parse(cleanedText) as unknown;
-        } catch {
-          throw new AnalysisServiceError("invalid_model_response", 502);
-        }
-      },
+          if (attempt.outcome === "succeeded") provider = attempt.provider;
+        }),
       finalize: async (requestId, calls) => {
-        const { data, error } = await supabase.rpc(
-          "mora_finalize_ai_analysis",
+        const { data, error } = await admin.rpc(
+          "mora_finalize_ai_analysis_v2",
           {
+            p_user_id: user.id,
             p_request_id: requestId,
             p_validated_calls: calls,
           },
@@ -273,7 +232,8 @@ Deno.serve(async (req: Request) => {
         return data;
       },
       fail: async (requestId, failureCode) => {
-        const { error } = await supabase.rpc("mora_fail_ai_analysis", {
+        const { error } = await admin.rpc("mora_fail_ai_analysis_v2", {
+          p_user_id: user.id,
           p_request_id: requestId,
           p_failure_code: failureCode,
         });
@@ -290,7 +250,10 @@ Deno.serve(async (req: Request) => {
       inputLength: text.length,
       outputCount: result.calls.length,
     });
-    return new Response(JSON.stringify(result), { headers, status: 200 });
+    return new Response(JSON.stringify(result), {
+      headers: { ...headers, "X-Mora-AI-Provider": provider },
+      status: 200,
+    });
   } catch (error) {
     const serviceError = error instanceof AnalysisServiceError
       ? error

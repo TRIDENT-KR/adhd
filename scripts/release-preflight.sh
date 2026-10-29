@@ -24,9 +24,13 @@ if [[ -z "$REF" ]]; then
   echo "프로젝트 ref를 찾지 못했습니다. ADHD/Config.plist를 확인하거나 ref를 인자로 주세요." >&2
   exit 2
 fi
+if [[ ! "$REF" =~ ^[a-z0-9]{20}$ ]]; then
+  echo "올바른 Supabase 프로젝트 ref(영문 소문자·숫자 20자)가 필요합니다." >&2
+  exit 2
+fi
 
 FUNCTIONS=(analyze-task delete-account storekit-sync app-store-notifications)
-REQUIRED_SECRETS=(GEMINI_API_KEY APPLE_CLIENT_ID APPLE_CLIENT_SECRET DELETION_STATUS_SECRET)
+REQUIRED_SECRETS=(ANTHROPIC_API_KEY GEMINI_API_KEY APPLE_CLIENT_ID APPLE_CLIENT_SECRET DELETION_STATUS_SECRET)
 FAILS=0
 LOG_DIR=$(mktemp -d "${TMPDIR:-/tmp}/mora-preflight.XXXXXX")
 pass() { printf '  ✅ %s\n' "$1"; }
@@ -67,7 +71,7 @@ if python3 scripts/verify-deployed-functions.py "$REF"; then
   pass "4개 함수의 실제 배포 소스와 gateway 설정 일치"
 else
   fail "배포 소스 또는 gateway 불일치" "각 함수를 개별 배포한 뒤 실제 소스를 다시 확인하세요. 버전/날짜만으로 완료 판정하지 않습니다.
-       analyze-task만 다르다면 성인 확인 gate가 아직 안 올라간 상태일 수 있습니다. supabase/ADULT_ELIGIBILITY.md 순서(migration → 호환 앱 → gate)를 먼저 확인하세요."
+       성인 확인·AI 동의 v2 호환 앱과 service-role broker 배포 순서는 MORA_PRELAUNCH_REPORT_20261013.md를 확인하세요."
 fi
 
 echo
@@ -118,13 +122,14 @@ if (( FAILS == 0 )); then
   exit 0
 fi
 cat <<EOF
-실패 ${FAILS}건. 아래 순서로 직접 실행한 뒤 이 스크립트를 다시 돌리세요.
+실패 ${FAILS}건. MORA_PRELAUNCH_REPORT_20261013.md의 호환 앱·배포 순서를 먼저 확인하세요.
+준비 후 아래 작업을 진행하고 이 스크립트를 다시 돌리세요.
   1. supabase link --project-ref $REF
   2. supabase db push                  # 보안·구독·보존 작업 migration 적용 (DB 비밀번호 필요)
-  3. supabase secrets set APPLE_CLIENT_ID=... APPLE_CLIENT_SECRET=... DELETION_STATUS_SECRET=... --project-ref $REF
+  3. Supabase Secrets에 ANTHROPIC_API_KEY·GEMINI_API_KEY·APPLE_CLIENT_ID·APPLE_CLIENT_SECRET·DELETION_STATUS_SECRET 설정
   4. 각 함수를 개별 배포: supabase functions deploy <함수명> --no-verify-jwt --use-api --project-ref $REF
-     ⚠️ analyze-task는 성인 확인 migration 적용과 호환 앱 빌드 확인이 끝난 뒤에만 배포합니다.
-        먼저 올리면 확인 화면이 없는 이전 빌드의 AI가 막힙니다. (supabase/ADULT_ELIGIBILITY.md)
+     ⚠️ 성인 확인·AI 동의 v2 호환 앱을 준비한 후 broker migration과 analyze-task를 연속 배포합니다.
+        migration은 이전 함수의 원장 권한을 회수하므로 둘 사이 AI 중단 구간이 생깁니다.
   5. App Store Connect → 앱 → App 정보 → App Store 서버 알림 (버전 2)
      Production·Sandbox URL: https://$REF.supabase.co/functions/v1/app-store-notifications
 EOF

@@ -1,0 +1,165 @@
+{
+  "project_ref": "nmjtswtqwwxxwiolgsnk",
+  "environment": "staging",
+  "checks": [
+    {
+      "name": "unauthenticated_rejected",
+      "passed": true,
+      "status": 401
+    },
+    {
+      "name": "disposable_user_created",
+      "passed": true,
+      "status": 200
+    },
+    {
+      "name": "test_user_authenticated",
+      "passed": true,
+      "status": 200
+    },
+    {
+      "name": "staging_claim",
+      "passed": true
+    },
+    {
+      "name": "adult_gate",
+      "passed": true,
+      "status": 403
+    },
+    {
+      "name": "synthetic_adult_attestation",
+      "passed": true,
+      "status": 200
+    },
+    {
+      "name": "consent_v2_gate",
+      "passed": true,
+      "status": 403
+    },
+    {
+      "name": "client_cannot_call_mora_reserve_ai_analysis",
+      "passed": true,
+      "status": 403
+    },
+    {
+      "name": "client_cannot_call_mora_reserve_ai_analysis_v2",
+      "passed": true,
+      "status": 403
+    },
+    {
+      "name": "claude_ko",
+      "passed": true,
+      "status": 200,
+      "provider": "claude",
+      "quota": {
+        "used": 1,
+        "isPro": false,
+        "limit": 3,
+        "reserved": 0,
+        "timeZone": "Asia/Seoul",
+        "remaining": 2,
+        "usageDate": "2026-10-26"
+      },
+      "calls": [
+        {
+          "function_name": "add_single_task",
+          "parameters": {
+            "task_name": "치과 예약",
+            "time": "03:00 PM",
+            "date": "2026-10-27",
+            "category": "Appointment",
+            "recurrence": null,
+            "urgency": "strong"
+          }
+        }
+      ],
+      "error_code": null
+    },
+    {
+      "name": "cached_replay_no_second_charge",
+      "passed": true,
+      "status": 200,
+      "provider": "cache",
+      "quota": {
+        "used": 1,
+        "isPro": false,
+        "limit": 3,
+        "reserved": 0,
+        "timeZone": "Asia/Seoul",
+        "remaining": 2,
+        "usageDate": "2026-10-26"
+      }
+    },
+    {
+      "name": "same_id_different_input_rejected",
+      "passed": true,
+      "status": 409
+    },
+    {
+      "name": "claude_en",
+      "passed": true,
+      "status": 200,
+      "provider": "claude",
+      "quota": {
+        "used": 2,
+        "isPro": false,
+        "limit": 3,
+        "reserved": 0,
+        "timeZone": "Asia/Seoul",
+        "remaining": 1,
+        "usageDate": "2026-10-26"
+      },
+      "calls": [
+        {
+          "function_name": "add_single_task",
+          "parameters": {
+            "task_name": "Dentist appointment",
+            "time": "03:00 PM",
+            "date": "2026-10-27",
+            "category": "Appointment",
+            "recurrence": null,
+            "urgency": "strong"
+          }
+        }
+      ],
+      "error_code": null
+    },
+    {
+      "name": "claude_ja",
+      "passed": true,
+      "status": 200,
+      "provider": "claude",
+      "quota": {
+        "used": 3,
+        "isPro": false,
+        "limit": 3,
+        "reserved": 0,
+        "timeZone": "Asia/Seoul",
+        "remaining": 0,
+        "usageDate": "2026-10-26"
+      },
+      "calls": [
+        {
+          "function_name": "add_single_task",
+          "parameters": {
+            "task_name": "歯医者",
+            "time": "03:00 PM",
+            "date": "2026-10-27",
+            "category": "Appointment",
+            "recurrence": null,
+            "urgency": "strong"
+          }
+        }
+      ],
+      "error_code": null
+    },
+    {
+      "name": "fourth_free_analysis_rejected",
+      "passed": true,
+      "status": 429
+    }
+  ],
+  "test_user_deleted": true,
+  "test_user_absent": true,
+  "passed": true
+}

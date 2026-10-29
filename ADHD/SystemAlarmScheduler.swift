@@ -73,6 +73,24 @@ struct MarkTaskDoneIntent: LiveActivityIntent {
     }
 }
 
+/// 같은 UUID의 등록·실패 정리를 직렬화해 이전 세션의 늦은 취소가 새 알람을 지우지 않게 합니다.
+@MainActor
+final class AlarmRegistrationQueue {
+    private var pending: [UUID: (token: UUID, task: Task<Void, Never>)] = [:]
+
+    func run(id: UUID, operation: @escaping @MainActor @Sendable () async -> Void) async {
+        let previous = pending[id]?.task
+        let token = UUID()
+        let task = Task { @MainActor in
+            if let previous { await previous.value }
+            await operation()
+        }
+        pending[id] = (token, task)
+        await task.value
+        if pending[id]?.token == token { pending.removeValue(forKey: id) }
+    }
+}
+
 // MARK: - System Alarm Scheduler
 /// iOS 26 AlarmKit 래퍼 — Pro 사용자의 strong 태스크를 시스템 알람으로 승격합니다.
 /// 시스템 알람은 앱이 종료된 상태에서도 잠금화면 풀스크린으로 울리고 무음/집중 모드를 관통합니다.
@@ -82,6 +100,7 @@ final class SystemAlarmScheduler: Sendable {
 
     static let shared = SystemAlarmScheduler()
     private init() {}
+    private let registrations = AlarmRegistrationQueue()
 
     /// 스누즈("5분 뒤 다시") 카운트다운 길이 (초)
     private static let snoozeDuration: TimeInterval = 300
@@ -118,7 +137,14 @@ final class SystemAlarmScheduler: Sendable {
 
     // MARK: - Schedule
 
-    func schedule(_ spec: AlarmSpec) async {
+    func schedule(_ spec: AlarmSpec, isCurrent: @escaping @MainActor @Sendable () -> Bool) async {
+        await registrations.run(id: spec.id) {
+            await self.register(spec, isCurrent: isCurrent)
+        }
+    }
+
+    private func register(_ spec: AlarmSpec, isCurrent: @escaping @MainActor @Sendable () -> Bool) async {
+        guard isCurrent() else { return }
         let manager = AlarmKit.AlarmManager.shared
 
         // 울리는 중/스누즈 카운트다운 중인 알람은 건드리지 않음 (포그라운드 재무장으로부터 보호)
@@ -185,10 +211,15 @@ final class SystemAlarmScheduler: Sendable {
         do {
             try? manager.cancel(id: spec.id)   // 동일 id 갱신을 위한 선취소 (미존재 시 무해)
             _ = try await manager.schedule(id: spec.id, configuration: configuration)
+            guard isCurrent() else {
+                try? manager.cancel(id: spec.id)
+                return
+            }
             print("alarmkit_schedule_succeeded")
         } catch {
             print("alarmkit_schedule_failed fallback=user_notification")
             await MainActor.run {
+                guard isCurrent() else { return }
                 NotificationManager.shared.scheduleUserNotification(spec)
             }
         }

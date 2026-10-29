@@ -34,7 +34,7 @@ Deno.test("validator accepts a complete task call", () => {
 });
 
 Deno.test("clarification and off-topic calls are valid successful analyses", () => {
-  const calls = validateAnalysisCalls([
+  const examples = [
     {
       function_name: "request_clarification",
       parameters: { reason: "언제 실행할까요?" },
@@ -43,8 +43,51 @@ Deno.test("clarification and off-topic calls are valid successful analyses", () 
       function_name: "handle_off_topic_chat",
       parameters: { message: "할 일이라면 도와드릴게요!" },
     },
-  ]);
-  assert(calls.length === 2, "expected two calls");
+  ];
+  for (const example of examples) {
+    assert(
+      validateAnalysisCalls([example]).length === 1,
+      "expected standalone feedback",
+    );
+  }
+});
+
+Deno.test("feedback cannot hide a mutation in the same batch", () => {
+  for (
+    const feedback of [
+      {
+        function_name: "request_clarification",
+        parameters: { reason: "어떤 일정인가요?" },
+      },
+      {
+        function_name: "handle_off_topic_chat",
+        parameters: { message: "다시 말씀해 주세요" },
+      },
+    ]
+  ) {
+    assertThrowsValidation(() =>
+      validateAnalysisCalls([
+        feedback,
+        {
+          function_name: "mark_task_complete",
+          parameters: { target_task_name: "회의" },
+        },
+      ])
+    );
+  }
+});
+
+Deno.test("client and server reject control characters before quota finalization", () => {
+  for (const title of ["회의\n삭제", "회의\u0000", "회의\u0085"]) {
+    assertThrowsValidation(() =>
+      validateAnalysisCalls([
+        {
+          function_name: "mark_task_complete",
+          parameters: { target_task_name: title },
+        },
+      ])
+    );
+  }
 });
 
 Deno.test("unknown functions are rejected instead of normalized", () => {

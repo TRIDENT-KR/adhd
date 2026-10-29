@@ -1,0 +1,44 @@
+{
+  "date": "2026-10-23",
+  "canonical": "https://app.notion.com/p/4018320bd64b81fc8b22d40317178739",
+  "release_local_rules_enabled": false,
+  "apple_inference_connected": false,
+  "production_deployed": false,
+  "sources": {
+    "ADHD/TaskAnalysisRouter.swift": "24fd80c812bda32b242403e2c6e3a9960ccdff1b65fad0a3a270a34c3270653c",
+    "ADHD/CloudLLMManager.swift": "97f0dd00f2e4af54efb05bf8e1440e4a6c9da4f946b29ccddae000f09a07d64d",
+    "ADHD/HomeVoiceInterfaceView.swift": "19a54d096f765f920624d003f8812397792d86da870a59db8b35f30b1ee616db",
+    "ADHD/Functions/LLMFunctionCall.swift": "5d57af9f2d39d8bb5e1adf4ca49f93ff5774bae5f52bb933b7550cfac39d348a",
+    "ADHD/Functions/TaskManager+LLM.swift": "7dbe924bb119c4669df0cfce20223c4c935198a632fb78b344ba5a186ac923a3",
+    "ADHD/NotificationManager.swift": "795a3b54b9ee0906863c8eadc903c721204cde79d55db4d60c6ad32c018f571f",
+    "ADHD/VoiceInputManager.swift": "53c3fdf64a79d176a53384cc699ac526ed856821b9a5fb256c2d908c8e9826d8",
+    "ADHD/ADHDTests/TaskAnalysisTests.swift": "117dbf3a292d4c1e86d5d049ebf798362f46de7ce18491e499c4eb520defdbe5",
+    "supabase/functions/analyze-task/validator.ts": "79661017566b0e0d6b89b695f97a4fb99439878be8b27581be3839a5b669471d",
+    "ADHD/ADHDTests/DeleteByNameBatchTests.swift": "004ded10608580b6471323c38edabf2f43b36a37e27f764f4f48d557af369cb8",
+    "ADHD/ADHDTests/UrgencyClassificationTests.swift": "ba86e32583b9378a5e6c2f44a42c7d0be88359306aed2e59d428d18b85432906",
+    "ADHD/ADHDTests/LLMFunctionCallDecodingTests.swift": "5bb53339c75e3052081e6a63682cc1c7557c576296c6f03632ec8faec28a4461",
+    "scripts/test-analysis-core.py": "7fbfb26fc4733d6b24daf68a704d4ca9d4394c0c49c203f95f3977d4874e3704",
+    "supabase/functions/analyze-task/validator_test.ts": "7b00864b8dffb19b3c9c5b861f9f0e176f0d0b61a95eddf5b11fa0314dac9170",
+    "supabase/functions/analyze-task/analysis-service_test.ts": "ec857a40bdcfcb00d11959fade1be9e4b3cc26166ed658e563432caf712e272e",
+    "supabase/functions/analyze-task/index.ts": "f00361f9c8ad7a3778d363fb4748743e004616c2724faced47e8096cf3409c73"
+  },
+  "checks": {
+    "deno_tests": "84 passed, 18 steps, 0 failed",
+    "deno_check": "passed",
+    "macos_production_core_tests": "13 tests / 2 suites, 48 parameter cases, passed",
+    "ios_tests": {
+      "new_analysis_suites": "TaskAnalysisTests and AnalysisExecutionBoundaryTests passed in initial simulator run",
+      "initial_full_run": "140 tests / 23 suites; 15 issues in 9 legacy fixture tests",
+      "fixture_fixes": "unsupported task_note removed, times updated to server hh:mm AM/PM contract; invalid urgency execution rejection asserted",
+      "final_rerun": "app/test compiled; test runner stalled before tests, interrupted with exit 75; full regression not verified"
+    },
+    "release_build": "passed (Release, iOS Simulator arm64/x86_64)",
+    "git_diff_check": "passed"
+  },
+  "scope": {
+    "ios_tests": "ADHDTests (Swift Testing, SwiftData execution); UI E2E not run",
+    "cloud": "mocked provider/broker tests; no paid live requests",
+    "physical_device": "not run",
+    "held_out_semantic_evaluation": "not run"
+  }
+}

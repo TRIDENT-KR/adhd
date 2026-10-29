@@ -1,0 +1,126 @@
+[
+  {
+    "function": "analyze-task",
+    "version": 24,
+    "passed": true,
+    "files": [
+      {
+        "path": "supabase/functions/analyze-task/adult-eligibility.ts",
+        "local_sha256": "825e89ade0260dea39eb7f49b76a47e535e68da41a076734ed51ebf0b90a755d",
+        "deployed_sha256": "825e89ade0260dea39eb7f49b76a47e535e68da41a076734ed51ebf0b90a755d",
+        "match": true
+      },
+      {
+        "path": "supabase/functions/analyze-task/analysis-service.ts",
+        "local_sha256": "0c90c366361a54f23ce8b879531d886d38b6bf77edb0434da192b9f6d552d539",
+        "deployed_sha256": "0c90c366361a54f23ce8b879531d886d38b6bf77edb0434da192b9f6d552d539",
+        "match": true
+      },
+      {
+        "path": "supabase/functions/analyze-task/index.ts",
+        "local_sha256": "64a0d72956e5b4aea53ed172a43ff118d2e35e33a90734f868fa2cde6d2e0276",
+        "deployed_sha256": "64a0d72956e5b4aea53ed172a43ff118d2e35e33a90734f868fa2cde6d2e0276",
+        "match": true
+      },
+      {
+        "path": "supabase/functions/analyze-task/model-config.ts",
+        "local_sha256": "1e433ebd098f9c65a98009ee3d160ef4dffdd098f14cf2f4f5bed036e2d23a71",
+        "deployed_sha256": "1e433ebd098f9c65a98009ee3d160ef4dffdd098f14cf2f4f5bed036e2d23a71",
+        "match": true
+      },
+      {
+        "path": "supabase/functions/analyze-task/model-router.ts",
+        "local_sha256": "50cf394c8a499a33df7f9afe2e2202eb6887b30d0dcd4980269f4e5dd5cfe553",
+        "deployed_sha256": "50cf394c8a499a33df7f9afe2e2202eb6887b30d0dcd4980269f4e5dd5cfe553",
+        "match": true
+      },
+      {
+        "path": "supabase/functions/analyze-task/validator.ts",
+        "local_sha256": "79661017566b0e0d6b89b695f97a4fb99439878be8b27581be3839a5b669471d",
+        "deployed_sha256": "79661017566b0e0d6b89b695f97a4fb99439878be8b27581be3839a5b669471d",
+        "match": true
+      }
+    ]
+  },
+  {
+    "function": "delete-account",
+    "version": 5,
+    "passed": true,
+    "files": [
+      {
+        "path": "supabase/functions/delete-account/contract.ts",
+        "local_sha256": "3209f40b6e74d624d3d6eea9faf5738cc83af863f249f0ec7ea5ae5f28c3db32",
+        "deployed_sha256": "3209f40b6e74d624d3d6eea9faf5738cc83af863f249f0ec7ea5ae5f28c3db32",
+        "match": true
+      },
+      {
+        "path": "supabase/functions/delete-account/index.ts",
+        "local_sha256": "2d43f92522bd1e651ac56af7ed02d9805d4c2117582cb7ad5af5549a58304206",
+        "deployed_sha256": "2d43f92522bd1e651ac56af7ed02d9805d4c2117582cb7ad5af5549a58304206",
+        "match": true
+      }
+    ]
+  },
+  {
+    "function": "storekit-sync",
+    "version": 3,
+    "passed": true,
+    "files": [
+      {
+        "path": "supabase/functions/_shared/apple-jws.ts",
+        "local_sha256": "bcae06803104c86f73b0f335d9a2dda86609ae9f814ca1b75a8571cba21e38f7",
+        "deployed_sha256": "bcae06803104c86f73b0f335d9a2dda86609ae9f814ca1b75a8571cba21e38f7",
+        "match": true
+      },
+      {
+        "path": "supabase/functions/_shared/storekit-facts.ts",
+        "local_sha256": "15cbcba1bcab1d44456ed321af108f28359fe81461beefd97fdb57632ba9aaaf",
+        "deployed_sha256": "15cbcba1bcab1d44456ed321af108f28359fe81461beefd97fdb57632ba9aaaf",
+        "match": true
+      },
+      {
+        "path": "supabase/functions/storekit-sync/index.ts",
+        "local_sha256": "2b4cadd97a4f6036a7dc4d076e3933bf800c969acba51e3e2972803796c56a11",
+        "deployed_sha256": "2b4cadd97a4f6036a7dc4d076e3933bf800c969acba51e3e2972803796c56a11",
+        "match": true
+      },
+      {
+        "path": "supabase/functions/storekit-sync/service.ts",
+        "local_sha256": "d42855203558b1e51247f77dc05dde2b93ee54aa6c63289a19b192967d431bee",
+        "deployed_sha256": "d42855203558b1e51247f77dc05dde2b93ee54aa6c63289a19b192967d431bee",
+        "match": true
+      }
+    ]
+  },
+  {
+    "function": "app-store-notifications",
+    "version": 3,
+    "passed": true,
+    "files": [
+      {
+        "path": "supabase/functions/_shared/apple-jws.ts",
+        "local_sha256": "bcae06803104c86f73b0f335d9a2dda86609ae9f814ca1b75a8571cba21e38f7",
+        "deployed_sha256": "bcae06803104c86f73b0f335d9a2dda86609ae9f814ca1b75a8571cba21e38f7",
+        "match": true
+      },
+      {
+        "path": "supabase/functions/_shared/storekit-facts.ts",
+        "local_sha256": "15cbcba1bcab1d44456ed321af108f28359fe81461beefd97fdb57632ba9aaaf",
+        "deployed_sha256": "15cbcba1bcab1d44456ed321af108f28359fe81461beefd97fdb57632ba9aaaf",
+        "match": true
+      },
+      {
+        "path": "supabase/functions/app-store-notifications/index.ts",
+        "local_sha256": "a09f77ad9fd98ad0bf39e19dc3168707ab470768fe6dc2b6b6631773a1100d2d",
+        "deployed_sha256": "a09f77ad9fd98ad0bf39e19dc3168707ab470768fe6dc2b6b6631773a1100d2d",
+        "match": true
+      },
+      {
+        "path": "supabase/functions/app-store-notifications/service.ts",
+        "local_sha256": "1750420ef2e10bf2e507a2ef7c8cd28436cfc5176dae7affbe0918347e1e42c4",
+        "deployed_sha256": "1750420ef2e10bf2e507a2ef7c8cd28436cfc5176dae7affbe0918347e1e42c4",
+        "match": true
+      }
+    ]
+  }
+]

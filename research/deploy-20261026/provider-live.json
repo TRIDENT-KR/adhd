@@ -1,0 +1,70 @@
+{
+  "project_ref": "nmjtswtqwwxxwiolgsnk",
+  "probe": "mora-provider-probe-d547b0f0",
+  "production_settings_changed": false,
+  "cases": [
+    {
+      "mode": "normal",
+      "status": 200,
+      "passed": true,
+      "events": [
+        {
+          "provider": "claude",
+          "model": "claude-haiku-5-5",
+          "outcome": "succeeded",
+          "status": 200,
+          "durationMs": 1205,
+          "failure": null
+        }
+      ],
+      "real_requests": [
+        "claude"
+      ],
+      "calls": [
+        {
+          "function_name": "add_single_task",
+          "parameters": {
+            "task_name": "치과 예약",
+            "time": "03:00 PM",
+            "date": "2026-10-27",
+            "category": "Appointment",
+            "recurrence": null,
+            "urgency": "strong"
+          }
+        }
+      ]
+    },
+    {
+      "mode": "claude_503",
+      "status": 502,
+      "passed": false,
+      "events": [
+        {
+          "provider": "claude",
+          "model": "claude-haiku-5-5",
+          "outcome": "failed",
+          "status": 503,
+          "durationMs": 1,
+          "failure": "http"
+        },
+        {
+          "provider": "gemini",
+          "model": "gemini-3.5-flash-lite",
+          "outcome": "failed",
+          "status": 402,
+          "durationMs": 377,
+          "failure": "http"
+        }
+      ],
+      "real_requests": [
+        "gemini"
+      ],
+      "calls": [],
+      "error_code": null,
+      "error_kind": "probe_failed"
+    }
+  ],
+  "unauthorized_status": 401,
+  "probe_deleted": true,
+  "passed": false
+}

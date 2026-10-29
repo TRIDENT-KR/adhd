@@ -4,7 +4,10 @@ import {
   validateAnalysisCalls,
 } from "./validator.ts";
 
+export const AI_CONSENT_VERSION = "2";
+
 export interface AnalysisInput {
+  aiConsentVersion?: string;
   requestId: string;
   text: string;
   currentTime?: string;
@@ -49,6 +52,9 @@ const currentTimePattern = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/;
 const languages = new Set(["en", "ko", "ja"]);
 
 function validateInput(input: AnalysisInput): void {
+  if (input.aiConsentVersion !== AI_CONSENT_VERSION) {
+    throw new AnalysisServiceError("ai_consent_required", 403);
+  }
   if (!requestIdPattern.test(input.requestId)) {
     throw new AnalysisServiceError("invalid_request_id", 400);
   }
@@ -71,6 +77,7 @@ function validateInput(input: AnalysisInput): void {
 
 async function inputHash(input: AnalysisInput): Promise<string> {
   const canonical = JSON.stringify({
+    aiConsentVersion: input.aiConsentVersion,
     text: input.text,
     currentTime: input.currentTime ?? null,
     language: input.language ?? "en",
@@ -89,6 +96,8 @@ function reservationError(
   reason: string | null | undefined,
 ): AnalysisServiceError {
   switch (reason) {
+    case "rate_limited":
+      return new AnalysisServiceError("rate_limited", 429);
     case "quota_exhausted":
       return new AnalysisServiceError("quota_exhausted", 429);
     case "replay_limit":

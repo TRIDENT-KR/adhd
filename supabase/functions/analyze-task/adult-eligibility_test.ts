@@ -35,6 +35,7 @@ Deno.test("adult eligibility gates the actual analysis handler before quota/repl
         ({
           SUPABASE_URL: "https://adult-eligibility-test.invalid",
           SUPABASE_ANON_KEY: "fake-public-key",
+          SUPABASE_SERVICE_ROLE_KEY: "fake-service-key",
           GEMINI_API_KEY: "fake-model-key",
         } as Record<string, string>)[key],
     });
@@ -71,7 +72,7 @@ Deno.test("adult eligibility gates the actual analysis handler before quota/repl
         }
         return Promise.resolve(json(eligibility, eligibilityStatus));
       }
-      if (url.pathname === "/rest/v1/rpc/mora_reserve_ai_analysis") {
+      if (url.pathname === "/rest/v1/rpc/mora_reserve_ai_analysis_v2") {
         return Promise.resolve(json({
           allowed: true,
           alreadyCommitted: replay,
@@ -82,14 +83,15 @@ Deno.test("adult eligibility gates the actual analysis handler before quota/repl
       if (url.hostname === "generativelanguage.googleapis.com") {
         return Promise.resolve(json({
           candidates: [{
+            finishReason: "STOP",
             content: { parts: [{ text: JSON.stringify(calls) }] },
           }],
         }));
       }
-      if (url.pathname === "/rest/v1/rpc/mora_finalize_ai_analysis") {
+      if (url.pathname === "/rest/v1/rpc/mora_finalize_ai_analysis_v2") {
         return Promise.resolve(json(quota));
       }
-      if (url.pathname === "/rest/v1/rpc/mora_record_operational_event") {
+      if (url.pathname === "/rest/v1/rpc/mora_record_operational_event_v2") {
         return Promise.resolve(json(null));
       }
       // Never fall through to the real fetch, even if production adds a call.
@@ -108,6 +110,7 @@ Deno.test("adult eligibility gates the actual analysis handler before quota/repl
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
+            aiConsentVersion: "2",
             requestId: "67a02918-59d3-4dc0-80ba-45b6c3e834de",
             text: "Test task",
             language: "en",
@@ -185,10 +188,10 @@ Deno.test("adult eligibility gates the actual analysis handler before quota/repl
         assertEquals(requests, [
           "/auth/v1/user",
           "/rest/v1/rpc/get_adult_eligibility",
-          "/rest/v1/rpc/mora_reserve_ai_analysis",
+          "/rest/v1/rpc/mora_reserve_ai_analysis_v2",
           "/v1beta/models/gemini-3.5-flash-lite:generateContent",
-          "/rest/v1/rpc/mora_finalize_ai_analysis",
-          "/rest/v1/rpc/mora_record_operational_event",
+          "/rest/v1/rpc/mora_finalize_ai_analysis_v2",
+          "/rest/v1/rpc/mora_record_operational_event_v2",
         ]);
       },
     );
@@ -202,8 +205,8 @@ Deno.test("adult eligibility gates the actual analysis handler before quota/repl
         assertEquals(requests, [
           "/auth/v1/user",
           "/rest/v1/rpc/get_adult_eligibility",
-          "/rest/v1/rpc/mora_reserve_ai_analysis",
-          "/rest/v1/rpc/mora_record_operational_event",
+          "/rest/v1/rpc/mora_reserve_ai_analysis_v2",
+          "/rest/v1/rpc/mora_record_operational_event_v2",
         ]);
       },
     );

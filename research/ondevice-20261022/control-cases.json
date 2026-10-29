@@ -1,0 +1,14 @@
+[
+  {"id":"C01","language":"ko","text":"내일 오후 3시에 치과 예약 추가해줘","expected_semantics":"One Appointment, dentist, 2026-10-23 03:00 PM."},
+  {"id":"C02","language":"ko","text":"매일 아침 7시에 물 마시기 추가해줘","expected_semantics":"One daily Routine, drink water, 07:00 AM, date null, recurrence null."},
+  {"id":"C03","language":"ko","text":"우유 사기 추가해줘","expected_semantics":"One one-time Appointment, buy milk, time null; no invented time or recurrence."},
+  {"id":"C04","language":"ko","text":"한 시간 뒤에 팀 미팅 추가해줘","expected_semantics":"One Appointment, team meeting, 2026-10-22 11:00 AM."},
+  {"id":"C05","language":"en","text":"Add dentist tomorrow at 3 PM.","expected_semantics":"One Appointment, dentist, 2026-10-23 03:00 PM."},
+  {"id":"C06","language":"en","text":"Add drinking water every day at 7 AM.","expected_semantics":"One daily Routine, drinking water, 07:00 AM, date null, recurrence null."},
+  {"id":"C07","language":"en","text":"Add buying milk.","expected_semantics":"One one-time Appointment, buying milk, time null; no invented time or recurrence."},
+  {"id":"C08","language":"en","text":"Add team meeting in one hour.","expected_semantics":"One Appointment, team meeting, 2026-10-22 11:00 AM."},
+  {"id":"C09","language":"ja","text":"明日の午後3時に歯医者の予約を追加して。","expected_semantics":"One Appointment, dentist, 2026-10-23 03:00 PM."},
+  {"id":"C10","language":"ja","text":"毎朝7時に水を飲む習慣を追加して。","expected_semantics":"One daily Routine, drinking water, 07:00 AM, date null, recurrence null."},
+  {"id":"C11","language":"ja","text":"牛乳を買うタスクを追加して。","expected_semantics":"One one-time Appointment, buy milk, time null; no invented time or recurrence."},
+  {"id":"C12","language":"ja","text":"1時間後にチームミーティングを追加して。","expected_semantics":"One Appointment, team meeting, 2026-10-22 11:00 AM."}
+]

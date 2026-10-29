@@ -30,6 +30,12 @@ const SAFE_PATHS = new Set([
   "subtype",
   "result", // DB가 돌려주는 처리 결과 코드
   "outputCount",
+  // Router-owned enums, validated model ID and numeric timing; never whole objects.
+  "attempt.provider",
+  "attempt.model",
+  "attempt.outcome",
+  "attempt.durationMs",
+  "attempt.failure",
   "Math.round",
   "performance.now",
   "null",

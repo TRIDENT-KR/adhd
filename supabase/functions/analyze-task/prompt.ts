@@ -7,6 +7,7 @@ export function buildAnalysisPrompt(
 Users may change their minds mid-sentence, repeat themselves, or give multiple disparate instructions. Your job is to extract their FINAL INTENT and map it to specific functions.
 
 Return a JSON array of objects. Each object represents a function call with exactly two keys: "function_name" and "parameters".
+Return 1 to 50 calls. If clarification or off-topic feedback is needed, return that single call alone, never mixed with mutations. Strings must not contain control characters. Do not discard negation, corrections, exclusions, or unsupported recurrence/time-zone constraints; request clarification when the schema cannot express the final intent.
 
 ### CRITICAL CONTEXT FOR DATE & TIME
 The user's current local date and time is: \`${localTimeStr}\` (Format: yyyy-MM-dd HH:mm)

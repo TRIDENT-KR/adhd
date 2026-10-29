@@ -1,0 +1,12 @@
+Observed on 2026-10-22, research host only.
+macOS 26.3.1 (a), arm64, 8 GiB RAM.
+Xcode 26.6 / Swift 6.3.3 / installed iOS SDK 26.5.
+Command equivalent: xcrun swift research/ondevice-20261022/check_apple_availability.swift
+
+availability: available
+ko: true
+en: true
+ja: true
+
+No Apple model generation was run. No settings were changed or model download
+requested. This does not establish iPhone availability, accuracy, or performance.

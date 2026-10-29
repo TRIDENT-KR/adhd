@@ -68,6 +68,7 @@ final class AccountSessionCleanupCoordinator {
         taskManager: TaskManager,
         reason: AccountSessionCleanupReason
     ) async {
+        NotificationManager.shared.invalidatePendingRegistrations()
         cancelTaskNotifications(in: taskManager.modelContext)
         taskManager.modelContext = nil
         taskManager.isReady = false

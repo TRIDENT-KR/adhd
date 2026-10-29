@@ -60,7 +60,7 @@ function assertNonEmptyString(
 ): asserts value is string {
   if (
     typeof value !== "string" || value.trim().length === 0 ||
-    value.length > maximumLength
+    value.length > maximumLength || /[\u0000-\u001f\u007f-\u009f]/u.test(value)
   ) {
     fail(index, `invalid ${field}`);
   }
@@ -313,8 +313,18 @@ export function validateAnalysisCalls(value: unknown): AnalysisCall[] {
   if (!Array.isArray(value) || value.length === 0 || value.length > 50) {
     throw new AnalysisValidationError("response must contain 1 to 50 calls");
   }
-  return value.map((item, index) => {
+  const calls = value.map((item, index) => {
     if (!isRecord(item)) fail(index, "call must be an object");
     return validateCall(item, index);
   });
+  if (
+    calls.length > 1 &&
+    calls.some((call) =>
+      call.function_name === "request_clarification" ||
+      call.function_name === "handle_off_topic_chat"
+    )
+  ) {
+    throw new AnalysisValidationError("feedback must be a standalone response");
+  }
+  return calls;
 }

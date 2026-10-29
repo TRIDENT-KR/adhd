@@ -30,3 +30,12 @@ deno task --cwd tools/mora-eval validate
 deno task --cwd tools/mora-eval test
 deno test --no-remote supabase/functions/analyze-task/validator_test.ts supabase/functions/analyze-task/analysis-service_test.ts
 ```
+
+## 같은 날 후속 통합
+
+보존된 로컬 변경과 main을 합친 뒤 하네스 28개, 전체 서버 86개(18 steps), 로컬 DB
+97개, macOS 분석·알람 큐 15개 검사가 통과했습니다. 프롬프트 snapshot은 로컬 운영
+커밋 `2e1a123`의 의도적인 제약 추가에 맞춰 갱신했습니다.
+[통합 검증 기록](../../../research/integration-20261029/validation.md)에 iOS
+전체 테스트 실행 제한을 포함해 구분해 두었습니다. 실제 모델 정확도 평가는
+아닙니다.

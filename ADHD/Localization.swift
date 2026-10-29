@@ -631,17 +631,18 @@ struct AIPrivacyStrings {
     }
     var title: String { t("AI data sharing", "AI 데이터 전송", "AIへのデータ送信") }
     var explanation: String { t(
-        "When you tap Analyze, your typed text or edited speech transcript, current date/time and app language are sent through Supabase to Google's Gemini to interpret your request. Your full task list and raw audio are not sent to Gemini. Voice transcription uses Apple's speech recognition and may be processed by Apple. Review the draft before sending; avoid including sensitive information.",
-        "분석을 누르면 입력한 글 또는 수정한 음성 초안, 현재 날짜·시간과 앱 언어가 Supabase 서버를 거쳐 Google Gemini로 전달되어 요청을 해석합니다. 전체 일정 목록과 원본 음성은 Gemini에 보내지 않습니다. 음성 전사는 Apple 음성 인식을 사용하며 Apple에서 처리될 수 있습니다. 전송 전에 초안을 확인하고 민감한 정보는 포함하지 마세요.",
-        "解析を押すと、入力した文章または編集した音声の下書き、現在の日時とアプリの言語がSupabase経由でGoogle Geminiに送られ、リクエストを解析します。タスク一覧全体や音声そのものはGeminiに送信しません。音声の文字起こしにはAppleの音声認識を使用し、Appleで処理される場合があります。送信前に下書きを確認し、機密情報は含めないでください。"
+        "When you tap Analyze, your typed text or edited speech transcript, current date/time and app language are sent through Supabase to Anthropic Claude first, and to Google Gemini if Claude is unavailable or cannot return a valid result to interpret your request. Your full task list and raw audio are not sent to either AI provider. Voice transcription uses Apple's speech recognition and may be processed by Apple. Review the draft before sending; avoid including sensitive information.",
+        "분석을 누르면 입력한 글 또는 수정한 음성 초안, 현재 날짜·시간과 앱 언어가 Supabase 서버를 거쳐 먼저 Anthropic Claude로 전달됩니다. Claude를 사용할 수 없거나 올바른 결과를 받지 못하면 Google Gemini로 전달해 요청을 해석합니다. 전체 일정 목록과 원본 음성은 두 AI 제공자 모두에게 보내지 않습니다. 음성 전사는 Apple 음성 인식을 사용하며 Apple에서 처리될 수 있습니다. 전송 전에 초안을 확인하고 민감한 정보는 포함하지 마세요.",
+        "解析を押すと、入力した文章または編集した音声の下書き、現在の日時とアプリの言語がSupabase経由でまずAnthropic Claudeに送信します。Claudeが利用できない場合や有効な結果を得られない場合は、Google Geminiに送信して解析します。タスク一覧全体や音声そのものはどちらのAI提供者にも送信しません。音声の文字起こしにはAppleの音声認識を使用し、Appleで処理される場合があります。送信前に下書きを確認し、機密情報は含めないでください。"
     ) }
     var choice: String { t(
-        "AI is optional. You can add and edit tasks manually without sharing them with Gemini. You can withdraw permission in Settings. Withdrawal stops future AI requests; it does not recall data already sent. See the privacy policies for data handling and retention.",
-        "AI 사용은 선택입니다. Gemini 전송에 동의하지 않아도 일정을 직접 추가·수정할 수 있습니다. 설정에서 언제든 동의를 철회할 수 있으며, 철회하면 이후 AI 요청이 중단됩니다. 이미 보낸 데이터는 회수되지 않습니다. 데이터 처리와 보관은 개인정보 처리방침을 확인하세요.",
+        "AI is optional. You can add and edit tasks manually without sharing them with either AI provider. You can withdraw permission in Settings. Withdrawal stops future AI requests; it does not recall data already sent. See the privacy policies for data handling and retention.",
+        "AI 사용은 선택입니다. AI 전송에 동의하지 않아도 일정을 직접 추가·수정할 수 있습니다. 설정에서 언제든 동의를 철회할 수 있으며, 철회하면 이후 AI 요청이 중단됩니다. 이미 보낸 데이터는 회수되지 않습니다. 데이터 처리와 보관은 개인정보 처리방침을 확인하세요.",
         "AIの利用は任意です。同意しなくてもタスクを手動で追加・編集できます。設定でいつでも同意を撤回でき、以後のAIリクエストは停止します。送信済みのデータは取り戻せません。データの取り扱いと保管はプライバシーポリシーをご確認ください。"
     ) }
     var allow: String { t("Allow AI data sharing", "AI 데이터 전송에 동의", "AIへの送信に同意する") }
     var notNow: String { t("Not now", "나중에", "今はしない") }
+    var anthropicPolicy: String { t("Anthropic data policy", "Anthropic 데이터 정책", "Anthropicのデータポリシー") }
     var googlePolicy: String { t("Google Gemini data policy", "Google Gemini 데이터 정책", "Google Geminiのデータポリシー") }
 }
 

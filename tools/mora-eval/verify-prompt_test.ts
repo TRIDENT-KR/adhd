@@ -1,45 +1,46 @@
 import { buildAnalysisPrompt } from "../../supabase/functions/analyze-task/prompt.ts";
 import { assert, hash } from "./core.ts";
-// Frozen from base 84f95e6 index.ts BEFORE extraction; not self-generated expected values.
+// Frozen from saved local production commit 2e1a123 before integration.
+// The intentional constraints update is recorded in evidence/prompt-integration.json.
 const snapshots = [
   {
     "now": "2026-10-29 10:00",
     "language": "ko",
     "sha256":
-      "cc1c973fad68d10810310e2b5bda158c3adc5f16af1545aeb634bd7740820bb8",
+      "3c93be85d7fe6c74105d8ec867bf5019a4e7a37cb15e854a91bb78a28230ff95",
   },
   {
     "now": "2026-10-29 10:00",
     "language": "en",
     "sha256":
-      "16ea3ec2a1d9ef18624ddaad6917ae7c16a92925b1cac11a4ad685c2e081bf5e",
+      "dc243d2537a51c8759e7509c6eed20b18adaae4d47871fa5d09aa60d4edc3e38",
   },
   {
     "now": "2026-10-29 10:00",
     "language": "ja",
     "sha256":
-      "275b12640a25508a26f82c26d6527d0a0bef4f47c605add1c5f600fa559ce35d",
+      "6df73725291b7391788c30e9a1f8c4dc9ac8c1aa92216dada218952cf59c34c5",
   },
   {
     "now": "2028-02-28 23:50",
     "language": "ko",
     "sha256":
-      "138db95c847a52cce9d7f9a31c0f3c41c49a958b037d0964d571b5c7af4891cd",
+      "ed254ae76f541291ab4748f2ee7551ed55766bdad0fc92df9b4e1aadde9321de",
   },
   {
     "now": "2028-02-28 23:50",
     "language": "en",
     "sha256":
-      "855030b6099af1b18309ce5a6f2a789ba6e0bf8df98a6b7fc71c70bc86e2a336",
+      "2d70bf541a5b0ca92b48b86e10d8bbe7e55c5e482935015504be3b88323994d0",
   },
   {
     "now": "2028-02-28 23:50",
     "language": "ja",
     "sha256":
-      "b587f75d0873823549c5ab75a3b33cc5a4e6b0eeafc4a79829fc76c9d99184ba",
+      "73504a6fb8d621089a62a1330fd31132a10f05423fff743f13984631b20c5571",
   },
 ];
-Deno.test("shared prompt preserves all original bytes for each language and clock", async () => {
+Deno.test("shared prompt preserves integrated production bytes for each language and clock", async () => {
   for (const s of snapshots) {
     assert(
       await hash(buildAnalysisPrompt(s.now, s.language)) === s.sha256,
