@@ -96,6 +96,9 @@ struct AdultEligibilityTests {
         #expect(AdultEligibilityGatePolicy.requiresGate(auth: .authenticatedOnline(userID: account), status: .needsConfirmation))
         #expect(AdultEligibilityGatePolicy.requiresGate(auth: .signedOut, status: .restricted))
         #expect(!AdultEligibilityGatePolicy.requiresGate(auth: .authenticatedOfflineLimited(userID: account), status: .accepted))
+        // 익명 계정의 연령 확인 화면은 기기 범위의 확인을 봅니다.
+        #expect(AdultEligibilityGatePolicy.requiresGate(auth: .anonymousOnline(userID: account), status: .needsConfirmation))
+        #expect(!AdultEligibilityGatePolicy.requiresGate(auth: .anonymousOfflineLimited(userID: account), status: .accepted))
     }
 
     @Test func offlineAffirmationAllowsLocalUseButNeverSendsOrAuthorizesServerUse() async throws {
@@ -180,6 +183,44 @@ struct AdultEligibilityTests {
             try await manager.requireServerEligibility(userID: user, accessToken: "account-token")
         }
         #expect(server.acceptedTokens.count == 1)
+    }
+
+    @Test func anonymousAccountCarriesTheDeviceDeclarationToTheServerOnce() async throws {
+        let (name, defaults) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: name) }
+        let anonymous = UUID(), server = Server()
+        let manager = AdultEligibilityManager(store: .init(defaults: defaults), server: server) {
+            AdultEligibilitySession(userID: anonymous, accessToken: "anonymous-token")
+        }
+        try AdultEligibilityStore(defaults: defaults).affirmAdult(for: LocalGuestIdentity.storageID)
+        manager.activate(scopeID: LocalGuestIdentity.storageID, accountID: anonymous, isOnline: true)
+        // 새 익명 계정은 서버 기록이 없으므로 기기에서 한 확인을 한 번 옮깁니다.
+        server.response = .init(eligible: false, policyVersion: "adult-v1")
+        await #expect(throws: AdultEligibilityError.self) {
+            try await manager.requireServerEligibility(userID: anonymous, accessToken: "anonymous-token")
+        }
+        #expect(server.acceptedTokens == ["anonymous-token"])
+        server.response = .init(eligible: true, policyVersion: "adult-v1")
+        try await manager.requireServerEligibility(userID: anonymous, accessToken: "anonymous-token")
+        #expect(server.acceptedTokens == ["anonymous-token"])
+    }
+
+    @Test func deviceDeclarationNeverSubstitutesForAnAppleAccount() async throws {
+        let (name, defaults) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: name) }
+        let apple = UUID(), server = Server()
+        let manager = AdultEligibilityManager(store: .init(defaults: defaults), server: server) {
+            AdultEligibilitySession(userID: apple, accessToken: "apple-token")
+        }
+        try AdultEligibilityStore(defaults: defaults).affirmAdult(for: LocalGuestIdentity.storageID)
+        #expect(AdultEligibilityScopePolicy.isLocalScope(LocalGuestIdentity.storageID, validFor: apple))
+        #expect(!AdultEligibilityScopePolicy.isLocalScope(UUID(), validFor: apple))
+        manager.activate(scopeID: apple, accountID: apple, isOnline: true)
+        await #expect(throws: AdultEligibilityError.self) {
+            try await manager.requireServerEligibility(userID: apple, accessToken: "apple-token")
+        }
+        #expect(server.queriedTokens.isEmpty)
+        #expect(server.acceptedTokens.isEmpty)
     }
 
     @Test func newlyAcceptedScopeWaitsForRestrictedScopeCleanup() async {

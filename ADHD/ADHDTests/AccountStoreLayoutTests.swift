@@ -184,6 +184,67 @@ struct GuestAccountStorageTests {
         #expect(AuthAccessState.deletionPending(userID: realUser).localStorageUserID == nil)
     }
 
+    @Test func anonymousSessionUsesItsIDOnlyForServerFeaturesAndKeepsDeviceStorage() {
+        let anonymous = UUID()
+        for state in [
+            AuthAccessState.session(userID: anonymous, isAnonymous: true, isOnline: true),
+            .session(userID: anonymous, isAnonymous: true, isOnline: false),
+        ] {
+            #expect(state.isAnonymous)
+            #expect(state.isGuest)
+            // 서버 기능(AI·구독·서버 성인 확인·AI 동의)은 익명 계정 ID
+            #expect(state.accountUserID == anonymous)
+            // 일정·알림 설정·18+ 확인·위젯은 원래 기기 범위 그대로
+            #expect(state.localStorageUserID == LocalGuestIdentity.storageID)
+            #expect(state.exposedUserID == nil)
+        }
+        #expect(AuthAccessState.session(userID: anonymous, isAnonymous: true, isOnline: true) == .anonymousOnline(userID: anonymous))
+        #expect(AuthAccessState.session(userID: anonymous, isAnonymous: true, isOnline: false) == .anonymousOfflineLimited(userID: anonymous))
+        #expect(AuthAccessState.anonymousOfflineLimited(userID: anonymous).isOfflineLimited)
+        #expect(!AuthAccessState.anonymousOnline(userID: anonymous).isOfflineLimited)
+    }
+
+    @Test func appleSessionMappingIsUnchanged() {
+        let apple = UUID()
+        let online = AuthAccessState.session(userID: apple, isAnonymous: false, isOnline: true)
+        let offline = AuthAccessState.session(userID: apple, isAnonymous: false, isOnline: false)
+        #expect(online == .authenticatedOnline(userID: apple))
+        #expect(offline == .authenticatedOfflineLimited(userID: apple))
+        for state in [online, offline] {
+            #expect(!state.isAnonymous)
+            #expect(!state.isGuest)
+            #expect(state.accountUserID == apple)
+            #expect(state.localStorageUserID == apple)
+            #expect(state.exposedUserID == apple)
+        }
+    }
+
+    @Test func anonymousAccountIsCreatedOnlyForADeclaredDeviceWithoutASession() {
+        func provisions(_ state: AuthAccessState, accepted: Bool = true, pending: Bool = false, busy: Bool = false) -> Bool {
+            AnonymousAccountPolicy.shouldProvision(
+                state: state, deviceDeclarationAccepted: accepted, hasPendingDeletion: pending, isBusy: busy
+            )
+        }
+        let user = UUID()
+        #expect(provisions(.signedOut))
+        #expect(!provisions(.signedOut, accepted: false))
+        #expect(!provisions(.signedOut, pending: true))
+        #expect(!provisions(.signedOut, busy: true))
+        // Apple 세션이 만료된 사용자는 다시 로그인할 길을 남기려고 익명 계정으로 덮지 않습니다.
+        #expect(!provisions(.lockedInvalidSession))
+        for state in [AuthAccessState.booting, .anonymousOnline(userID: user), .anonymousOfflineLimited(userID: user),
+                      .authenticatedOnline(userID: user), .authenticatedOfflineLimited(userID: user),
+                      .deletionPending(userID: user)] {
+            #expect(!provisions(state))
+        }
+    }
+
+    @Test func invalidAnonymousSessionReturnsToTheDeviceInsteadOfAskingToSignIn() {
+        #expect(AuthManager.showsExpiredAccount(lastKnownUserID: UUID(), wasAnonymous: false))
+        #expect(!AuthManager.showsExpiredAccount(lastKnownUserID: UUID(), wasAnonymous: true))
+        #expect(!AuthManager.showsExpiredAccount(lastKnownUserID: nil, wasAnonymous: false))
+    }
+
     @Test func guestSurvivesReopeningAndExplicitCopyDoesNotOverwriteEitherStore() throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("mora-guest-test-\(UUID())")

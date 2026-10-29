@@ -307,6 +307,10 @@ struct StoreKitSyncErrorMapperTests {
             == .transactionRejected)
     }
 
+    @Test func inactiveClaimMeansNothingToRestore() {
+        #expect(StoreKitSyncErrorMapper.map(status: 409, data: body("claim_not_active")) == .claimNotActive)
+    }
+
     @Test func outagesAndUnknownBodiesStayGeneric() {
         #expect(StoreKitSyncErrorMapper.map(status: 503, data: body("subscription_backend_unavailable")) == nil)
         #expect(StoreKitSyncErrorMapper.map(status: 502, data: Data("<html>".utf8)) == nil)
@@ -328,6 +332,33 @@ struct SubscriptionPricingTests {
     }
 }
 
+
+// MARK: - 현재 권리 거래: register 또는 claim (익명 계정 Pro 이어받기)
+struct StoreKitSyncActionTests {
+    @Test func thisAccountsPurchaseIsRegistered() {
+        let token = UUID()
+        #expect(StoreKitSyncAction.choose(transactionToken: token, accountToken: token) == .register)
+    }
+
+    @Test func anotherAccountsOrTokenlessPurchaseIsClaimed() {
+        // 다시 설치하거나 다른 기기에서 새 익명 계정이 생기면 이전 계정 토큰으로 산 구독을 claim합니다.
+        #expect(StoreKitSyncAction.choose(transactionToken: UUID(), accountToken: UUID()) == .claim)
+        #expect(StoreKitSyncAction.choose(transactionToken: nil, accountToken: UUID()) == .claim)
+    }
+
+    @Test func registerRejectedAsAnotherAccountsSubscriptionIsRetriedAsClaim() {
+        // 이어받은 구독을 이 설치에서 업그레이드하면 register가 409로 거절되므로 같은 JWS를 claim합니다.
+        #expect(StoreKitSyncAction.retry(afterRegisterFailure: SubscriptionServerError.subscriptionOwnedByAnotherAccount) == .claim)
+        #expect(StoreKitSyncAction.retry(afterRegisterFailure: SubscriptionServerError.transactionRejected) == nil)
+        #expect(StoreKitSyncAction.retry(afterRegisterFailure: SubscriptionServerError.claimNotActive) == nil)
+        #expect(StoreKitSyncAction.retry(afterRegisterFailure: URLError(.timedOut)) == nil)
+    }
+
+    @Test func serverActionNamesMatchTheStoreKitSyncContract() {
+        #expect(StoreKitSyncAction.register.rawValue == "register")
+        #expect(StoreKitSyncAction.claim.rawValue == "claim")
+    }
+}
 
 // A suspended StoreKit/server operation must never follow a later account session.
 struct SubscriptionOperationScopeTests {
@@ -430,8 +461,13 @@ struct SubscriptionErrorCopyTests {
         #expect(SubscriptionErrorCopy.classify(SubscriptionFlowError.productContractMismatch, stage: .preparing) == .paymentNotStarted)
     }
 
+    @Test func accountNotReadyNeverAsksToSignIn() {
+        // 익명 계정이 아직 없으면 로그인 안내 대신 단계별 문구로 다시 해 보라고만 알립니다.
+        #expect(SubscriptionErrorCopy.classify(SubscriptionFlowError.accountRequired, stage: .preparing) == .paymentNotStarted)
+        #expect(SubscriptionErrorCopy.classify(SubscriptionFlowError.accountRequired, stage: .restoring) == .restoreFailed)
+    }
+
     @Test func actionablePreparationErrorsKeepTheirOwnCopy() {
-        #expect(SubscriptionErrorCopy.classify(SubscriptionFlowError.accountRequired, stage: .preparing) == .accountRequired)
         #expect(SubscriptionErrorCopy.classify(AdultEligibilityError.required, stage: .preparing) == .eligibility(.required))
         #expect(SubscriptionErrorCopy.classify(SubscriptionFlowError.appAccountTokenChanged, stage: .preparing) == .accountTokenChanged)
     }
@@ -453,34 +489,5 @@ struct SubscriptionErrorCopyTests {
         #expect(SubscriptionErrorCopy.classify(SubscriptionFlowError.entitlementNotGranted, stage: .restoring) == .restoreFailed)
         #expect(SubscriptionErrorCopy.classify(SubscriptionFlowError.nothingToRestore, stage: .restoring) == .nothingToRestore)
         #expect(SubscriptionErrorCopy.classify(SubscriptionServerError.subscriptionOwnedByAnotherAccount, stage: .restoring) == .ownedByAnotherAccount)
-    }
-}
-
-// MARK: - 페이월: 로그인 뒤 다시 열기 (P2 #26)
-@MainActor
-struct PaywallResumeTests {
-    @Test func waitsUntilTheEligibleAccountMainViewIsReady() {
-        let account = UUID()
-        let guestStore = UUID()
-        #expect(PaywallResumePolicy.decide(isPending: true, accountUserID: account, mainViewUserID: guestStore, isEligible: true) == .keepWaiting)
-        #expect(PaywallResumePolicy.decide(isPending: true, accountUserID: account, mainViewUserID: account, isEligible: false) == .keepWaiting)
-        #expect(PaywallResumePolicy.decide(isPending: true, accountUserID: account, mainViewUserID: account, isEligible: true) == .reopen)
-    }
-
-    @Test func aGuestMainViewOrNoIntentDropsIt() {
-        let guestStore = UUID()
-        #expect(PaywallResumePolicy.decide(isPending: true, accountUserID: nil, mainViewUserID: guestStore, isEligible: true) == .discard)
-        #expect(PaywallResumePolicy.decide(isPending: false, accountUserID: UUID(), mainViewUserID: nil, isEligible: true) == .discard)
-    }
-
-    @Test func theIntentReopensThePaywallOnlyOnce() {
-        let account = UUID()
-        PaywallResumeIntent.forget()
-        PaywallResumeIntent.remember()
-        #expect(!PaywallResumeIntent.resolve(accountUserID: account, mainViewUserID: UUID(), isEligible: true))
-        #expect(PaywallResumeIntent.isPending)
-        #expect(PaywallResumeIntent.resolve(accountUserID: account, mainViewUserID: account, isEligible: true))
-        #expect(!PaywallResumeIntent.isPending)
-        #expect(!PaywallResumeIntent.resolve(accountUserID: account, mainViewUserID: account, isEligible: true))
     }
 }

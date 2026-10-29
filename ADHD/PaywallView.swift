@@ -10,7 +10,8 @@ struct PaywallView: View {
     /// nil이면 기본 선택(연간, 없으면 남은 상품)을 씁니다.
     @State private var selectedProductID: String?
     @State private var showError: Bool = false
-    @State private var showLogin = false
+    /// 익명 계정을 붙이는 동안 버튼을 한 번만 누르게 합니다.
+    @State private var isPreparingAccount = false
 
     /// 상품이 하나만 불러와져도 화면에 보이는 선택과 실제 결제 상품이 같도록 여기서 정합니다.
     private var selectedProduct: Product? {
@@ -85,16 +86,6 @@ struct PaywallView: View {
         .onAppear {
             if subscriptionManager.purchaseError != nil { showError = true }
         }
-        .sheet(isPresented: $showLogin, onDismiss: {
-            // 로그인하지 않고 닫았다면 페이월로 돌아올 일도 없습니다.
-            if authManager.accessState.accountUserID == nil { PaywallResumeIntent.forget() }
-        }) {
-            LoginView()
-                .environmentObject(authManager)
-        }
-        .onChange(of: authManager.canUseServerFeatures) { _, canUseServerFeatures in
-            if canUseServerFeatures { showLogin = false }
-        }
         .task {
             // 일부 상품만 받아온 경우에도 빠진 상품을 한 번 더 불러 봅니다.
             if subscriptionManager.products.count < SubscriptionProductID.allCases.count {
@@ -103,10 +94,17 @@ struct PaywallView: View {
         }
     }
 
-    /// 로그인하면 메인 화면이 계정 범위로 다시 만들어져 이 시트가 닫히므로, 돌아올 수 있게 기억해 둡니다.
-    private func openLoginFromPaywall() {
-        PaywallResumeIntent.remember()
-        showLogin = true
+    /// 로그인은 없습니다. 보이지 않는 익명 계정이 아직 없으면 한 번 만들어 보고,
+    /// 앱 루트가 새 계정의 구독 범위를 열 때까지 잠깐(최대 2초) 기다립니다.
+    /// 그래도 준비되지 않으면 구매·복원이 '결제는 시작되지 않았어요'/'복원하지 못했어요'로 알려 줍니다.
+    private func prepareAccount() async {
+        guard await authManager.provisionAnonymousAccountIfNeeded(),
+              let accountID = authManager.accessState.accountUserID else { return }
+        var waited = 0
+        while !subscriptionManager.isActiveAccount(accountID), waited < 20 {
+            try? await Task.sleep(for: .milliseconds(100))
+            waited += 1
+        }
     }
 
     // MARK: - Header
@@ -205,45 +203,33 @@ struct PaywallView: View {
         .frame(maxWidth: .infinity)
     }
 
-    private var needsSignIn: Bool {
-        authManager.accessState.accountUserID == nil
+    private var isBusy: Bool {
+        subscriptionManager.isLoading || isPreparingAccount
     }
 
     private var purchaseButtonDisabled: Bool {
-        subscriptionManager.isLoading
-            || (!needsSignIn && (!authManager.canUseServerFeatures || selectedProduct == nil))
+        isBusy || selectedProduct == nil
     }
 
     // MARK: - CTA
     private var ctaSection: some View {
         VStack(spacing: 12) {
-            if needsSignIn {
-                Text(L.paywall.accountRequired)
-                    .font(.footnote)
-                    .multilineTextAlignment(.center)
-            } else if !authManager.canUseServerFeatures {
-                Text(L.paywall.connectionRequired)
-                    .font(.footnote)
-                    .multilineTextAlignment(.center)
-            }
-
             Button {
-                if needsSignIn {
-                    openLoginFromPaywall()
-                    return
-                }
-                guard authManager.canUseServerFeatures, let product = selectedProduct else { return }
+                guard let product = selectedProduct else { return }
                 Haptic.impact(.medium)
+                isPreparingAccount = true
                 Task {
+                    await prepareAccount()
+                    isPreparingAccount = false
                     if await subscriptionManager.purchase(product) { dismiss() }
                 }
             } label: {
                 ZStack {
-                    if subscriptionManager.isLoading {
+                    if isBusy {
                         ProgressView()
                             .tint(DesignSystem.Colors.onPrimary)
                     } else {
-                        Text(needsSignIn ? L.paywall.signIn : ctaTitle)
+                        Text(ctaTitle)
                             .font(.headline)
                             .foregroundColor(DesignSystem.Colors.onPrimary)
                     }
@@ -262,12 +248,10 @@ struct PaywallView: View {
             .opacity(purchaseButtonDisabled ? 0.6 : 1)
 
             Button {
-                if needsSignIn {
-                    openLoginFromPaywall()
-                    return
-                }
-                guard authManager.canUseServerFeatures else { return }
+                isPreparingAccount = true
                 Task {
+                    await prepareAccount()
+                    isPreparingAccount = false
                     if await subscriptionManager.restorePurchases() { dismiss() }
                 }
             } label: {
@@ -279,7 +263,7 @@ struct PaywallView: View {
                     .padding(.horizontal, 16)
                     .contentShape(Rectangle())
             }
-            .disabled(subscriptionManager.isLoading || (!needsSignIn && !authManager.canUseServerFeatures))
+            .disabled(isBusy)
 
             if let notice = subscriptionManager.purchaseNotice {
                 Text(notice)
@@ -506,50 +490,5 @@ enum SubscriptionPricing {
         NSDecimalRound(&rounded, &value, 0, .down)
         let percent = NSDecimalNumber(decimal: rounded).intValue
         return (1...99).contains(percent) ? percent : nil
-    }
-}
-
-// MARK: - Paywall Resume After Sign-In
-/// 페이월에서 로그인하면 메인 화면이 계정 범위로 다시 만들어지면서 열린 시트가 모두 닫힙니다.
-/// 로그인 직전에 '페이월로 돌아가기'를 기억해 두고, 계정 메인 화면이 준비되면 MainTabView가 다시 엽니다.
-/// 메모리에만 두므로 앱을 끄면 잊습니다.
-enum PaywallResumeIntent {
-    private(set) static var isPending = false
-
-    static func remember() { isPending = true }
-    static func forget() { isPending = false }
-
-    /// 메인 화면이 나타났을 때 부릅니다. 지금 다시 열어야 하면 기억을 지우고 true를 돌려줍니다.
-    static func resolve(accountUserID: UUID?, mainViewUserID: UUID?, isEligible: Bool) -> Bool {
-        let decision = PaywallResumePolicy.decide(
-            isPending: isPending,
-            accountUserID: accountUserID,
-            mainViewUserID: mainViewUserID,
-            isEligible: isEligible
-        )
-        if decision != .keepWaiting { isPending = false }
-        return decision == .reopen
-    }
-}
-
-nonisolated enum PaywallResumeDecision: Equatable {
-    case reopen
-    case keepWaiting
-    case discard
-}
-
-nonisolated enum PaywallResumePolicy {
-    static func decide(
-        isPending: Bool,
-        accountUserID: UUID?,
-        mainViewUserID: UUID?,
-        isEligible: Bool
-    ) -> PaywallResumeDecision {
-        guard isPending else { return .discard }
-        // 게스트 메인 화면이 새로 나타났다면 로그인으로 이어지지 않은 것이므로 잊습니다.
-        guard let accountUserID else { return .discard }
-        // 계정 저장소가 아직 바뀌는 중이거나 성인 확인 전이면 구매할 수 없으니 기다립니다.
-        guard mainViewUserID == accountUserID, isEligible else { return .keepWaiting }
-        return .reopen
     }
 }

@@ -78,7 +78,8 @@ private struct RestrictedAccountManagementView: View {
             List {
                 Section {
                     Text(L.adultEligibility.managementExplanation).font(.footnote)
-                    if authManager.accessState.accountUserID != nil {
+                    // Apple 계정만 이메일·삭제·복원을 보여 줍니다. 익명 계정은 Apple 재인증으로 지울 수 없습니다.
+                    if authManager.accessState.exposedUserID != nil {
                         Text(authManager.userEmail ?? L.authRelease.accountTitle)
                         Button(L.settings.deleteAccount, role: .destructive) { showDeletion = true }
                         Button {

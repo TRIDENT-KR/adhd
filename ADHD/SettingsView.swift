@@ -44,9 +44,13 @@ struct SettingsView: View {
     @AppStorage("micInputMode") private var micInputMode: String = "tap"
     @State private var confirmBeforeSave = true
 
+    /// 서버 계정 ID (익명 포함). AI 동의처럼 서버 기능에만 씁니다.
     private var accountUserID: UUID? {
         authManager.accessState.accountUserID
     }
+
+    /// Apple로 로그인한 계정만 계정 행(이메일·복사·로그아웃·삭제)을 보여 줍니다.
+    private var signedInUserID: UUID? { authManager.accessState.exposedUserID }
 
     private var preferenceUserID: UUID? { authManager.accessState.localStorageUserID }
 
@@ -65,15 +69,17 @@ struct SettingsView: View {
             List {
                 // ── 계정 ──
                 Section {
-                    if accountUserID == nil {
+                    if signedInUserID == nil {
+                        // 기기 사용자(익명 계정 포함)는 로그인하지 않습니다. 기기 행과 연령 행만 둡니다.
                         settingsRow(L.authRelease.guestTitle, icon: "iphone")
+                        // Apple 세션이 만료된 기존 로그인 사용자만 계정 일정으로 돌아갈 길을 남깁니다.
                         if authManager.accessState == .lockedInvalidSession {
                             Text(L.authRelease.sessionExpired)
                                 .font(.footnote)
                                 .foregroundStyle(DesignSystem.Colors.error)
-                        }
-                        Button { showLogin = true } label: {
-                            settingsRow(L.authRelease.signIn, icon: "person.crop.circle.badge.plus", tint: DesignSystem.Colors.primary)
+                            Button { showLogin = true } label: {
+                                settingsRow(L.authRelease.signIn, icon: "person.crop.circle.badge.plus", tint: DesignSystem.Colors.primary)
+                            }
                         }
                     } else {
                         HStack(spacing: 12) {
@@ -94,7 +100,7 @@ struct SettingsView: View {
                         .accessibilityElement(children: .combine)
 
                         Button {
-                            guestCopyAccountID = accountUserID
+                            guestCopyAccountID = signedInUserID
                             showGuestCopyConfirmation = true
                         } label: {
                             settingsRow(L.authRelease.copyGuestTasks, icon: "square.and.arrow.down")
@@ -154,10 +160,7 @@ struct SettingsView: View {
                     }
 
                     if !subscriptionManager.isPremium {
-                        Button {
-                            if accountUserID == nil { showLogin = true }
-                            else { showPaywall = true }
-                        } label: {
+                        Button { showPaywall = true } label: {
                             settingsRow(L.paywall.upgradeToPro, icon: "sparkles", tint: DesignSystem.Colors.primary, chevron: true)
                         }
                     }
@@ -251,7 +254,7 @@ struct SettingsView: View {
                         persist(value, for: .confirmBeforeSave, default: true)
                     }
 
-                    // AI는 로그인해야 쓸 수 있으므로 동의 토글도 로그인한 뒤에만 보입니다.
+                    // AI 동의는 서버 계정(익명 포함)에 기록되므로, 그 계정이 준비된 뒤에 보입니다.
                     // 켜려고 하면 무엇이 전송되는지 보여 주는 동의 화면이 먼저 열립니다.
                     if accountUserID != nil {
                         Toggle(isOn: Binding(
@@ -347,8 +350,8 @@ struct SettingsView: View {
                 }
                 .settingsSectionStyle()
 
-                // ── 계정 나가기 (가장 아래, 위험한 동작은 끝에) ──
-                if accountUserID != nil {
+                // ── 계정 나가기 (가장 아래, 위험한 동작은 끝에) ── Apple 계정만
+                if signedInUserID != nil {
                     Section {
                         Button { showLogoutConfirm = true } label: {
                             settingsRow(L.settings.logOut, icon: "rectangle.portrait.and.arrow.right")
@@ -457,6 +460,10 @@ struct SettingsView: View {
         .onChange(of: preferenceUserID) { _, _ in
             loadAccountPreferences()
         }
+        // 익명 계정은 같은 기기 범위에서 나중에 붙으므로, 그때 AI 동의 상태만 다시 읽습니다.
+        .onChange(of: accountUserID) { _, _ in
+            aiDataConsentGranted = AIDataConsent.isGranted(for: accountUserID)
+        }
     }
 
     /// 설정 한 줄: 아이콘 + 제목 (+ 오른쪽 값·화살표). 글자는 토큰 색만 씁니다.
@@ -552,7 +559,7 @@ struct SettingsView: View {
 
     private func copyGuestTasks() {
         defer { guestCopyAccountID = nil }
-        guard let userID = guestCopyAccountID, userID == accountUserID else {
+        guard let userID = guestCopyAccountID, userID == signedInUserID else {
             guestCopyMessage = L.authRelease.copyGuestFailed
             return
         }

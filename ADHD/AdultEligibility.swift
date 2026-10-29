@@ -172,15 +172,27 @@ final class AdultEligibilityManager: ObservableObject {
     }
 
     /// Recheck the server before each AI request or new purchase. Local acceptance cannot authorize billing.
+    /// Apple 계정은 자기 계정 범위의 확인만, 익명 계정은 그 계정을 만든 기기 범위의 확인만 씁니다.
     func requireServerEligibility(userID: UUID, accessToken: String) async throws {
         let expectedGeneration = generation
-        try requireCurrent(scopeID: userID, accountID: userID, generation: expectedGeneration)
+        guard let scopeID = activeScopeID,
+              AdultEligibilityScopePolicy.isLocalScope(scopeID, validFor: userID) else {
+            throw AdultEligibilityError.accountChanged
+        }
+        try requireCurrent(scopeID: scopeID, accountID: userID, generation: expectedGeneration)
         guard isOnline, !accessToken.isEmpty else { throw AdultEligibilityError.unavailable }
-        let response: AdultEligibilitySnapshot
+        var response: AdultEligibilitySnapshot
         do { response = try await server.get(accessToken: accessToken) }
         catch { throw AdultEligibilityError.unavailable }
         try Task.checkCancellation()
-        try requireCurrent(scopeID: userID, accountID: userID, generation: expectedGeneration)
+        try requireCurrent(scopeID: scopeID, accountID: userID, generation: expectedGeneration)
+        if !response.permitsServerUse, scopeID == LocalGuestIdentity.storageID {
+            // 익명 계정은 기기에서 이미 한 18+ 확인 뒤에만 만들어집니다. 그 확인을 이 계정의 서버 기록으로 한 번 옮깁니다.
+            do { response = try await server.accept(accessToken: accessToken) }
+            catch { throw AdultEligibilityError.unavailable }
+            try Task.checkCancellation()
+            try requireCurrent(scopeID: scopeID, accountID: userID, generation: expectedGeneration)
+        }
         guard response.permitsServerUse else { throw AdultEligibilityError.required }
     }
 
@@ -194,6 +206,15 @@ final class AdultEligibilityManager: ObservableObject {
             throw AdultEligibilityError.accountChanged
         }
         guard allowsLocalUse(for: scopeID) else { throw AdultEligibilityError.required }
+    }
+}
+
+/// 어떤 로컬 확인이 서버 계정의 확인을 대신할 수 있는지 정합니다.
+/// Apple 계정은 자기 범위만, 익명 계정은 기기 범위만 씁니다. 기기 확인이 Apple 계정을 대신하지는 않습니다
+/// (기기 범위와 Apple 계정이 함께 활성화되는 상태는 없고, 익명 계정에서만 짝지어집니다).
+enum AdultEligibilityScopePolicy {
+    static func isLocalScope(_ scopeID: UUID, validFor accountID: UUID) -> Bool {
+        scopeID == accountID || scopeID == LocalGuestIdentity.storageID
     }
 }
 

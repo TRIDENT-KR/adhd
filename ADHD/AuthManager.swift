@@ -7,43 +7,98 @@ import Security
 
 enum AuthAccessState: Hashable {
     case booting
+    /// Apple로 로그인한 계정입니다. 로컬 데이터도 이 계정 범위를 씁니다.
     case authenticatedOnline(userID: UUID)
     case authenticatedOfflineLimited(userID: UUID)
+    /// 로그인 없이 쓰는 기기 사용자에게 붙는 보이지 않는 익명 서버 계정입니다.
+    /// 서버 기능(AI·구독·서버 성인 확인·AI 동의)은 이 ID로, 로컬 데이터는 기기 범위(LocalGuestIdentity)를 그대로 씁니다.
+    case anonymousOnline(userID: UUID)
+    case anonymousOfflineLimited(userID: UUID)
     case signedOut
     case deletionPending(userID: UUID)
     case lockedInvalidSession
 
+    /// 검증된 provider 세션을 화면 상태로 옮깁니다. 익명 세션은 기기 범위에 머뭅니다.
+    static func session(userID: UUID, isAnonymous: Bool, isOnline: Bool) -> AuthAccessState {
+        switch (isAnonymous, isOnline) {
+        case (true, true): return .anonymousOnline(userID: userID)
+        case (true, false): return .anonymousOfflineLimited(userID: userID)
+        case (false, true): return .authenticatedOnline(userID: userID)
+        case (false, false): return .authenticatedOfflineLimited(userID: userID)
+        }
+    }
+
     /// 로컬 전용 식별자입니다. accountUserID와 서버 인증에는 게스트 ID를 사용하지 않습니다.
     var localStorageUserID: UUID? {
         switch self {
-        case .signedOut, .lockedInvalidSession: return LocalGuestIdentity.storageID
+        case .signedOut, .lockedInvalidSession, .anonymousOnline, .anonymousOfflineLimited:
+            return LocalGuestIdentity.storageID
         case .authenticatedOnline(let id), .authenticatedOfflineLimited(let id): return id
         case .booting, .deletionPending: return nil
         }
     }
 
+    /// Apple 계정 없이 기기 범위로 쓰는 중인지 (익명 서버 계정이 있어도 true)
     var isGuest: Bool {
-        self == .signedOut || self == .lockedInvalidSession
+        switch self {
+        case .signedOut, .lockedInvalidSession, .anonymousOnline, .anonymousOfflineLimited: return true
+        case .booting, .authenticatedOnline, .authenticatedOfflineLimited, .deletionPending: return false
+        }
     }
 
+    var isAnonymous: Bool {
+        switch self {
+        case .anonymousOnline, .anonymousOfflineLimited: return true
+        default: return false
+        }
+    }
+
+    /// 세션은 있지만 서버 검증을 아직 못 한 상태입니다. 연결되면 다시 검증합니다.
+    var isOfflineLimited: Bool {
+        switch self {
+        case .authenticatedOfflineLimited, .anonymousOfflineLimited: return true
+        default: return false
+        }
+    }
+
+    /// 로컬 계정 저장소가 열린 Apple 계정만 돌려줍니다. 익명 계정은 기기 저장소를 쓰므로 nil입니다.
     var exposedUserID: UUID? {
         switch self {
         case .authenticatedOnline(let userID), .authenticatedOfflineLimited(let userID):
             return userID
-        case .booting, .signedOut, .deletionPending, .lockedInvalidSession:
+        case .booting, .signedOut, .deletionPending, .lockedInvalidSession,
+             .anonymousOnline, .anonymousOfflineLimited:
             return nil
         }
     }
 
+    /// 서버 기능에 쓰는 계정 ID입니다. 익명 계정도 포함합니다.
     var accountUserID: UUID? {
         switch self {
         case .authenticatedOnline(let userID),
              .authenticatedOfflineLimited(let userID),
+             .anonymousOnline(let userID),
+             .anonymousOfflineLimited(let userID),
              .deletionPending(let userID):
             return userID
         case .booting, .signedOut, .lockedInvalidSession:
             return nil
         }
+    }
+}
+
+/// 익명 계정을 만들어도 되는 때를 정합니다.
+/// 기기 범위의 18+ 확인이 있고 세션이 전혀 없는 기기 상태(.signedOut)에서만 만듭니다.
+/// Apple 세션이 만료된 상태(.lockedInvalidSession)는 다시 로그인할 길을 남기려고 그대로 둡니다.
+enum AnonymousAccountPolicy {
+    static func shouldProvision(
+        state: AuthAccessState,
+        deviceDeclarationAccepted: Bool,
+        hasPendingDeletion: Bool,
+        isBusy: Bool
+    ) -> Bool {
+        guard state == .signedOut, deviceDeclarationAccepted, !hasPendingDeletion, !isBusy else { return false }
+        return true
     }
 }
 
@@ -270,8 +325,10 @@ class AuthManager: NSObject, ObservableObject {
 
     /// AI·entitlement 확인·계정 변경처럼 서버가 필요한 기능의 공통 게이트입니다.
     var canUseServerFeatures: Bool {
-        if case .authenticatedOnline = accessState { return true }
-        return false
+        switch accessState {
+        case .authenticatedOnline, .anonymousOnline: return true
+        default: return false
+        }
     }
 
     private var currentNonce: String?
@@ -287,6 +344,12 @@ class AuthManager: NSObject, ObservableObject {
     private static let localSessionLockKey = "mora.local-session-lock.v1"
     private var sessionTransition: AuthSessionTransitionGuard
     private var isSigningOut = false
+    /// 마지막으로 받아들인 세션이 익명이었는지. 익명 세션이 무효가 되면 '세션 만료' 대신 기기 상태로 돌아갑니다.
+    private var lastKnownSessionWasAnonymous = false
+    private var anonymousSignInTask: Task<Bool, Never>?
+    private let observesAuthentication: Bool
+    /// 기기 범위의 18+ 확인 여부. 익명 계정은 이 확인이 있을 때만 만듭니다.
+    private let deviceDeclarationAccepted: @MainActor () -> Bool
 
     override convenience init() {
         self.init(
@@ -300,15 +363,22 @@ class AuthManager: NSObject, ObservableObject {
     init(
         deletionPollingStore: any AccountDeletionPersistence,
         deletionNoticeDefaults: UserDefaults,
-        observesAuthentication: Bool
+        observesAuthentication: Bool,
+        deviceDeclarationAccepted: @escaping @MainActor () -> Bool = {
+            !MoraApp.presentationDemoMode
+                && AdultEligibilityManager.shared.allowsLocalUse(for: LocalGuestIdentity.storageID)
+        }
     ) {
         self.deletionPollingStore = deletionPollingStore
         self.deletionNoticeDefaults = deletionNoticeDefaults
+        self.observesAuthentication = observesAuthentication
+        self.deviceDeclarationAccepted = deviceDeclarationAccepted
         let isLocallyLocked = deletionNoticeDefaults.integer(forKey: Self.localSessionLockKey) != 0
         self.sessionTransition = AuthSessionTransitionGuard(isLocallyLocked: isLocallyLocked)
         let cachedSession = observesAuthentication && !isLocallyLocked ? supabase.auth.currentSession : nil
         startupCachedSession = cachedSession
         lastKnownUserID = cachedSession?.user.id
+        lastKnownSessionWasAnonymous = cachedSession?.user.isAnonymous ?? false
         super.init()
         showsDeletionCompletion = deletionNoticeDefaults.bool(forKey: "mora.account-deletion-completion-notice.v1")
         guard observesAuthentication else { return }
@@ -408,6 +478,8 @@ class AuthManager: NSObject, ObservableObject {
         }
         guard sessionTransition.allowsBackgroundSession else {
             exposeLocallyLockedSession()
+            // 세션이 없는 기기 사용자는 연결이 돌아오면 익명 계정을 다시 만들어 봅니다.
+            if isConnected { await provisionAnonymousAccountIfNeeded() }
             return
         }
         if !isConnected {
@@ -426,9 +498,56 @@ class AuthManager: NSObject, ObservableObject {
         }
 
         guard isSessionLoaded else { return }
-        if case .authenticatedOfflineLimited = accessState {
+        if accessState.isOfflineLimited {
             await checkSession()
+        } else if accessState == .signedOut {
+            await provisionAnonymousAccountIfNeeded()
         }
+    }
+
+    /// 로그인 없이 쓰는 사용자에게 보이지 않는 익명 서버 계정을 붙입니다. 계정이 준비됐으면 true입니다.
+    /// 실패(오프라인, provider 꺼짐)하면 지금 기기 상태를 그대로 두고, 다음 연결 변화·포그라운드·AI 시도 때 다시 합니다.
+    /// 여러 곳에서 동시에 불러도 요청은 하나만 보냅니다.
+    @MainActor
+    @discardableResult
+    func provisionAnonymousAccountIfNeeded() async -> Bool {
+        if let anonymousSignInTask { return await anonymousSignInTask.value }
+        guard observesAuthentication,
+              AnonymousAccountPolicy.shouldProvision(
+                state: accessState,
+                deviceDeclarationAccepted: deviceDeclarationAccepted(),
+                hasPendingDeletion: deletionPollingStore.load() != nil,
+                isBusy: isSigningOut || isProcessing || sessionTransition.interactiveGeneration != nil
+              ) else {
+            return canUseServerFeatures
+        }
+
+        // Apple 로그인과 같은 전환 가드를 써서, 그 사이 도착한 이전 세션 이벤트가 결과를 뒤집지 못하게 합니다.
+        let attempt = sessionTransition.beginInteractiveSignIn()
+        let task = Task { @MainActor [weak self] () -> Bool in
+            guard let self else { return false }
+            defer { self.anonymousSignInTask = nil }
+            do {
+                let session = try await supabase.auth.signInAnonymously()
+                guard self.sessionTransition.interactiveGeneration == attempt,
+                      session.user.isAnonymous,
+                      self.matchesCurrentProviderSession(session),
+                      self.sessionTransition.finishInteractiveSignIn(attempt, succeeded: true) else {
+                    self.sessionTransition.finishInteractiveSignIn(attempt, succeeded: false)
+                    return false
+                }
+                self.deletionNoticeDefaults.removeObject(forKey: Self.localSessionLockKey)
+                self.acceptAuthenticatedSession(session, isOnline: true)
+                print("anonymous_sign_in_succeeded")
+                return self.canUseServerFeatures
+            } catch {
+                self.sessionTransition.finishInteractiveSignIn(attempt, succeeded: false)
+                print("anonymous_sign_in_failed")
+                return false
+            }
+        }
+        anonymousSignInTask = task
+        return await task.value
     }
 
     /// 서버 sign-out 성공 여부와 무관하게 호출 즉시 로컬 화면과 세션을 잠급니다.
@@ -453,6 +572,11 @@ class AuthManager: NSObject, ObservableObject {
         } catch {
             print("auth_sign_out_failed")
         }
+
+        // 로컬 세션을 다 지운 뒤에 기기 범위의 익명 계정을 붙입니다. 먼저 붙이면 위 signOut이 지워 버립니다.
+        isSigningOut = false
+        isProcessing = false
+        Task { @MainActor [weak self] in await self?.provisionAnonymousAccountIfNeeded() }
     }
 
     func prepareAppleAccountDeletionRequest(_ request: ASAuthorizationAppleIDRequest) {
@@ -471,7 +595,9 @@ class AuthManager: NSObject, ObservableObject {
         switch accessState {
         case .authenticatedOnline(let userID), .deletionPending(let userID):
             expectedUserID = userID
-        case .booting, .authenticatedOfflineLimited, .signedOut, .lockedInvalidSession:
+        case .booting, .authenticatedOfflineLimited, .signedOut, .lockedInvalidSession,
+             .anonymousOnline, .anonymousOfflineLimited:
+            // 익명 계정은 Apple 계정이 없어 이 삭제 흐름의 대상이 아닙니다.
             throw AccountDeletionClientError.onlineSessionRequired
         }
         guard case .success(let authorization) = result,
@@ -513,7 +639,8 @@ class AuthManager: NSObject, ObservableObject {
         case .authenticatedOnline(let authenticatedUserID),
              .deletionPending(let authenticatedUserID):
             userID = authenticatedUserID
-        case .booting, .authenticatedOfflineLimited, .signedOut, .lockedInvalidSession:
+        case .booting, .authenticatedOfflineLimited, .signedOut, .lockedInvalidSession,
+             .anonymousOnline, .anonymousOfflineLimited:
             throw AccountDeletionClientError.onlineSessionRequired
         }
         guard let session,
@@ -767,9 +894,8 @@ class AuthManager: NSObject, ObservableObject {
         self.session = session
         startupCachedSession = session
         lastKnownUserID = session.user.id
-        accessState = isOnline
-            ? .authenticatedOnline(userID: session.user.id)
-            : .authenticatedOfflineLimited(userID: session.user.id)
+        lastKnownSessionWasAnonymous = session.user.isAnonymous
+        accessState = .session(userID: session.user.id, isAnonymous: session.user.isAnonymous, isOnline: isOnline)
         isSessionLoaded = true
         if session.isExpired {
             scheduleOfflineRefreshRetry(for: session.user.id)
@@ -783,15 +909,25 @@ class AuthManager: NSObject, ObservableObject {
     private func lockInvalidSessionAndClearProviderCache() async {
         sessionTransition.invalidate()
         lastKnownUserID = session?.user.id ?? startupCachedSession?.user.id ?? lastKnownUserID
-        // 로그인한 적 없는 게스트(세션 없음)는 '만료' 상태(2)로 남기지 않습니다.
+        // 로그인한 적 없는 게스트(세션 없음)와 익명 계정은 '만료' 상태(2)로 남기지 않습니다.
         // 2로 저장하면 다음 실행부터 계정을 만든 적도 없는 사용자에게 만료 배너가 뜹니다.
-        deletionNoticeDefaults.set(lastKnownUserID == nil ? 1 : 2, forKey: Self.localSessionLockKey)
+        let showsExpiredAccount = Self.showsExpiredAccount(
+            lastKnownUserID: lastKnownUserID, wasAnonymous: lastKnownSessionWasAnonymous
+        )
+        deletionNoticeDefaults.set(showsExpiredAccount ? 2 : 1, forKey: Self.localSessionLockKey)
         session = nil
         startupCachedSession = nil
         sessionExpiryTask?.cancel()
-        accessState = lastKnownUserID == nil ? .signedOut : .lockedInvalidSession
+        accessState = showsExpiredAccount ? .lockedInvalidSession : .signedOut
         isSessionLoaded = true
         try? await supabase.auth.signOut(scope: .local)
+        // 익명 세션이 무효가 되면 기기 상태로 돌아온 뒤 새 익명 계정을 붙입니다. 구독은 claim으로 다시 찾습니다.
+        if !showsExpiredAccount { await provisionAnonymousAccountIfNeeded() }
+    }
+
+    /// Apple로 로그인했던 계정만 '세션 만료' 안내와 다시 로그인 경로를 남깁니다.
+    static func showsExpiredAccount(lastKnownUserID: UUID?, wasAnonymous: Bool) -> Bool {
+        lastKnownUserID != nil && !wasAnonymous
     }
 
     @MainActor
@@ -822,7 +958,10 @@ class AuthManager: NSObject, ObservableObject {
             } else if accessState != .signedOut {
                 if sessionTransition.allowsBackgroundSession {
                     sessionTransition.invalidate()
-                    deletionNoticeDefaults.set(lastKnownUserID == nil ? 1 : 2, forKey: Self.localSessionLockKey)
+                    let showsExpiredAccount = Self.showsExpiredAccount(
+                        lastKnownUserID: lastKnownUserID, wasAnonymous: lastKnownSessionWasAnonymous
+                    )
+                    deletionNoticeDefaults.set(showsExpiredAccount ? 2 : 1, forKey: Self.localSessionLockKey)
                 }
                 exposeLocallyLockedSession()
             }
@@ -896,7 +1035,7 @@ class AuthManager: NSObject, ObservableObject {
         }
 
         switch accessState {
-        case .authenticatedOnline, .authenticatedOfflineLimited:
+        case .authenticatedOnline, .authenticatedOfflineLimited, .anonymousOnline, .anonymousOfflineLimited:
             // checkSession이 갱신 성공, 일시 장애(오프라인 유지), 확정 무효(잠금)를 가릅니다.
             await checkSession()
         default:
