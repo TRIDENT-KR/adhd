@@ -12,6 +12,70 @@ export function isBeginRequest(
     body.appleAuthorizationCode.length <= 4096;
 }
 
+/** Anonymous accounts have no Sign in with Apple session, so they send no code. */
+export function isAnonymousBeginRequest(
+  body: Record<string, unknown>,
+): body is { requestId: string } {
+  return exactKeys(body, ["requestId"]) &&
+    typeof body.requestId === "string" && UUID_PATTERN.test(body.requestId);
+}
+
+export type BeginRequest = {
+  requestId: string;
+  appleAuthorizationCode: string | null;
+};
+
+export function parseBeginRequest(
+  body: Record<string, unknown>,
+): BeginRequest | null {
+  if (isBeginRequest(body)) {
+    return {
+      requestId: body.requestId,
+      appleAuthorizationCode: body.appleAuthorizationCode,
+    };
+  }
+  if (isAnonymousBeginRequest(body)) {
+    return { requestId: body.requestId, appleAuthorizationCode: null };
+  }
+  return null;
+}
+
+/**
+ * True only for an Auth user the server itself returned as anonymous with no
+ * linked provider identity. Linking Apple clears `is_anonymous`, which sends
+ * the account back to the Apple re-authentication and revocation path.
+ */
+export function isVerifiedAnonymousUser(user: {
+  is_anonymous?: boolean;
+  identities?: { provider?: string }[];
+}): boolean {
+  return user.is_anonymous === true &&
+    (user.identities ?? []).every((identity) =>
+      identity.provider === "anonymous"
+    );
+}
+
+/**
+ * Each account kind has exactly one begin contract: Apple accounts must send a
+ * fresh Apple authorization code, verified anonymous accounts must not.
+ */
+export function beginContractMismatch(
+  begin: BeginRequest,
+  anonymousUser: boolean,
+): { code: "apple_account_required"; status: 403 } | {
+  code: "invalid_request";
+  status: 400;
+} | null {
+  if (anonymousUser) {
+    return begin.appleAuthorizationCode === null
+      ? null
+      : { code: "apple_account_required", status: 403 };
+  }
+  return begin.appleAuthorizationCode === null
+    ? { code: "invalid_request", status: 400 }
+    : null;
+}
+
 export function isStatusRequest(
   body: Record<string, unknown>,
 ): body is { action: "status"; requestId: string; statusToken: string } {

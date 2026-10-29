@@ -1150,6 +1150,19 @@ STT 최종 문장을 공용 입력 초안으로 옮기고 사용자의 명시적
 
 잠금 화면에서 기존 방식으로 일정 완료가 가능한 동작은 이번 보안 대응에서도 유지한다. 이는 해결 완료가 아니라 사용자 승인으로 수용한 잔여 위험이며, 이번 범위에서 동작을 확장하지 않는다. Finding #21은 추적 대상에서 제외한다.
 
+### 14.7 익명 계정과 구독 claim (2026-10-29)
+
+로그인 없이 구독할 수 있도록 Pro를 Mora 계정이 아니라 Apple 구독(original transaction)에 묶는다. SDD-5·D8의 "다른 Mora 계정에 자동 공유하지 않음"과 INT-05(Apple 로그인만)를 아래 규칙으로 대체한다.
+
+- **익명 계정**: 설치마다 UI 없이 Supabase 익명 계정을 만든다(`role=authenticated`, `is_anonymous`). 기존 RPC는 그대로 쓴다. 무료 AI 3회/일은 계정별이라 재설치하면 다시 3회가 되며, 이는 수용한다.
+- **register는 그대로**: 서명된 `appAccountToken`이 현재 계정 토큰이어야 한다.
+- **claim(신규)**: 재설치·다른 기기에서 `Transaction.currentEntitlements`로 찾은 거래를 보낸다. Apple 서명·번들·환경 검증은 register와 같고 토큰은 비교하지 않는다. 원장 기준으로 지금 권한이 있는(active/grace, 기한 미래) 최신 거래만 허용하며, 아니면 `claim_not_active`(409)다. 원장에 없던 거래는 claim한 계정이 소유자가 된다(토큰은 저장하지 않음). rebind 표식은 쓰지 않는다.
+- **다계정 상한 5**: 원거래 하나에 소유자와 claim을 합쳐 최대 5계정이다. 넘치면 `last_claimed_at`이 가장 오래된 claim부터 빠지고 그 계정은 Pro를 잃는다. 갱신·만료·환불·취소 알림은 소유자와 모든 claim 계정에 함께 반영한다.
+- **삭제**: 탈퇴 purge가 그 계정의 claim만 지운다. 익명 계정은 Apple 재인증·토큰 revoke 단계가 없으므로, 서버가 Auth에서 익명임을 다시 확인한 경우에만 그 단계를 건너뛴다.
+- 구현: `supabase/migrations/202610290001_mora_storekit_multi_account_claim.sql`, `storekit-sync`의 `claim`, `delete-account` 익명 경로.
+
+보안 계약 소유자(_71.hong_ii)의 검토가 끝나기 전에는 운영에 배포하지 않는다.
+
 ---
 
 ## 15. 2026-08-04 인터뷰 확정 및 구현 상태
