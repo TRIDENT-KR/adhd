@@ -4,6 +4,7 @@ import Foundation
 
 // MARK: - AppTask.occursOn Tests
 /// occursOn(_:)은 탭 필터·위젯 스냅샷·clearAllTasks의 단일 진리원이다.
+@MainActor
 struct AppTaskOccursOnTests {
 
     private let cal: Calendar = {
@@ -211,6 +212,7 @@ struct AppTaskOccursOnTests {
 
 // MARK: - AppTask.plannerJumpDate Tests
 /// 검색 결과에서 일정을 고르면 플래너가 여는 날: 반복 일정은 오늘 이후 첫 회차, 아니면 기준일.
+@MainActor
 struct PlannerJumpDateTests {
 
     private let cal: Calendar = {

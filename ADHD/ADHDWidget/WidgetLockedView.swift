@@ -2,53 +2,40 @@ import SwiftUI
 import WidgetKit
 
 // MARK: - Widget Locked View
-/// 위젯 데이터를 표시할 수 없을 때 중립 상태를 보여줍니다.
-/// 탭하면 일반 앱 화면을 열며, 위젯에서 구독을 광고하거나 구매를 유도하지 않습니다.
+/// 위젯 데이터를 표시할 수 없을 때, 왜 그런지 한 문장으로 보여줍니다 (Pro 아님·로그인 안 함·앱을 한 번 열어야 함).
+/// 탭하면 일반 앱 화면을 열며, 위젯에서 구매를 유도하는 버튼은 두지 않습니다.
 struct WidgetLockedView: View {
     let family: WidgetFamily
+    let reason: WidgetLockReason
+
+    private var message: String { WidgetL.lockMessage(reason) }
 
     var body: some View {
         content
+            .dynamicTypeSize(...WDS.maxTypeSize)
             .widgetURL(URL(string: "mora://tab/routine"))
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel("Mora. \(WidgetL.unavailable)")
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Mora. \(message)")
             .accessibilityHint(WidgetL.openApp)
     }
 
     @ViewBuilder
     private var content: some View {
         switch family {
-        case .systemSmall:
-            VStack(spacing: 8) {
+        case .systemSmall, .systemMedium, .systemLarge:
+            // 초점은 이유 한 문장 하나
+            VStack(spacing: 10) {
                 Image(systemName: "lock.fill")
-                    .font(.system(size: 22))
+                    .font(family == .systemSmall ? .title3 : .title2)
                     .foregroundStyle(WDS.Colors.primary)
-                Text("Mora")
+                Text(message)
                     .font(WDS.Typography.titleSm)
                     .foregroundStyle(WDS.Colors.onSurfaceVariant)
-                Text(WidgetL.openApp)
-                    .font(WDS.Typography.caption)
-                    .foregroundStyle(WDS.Colors.onSurfaceVariant.opacity(0.5))
+                    .multilineTextAlignment(.center)
+                    .lineLimit(4)
+                    .minimumScaleFactor(0.85)
             }
-            .containerBackground(for: .widget) { WDS.Colors.background }
-
-        case .systemMedium, .systemLarge:
-            HStack(spacing: 12) {
-                Image(systemName: "lock.fill")
-                    .font(.system(size: 28))
-                    .foregroundStyle(WDS.Colors.primary)
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Mora")
-                        .font(WDS.Typography.titleSm)
-                        .foregroundStyle(WDS.Colors.onSurfaceVariant)
-                    Text(WidgetL.unavailable)
-                        .font(WDS.Typography.bodyMd)
-                        .foregroundStyle(WDS.Colors.onSurfaceVariant.opacity(0.7))
-                    Text(WidgetL.openApp)
-                        .font(WDS.Typography.caption)
-                        .foregroundStyle(WDS.Colors.primary.opacity(0.8))
-                }
-            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .containerBackground(for: .widget) { WDS.Colors.background }
 
         case .accessoryCircular:
@@ -56,21 +43,19 @@ struct WidgetLockedView: View {
                 Circle()
                     .stroke(.secondary.opacity(0.3), lineWidth: 3)
                 Image(systemName: "lock.fill")
-                    .font(.system(size: 16))
+                    .font(.title3)
             }
             .containerBackground(for: .widget) { Color.clear }
 
         case .accessoryRectangular:
             VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 4) {
-                    Image(systemName: "lock.fill")
-                        .font(.system(size: 10))
-                    Text("Mora")
-                        .font(.system(size: 12, weight: .bold))
-                }
-                Text(WidgetL.openApp)
-                    .font(.system(size: 10))
+                Label("Mora", systemImage: "lock.fill")
+                    .font(.headline)
+                Text(message)
+                    .font(.caption)
                     .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.8)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .containerBackground(for: .widget) { Color.clear }
