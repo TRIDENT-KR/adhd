@@ -1,0 +1,5 @@
+{
+  "base_commit": "84f95e6",
+  "template_sha256": "a84cf907ca55f3b8e40c74731eb381e275e78d89e1a4e0b8e4f5de4137301435",
+  "method": "Extracted template literal byte-for-byte from base index.ts; verify-prompt_test.ts freezes rendered outputs."
+}

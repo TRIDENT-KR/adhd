@@ -57,7 +57,11 @@
 
 ## 7. 출시 준비와 검증
 
-- [출시 QA 계획](MORA_RELEASE_QA_PLAN.md): 앱 QA와 Luna LLM 평가를 분리한 gate/실기기 시나리오.
+- [출시 QA 계획](MORA_RELEASE_QA_PLAN.md): 앱 QA와 MORA Eval LLM 평가를 분리한 gate/실기기 시나리오.
 - [2026-09-29 출시 준비 결과](MORA_RELEASE_READINESS.md): 실제 배포·검증 결과와 미완료 제출 조건.
 - AI 분석은 계정별 명시적 동의 후 Supabase를 통해 Google Gemini로 전송한다. 설정에서 철회할 수 있으며 수동 일정 입력은 AI 동의 없이 사용할 수 있다.
 - `bash scripts/release-preflight.sh`는 secret 이름, 배포 소스 hash, gateway, migration 이력과 로컬 테스트를 검사한다. 실제 구매·복원·삭제 검증은 별도로 필요하다.
+
+## AI 품질 평가
+
+[MORA Eval — MORA AI 평가 하네스](tools/mora-eval/README.md): KO/EN/JA 명령·인자·오분류·위험한 변경 제안·반복 안정성 및 동일 데이터 비교. 합성 회귀 테스트와 실제 모델 품질 근거를 구분합니다.
