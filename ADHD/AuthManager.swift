@@ -93,6 +93,24 @@ struct AuthSessionTransitionGuard {
     static func expiryCheckDelay(expiresAt: TimeInterval, now: TimeInterval) -> TimeInterval {
         max(0.1, expiresAt - now + 0.1)
     }
+
+    /// 만료된 세션을 네트워크 문제로 갱신하지 못했을 때 다시 시도하기까지의 대기 시간입니다.
+    static func offlineRefreshRetryDelay(afterFailures failures: Int) -> TimeInterval {
+        min(300, 15 * pow(2, Double(min(max(failures, 0), 5))))
+    }
+}
+
+/// 세션 갱신 실패 중 '세션이 무효'가 아니라 '지금 확인할 수 없음'에 해당하는 오류를 가립니다.
+/// 이 경우 refresh token을 지우지 않고 오프라인 제한 상태로 두었다가 다시 시도합니다.
+enum AuthRefreshFailurePolicy {
+    static func isTransient(_ error: Error) -> Bool {
+        if error is URLError { return true }
+        if (error as NSError).domain == NSURLErrorDomain { return true }
+        if let authError = error as? AuthError, case .api(_, _, _, let response) = authError {
+            return response.statusCode == 429 || (500...599).contains(response.statusCode)
+        }
+        return false
+    }
 }
 
 private enum AuthValidationError: Error {
@@ -262,6 +280,7 @@ class AuthManager: NSObject, ObservableObject {
     private var lastKnownUserID: UUID?
     private var authStateObservationTask: Task<Void, Never>?
     private var sessionExpiryTask: Task<Void, Never>?
+    private var offlineRefreshFailures = 0
     private var deletionPollingTask: Task<Void, Never>?
     private let deletionPollingStore: any AccountDeletionPersistence
     private let deletionNoticeDefaults: UserDefaults
@@ -327,14 +346,13 @@ class AuthManager: NSObject, ObservableObject {
         let fallbackSession = session ?? supabase.auth.currentSession ?? startupCachedSession
 
         do {
-            let refreshedSession = try await supabase.auth.session
+            let (refreshedSession, currentUser) = try await Self.validateProviderSession()
             guard sessionTransition.permitsBackgroundResult(startedGeneration) else { return }
             guard !refreshedSession.isExpired else {
                 await lockInvalidSessionAndClearProviderCache()
                 return
             }
 
-            let currentUser = try await supabase.auth.user(jwt: refreshedSession.accessToken)
             guard sessionTransition.permitsBackgroundResult(startedGeneration),
                   matchesCurrentProviderSession(refreshedSession) else { return }
             guard currentUser.id == refreshedSession.user.id else {
@@ -345,8 +363,9 @@ class AuthManager: NSObject, ObservableObject {
             guard sessionTransition.permitsBackgroundResult(startedGeneration) else { return }
             if isDefinitiveInvalidSession(error) {
                 await lockInvalidSessionAndClearProviderCache()
-            } else if let fallbackSession, !fallbackSession.isExpired,
-                      matchesCurrentProviderSession(fallbackSession) {
+            } else if let fallbackSession, matchesCurrentProviderSession(fallbackSession),
+                      !fallbackSession.isExpired || AuthRefreshFailurePolicy.isTransient(error) {
+                // 만료된 세션이라도 갱신 실패가 네트워크·서버 일시 장애 때문이면 무효로 보지 않습니다.
                 acceptAuthenticatedSession(fallbackSession, isOnline: false)
             } else if fallbackSession == nil {
                 session = nil
@@ -355,6 +374,27 @@ class AuthManager: NSObject, ObservableObject {
             } else {
                 await lockInvalidSessionAndClearProviderCache()
             }
+        }
+    }
+
+    /// 실행 때 서버 검증이 오래 걸려도 빈 로딩 화면에 묶이지 않도록 제한 시간을 둡니다.
+    /// 시간을 넘기면 URLError(.timedOut)로 끝나 일시 장애처럼 오프라인 제한 상태로 열고, 연결되면 다시 검증합니다.
+    private static func validateProviderSession(timeout: TimeInterval = 8) async throws -> (Session, User) {
+        let client = supabase
+        let timeoutNanoseconds = UInt64(timeout * 1_000_000_000)
+        return try await withThrowingTaskGroup(of: (Session, User).self) { group in
+            group.addTask {
+                let session = try await client.auth.session
+                let user = try await client.auth.user(jwt: session.accessToken)
+                return (session, user)
+            }
+            group.addTask {
+                try await Task.sleep(nanoseconds: timeoutNanoseconds)
+                throw URLError(.timedOut)
+            }
+            defer { group.cancelAll() }
+            guard let result = try await group.next() else { throw URLError(.timedOut) }
+            return result
         }
     }
 
@@ -372,8 +412,8 @@ class AuthManager: NSObject, ObservableObject {
         }
         if !isConnected {
             let fallbackSession = session ?? supabase.auth.currentSession ?? startupCachedSession
-            if let fallbackSession, !fallbackSession.isExpired,
-               matchesCurrentProviderSession(fallbackSession) {
+            // 연결이 끊긴 것 자체는 세션 무효의 근거가 아닙니다. 만료됐더라도 다시 연결되면 갱신합니다.
+            if let fallbackSession, matchesCurrentProviderSession(fallbackSession) {
                 acceptAuthenticatedSession(fallbackSession, isOnline: false)
             } else if fallbackSession == nil {
                 session = nil
@@ -406,13 +446,13 @@ class AuthManager: NSObject, ObservableObject {
         accessState = .signedOut
         isSessionLoaded = true
 
+        // 이 기기의 세션만 끝냅니다. 기본값(.global)은 같은 계정의 다른 기기까지 로그아웃시킵니다.
+        // .local은 서버 요청 전에 로컬 세션부터 지우므로, 서버 폐기가 실패해도 캐시된 세션이 남지 않습니다.
         do {
-            try await supabase.auth.signOut()
+            try await supabase.auth.signOut(scope: .local)
         } catch {
             print("auth_sign_out_failed")
         }
-        // A failed remote revocation must not leave the provider's local cached session usable.
-        try? await supabase.auth.signOut(scope: .local)
     }
 
     func prepareAppleAccountDeletionRequest(_ request: ASAuthorizationAppleIDRequest) {
@@ -731,14 +771,21 @@ class AuthManager: NSObject, ObservableObject {
             ? .authenticatedOnline(userID: session.user.id)
             : .authenticatedOfflineLimited(userID: session.user.id)
         isSessionLoaded = true
-        scheduleExpiryCheck(for: session)
+        if session.isExpired {
+            scheduleOfflineRefreshRetry(for: session.user.id)
+        } else {
+            offlineRefreshFailures = 0
+            scheduleExpiryCheck(for: session)
+        }
     }
 
     @MainActor
     private func lockInvalidSessionAndClearProviderCache() async {
         sessionTransition.invalidate()
-        deletionNoticeDefaults.set(2, forKey: Self.localSessionLockKey)
         lastKnownUserID = session?.user.id ?? startupCachedSession?.user.id ?? lastKnownUserID
+        // 로그인한 적 없는 게스트(세션 없음)는 '만료' 상태(2)로 남기지 않습니다.
+        // 2로 저장하면 다음 실행부터 계정을 만든 적도 없는 사용자에게 만료 배너가 뜹니다.
+        deletionNoticeDefaults.set(lastKnownUserID == nil ? 1 : 2, forKey: Self.localSessionLockKey)
         session = nil
         startupCachedSession = nil
         sessionExpiryTask?.cancel()
@@ -820,6 +867,25 @@ class AuthManager: NSObject, ObservableObject {
         }
     }
 
+    /// 만료된 오프라인 세션은 간격을 늘려 가며 갱신을 다시 시도합니다.
+    @MainActor
+    private func scheduleOfflineRefreshRetry(for userID: UUID) {
+        sessionExpiryTask?.cancel()
+        let delay = AuthSessionTransitionGuard.offlineRefreshRetryDelay(afterFailures: offlineRefreshFailures)
+        offlineRefreshFailures += 1
+        let nanoseconds = UInt64(delay * 1_000_000_000)
+
+        sessionExpiryTask = Task { [weak self] in
+            do {
+                try await Task.sleep(nanoseconds: nanoseconds)
+            } catch {
+                return
+            }
+            guard !Task.isCancelled else { return }
+            await self?.handleSessionRefreshBoundary(for: userID)
+        }
+    }
+
     @MainActor
     private func handleSessionRefreshBoundary(for userID: UUID) async {
         guard let session, session.user.id == userID else { return }
@@ -829,9 +895,11 @@ class AuthManager: NSObject, ObservableObject {
             return
         }
 
-        if case .authenticatedOnline = accessState {
+        switch accessState {
+        case .authenticatedOnline, .authenticatedOfflineLimited:
+            // checkSession이 갱신 성공, 일시 장애(오프라인 유지), 확정 무효(잠금)를 가릅니다.
             await checkSession()
-        } else {
+        default:
             await lockInvalidSessionAndClearProviderCache()
         }
     }

@@ -1,5 +1,7 @@
 # Mora 계정 설정 인계 체크리스트
 
+> 2026-10-29 명칭 정리: 평가 도구의 공식 이름은 [MORA Eval — MORA AI 평가 하네스](tools/mora-eval/README.md)입니다. 이전 작업자 이름을 도구 이름으로 사용하지 않습니다. 기존 로컬 앱·서버·연구 변경도 2026-10-29 통합 대상에 포함했습니다. 아래 미커밋·인수 상태는 작성 당시 이력이며, 현재 구현·검증 상태는 새 하네스 문서를 따릅니다.
+
 > **2026-10-26 운영 갱신:** `ANTHROPIC_API_KEY` 등록 및 Claude 실호출을 확인했다. 성인 확인·AI 원장 migration과 `analyze-task` v24, `delete-account` v5를 배포했다. KO/EN/JA 분석·캐시·무료 한도 검증을 통과했다. Gemini는 실제 호출에서 402를 반환해 [이슈 #68](https://github.com/TRIDENT-KR/adhd/issues/68)로 보류했다. `APPLE_CLIENT_SECRET` 설정, 앱 배포·실기기 검증은 남는다. 서버 상태는 [배포 보고서](MORA_SERVER_DEPLOYMENT_20261026.md)를 우선한다.
 
 > **2026-10-13 갱신:** Claude 우선 → Gemini Flash-Lite 전환과 AI 동의 v2를 구현했다. 최신 배포 순서·검증·미완료 항목은 [출시 전 통합 보고서](MORA_PRELAUNCH_REPORT_20261013.md)를 따른다. 아래 9월 기록의 Gemini 단독 구조와 배포 순서는 현재 기준이 아니다.
@@ -140,7 +142,7 @@
 
 ## 7. 실기기·TestFlight
 
-[인계서의 실기기 실행 순서](MORA_APP_STORE_HANDOFF.md#실기기-실행-순서)를 따른다. 성인 확인, 로그인, AI 일정 저장, 구매·복원·환불, 탈퇴, 음성·잠금 화면 알람·위젯·VoiceOver를 본다. Luna의 실제 LLM 평가 결과도 이때 인수한다.
+[인계서의 실기기 실행 순서](MORA_APP_STORE_HANDOFF.md#실기기-실행-순서)를 따른다. 성인 확인, 로그인, AI 일정 저장, 구매·복원·환불, 탈퇴, 음성·잠금 화면 알람·위젯·VoiceOver를 본다. MORA Eval의 실제 LLM 평가 결과도 이때 인수한다.
 
 ## 8. 제출 직전 최종 점검
 

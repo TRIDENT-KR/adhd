@@ -14,6 +14,7 @@ struct QuickAddSheet: View {
     let mode: QuickAddMode
     @EnvironmentObject private var taskManager: TaskManager
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @ObservedObject private var langManager = LocalizationManager.shared
     @State private var name = ""
     @State private var time = ""                 // "" = 시간 미정 (AppTask.time nil 규약)
@@ -59,19 +60,16 @@ struct QuickAddSheet: View {
 
                 // 칩 행: 시간 + 긴급도 (TaskRow 편집 모드와 동일 시각 패턴)
                 HStack(spacing: 8) {
-                    Button { showTimePicker = true } label: {
-                        Text(time.isEmpty ? L.voice.fieldTime : time)
-                            .font(DesignSystem.Typography.labelSm)
-                            .padding(.vertical, 4)
-                            .padding(.horizontal, 8)
-                            .background(DesignSystem.Colors.onSurfaceVariant.opacity(0.1))
-                            .cornerRadius(6)
-                            .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
-                            .frame(minHeight: 44)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(NoEffectButtonStyle())
-                    .accessibilityLabel(L.t("Set time", "시간 설정", "時刻を設定"))
+                    Text(time.isEmpty ? L.voice.fieldTime : StoredTaskFormat.displayTime(time))
+                        .font(DesignSystem.Typography.labelSm)
+                        .padding(.vertical, 4)
+                        .padding(.horizontal, 8)
+                        .background(DesignSystem.Colors.onSurfaceVariant.opacity(0.1))
+                        .cornerRadius(6)
+                        .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
+                        .onTapGesture { showTimePicker = true }
+                        .accessibilityLabel(L.t("Set time", "시간 설정", "時刻を設定"))
+                        .accessibilityAddTraits(.isButton)
 
                     Button(action: {
                         urgency = (urgency == .weak) ? .strong : .weak
@@ -83,13 +81,11 @@ struct QuickAddSheet: View {
                             Text(urgency == .strong ? L.voice.urgencyStrong : L.voice.urgencyWeak)
                                 .font(.caption2.weight(.medium))
                         }
-                        .foregroundColor(urgency == .strong ? .orange : DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
+                        .foregroundColor(urgency == .strong ? DesignSystem.Colors.primary : DesignSystem.Colors.onSurfaceMeta)
                         .padding(.vertical, 4)
                         .padding(.horizontal, 8)
-                        .background((urgency == .strong ? Color.orange : DesignSystem.Colors.onSurfaceVariant).opacity(0.12))
+                        .background(urgency == .strong ? DesignSystem.Colors.primary.opacity(0.12) : DesignSystem.Colors.surfaceContainerLow)
                         .cornerRadius(6)
-                        .frame(minHeight: 44)
-                        .contentShape(Rectangle())
                     }
                     .buttonStyle(NoEffectButtonStyle())
                     .accessibilityLabel(urgency == .strong ? L.voice.urgencyStrong : L.voice.urgencyWeak)
@@ -132,9 +128,9 @@ struct QuickAddSheet: View {
             .padding(.top, 28)
             .padding(.bottom, 24)
         }
-        .scrollDismissesKeyboard(.interactively)
         .background(DesignSystem.Colors.background)
-        .presentationDetents([.medium, .large])
+        // 큰 글자(접근성 크기)에서는 고정 높이에 버튼이 잘리므로 전체 높이로 엽니다.
+        .presentationDetents(dynamicTypeSize.isAccessibilitySize ? [.large] : [.medium, .large])
         .presentationDragIndicator(.visible)
         .sheet(isPresented: $showTimePicker) {
             TimePickerModal(timeString: $time, isPresented: $showTimePicker)

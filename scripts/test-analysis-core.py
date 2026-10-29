@@ -2,7 +2,8 @@
 """Run the production Foundation analysis core on macOS without CoreSimulator.
 
 Copies verbatim, anchored sections (no reimplemented parser/validator/router) and
-the same Swift Testing suite into a temporary package. Does not test SwiftUI,
+the same Swift Testing suites into a temporary package, including the AlarmKit
+registration queue (without calling AlarmKit). Does not test SwiftUI,
 SwiftData execution, Speech hardware, or the Supabase transport. Xcode remains
 the integration check. All generated files stay in the supplied scratch folder.
 """
@@ -36,6 +37,8 @@ cloud = read("ADHD/CloudLLMManager.swift")
 subscription = read("ADHD/SubscriptionManager.swift")
 router = read("ADHD/TaskAnalysisRouter.swift")
 tests = read("ADHD/ADHDTests/TaskAnalysisTests.swift")
+alarm = read("ADHD/SystemAlarmScheduler.swift")
+queue_tests = read("ADHD/ADHDTests/SaveAndRetryContractTests.swift")
 limit = next(line.strip() for line in subscription.splitlines() if "static let freeAILimit =" in line)
 core = "import Foundation\nimport CryptoKit\n"
 core += section(calls, "// MARK: - Parameter Structs", "// MARK: - UI Helpers for Confirmation Card")
@@ -46,6 +49,7 @@ core += "enum CloudLLMError" + section(cloud, "enum CloudLLMError", "class Cloud
 core += "enum SubscriptionManager { " + limit + " }\n"
 core += "enum CloudLLMManager {\n    static func makeAnalyzePayload" + section(cloud, "    static func makeAnalyzePayload", "    func shouldRetry") + "}\n"
 core += router
+core += "@MainActor\nfinal class AlarmRegistrationQueue" + section(alarm, "@MainActor\nfinal class AlarmRegistrationQueue", "// MARK: - System Alarm Scheduler")
 pure_tests = tests.split("@MainActor\nstruct AnalysisExecutionBoundaryTests", 1)[0]
 pure_tests = pure_tests.replace("import SwiftData\n", "").replace("@testable import ADHD", "@testable import AnalysisCore")
 validation_start = '    @Test(arguments: ["25:00"'
@@ -53,6 +57,8 @@ validation_end = "    @Test func duplicateTargetsRequireSelectionAndSelectedSnap
 assert tests.count(validation_start) == tests.count(validation_end) == 1
 pure_tests += "\n@MainActor\nstruct AnalysisValidationTests {\n"
 pure_tests += tests[tests.index(validation_start):tests.index(validation_end)] + "}\n"
+
+pure_tests += "\n@MainActor\nstruct AlarmRegistrationQueueTests" + queue_tests.split("@MainActor\nstruct AlarmRegistrationQueueTests", 1)[1]
 
 (scratch / "Sources/AnalysisCore").mkdir(parents=True, exist_ok=True)
 (scratch / "Tests/AnalysisCoreTests").mkdir(parents=True, exist_ok=True)
@@ -67,4 +73,4 @@ let package = Package(name: "MoraAnalysisCore", platforms: [.macOS(.v14)], targe
 ], swiftLanguageModes: [.v5])
 ''')
 print("Testing production source hashes:", json.dumps(sources), flush=True)
-sys.exit(subprocess.call(["swift", "test", "--package-path", str(scratch), "--scratch-path", str(scratch / ".build")]))
+sys.exit(subprocess.call(["swift", "test", "--jobs", "1", "--package-path", str(scratch), "--scratch-path", str(scratch / ".build")]))

@@ -207,7 +207,11 @@ struct GuestAccountStorageTests {
         let accountContext = try #require(controller.container?.mainContext)
         #expect(try accountContext.fetchCount(FetchDescriptor<AppTask>()) == 0)
         #expect(controller.layout.storeURL(for: firstAccount) != controller.layout.storeURL(for: LocalGuestIdentity.storageID))
+        #expect(controller.activeTaskCount() == 0)
+        #expect(controller.guestTaskCountNotInActiveAccount() == 1)   // 로그인 직후 가져오기 제안 대상
         #expect(try controller.copyGuestTasks(to: firstAccount) == 1)
+        #expect(controller.activeTaskCount() == 1)
+        #expect(controller.guestTaskCountNotInActiveAccount() == 0)   // 이미 가져온 일정은 다시 세지 않음
         let imported = try #require(accountContext.fetch(FetchDescriptor<AppTask>()).first)
         #expect(imported.id == originalID)
         #expect(imported.recurrenceRule == "monthly")
@@ -416,5 +420,60 @@ struct AuthSessionTransitionTests {
         #expect(now + delay > expiresAt)
         #expect(delay < 61)
         #expect(AuthSessionTransitionGuard.expiryCheckDelay(expiresAt: now - 1, now: now) == 0.1)
+    }
+
+    @Test func offlineRefreshRetryBacksOffAndCaps() {
+        #expect(AuthSessionTransitionGuard.offlineRefreshRetryDelay(afterFailures: 0) == 15)
+        #expect(AuthSessionTransitionGuard.offlineRefreshRetryDelay(afterFailures: 1) == 30)
+        #expect(AuthSessionTransitionGuard.offlineRefreshRetryDelay(afterFailures: 2) == 60)
+        #expect(AuthSessionTransitionGuard.offlineRefreshRetryDelay(afterFailures: 10) == 300)
+        #expect(AuthSessionTransitionGuard.offlineRefreshRetryDelay(afterFailures: -1) == 15)
+    }
+
+    @Test func onlyConnectivityFailuresKeepAnExpiredSessionUsableOffline() {
+        #expect(AuthRefreshFailurePolicy.isTransient(URLError(.notConnectedToInternet)))
+        #expect(AuthRefreshFailurePolicy.isTransient(URLError(.timedOut)))
+        #expect(AuthRefreshFailurePolicy.isTransient(NSError(domain: NSURLErrorDomain, code: NSURLErrorNetworkConnectionLost)))
+        #expect(!AuthRefreshFailurePolicy.isTransient(DecodingError.dataCorrupted(.init(codingPath: [], debugDescription: "bad"))))
+        #expect(!AuthRefreshFailurePolicy.isTransient(NSError(domain: "Other", code: 1)))
+    }
+}
+
+// MARK: - 저장소 스키마 버전 (P2 #47)
+@MainActor
+struct VersionedStoreSchemaTests {
+
+    /// 버전 없이 만든 기존 저장소(1.0 이전 빌드)를 버전 붙은 스키마로 열어도 데이터가 그대로 읽혀야 합니다.
+    @Test func versionedContainerOpensStoreWrittenWithoutVersion() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("mora-schema-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("store.sqlite")
+
+        do {
+            let plain = Schema([AppTask.self])
+            let container = try ModelContainer(
+                for: plain,
+                configurations: [ModelConfiguration("MoraAccount", schema: plain, url: url)]
+            )
+            container.mainContext.insert(AppTask(task: "약 먹기", time: "09:00 AM", category: "Routine"))
+            try container.mainContext.save()
+        }
+
+        let versioned = Schema(versionedSchema: MoraSchemaV1.self)
+        let reopened = try ModelContainer(
+            for: versioned,
+            migrationPlan: MoraMigrationPlan.self,
+            configurations: [ModelConfiguration("MoraAccount", schema: versioned, url: url)]
+        )
+        let tasks = try reopened.mainContext.fetch(FetchDescriptor<AppTask>())
+        #expect(tasks.map(\.task) == ["약 먹기"])
+    }
+
+    @Test func currentVersionIsOneAndPlanListsIt() {
+        #expect(MoraSchemaV1.versionIdentifier == Schema.Version(1, 0, 0))
+        #expect(MoraMigrationPlan.schemas.count == 1)
+        #expect(MoraMigrationPlan.stages.isEmpty)
     }
 }

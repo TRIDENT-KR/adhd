@@ -38,9 +38,9 @@ struct OnboardingView: View {
                 .frame(height: 52)
 
                 TabView(selection: $page) {
-                    pageOne.tag(0)
-                    pageTwo.tag(1)
-                    pageThree.tag(2)
+                    scrollable(pageOne).tag(0)
+                    scrollable(pageTwo).tag(1)
+                    scrollable(pageThree).tag(2)
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
 
@@ -123,7 +123,7 @@ struct OnboardingView: View {
             VStack(spacing: 16) {
                 exampleRow(icon: "plus.circle.fill", text: L.voice.exampleAdd, color: DesignSystem.Colors.tertiary)
                 exampleRow(icon: "calendar.circle.fill", text: L.voice.exampleAppointment, color: DesignSystem.Colors.primary)
-                exampleRow(icon: "minus.circle.fill", text: L.voice.exampleDelete, color: Color.red.opacity(0.7))
+                exampleRow(icon: "minus.circle.fill", text: L.voice.exampleDelete, color: DesignSystem.Colors.error)
             }
         }
         .padding(.horizontal, 24)
@@ -150,6 +150,17 @@ struct OnboardingView: View {
         .padding(.horizontal, 32)
         .accessibilityElement(children: .combine)
         .accessibilityHint(L.onboarding.pageHint(3, total: 3))
+    }
+
+    /// 큰 글씨에서도 내용이 잘리지 않게 페이지마다 스크롤되게 하고, 평소에는 세로 가운데에 둡니다.
+    private func scrollable<Content: View>(_ content: Content) -> some View {
+        GeometryReader { proxy in
+            ScrollView {
+                content
+                    .frame(maxWidth: .infinity, minHeight: proxy.size.height)
+            }
+            .scrollBounceBehavior(.basedOnSize)
+        }
     }
 
     private func exampleRow(icon: String, text: String, color: Color) -> some View {

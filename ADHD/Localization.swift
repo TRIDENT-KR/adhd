@@ -17,8 +17,13 @@ class LocalizationManager: ObservableObject {
     }
 
     private init() {
-        let saved = UserDefaults.standard.string(forKey: "appLanguage") ?? "en"
-        self.currentLanguage = AppLanguage(rawValue: saved) ?? .en
+        let saved = UserDefaults.standard.string(forKey: "appLanguage").flatMap(AppLanguage.init(rawValue:))
+        let initial = saved ?? AppLanguage.preferred()
+        self.currentLanguage = initial
+        if saved == nil {
+            // 첫 실행: 기기 언어를 기본값으로 저장 (@AppStorage("appLanguage")도 같은 값을 읽음)
+            UserDefaults.standard.set(initial.rawValue, forKey: "appLanguage")
+        }
         // 앱 업데이트 직후에도 위젯이 언어를 즉시 읽을 수 있도록 App Group에 1회 시딩
         UserDefaults(suiteName: appGroupID)?.set(self.currentLanguage.rawValue, forKey: "appLanguage")
     }
@@ -49,6 +54,16 @@ enum AppLanguage: String, CaseIterable {
         LocalizationManager.shared.currentLanguage
     }
     
+    /// 저장된 선택이 없을 때 기기 언어 순서에서 지원 언어를 고릅니다. 없으면 영어입니다.
+    static func preferred(from identifiers: [String] = Locale.preferredLanguages) -> AppLanguage {
+        for identifier in identifiers {
+            let code = Locale(identifier: identifier).language.languageCode?.identifier
+                ?? String(identifier.prefix(2))
+            if let match = AppLanguage(rawValue: code) { return match }
+        }
+        return .en
+    }
+
     var localeIdentifier: String {
         switch self {
         case .en: return "en-US"
@@ -136,6 +151,9 @@ struct Strings {
 
     // Alarm / Notification
     var alarm: AlarmStrings { AlarmStrings(language: language) }
+
+    // Task Edit Sheet
+    var taskEdit: TaskEditStrings { TaskEditStrings(language: language) }
 }
 
 struct PersistenceStrings {
@@ -172,9 +190,9 @@ struct AlarmStrings {
     }
 
     // 알림 콘텐츠
-    var notifSubtitleStrong: String { t("⚠️ Needs your attention now", "⚠️ 긴급 확인이 필요합니다", "⚠️ 今すぐ確認が必要です") }
+    var notifSubtitleStrong: String { t("Time for this one", "할 시간이 됐어요", "そろそろ時間です") }
     var notifSubtitleWeak: String { t("One small step today", "오늘의 한 걸음", "今日の一歩") }
-    var notifSubtitleFollowUp: String { t("Still waiting on this", "아직 완료되지 않았어요", "まだ完了していません") }
+    var notifSubtitleFollowUp: String { t("Still on your list. No rush.", "아직 남아 있어요. 천천히 해도 괜찮아요.", "まだ残っています。ゆっくりで大丈夫です。") }
 
     // 알림 액션
     var completeAction: String { t("Done", "완료", "完了") }
@@ -184,18 +202,19 @@ struct AlarmStrings {
     var countdownTitle: String { t("Snoozed", "다시 알림", "再通知") }
 
     // 풀스크린 오버레이 (Pro 폴백 UI)
-    var overlaySubtitle: String { t("Check it off right now", "지금 바로 확인하고 완료하세요", "今すぐ確認して完了しましょう") }
-    var overlayConfirm: String { t("Done", "확인", "確認") }
-    var overlayHint: String { t("Tap to dismiss", "탭하여 알람 끄기", "タップしてアラームを消す") }
+    var overlaySubtitle: String { t("It's time. No need to rush.", "할 시간이에요. 천천히 해도 괜찮아요.", "時間です。ゆっくりで大丈夫です。") }
+    var overlayConfirm: String { t("Done", "다 했어요", "完了") }
+    var overlaySnooze: String { t("Remind me in 5 min", "5분 뒤 다시 알려줘요", "5分後にもう一度") }
+    var overlaySnoozeA11yHint: String { t("Stops the alarm and reminds you again in 5 minutes", "알람을 끄고 5분 뒤에 다시 알려줘요", "アラームを止めて5分後にもう一度お知らせします") }
     func overlayA11yLabel(_ name: String) -> String {
-        t("Alarm: \(name). Check it off right now",
-          "알람: \(name). 지금 바로 확인하고 완료하세요",
-          "アラーム: \(name)。今すぐ確認して完了しましょう")
+        t("Alarm: \(name). It's time.",
+          "알람: \(name). 할 시간이에요.",
+          "アラーム: \(name)。時間です。")
     }
     func overlayA11yHint(_ name: String) -> String {
-        t("Double tap to dismiss the alarm for \(name)",
-          "탭하여 \(name) 알람을 끕니다",
-          "タップして\(name)のアラームを消します")
+        t("Marks \(name) as done and stops the alarm",
+          "\(name) 할 일을 완료로 표시하고 알람을 꺼요",
+          "\(name)を完了にしてアラームを止めます")
     }
 }
 
@@ -215,6 +234,9 @@ struct SettingsStrings {
     var deleteAccount: String { t("Delete Account", "계정 삭제", "アカウント削除") }
     var languageLabel: String { t("Language", "언어", "言語") }
     var notifications: String { t("Notifications", "알림", "通知") }
+    var notificationsOffTitle: String { t("Notifications are off", "알림이 꺼져 있어요", "通知がオフになっています") }
+    var notificationsOffBody: String { t("Turn on Mora notifications in iPhone Settings so your reminders can ring.", "iPhone 설정에서 Mora 알림을 켜야 리마인더가 울려요.", "リマインダーを鳴らすには、iPhoneの設定でMoraの通知をオンにしてください。") }
+    var openNotificationSettings: String { t("Open Notification Settings", "알림 설정 열기", "通知設定を開く") }
     var routineReminders: String { t("Routine Reminders", "루틴 알림", "ルーティン通知") }
     var appointmentReminders: String { t("Appointment Reminders", "일정 알림", "予定通知") }
     var remindBefore: String { t("Remind Before", "사전 알림", "事前通知") }
@@ -228,6 +250,10 @@ struct SettingsStrings {
     var routineNotifTitle: String { t("🔔 Routine Reminder", "🔔 루틴 알림", "🔔 ルーティン通知") }
     var appointmentNotifTitle: String { t("Appointment Reminder", "일정 알림", "予定通知") }
     var about: String { t("About", "앱 정보", "アプリ情報") }
+    var general: String { t("General", "일반", "一般") }
+    var voiceInput: String { t("Voice Input", "음성 입력", "音声入力") }
+    var ageCheck: String { t("Age", "연령 확인", "年齢確認") }
+    var ageAdult: String { t("18+", "만 18세 이상", "18歳以上") }
     var version: String { t("Version", "버전", "バージョン") }
     var privacyPolicy: String { t("Privacy Policy", "개인정보 처리방침", "プライバシーポリシー") }
     var termsOfService: String { t("Terms of Service", "이용약관", "利用規約") }
@@ -266,9 +292,9 @@ struct SettingsStrings {
     }
     func clearCompletedPreview(_ count: Int) -> String {
         t(
-            "Target: \(count) completed task(s), all types and dates. Delete permanently?",
-            "대상: 완료된 태스크 \(count)개, 모든 유형·날짜. 영구 삭제할까요?",
-            "対象: 完了タスク\(count)件、全種類・全日付。完全に削除しますか？"
+            "Deletes \(count) finished one-time appointment(s). Routines and repeating appointments stay. You can undo right after.",
+            "끝난 일회성 일정 \(count)개를 지워요. 루틴과 반복 일정은 그대로 둬요. 지운 직후에는 되돌릴 수 있어요.",
+            "完了した単発の予定\(count)件を削除します。ルーティンと繰り返しの予定は残ります。削除直後は元に戻せます。"
         )
     }
     func clearAllPreview(_ count: Int) -> String {
@@ -300,6 +326,9 @@ struct VoiceStrings {
     var errorSpeechRestricted: String { t("Speech recognition is restricted on this device. You can type your task.", "이 기기에서 음성 인식이 제한되어 있어요. 글로 입력할 수 있습니다.", "この端末では音声認識が制限されています。文字で入力できます。") }
     var openSettings: String { t("Open Settings", "설정 열기", "設定を開く") }
     var tryAgain: String { t("Try Again", "다시 시도", "再試行") }
+    var errorTooLong: String { t("That's a bit long. Keep it under 1,000 characters.", "글이 조금 길어요. 1,000자 안으로 줄여 주세요.", "少し長すぎます。1,000文字以内にしてください。") }
+    var errorSignInAgain: String { t("Please sign in again.", "다시 로그인해 주세요.", "もう一度サインインしてください。") }
+    var clearDraft: String { t("Clear draft", "초안 지우기", "下書きを消す") }
     var confirmTitle: String { t("Review & Confirm", "확인 및 검토", "確認と検討") }
     var confirmUpdate: String { t("Edit", "수정", "編集") }
     
@@ -321,7 +350,9 @@ struct VoiceStrings {
     var confirmRoutine: String { t("Routine", "루틴", "ルーティン") }
     var confirmAppointment: String { t("Planner", "플래너", "プランナー") }
     var confirmTask: String { t("Today's Task", "오늘 할 일", "今日のタスク") }
-    var confirmToday: String { t("Today", "오늘 할 일", "今日") }
+    var confirmToday: String { t("Today", "오늘", "今日") }
+    var confirmTomorrow: String { t("Tomorrow", "내일", "明日") }
+    var confirmClarify: String { t("Question", "질문", "質問") }
     var confirmButton: String { t("Confirm", "확인", "確認") }
     var confirmCancel: String { t("Cancel", "취소", "キャンセル") }
     var confirmSending: String { t("Sending...", "전송 중...", "送信中...") }
@@ -331,6 +362,7 @@ struct VoiceStrings {
     var fieldTime: String { t("Time", "시간", "時間") }
     var fieldDate: String { t("Date", "날짜", "日付") }
     var fieldCategory: String { t("Category", "카테고리", "カテゴリー") }
+    var noTime: String { t("No time", "시간 없음", "時間なし") }
     var save: String { t("Save", "저장", "保存") }
     var cancel: String { t("Cancel", "취소", "キャンセル") }
 
@@ -346,6 +378,7 @@ struct VoiceStrings {
     func undoDeleted(_ count: Int) -> String { t("\(count) task(s) deleted", "\(count)개 삭제됨", "\(count)件削除") }
     func undoDeletedSingle(_ name: String) -> String { t("\"\(name)\" deleted", "\"\(name)\" 삭제됨", "\"\(name)\"を削除") }
     var undoCompleted: String { t("Marked as done", "완료 처리됨", "完了にしました") }
+    func undoSkippedOccurrence(_ name: String) -> String { t("Skipped \"\(name)\" this time", "\"\(name)\" 이번만 건너뛰었어요", "\"\(name)\"を今回だけスキップしました") }
     var undoUncompleted: String { t("Marked as not done", "미완료 처리됨", "未完了にしました") }
     func undoUpdated(_ name: String) -> String { t("\"\(name)\" updated", "\"\(name)\" 수정됨", "「\(name)」を更新") }
     func undoBatch(_ count: Int) -> String { t("\(count) change(s) saved", "\(count)개 변경사항 저장됨", "\(count)件の変更を保存") }
@@ -353,6 +386,13 @@ struct VoiceStrings {
     var reviewUpdatedPreview: String { t("The target changed. Review the updated preview and confirm again", "대상이 변경됐어요. 최신 미리보기를 확인하고 다시 승인해주세요", "対象が変更されました。最新のプレビューを確認してもう一度承認してください") }
     var partialSaveResult: String { t("Saved successful items. Review the items still shown", "성공한 항목은 저장했어요. 남은 항목을 확인해주세요", "成功した項目を保存しました。残りの項目を確認してください") }
     var noMatchingTarget: String { t("No matching task was found", "일치하는 대상을 찾지 못했어요", "一致する対象が見つかりませんでした") }
+    var noMatchingTargetInline: String { t("Couldn't find this task. Tap to fix the name.", "이 일정을 찾지 못했어요. 눌러서 이름을 고칠 수 있어요.", "この予定が見つかりませんでした。タップして名前を直せます。") }
+    var itemNotSaved: String { t("This item wasn't saved.", "이 항목은 저장하지 못했어요.", "この項目は保存できませんでした。") }
+    func targetNames(_ names: [String], more: Int) -> String {
+        let joined = names.joined(separator: ", ")
+        guard more > 0 else { return joined }
+        return t("\(joined) and \(more) more", "\(joined) 외 \(more)개", "\(joined) ほか\(more)件")
+    }
     var saveFailedPreserved: String { t("Couldn't save. Your existing data was preserved", "저장하지 못했어요. 기존 데이터는 보존됐습니다", "保存できませんでした。既存のデータは保持されています") }
     func postponeResult(_ count: Int) -> String { t("\(count) task(s) postponed", "\(count)개 일정 연기됨", "\(count)件延期しました") }
     var postponeNone: String { t("No tasks to postpone", "연기할 일정이 없어요", "延期する予定はありません") }
@@ -392,12 +432,11 @@ struct VoiceStrings {
     var a11yTabBar: String { t("Tab navigation", "탭 내비게이션", "タブナビゲーション") }
     var a11yUndo: String { t("Undo last action", "마지막 작업 되돌리기", "最後の操作を元に戻す") }
 
-    var errorMissingTime: String { t("Please set the time for the routine.", "루틴 시간을 설정해주세요.", "ルーティンの時間を設定してください。") }
-    var errorMissingDate: String { t("Please set the date for the planner.", "플래너 날짜를 설정해주세요.", "プランナーの日付を設定してください。") }
-    var errorMissingAppointmentTime: String { t("Please set the time for the planner.", "플래너 시간을 설정해주세요.", "プランナーの時間を設定してください。") }
+    var errorMissingDate: String { t("Check the date. It's set to today for now.", "날짜를 확인해 주세요. 우선 오늘로 맞춰 뒀어요.", "日付を確認してください。ひとまず今日にしています。") }
+    var errorBusy: String { t("Lots of requests right now. Please try again in a moment.", "잠깐 요청이 몰렸어요. 조금 뒤에 다시 해 주세요.", "リクエストが集中しています。少し時間をおいてからもう一度お試しください。") }
 
-    var urgencyStrong: String { t("Strong Alert", "기습 알림", "強い通知") }
-    var urgencyWeak: String { t("Gentle Alert", "잔잔 알림", "優しい通知") }
+    var urgencyStrong: String { t("Firm reminder", "꼭 알림", "しっかり通知") }
+    var urgencyWeak: String { t("Gentle reminder", "살짝 알림", "そっと通知") }
 }
 
 struct LoginStrings {
@@ -512,11 +551,17 @@ struct PaywallStrings {
     var title: String { t("Mora Pro", "Mora Pro", "Mora Pro") }
     var subtitle: String { t("More room for AI task planning,\nwith advanced reminders and task widgets.", "AI 일정 입력을 더 자유롭게,\n고급 알림과 일정 위젯까지.", "AIで予定をもっと自由に。\n高度なリマインダーとタスクウィジェットも。") }
     var purchaseErrorTitle: String { t("Purchase Error", "구매 오류", "購入エラー") }
+    var restoreErrorTitle: String { t("Restore Error", "복원 오류", "復元エラー") }
     var ok: String { t("OK", "확인", "OK") }
     var choosePlan: String { t("CHOOSE YOUR PLAN", "플랜 선택", "プランを選択") }
     var planMonthly: String { t("Monthly", "월간", "月額") }
     var planYearly: String { t("Yearly", "연간", "年額") }
     var billedMonthly: String { t("Billed monthly", "매월 청구", "毎月請求") }
+    var billedAnnually: String { t("Billed annually", "연 1회 청구", "年1回請求") }
+    /// VoiceOver용 플랜 카드 한 줄: 이름, 가격, 청구 주기
+    func planAccessibilityLabel(name: String, price: String, period: String, badge: String?) -> String {
+        [name, price, period, badge].compactMap { $0 }.joined(separator: t(", ", ", ", "、"))
+    }
     func billedYearly(monthlyEquivalent: String) -> String {
         t(
             "Billed annually · \(monthlyEquivalent)/mo",
@@ -539,10 +584,8 @@ struct PaywallStrings {
 
     var featureVoiceTitle: String { t("AI beyond the daily free limit", "AI 일일 무료 횟수 제한 해제", "AIの1日の無料回数制限を解除") }
     var featureVoiceDesc: String { t("Free includes 3 AI analyses per day. Pro removes this daily limit. Excessive requests may be temporarily limited to keep the service available.", "무료 AI 분석은 하루 3회입니다. Pro는 이 일일 횟수 제한을 해제합니다. 안정적인 서비스 운영을 위해 과도한 요청은 일시적으로 제한될 수 있어요.", "無料のAI分析は1日3回です。Proではこの1日の回数制限を解除します。安定したサービス提供のため、過剰なリクエストは一時的に制限される場合があります。") }
-    var featureAITitle: String { t("Smart task sorting", "AI 자동 분류", "AIが自動で分類") }
-    var featureAIDesc: String { t("AI tells apart routines, tasks, and appointments automatically.", "루틴인지, 할 일인지, 일정인지 AI가 알아서 구분해요.", "ルーティンか、タスクか、予定か、AIが自動で判断します。") }
     var featureAlarmsTitle: String { t("Full-screen alarms", "전체 화면 알람", "フルスクリーンアラーム") }
-    var featureAlarmsDesc: String { t("Full-screen reminders for urgent tasks, with completion and snooze actions. Delivery depends on device permissions and settings.", "긴급한 일정의 전체 화면 알림에서 완료와 다시 알림을 처리하세요. 전달은 기기 권한과 설정에 따라 달라져요.", "緊急なタスクを全画面で通知し、完了やスヌーズを操作できます。通知は端末の許可と設定に依存します。") }
+    var featureAlarmsDesc: String { t("Firm reminders show up full-screen, with Done and Snooze right there. Delivery depends on device permissions and settings.", "꼭 알림은 전체 화면으로 알려 주고, 완료와 다시 알림을 바로 누를 수 있어요. 전달은 기기 권한과 설정에 따라 달라져요.", "しっかり通知は全画面で表示され、完了とスヌーズをすぐ操作できます。通知は端末の許可と設定によって異なります。") }
     var featureWidgetsTitle: String { t("Home screen widgets", "홈 화면 위젯", "ホーム画面ウィジェット") }
     var featureWidgetsDesc: String { t("See your next task and routine progress from Home and Lock Screen task widgets with Pro.", "Pro 일정 위젯에서 다음 할 일과 루틴 진행 상황을 홈·잠금 화면으로 확인하세요.", "Proのタスクウィジェットで、次のタスクやルーティンの進捗をホーム・ロック画面から確認できます。") }
 
@@ -558,6 +601,8 @@ struct PaywallStrings {
     var nothingToRestore: String { t("No active subscription was found to restore.", "복원할 수 있는 활성 구독을 찾지 못했어요.", "復元できる有効なサブスクリプションが見つかりませんでした。") }
     var accountTokenChanged: String { t("The subscription account could not be confirmed. Please contact support.", "구독 계정을 확인할 수 없어요. 고객 지원에 문의해 주세요.", "サブスクリプションのアカウントを確認できませんでした。サポートにお問い合わせください。") }
     var entitlementNotGranted: String { t("Your purchase was received, but Pro access has not been confirmed. Try Restore Purchases before buying again, or contact support.", "구매 정보는 받았지만 Pro 권한을 확인하지 못했어요. 다시 결제하기 전에 구매 복원을 시도하거나 고객 지원에 문의해 주세요.", "購入情報は受信しましたが、Proの利用権限を確認できませんでした。再購入の前に購入を復元するか、サポートにお問い合わせください。") }
+    var paymentNotStarted: String { t("Payment didn't start. Please try again in a moment.", "결제는 시작되지 않았어요. 잠시 후 다시 시도해 주세요.", "お支払いは開始されていません。しばらくしてからもう一度お試しください。") }
+    var restoreFailed: String { t("Couldn't restore your purchase. Please try again in a moment.", "구매를 복원하지 못했어요. 잠시 후 다시 시도해 주세요.", "購入を復元できませんでした。しばらくしてからもう一度お試しください。") }
     var serverUnavailable: String { t("We could not confirm your subscription. Check your connection and try Restore Purchases before buying again.", "구독 상태를 확인하지 못했어요. 연결을 확인하고, 다시 결제하기 전에 구매 복원을 시도해 주세요.", "サブスクリプションを確認できませんでした。接続を確認し、再購入の前に購入の復元をお試しください。") }
 
     var subscriptionSection: String { t("Subscription", "구독", "サブスクリプション") }
@@ -565,6 +610,18 @@ struct PaywallStrings {
     var premiumInactive: String { t("Free Plan", "무료 플랜", "無料プラン") }
     var upgradeToPro: String { t("Upgrade to Pro", "Pro로 업그레이드", "Proにアップグレード") }
     var manageSubscription: String { t("Manage Subscription", "구독 관리", "サブスクリプション管理") }
+    var billingIssueTitle: String { t("Your payment didn't go through", "결제가 되지 않았어요", "お支払いが完了していません") }
+    var billingIssueGrace: String {
+        t("Pro stays on for now. Update your payment method in the App Store to keep it.",
+          "지금은 Pro를 그대로 쓸 수 있어요. App Store에서 결제 수단을 바꾸면 계속 이어져요.",
+          "いまはProをそのまま使えます。App Storeでお支払い方法を更新すると引き続き使えます。")
+    }
+    var billingIssuePaused: String {
+        t("Pro is paused for now. Update your payment method in the App Store and it'll turn back on.",
+          "Pro가 잠시 멈췄어요. App Store에서 결제 수단을 바꾸면 다시 켜져요.",
+          "Proを一時停止しています。App Storeでお支払い方法を更新すると再開します。")
+    }
+    var updatePaymentMethod: String { t("Update Payment Method", "결제 수단 바꾸기", "お支払い方法を更新") }
 }
 
 struct AIPrivacyStrings {
@@ -587,4 +644,54 @@ struct AIPrivacyStrings {
     var notNow: String { t("Not now", "나중에", "今はしない") }
     var anthropicPolicy: String { t("Anthropic data policy", "Anthropic 데이터 정책", "Anthropicのデータポリシー") }
     var googlePolicy: String { t("Google Gemini data policy", "Google Gemini 데이터 정책", "Google Geminiのデータポリシー") }
+}
+
+// MARK: - Task Edit Sheet
+/// 루틴·일정 수정 시트와 반복 일정 삭제 확인에 쓰는 문구
+struct TaskEditStrings {
+    let language: AppLanguage
+    private func t(_ en: String, _ ko: String, _ ja: String) -> String {
+        switch language {
+        case .en: return en
+        case .ko: return ko
+        case .ja: return ja
+        }
+    }
+
+    var editRoutine: String { t("Edit routine", "루틴 수정", "ルーティンを編集") }
+    var editAppointment: String { t("Edit appointment", "일정 수정", "予定を編集") }
+    var namePlaceholder: String { t("Task name", "할 일 이름", "タスク名") }
+
+    var date: String { t("Date", "날짜", "日付") }
+    var startDate: String { t("Starts", "시작일", "開始日") }
+    var time: String { t("Time", "시간", "時刻") }
+    var setTime: String { t("Set a time", "시간 정하기", "時刻を設定") }
+    var noTime: String { t("No time", "시간 없음", "時刻なし") }
+    var repeatTitle: String { t("Repeat", "반복", "繰り返し") }
+    var repeatNever: String { t("Never", "안 함", "しない") }
+    var repeatBiweekly: String { t("Every 2 weeks", "격주", "隔週") }
+    var reminder: String { t("Reminder", "알림", "通知") }
+    var reminderHelp: String {
+        t("Firm rings like an alarm. Gentle shows a quiet banner.",
+          "꼭 알림은 알람처럼 울리고, 살짝 알림은 조용히 알려 줘요.",
+          "しっかり通知はアラームのように鳴り、そっと通知は静かにお知らせします。")
+    }
+    var delete: String { t("Delete", "삭제", "削除") }
+
+    // 반복 일정 삭제: 이번만 건너뛰기 / 모든 회차 삭제
+    var repeatingDeleteTitle: String { t("This one repeats", "반복되는 일정이에요", "繰り返しの予定です") }
+    var repeatingDeleteMessage: String {
+        t("You can skip just this one and keep the rest.",
+          "이번 한 번만 건너뛰고 나머지는 그대로 둘 수 있어요.",
+          "今回だけスキップして、ほかはそのまま残せます。")
+    }
+    var skipThisOne: String { t("Skip just this one", "이번만 건너뛰기", "今回だけスキップ") }
+    var deleteAll: String { t("Delete all", "모든 회차 삭제", "すべて削除") }
+
+    /// 다른 날 보고 있는 반복 일정의 체크 원 (완료 표시는 그날 할 수 있음)
+    var checkOffOnTheDay: String {
+        t("You can check this off on the day",
+          "그날이 되면 완료로 표시할 수 있어요",
+          "当日になったら完了にできます")
+    }
 }

@@ -1,10 +1,24 @@
 import SwiftUI
 import SwiftData
+import Combine
 import UIKit
 import AuthenticationServices
 
+/// 알림 delegate는 앱 실행이 끝나기 전에 연결해야 합니다.
+/// 잠금화면 알림 액션으로 백그라운드에서 깨어나면 SwiftUI 화면이 만들어지지 않기 때문입니다.
+final class MoraAppDelegate: NSObject, UIApplicationDelegate {
+    func application(
+        _ application: UIApplication,
+        willFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
+    ) -> Bool {
+        NotificationManager.shared.configureNotificationHandling()
+        return true
+    }
+}
+
 @main
 struct MoraApp: App {
+    @UIApplicationDelegateAdaptor(MoraAppDelegate.self) private var appDelegate
     static let presentationDemoMode: Bool = {
         #if DEBUG
         ProcessInfo.processInfo.arguments.contains("-moraPresentationDemo")
@@ -22,7 +36,7 @@ struct MoraApp: App {
     @StateObject private var adultEligibility = AdultEligibilityManager.shared
     @AppStorage("appTheme") private var appTheme: String = "system"
     /// 언어 변경을 감지하여 environment(locale) 전파. .id()는 사용하지 않아 NavigationStack을 보존
-    @AppStorage("appLanguage") private var appLanguage: String = "en"
+    @AppStorage("appLanguage") private var appLanguage: String = AppLanguage.preferred().rawValue
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     @Environment(\.scenePhase) private var scenePhase
     @State private var hasSeededPresentationDemo = false
@@ -42,38 +56,24 @@ struct MoraApp: App {
     }
 
     // MARK: - Widget Deep Link Handling
+    /// 앱 루트에서 받습니다. 앱이 꺼져 있다가 위젯으로 열리면 아직 로딩 화면이라 메인 화면이 없으므로,
+    /// 고른 탭을 WidgetDeepLinkInbox에 맡겨 두고 메인 화면이 뜰 때 엽니다. 이미 떠 있으면 알림으로 바로 옮깁니다.
     private func handleWidgetDeepLink(_ url: URL) {
         guard url.scheme == "mora" else { return }
         switch url.host {
         case "tab":
-            let tabName = url.lastPathComponent
-            let tab: TabSelection
-            switch tabName {
-            case "routine": tab = .routine
-            case "planner": tab = .planner
-            default:        tab = .voice
+            guard let tab = WidgetDeepLink.tab(from: url) else { return }
+            // 위젯은 오늘 할 일만 보여 주므로, 플래너가 다른 날을 보고 있었어도 오늘로 엽니다.
+            if tab == .planner {
+                NotificationCenter.default.post(name: .plannerJumpToDate, object: Date())
             }
-            NotificationCenter.default.post(name: .widgetDeepLink, object: tab)
+            WidgetDeepLinkInbox.store(tab)
+            NotificationCenter.default.post(name: .widgetDeepLink, object: nil)
         case "paywall":
             // D13: 무료 사용자가 잠금 위젯 탭 → 앱 내 페이월 시트
             NotificationCenter.default.post(name: .openPaywall, object: nil)
         default:
             break
-        }
-    }
-
-    private func handlePendingDeepLink() {
-        guard let defaults = UserDefaults(suiteName: "group.trident-KR.ADHD"),
-              let link = defaults.string(forKey: "widgetDeepLink") else { return }
-        defaults.removeObject(forKey: "widgetDeepLink")
-        let tab: TabSelection
-        switch link {
-        case "routine": tab = .routine
-        case "planner": tab = .planner
-        default:        tab = .voice
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            NotificationCenter.default.post(name: .widgetDeepLink, object: tab)
         }
     }
 
@@ -103,6 +103,10 @@ struct MoraApp: App {
                     Task { @MainActor in
                         await removeCompletedAccountStore(for: userID)
                     }
+                }
+                // 위젯 링크는 로딩·온보딩 화면에서도 받을 수 있게 루트에 둡니다 (콜드 런치 포함).
+                .onOpenURL { url in
+                    handleWidgetDeepLink(url)
                 }
         }
     }
@@ -217,6 +221,9 @@ struct MoraApp: App {
                 AlarmCoordinator.shared.onTaskConfirmed = { taskId in
                     taskManager.completeTask(id: taskId)
                 }
+                AlarmCoordinator.shared.isTaskCompleted = { taskId in
+                    taskManager.isTaskCompleted(id: taskId)
+                }
             }
             .task {
                 if !isPresentationDemoMode {
@@ -228,21 +235,34 @@ struct MoraApp: App {
                     NotificationManager.shared.requestAuthorization()
                 }
             }
-            .onOpenURL { url in
-                handleWidgetDeepLink(url)
-            }
             .onChange(of: scenePhase) { _, newPhase in
                 if newPhase == .active {
+                    // 알림·알람에서 누른 '완료'는 그날의 완료이므로 날짜 초기화보다 먼저 반영합니다.
+                    // 위젯 체크는 누른 날짜에 따라 초기화 앞(어제 체크)·뒤(오늘 체크)로 나눠 반영합니다.
+                    taskManager.processPendingAlarmCompletions()
+                    taskManager.syncWidgetToggles()
                     taskManager.checkAndResetDailyTasks()
                     taskManager.syncWidgetToggles()
-                    taskManager.processPendingAlarmCompletions()
                     taskManager.rescheduleStrongTasksIfNeeded()
-                    handlePendingDeepLink()
                     Task { @MainActor in
                         taskManager.writeWidgetSnapshot()
                         taskManager.cleanupOrphanedNotifications()
+                        taskManager.refillDroppedNotifications()
                     }
                 }
+            }
+            .onReceive(
+                NotificationCenter.default.publisher(for: .NSCalendarDayChanged)
+                    .receive(on: DispatchQueue.main)
+            ) { _ in
+                // 앱을 켜 둔 채 자정이 지나면 포그라운드 진입이 없으므로 같은 날짜 초기화를 여기서 돌립니다.
+                guard scenePhase == .active else { return }
+                taskManager.processPendingAlarmCompletions()
+                taskManager.syncWidgetToggles()
+                taskManager.checkAndResetDailyTasks()
+                taskManager.syncWidgetToggles()
+                taskManager.rescheduleTasksNeedingRearm()
+                taskManager.writeWidgetSnapshot()
             }
             .onReceive(NotificationCenter.default.publisher(for: .alarmTaskCompleted)) { _ in
                 taskManager.processPendingAlarmCompletions()

@@ -86,6 +86,7 @@ final class AccountSessionCleanupCoordinator {
 
         let inAppAlarmCoordinator = AlarmCoordinator.shared
         inAppAlarmCoordinator.onTaskConfirmed = nil
+        inAppAlarmCoordinator.isTaskCompleted = nil
         await drainInAppAlarmQueue(inAppAlarmCoordinator)
 
         let notificationCenter = UNUserNotificationCenter.current()
@@ -130,7 +131,7 @@ final class AccountSessionCleanupCoordinator {
 
         do {
             let tasks = try context.fetch(FetchDescriptor<AppTask>())
-            for task in tasks where !task.isCompleted {
+            for task in tasks where !task.isCompleted || task.hasRepeatingSchedule {
                 NotificationManager.shared.scheduleNotification(for: task)
             }
             taskManager.writeWidgetSnapshot()

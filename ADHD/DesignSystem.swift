@@ -4,9 +4,10 @@ import SwiftUI
 struct DesignSystem {
     struct Colors {
         // Adaptive colors: light/dark mode 자동 전환
+        // 다크 모드도 중성 회색 대신 따뜻한 짙은 색 (DESIGN.md: No hard grays)
         static let background = Color(UIColor { traits in
             traits.userInterfaceStyle == .dark
-                ? UIColor(r: 0x1A, g: 0x1A, b: 0x1A)
+                ? UIColor(r: 0x1C, g: 0x1A, b: 0x19)
                 : UIColor(r: 0xF9, g: 0xF9, b: 0xF7)
         })
 
@@ -18,11 +19,49 @@ struct DesignSystem {
 
         static let primaryContainer = Color(UIColor { traits in
             traits.userInterfaceStyle == .dark
-                ? UIColor(r: 0x7C, g: 0x3F, b: 0x24)
+                ? UIColor(r: 0xF0, g: 0xA0, b: 0x80)
                 : UIColor(r: 0xD2, g: 0x7C, b: 0x5C)
         })
 
+        /// 글자가 올라가는 primary 그라데이션의 끝색. 끝까지 onPrimary 글자가 4.5:1 이상 되도록
+        /// primaryContainer보다 한 단계 primary 쪽입니다.
+        static let primaryGradientEnd = Color(UIColor { traits in
+            traits.userInterfaceStyle == .dark
+                ? UIColor(r: 0xF0, g: 0xA0, b: 0x80)
+                : UIColor(r: 0xB4, g: 0x61, b: 0x3F)
+        })
+
         static let primaryFixedDim = Color(hex: "#FFB59B")
+
+        /// primary 바탕 위 글자·아이콘. 다크 모드 primary(#FFB59B)는 밝아서 흰 글자가 1.7:1밖에 안 되므로
+        /// 진한 갈색(7.7:1)을 씁니다. primary를 칠한 곳에는 .white 대신 이 색을 씁니다.
+        static let onPrimary = Color(UIColor { traits in
+            traits.userInterfaceStyle == .dark
+                ? UIColor(r: 0x5A, g: 0x1B, b: 0x05)
+                : UIColor(r: 0xFF, g: 0xFF, b: 0xFF)
+        })
+
+        /// 본문 글자 (DESIGN.md on-surface #1A1C1B)
+        static let onSurface = Color(UIColor { traits in
+            traits.userInterfaceStyle == .dark
+                ? UIColor(r: 0xED, g: 0xE6, b: 0xE1)
+                : UIColor(r: 0x1A, g: 0x1C, b: 0x1B)
+        })
+
+        /// 시간·반복·상태 같은 보조 글자. 배경과 카드 위 모두 4.5:1 이상입니다.
+        /// 보조 글자에 onSurfaceVariant.opacity(…)를 쓰지 말고 이 색을 씁니다.
+        static let onSurfaceMeta = Color(UIColor { traits in
+            traits.userInterfaceStyle == .dark
+                ? UIColor(r: 0xC2, g: 0xB5, b: 0xAD)
+                : UIColor(r: 0x6E, g: 0x5F, b: 0x58)
+        })
+
+        /// 체크 원 같은 조작 요소의 테두리 (3:1 이상)
+        static let outline = Color(UIColor { traits in
+            traits.userInterfaceStyle == .dark
+                ? UIColor(r: 0x8A, g: 0x7D, b: 0x76)
+                : UIColor(r: 0x8A, g: 0x7D, b: 0x76)
+        })
 
         static let onSurfaceVariant = Color(UIColor { traits in
             traits.userInterfaceStyle == .dark
@@ -30,22 +69,37 @@ struct DesignSystem {
                 : UIColor(r: 0x54, g: 0x43, b: 0x3D)
         })
 
+        /// 카드·섹션 배경. 배경과 구분되도록 따뜻한 쪽으로 한 단계 진합니다.
         static let surfaceContainerLow = Color(UIColor { traits in
             traits.userInterfaceStyle == .dark
-                ? UIColor(r: 0x25, g: 0x25, b: 0x25)
-                : UIColor(r: 0xF4, g: 0xF4, b: 0xF2)
+                ? UIColor(r: 0x2A, g: 0x26, b: 0x24)
+                : UIColor(r: 0xF1, g: 0xEE, b: 0xEB)
         })
 
         static let tertiary = Color(UIColor { traits in
             traits.userInterfaceStyle == .dark
-                ? UIColor(r: 0x4F, g: 0xDB, b: 0xD1)
+                ? UIColor(r: 0x6F, g: 0xD8, b: 0xCF)
                 : UIColor(r: 0x00, g: 0x6A, b: 0x63)
+        })
+
+        /// tertiary(완료 체크 등) 바탕 위 글자·아이콘
+        static let onTertiary = Color(UIColor { traits in
+            traits.userInterfaceStyle == .dark
+                ? UIColor(r: 0x00, g: 0x33, b: 0x2F)
+                : UIColor(r: 0xFF, g: 0xFF, b: 0xFF)
+        })
+
+        /// 삭제처럼 되돌리기 어려운 행동의 글자·아이콘. 배경 위 4.5:1 이상입니다.
+        static let error = Color(UIColor { traits in
+            traits.userInterfaceStyle == .dark
+                ? UIColor(r: 0xFF, g: 0xB4, b: 0xAB)
+                : UIColor(r: 0xB3, g: 0x26, b: 0x1E)
         })
     }
 
     struct Gradients {
         static let primaryCTA = LinearGradient(
-            colors: [Colors.primary, Colors.primaryContainer],
+            colors: [Colors.primary, Colors.primaryGradientEnd],
             startPoint: .topLeading,
             endPoint: .bottomTrailing
         )
@@ -81,7 +135,7 @@ struct SatisfyingButtonStyle: BoolButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.body.weight(.bold))
-            .foregroundColor(isDestructive ? DesignSystem.Colors.onSurfaceVariant : .white)
+            .foregroundColor(isDestructive ? DesignSystem.Colors.onSurfaceVariant : DesignSystem.Colors.onPrimary)
             .padding(.vertical, 14)
             .padding(.horizontal, 28)
             .background(
@@ -208,5 +262,57 @@ struct Haptic {
 extension UIColor {
     convenience init(r: UInt8, g: UInt8, b: UInt8) {
         self.init(red: CGFloat(r) / 255, green: CGFloat(g) / 255, blue: CGFloat(b) / 255, alpha: 1)
+    }
+}
+
+// MARK: - Screen Header
+/// 탭 화면 공통 헤더: 제목 + '…' 메뉴 + 주 행동(추가) 하나.
+/// DESIGN.md '화면당 초점 하나': 검색·정렬·달력 같은 보조 행동은 메뉴로 모읍니다.
+struct ScreenHeader<MenuContent: View>: View {
+    let title: String
+    let addLabel: String
+    let onAdd: () -> Void
+    @ViewBuilder let menu: () -> MenuContent
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(verbatim: title)
+                .font(DesignSystem.Typography.displayLg)
+                .foregroundColor(DesignSystem.Colors.onSurface)
+                .tracking(-0.5)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+            Spacer()
+            Menu {
+                menu()
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.body.weight(.semibold))
+                    .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
+                    .frame(width: 44, height: 44)
+                    .background(Circle().fill(DesignSystem.Colors.surfaceContainerLow))
+            }
+            .accessibilityLabel(L.t("More", "더보기", "その他"))
+            Button(action: onAdd) {
+                Image(systemName: "plus")
+                    .font(.body.weight(.bold))
+                    .foregroundColor(DesignSystem.Colors.onPrimary)
+                    .frame(width: 44, height: 44)
+                    .background(Circle().fill(DesignSystem.Gradients.primaryCTA))
+            }
+            .buttonStyle(PressScaleButtonStyle())
+            .accessibilityLabel(addLabel)
+        }
+    }
+}
+
+/// DESIGN.md 누름 효과: 0.98로 살짝 눌리고 300ms 곡선으로 돌아옵니다.
+struct PressScaleButtonStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
+            .animation(reduceMotion ? .none : .timingCurve(0.4, 0, 0.2, 1, duration: 0.3), value: configuration.isPressed)
     }
 }

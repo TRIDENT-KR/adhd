@@ -136,6 +136,22 @@ nonisolated struct ServerEntitlementSnapshot: Decodable, Equatable {
     }
 }
 
+/// App Store가 갱신 결제를 다시 시도하는 중인 상태 (설정 화면 안내용)
+nonisolated enum SubscriptionBillingIssue: Equatable {
+    /// 결제 실패, 유예 기간이라 Pro는 아직 켜져 있음
+    case gracePeriod
+    /// 결제 실패, 유예 기간이 지나 Pro가 멈춤 (결제 수단을 바꾸면 복구)
+    case paused
+
+    init?(status: SubscriptionEntitlementStatus) {
+        switch status {
+        case .grace: self = .gracePeriod
+        case .billingRetry: self = .paused
+        case .none, .active, .expired, .revoked, .refunded: return nil
+        }
+    }
+}
+
 nonisolated struct CachedSubscriptionEntitlement: Codable, Equatable {
     let status: SubscriptionEntitlementStatus
     let productID: String
@@ -176,6 +192,21 @@ nonisolated enum SubscriptionAccessPolicy {
             graceExpiresAt: snapshot.graceExpiresAt,
             accessUntil: accessUntil
         )
+    }
+
+    /// 서버 일시 장애 동안 마지막 서버 확인을 믿는 최대 시간 (제품 결정, 2026-10-28)
+    static let serverOutageGrace: TimeInterval = 24 * 60 * 60
+
+    /// 서버가 5xx로 응답하지 못할 때: 마지막 서버 확인이 24시간 안이고 구독 기간도 남아 있으면 Pro를 유지합니다.
+    static func allowsProDuringServerOutage(
+        _ cached: CachedSubscriptionEntitlement,
+        confirmedAt: Date?,
+        at now: Date
+    ) -> Bool {
+        guard let confirmedAt,
+              confirmedAt <= now.addingTimeInterval(60),           // 기기 시계가 크게 뒤로 간 경우 거부
+              now.timeIntervalSince(confirmedAt) <= serverOutageGrace else { return false }
+        return allowsOfflinePro(cached, at: now)
     }
 
     static func allowsOfflinePro(
@@ -234,6 +265,10 @@ nonisolated struct SubscriptionAccountCache {
         "mora.subscription.\(namespace(for: userID)).entitlement.v1"
     }
 
+    static func serverConfirmedKey(for userID: UUID) -> String {
+        "mora.subscription.\(namespace(for: userID)).server-confirmed-at.v1"
+    }
+
     static func appAccountTokenKey(for userID: UUID) -> String {
         "mora.subscription.\(namespace(for: userID)).app-account-token.v1"
     }
@@ -252,6 +287,16 @@ nonisolated struct SubscriptionAccountCache {
 
     func clearEntitlement(for userID: UUID) {
         defaults.removeObject(forKey: Self.entitlementKey(for: userID))
+        defaults.removeObject(forKey: Self.serverConfirmedKey(for: userID))
+    }
+
+    /// 서버가 Pro를 마지막으로 확인한 시각 (서버 일시 장애 때 유지 기간 계산용)
+    func markServerConfirmed(for userID: UUID, at date: Date) {
+        defaults.set(date, forKey: Self.serverConfirmedKey(for: userID))
+    }
+
+    func serverConfirmedAt(for userID: UUID) -> Date? {
+        defaults.object(forKey: Self.serverConfirmedKey(for: userID)) as? Date
     }
 
     func appAccountToken(for userID: UUID) -> UUID? {
@@ -274,7 +319,32 @@ nonisolated struct SubscriptionAccountCache {
     func clearAccount(_ userID: UUID) {
         clearEntitlement(for: userID)
         defaults.removeObject(forKey: Self.appAccountTokenKey(for: userID))
+        defaults.removeObject(forKey: Self.aiQuotaKey(for: userID))
     }
+
+    // MARK: AI 횟수 표시용 마지막 서버 스냅샷
+    /// 서버에 횟수만 묻는 API가 없어서, 다시 실행해도 마지막으로 받은 값을 보여 주려고 계정별로 기억합니다.
+    /// 표시용일 뿐이며 실제 차감·차단은 서버가 판단합니다.
+    static func aiQuotaKey(for userID: UUID) -> String {
+        "mora.subscription.\(namespace(for: userID)).ai-quota.v1"
+    }
+
+    func aiQuota(for userID: UUID) -> CachedAIQuota? {
+        guard let data = defaults.data(forKey: Self.aiQuotaKey(for: userID)) else { return nil }
+        return try? JSONDecoder().decode(CachedAIQuota.self, from: data)
+    }
+
+    func save(aiQuota: CachedAIQuota, for userID: UUID) {
+        guard let data = try? JSONEncoder().encode(aiQuota) else { return }
+        defaults.set(data, forKey: Self.aiQuotaKey(for: userID))
+    }
+}
+
+nonisolated struct CachedAIQuota: Codable, Equatable {
+    let used: Int
+    let remaining: Int?
+    let usageDate: String
+    let timeZone: String
 }
 
 nonisolated enum SubscriptionFailureClassifier {
@@ -293,6 +363,14 @@ nonisolated enum SubscriptionFailureClassifier {
             .callIsActive,
             .dataNotAllowed,
         ].contains(code)
+    }
+
+    /// 서버가 잠깐 응답하지 못한 경우(HTTP 5xx, 예: subscription_backend_unavailable 503).
+    /// '이 사용자는 Pro가 아니다'라는 확정 응답이 아니므로 마지막 서버 확인을 잠시 믿습니다.
+    static func isTransientServerFailure(_ error: Error) -> Bool {
+        if case let FunctionsError.httpError(code, _) = error { return code >= 500 }
+        if let httpError = error as? HTTPError { return httpError.response.statusCode >= 500 }
+        return false
     }
 }
 
@@ -316,6 +394,28 @@ nonisolated enum ServerQuotaAccessPolicy {
         }
         let today = String(format: "%04d-%02d-%02d", year, month, day)
         return usageDate != today || remaining > 0
+    }
+
+    /// 배지에 보일 남은 횟수. 마지막 서버 값이 오늘(서울 기준) 것이 아니면 자정에 다시 찬 한도로 봅니다.
+    static func displayedRemaining(
+        remaining: Int?,
+        usageDate: String?,
+        timeZone: String?,
+        limit: Int,
+        now: Date
+    ) -> Int {
+        guard let remaining, let usageDate, timeZone == "Asia/Seoul",
+              usageDate == serverDay(of: now) else { return limit }
+        return max(0, min(limit, remaining))
+    }
+
+    private static func serverDay(of date: Date) -> String? {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.locale = Locale(identifier: "en_US_POSIX")
+        calendar.timeZone = TimeZone(identifier: "Asia/Seoul")!
+        let parts = calendar.dateComponents([.year, .month, .day], from: date)
+        guard let year = parts.year, let month = parts.month, let day = parts.day else { return nil }
+        return String(format: "%04d-%02d-%02d", year, month, day)
     }
 }
 
@@ -458,7 +558,7 @@ struct SupabaseSubscriptionServerClient: SubscriptionServerClient {
     }
 }
 
-nonisolated private enum SubscriptionFlowError: Error {
+nonisolated enum SubscriptionFlowError: Error {
     case accountRequired
     case productContractMismatch
     case transactionRegistrationUnavailable
@@ -468,15 +568,152 @@ nonisolated private enum SubscriptionFlowError: Error {
     case nothingToRestore
 }
 
+// MARK: - Product Catalog
+nonisolated enum SubscriptionProductCatalog {
+    /// 받아온 상품 중 알려진 것만 월간→연간 순서로 남깁니다. 하나가 빠져도 나머지는 팔 수 있어야 합니다.
+    static func validProducts<Item>(_ items: [Item], id: (Item) -> String) -> [Item] {
+        let order = SubscriptionProductID.allCases.map(\.rawValue)
+        var seen = Set<String>()
+        return items
+            .filter { order.contains(id($0)) && seen.insert(id($0)).inserted }
+            .sorted { order.firstIndex(of: id($0))! < order.firstIndex(of: id($1))! }
+    }
+
+    /// 기본 선택은 연간이고, 연간이 없으면 남아 있는 상품입니다.
+    static func defaultSelection(in availableIDs: [String]) -> String? {
+        availableIDs.contains(SubscriptionProductID.yearly.rawValue)
+            ? SubscriptionProductID.yearly.rawValue
+            : availableIDs.first
+    }
+}
+
+// MARK: - Error Copy
+/// 실패가 어느 단계에서 났는지. 결제 시트 전 실패에 '다시 결제하기 전에 복원' 안내를 붙이지 않기 위해 씁니다.
+nonisolated enum SubscriptionFlowStage: Equatable {
+    /// StoreKit 결제 시트 전: 계정 토큰 조회, 성인 확인
+    case preparing
+    /// StoreKit 결제 시트
+    case paying
+    /// 결제 후 서버 등록·권한 확인
+    case registering
+    /// 사용자가 누른 구매 복원
+    case restoring
+}
+
+enum SubscriptionErrorCopy: Equatable {
+    case accountRequired
+    case eligibility(AdultEligibilityError)
+    case paymentNotStarted
+    case registrationUnavailable
+    case restoreRebindUnavailable
+    case ownedByAnotherAccount
+    case familySharingUnsupported
+    case verificationFailed
+    case nothingToRestore
+    case accountTokenChanged
+    case entitlementNotGranted
+    /// 결제 후 확인 실패: 다시 결제하기 전에 복원을 권합니다.
+    case serverUnavailable
+    case restoreFailed
+
+    static func classify(_ error: Error, stage: SubscriptionFlowStage) -> SubscriptionErrorCopy {
+        if let eligibilityError = error as? AdultEligibilityError {
+            // 성인 확인 서버가 응답하지 않은 것은 결제 전 일시 장애입니다.
+            return eligibilityError == .unavailable ? .paymentNotStarted : .eligibility(eligibilityError)
+        }
+        switch error {
+        case SubscriptionFlowError.accountRequired:
+            return .accountRequired
+        case SubscriptionFlowError.transactionRegistrationUnavailable:
+            return .registrationUnavailable
+        case SubscriptionFlowError.appAccountTokenChanged:
+            return .accountTokenChanged
+        case SubscriptionFlowError.nothingToRestore:
+            return .nothingToRestore
+        case SubscriptionServerError.restoreRebindUnavailable:
+            return .restoreRebindUnavailable
+        case SubscriptionServerError.subscriptionOwnedByAnotherAccount:
+            return .ownedByAnotherAccount
+        case SubscriptionServerError.familySharingNotSupported:
+            return .familySharingUnsupported
+        default:
+            break
+        }
+
+        switch stage {
+        case .preparing:
+            return .paymentNotStarted
+        case .paying:
+            // 시트가 확실히 결제 전에 끝난 경우만 '결제 안 됨'이라고 말합니다. 네트워크 오류는 결제됐을 수도 있습니다.
+            if error is Product.PurchaseError { return .paymentNotStarted }
+            if let storeKitError = error as? StoreKitError {
+                switch storeKitError {
+                case .notAvailableInStorefront, .notEntitled, .unsupported:
+                    return .paymentNotStarted
+                default:
+                    return .serverUnavailable
+                }
+            }
+            return .serverUnavailable
+        case .registering:
+            switch error {
+            case SubscriptionServerError.transactionRejected,
+                 SubscriptionFlowError.productContractMismatch,
+                 SubscriptionFlowError.invalidTransaction:
+                return .verificationFailed
+            case SubscriptionFlowError.entitlementNotGranted:
+                return .entitlementNotGranted
+            default:
+                return .serverUnavailable
+            }
+        case .restoring:
+            switch error {
+            case SubscriptionServerError.transactionRejected:
+                return .verificationFailed
+            default:
+                return .restoreFailed
+            }
+        }
+    }
+
+    var message: String {
+        switch self {
+        case .accountRequired: return L.paywall.accountRequired
+        case .eligibility(let error): return L.adultEligibility.error(error)
+        case .paymentNotStarted: return L.paywall.paymentNotStarted
+        case .registrationUnavailable: return L.paywall.registrationUnavailable
+        case .restoreRebindUnavailable: return L.paywall.restoreRebindUnavailable
+        case .ownedByAnotherAccount: return L.paywall.ownedByAnotherAccount
+        case .familySharingUnsupported: return L.paywall.familySharingUnsupported
+        case .verificationFailed: return L.paywall.verificationFailed
+        case .nothingToRestore: return L.paywall.nothingToRestore
+        case .accountTokenChanged: return L.paywall.accountTokenChanged
+        case .entitlementNotGranted: return L.paywall.entitlementNotGranted
+        case .serverUnavailable: return L.paywall.serverUnavailable
+        case .restoreFailed: return L.paywall.restoreFailed
+        }
+    }
+}
+
+/// 오류 알림 제목을 고르기 위한 마지막 실패 작업
+enum SubscriptionUserAction: Equatable {
+    case purchase
+    case restore
+}
+
 // MARK: - Subscription Manager
 @MainActor
 final class SubscriptionManager: ObservableObject {
     @Published private(set) var isPremium = false
     @Published private(set) var products: [Product] = []
     @Published var purchaseError: String?
+    /// purchaseError가 구매와 복원 중 어디서 났는지. 알림 제목을 고릅니다.
+    @Published private(set) var purchaseErrorAction: SubscriptionUserAction = .purchase
     @Published private(set) var purchaseNotice: String?
     @Published private(set) var isLoading = false
     @Published private(set) var productsLoadFailed = false
+    /// 결제가 밀려 App Store가 재시도 중이면 설정에 안내합니다. 말없이 무료로 바뀌지 않게 합니다.
+    @Published private(set) var billingIssue: SubscriptionBillingIssue?
 
     /// 서버 quota 응답의 표시용 mirror입니다. 로컬에서 증가·날짜 초기화하지 않습니다.
     @Published private(set) var dailyAIUsageCount = 0
@@ -507,7 +744,18 @@ final class SubscriptionManager: ObservableObject {
     }
 
     var remainingAIUsage: Int {
-        max(0, serverQuotaRemaining ?? Self.freeAILimit)
+        ServerQuotaAccessPolicy.displayedRemaining(
+            remaining: serverQuotaRemaining,
+            usageDate: serverQuotaUsageDate,
+            timeZone: serverQuotaTimeZone,
+            limit: Self.freeAILimit,
+            now: now()
+        )
+    }
+
+    /// 자정이 지나거나 앱으로 돌아왔을 때 배지를 다시 계산하게 합니다(남은 횟수는 현재 시각에 따라 달라짐).
+    func refreshQuotaDisplay() {
+        objectWillChange.send()
     }
 
     convenience init() {
@@ -550,26 +798,48 @@ final class SubscriptionManager: ObservableObject {
         serverQuotaRemaining = snapshot.remaining
         serverQuotaUsageDate = snapshot.usageDate
         serverQuotaTimeZone = snapshot.timeZone
+        if let activeUserID {
+            accountCache.save(
+                aiQuota: CachedAIQuota(
+                    used: snapshot.used,
+                    remaining: snapshot.remaining,
+                    usageDate: snapshot.usageDate,
+                    timeZone: snapshot.timeZone
+                ),
+                for: activeUserID
+            )
+        }
+    }
+
+    /// 다시 실행했을 때 마지막 서버 스냅샷으로 배지를 채웁니다. 날짜가 지났으면 표시 단계에서 한도로 돌아갑니다.
+    private func restoreCachedQuota(for userID: UUID) {
+        guard let cached = accountCache.aiQuota(for: userID) else { return }
+        dailyAIUsageCount = cached.used
+        serverQuotaRemaining = cached.remaining
+        serverQuotaUsageDate = cached.usageDate
+        serverQuotaTimeZone = cached.timeZone
     }
 
     // MARK: - Products
     func loadProducts() async {
         productsLoadFailed = false
         do {
-            let expectedIDs = SubscriptionProductID.allCases.map(\.rawValue)
-            let fetched = try await Product.products(for: expectedIDs)
-            guard Set(fetched.map(\.id)) == SubscriptionProductID.allIDs else {
+            let fetched = try await Product.products(for: SubscriptionProductID.allCases.map(\.rawValue))
+            let valid = SubscriptionProductCatalog.validProducts(fetched, id: \.id)
+            // 받아온 상품만이라도 보여주고, 하나도 없을 때만 실패로 봅니다.
+            guard !valid.isEmpty else {
                 products = []
                 productsLoadFailed = true
-                print("storekit_product_contract_mismatch")
+                print("storekit_products_empty")
                 return
             }
-            products = fetched.sorted {
-                expectedIDs.firstIndex(of: $0.id)! < expectedIDs.firstIndex(of: $1.id)!
+            if valid.count < SubscriptionProductID.allCases.count {
+                print("storekit_products_partial")
             }
+            products = valid
         } catch {
-            products = []
-            productsLoadFailed = true
+            // 다시 불러오다 실패해도 이미 보여 준 상품은 그대로 둡니다.
+            productsLoadFailed = products.isEmpty
             print("storekit_products_load_failed")
         }
     }
@@ -583,6 +853,7 @@ final class SubscriptionManager: ObservableObject {
         purchaseNotice = nil
         defer { isLoading = false }
         var operation: SubscriptionOperationContext?
+        var stage = SubscriptionFlowStage.preparing
 
         do {
             guard SubscriptionProductID.allIDs.contains(product.id) else {
@@ -601,10 +872,12 @@ final class SubscriptionManager: ObservableObject {
                 userID: userID, accessToken: context.accessToken
             )
             try ensureCurrentOperation(context)
+            stage = .paying
             let result = try await product.purchase(options: [
                 .appAccountToken(appAccountToken)
             ])
 
+            stage = .registering
             try ensureCurrentOperation(context)
             switch result {
             case .success(let verification):
@@ -637,7 +910,7 @@ final class SubscriptionManager: ObservableObject {
             return false
         } catch {
             if let operation, !isCurrentOperation(operation) { return false }
-            purchaseError = message(for: error)
+            reportError(error, stage: stage, action: .purchase)
             return false
         }
     }
@@ -648,12 +921,12 @@ final class SubscriptionManager: ObservableObject {
     func restorePurchasesForAccountManagement(userID: UUID) async -> Bool {
         guard !isLoading else { return false }
         guard (try? currentAuthenticatedUserID()) == userID else {
-            purchaseError = L.paywall.accountRequired
+            reportError(SubscriptionFlowError.accountRequired, stage: .restoring, action: .restore)
             return false
         }
         operationScope.activate(userID)
         guard let operation = try? currentOperation() else {
-            purchaseError = L.paywall.accountRequired
+            reportError(SubscriptionFlowError.accountRequired, stage: .restoring, action: .restore)
             return false
         }
         let restored = await restorePurchases()
@@ -731,7 +1004,7 @@ final class SubscriptionManager: ObservableObject {
             return false
         } catch {
             if let operation, !isCurrentOperation(operation) { return false }
-            purchaseError = message(for: error)
+            reportError(error, stage: .restoring, action: .restore)
             return false
         }
     }
@@ -753,6 +1026,10 @@ final class SubscriptionManager: ObservableObject {
             guard isCurrentOperation(operation) else { return }
             if SubscriptionFailureClassifier.permitsOfflineCache(error) {
                 applyCachedEntitlement(for: userID)
+            } else if SubscriptionFailureClassifier.isTransientServerFailure(error),
+                      keepCachedEntitlementDuringOutage(for: userID) {
+                // 서버 일시 장애(5xx): 결제한 사용자의 Pro를 바로 끄지 않고 다음 갱신 때 다시 확인합니다.
+                print("server_entitlement_refresh_deferred_outage")
             } else {
                 accountCache.clearEntitlement(for: userID)
                 publishPremium(false)
@@ -828,7 +1105,9 @@ final class SubscriptionManager: ObservableObject {
         operationScope.activate(userID)
         purchaseError = nil
         purchaseNotice = nil
+        billingIssue = nil
         resetQuotaMirror()
+        restoreCachedQuota(for: userID)
         publishPremium(false, removeSharedFlag: true)
         applyCachedEntitlement(for: userID)
     }
@@ -840,6 +1119,7 @@ final class SubscriptionManager: ObservableObject {
         operationScope.deactivate()
         purchaseError = nil
         purchaseNotice = nil
+        billingIssue = nil
         resetQuotaMirror()
         publishPremium(false, removeSharedFlag: true)
     }
@@ -916,13 +1196,28 @@ final class SubscriptionManager: ObservableObject {
         for userID: UUID
     ) {
         guard activeUserID == userID else { return }
+        billingIssue = SubscriptionBillingIssue(status: entitlement.status)
         if let cached = SubscriptionAccessPolicy.cacheRecord(from: entitlement, at: now()) {
             accountCache.save(entitlement: cached, for: userID)
+            accountCache.markServerConfirmed(for: userID, at: now())
             publishPremium(AdultEligibilityManager.shared.allowsLocalUse(for: userID))
         } else {
             accountCache.clearEntitlement(for: userID)
             publishPremium(false)
         }
+    }
+
+    /// 서버 일시 장애 동안 마지막 서버 확인(24시간 이내)을 믿고 Pro를 유지합니다. 유지하지 못하면 false.
+    private func keepCachedEntitlementDuringOutage(for userID: UUID) -> Bool {
+        guard AdultEligibilityManager.shared.allowsLocalUse(for: userID),
+              let cached = accountCache.entitlement(for: userID),
+              SubscriptionAccessPolicy.allowsProDuringServerOutage(
+                cached,
+                confirmedAt: accountCache.serverConfirmedAt(for: userID),
+                at: now()
+              ) else { return false }
+        publishPremium(true)
+        return true
     }
 
     private func applyCachedEntitlement(for userID: UUID) {
@@ -936,6 +1231,7 @@ final class SubscriptionManager: ObservableObject {
             publishPremium(false)
             return
         }
+        billingIssue = SubscriptionBillingIssue(status: cached.status)
         publishPremium(true)
     }
 
@@ -1007,36 +1303,8 @@ final class SubscriptionManager: ObservableObject {
         return session.user.id
     }
 
-    private func message(for error: Error) -> String {
-        if let eligibilityError = error as? AdultEligibilityError {
-            return L.adultEligibility.error(eligibilityError)
-        }
-        switch error {
-        case SubscriptionFlowError.accountRequired:
-            return L.paywall.accountRequired
-        case SubscriptionFlowError.transactionRegistrationUnavailable:
-            return L.paywall.registrationUnavailable
-        case SubscriptionServerError.transactionRegistrationUnavailable:
-            return L.paywall.serverUnavailable
-        case SubscriptionServerError.restoreRebindUnavailable:
-            return L.paywall.restoreRebindUnavailable
-        case SubscriptionServerError.subscriptionOwnedByAnotherAccount:
-            return L.paywall.ownedByAnotherAccount
-        case SubscriptionServerError.familySharingNotSupported:
-            return L.paywall.familySharingUnsupported
-        case SubscriptionServerError.transactionRejected:
-            return L.paywall.verificationFailed
-        case SubscriptionFlowError.nothingToRestore:
-            return L.paywall.nothingToRestore
-        case SubscriptionFlowError.appAccountTokenChanged:
-            return L.paywall.accountTokenChanged
-        case SubscriptionFlowError.entitlementNotGranted:
-            return L.paywall.entitlementNotGranted
-        case SubscriptionFlowError.productContractMismatch,
-             SubscriptionFlowError.invalidTransaction:
-            return L.paywall.verificationFailed
-        default:
-            return L.paywall.serverUnavailable
-        }
+    private func reportError(_ error: Error, stage: SubscriptionFlowStage, action: SubscriptionUserAction) {
+        purchaseErrorAction = action
+        purchaseError = SubscriptionErrorCopy.classify(error, stage: stage).message
     }
 }

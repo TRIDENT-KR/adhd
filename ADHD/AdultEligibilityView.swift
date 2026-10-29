@@ -30,7 +30,7 @@ struct AdultEligibilityView: View {
                         Text(L.adultEligibility.affirmative)
                             .font(.headline)
                             .frame(maxWidth: .infinity, minHeight: 52)
-                            .foregroundStyle(.white)
+                            .foregroundStyle(DesignSystem.Colors.onPrimary)
                             .background(LinearGradient(
                                 colors: [DesignSystem.Colors.primary, DesignSystem.Colors.primary.opacity(0.78)],
                                 startPoint: .topLeading, endPoint: .bottomTrailing

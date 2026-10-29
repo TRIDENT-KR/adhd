@@ -115,3 +115,37 @@ struct FixedAccountRequestTests {
         #expect(rpc.value.authorization == "Bearer fake-account-a")
     }
 }
+
+
+@MainActor
+struct AlarmRegistrationQueueTests {
+    @Test func oldSessionCleanupFinishesBeforeSameTaskIsRestored() async {
+        let queue = AlarmRegistrationQueue()
+        let id = UUID()
+        var events: [String] = []
+        var finishOld: CheckedContinuation<Void, Never>?
+        var old: Task<Void, Never>?
+        await withCheckedContinuation { (started: CheckedContinuation<Void, Never>) in
+            old = Task { @MainActor in
+                await queue.run(id: id) {
+                    events.append("old-start")
+                    await withCheckedContinuation { continuation in
+                        finishOld = continuation
+                        started.resume()
+                    }
+                    // 이전 세션 등록이 늦게 끝나 취소되는 순서를 재현합니다.
+                    events.append("old-cancel")
+                }
+            }
+        }
+        let restored = Task { @MainActor in
+            await queue.run(id: id) { events.append("new-register") }
+        }
+        await Task.yield()
+        #expect(events == ["old-start"])
+        finishOld?.resume()
+        await old?.value
+        await restored.value
+        #expect(events == ["old-start", "old-cancel", "new-register"])
+    }
+}

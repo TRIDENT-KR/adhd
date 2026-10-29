@@ -1,4 +1,5 @@
 import Foundation
+import StoreKit
 import Testing
 @testable import ADHD
 
@@ -201,6 +202,40 @@ struct SubscriptionEntitlementTests {
         #expect(rejected)
     }
 
+    @Test func serverOutageKeepsProOnlyWithinGraceAfterLastConfirmation() {
+        let cached = CachedSubscriptionEntitlement(
+            status: .active,
+            productID: SubscriptionProductID.allIDs.first!,
+            verifiedAt: date("2026-10-01T00:00:00Z"),
+            expiresAt: date("2026-11-30T00:00:00Z"),
+            graceExpiresAt: nil,
+            accessUntil: date("2026-11-30T00:00:00Z")
+        )
+        let confirmed = date("2026-10-28T00:00:00Z")
+
+        #expect(SubscriptionAccessPolicy.allowsProDuringServerOutage(
+            cached, confirmedAt: confirmed, at: date("2026-10-28T23:00:00Z")
+        ))
+        #expect(!SubscriptionAccessPolicy.allowsProDuringServerOutage(
+            cached, confirmedAt: confirmed, at: date("2026-10-29T01:00:00Z")
+        ))
+        #expect(!SubscriptionAccessPolicy.allowsProDuringServerOutage(
+            cached, confirmedAt: nil, at: date("2026-10-28T01:00:00Z")
+        ))
+        // 구독 기간이 끝났으면 서버 장애 중이라도 유지하지 않음
+        #expect(!SubscriptionAccessPolicy.allowsProDuringServerOutage(
+            cached, confirmedAt: date("2026-11-29T23:00:00Z"), at: date("2026-11-30T01:00:00Z")
+        ))
+    }
+
+    @Test func billingIssueIsShownOnlyWhileAppStoreRetriesPayment() {
+        #expect(SubscriptionBillingIssue(status: .grace) == .gracePeriod)
+        #expect(SubscriptionBillingIssue(status: .billingRetry) == .paused)
+        for status in [SubscriptionEntitlementStatus.none, .active, .expired, .revoked, .refunded] {
+            #expect(SubscriptionBillingIssue(status: status) == nil)
+        }
+    }
+
     @Test func onlyTransportFailuresPermitOfflineCache() {
         #expect(SubscriptionFailureClassifier.permitsOfflineCache(
             URLError(.notConnectedToInternet)
@@ -360,5 +395,92 @@ struct SubscriptionOperationScopeTests {
         #expect(operation.accessToken == "synthetic-first-token")
         #expect(refreshed.accessToken == "synthetic-refreshed-token")
         #expect(!scope.accepts(operation, sessionUserID: nil))
+    }
+}
+
+// MARK: - 페이월: 일부 상품만 있어도 판매 (P2 #27)
+struct SubscriptionProductCatalogTests {
+    private let monthly = SubscriptionProductID.monthly.rawValue
+    private let yearly = SubscriptionProductID.yearly.rawValue
+
+    @Test func knownProductsKeepPlanOrderWithoutDuplicates() {
+        let fetched = [yearly, "com.example.unknown", monthly, yearly]
+        #expect(SubscriptionProductCatalog.validProducts(fetched, id: { $0 }) == [monthly, yearly])
+    }
+
+    @Test func aSingleProductIsStillSellable() {
+        #expect(SubscriptionProductCatalog.validProducts([monthly], id: { $0 }) == [monthly])
+        #expect(SubscriptionProductCatalog.validProducts([yearly], id: { $0 }) == [yearly])
+        #expect(SubscriptionProductCatalog.validProducts(["com.example.unknown"], id: { $0 }).isEmpty)
+    }
+
+    @Test func defaultSelectionPrefersYearlyThenWhateverLoaded() {
+        #expect(SubscriptionProductCatalog.defaultSelection(in: [monthly, yearly]) == yearly)
+        #expect(SubscriptionProductCatalog.defaultSelection(in: [monthly]) == monthly)
+        #expect(SubscriptionProductCatalog.defaultSelection(in: []) == nil)
+    }
+}
+
+// MARK: - 페이월: 결제 단계별 오류 문구 (P2 #24)
+@MainActor
+struct SubscriptionErrorCopyTests {
+    @Test func failuresBeforeTheStoreKitSheetSayPaymentDidNotStart() {
+        #expect(SubscriptionErrorCopy.classify(URLError(.notConnectedToInternet), stage: .preparing) == .paymentNotStarted)
+        #expect(SubscriptionErrorCopy.classify(AdultEligibilityError.unavailable, stage: .preparing) == .paymentNotStarted)
+        #expect(SubscriptionErrorCopy.classify(SubscriptionFlowError.productContractMismatch, stage: .preparing) == .paymentNotStarted)
+    }
+
+    @Test func actionablePreparationErrorsKeepTheirOwnCopy() {
+        #expect(SubscriptionErrorCopy.classify(SubscriptionFlowError.accountRequired, stage: .preparing) == .accountRequired)
+        #expect(SubscriptionErrorCopy.classify(AdultEligibilityError.required, stage: .preparing) == .eligibility(.required))
+        #expect(SubscriptionErrorCopy.classify(SubscriptionFlowError.appAccountTokenChanged, stage: .preparing) == .accountTokenChanged)
+    }
+
+    @Test func storeKitSheetFailuresClaimNoPaymentOnlyWhenCertain() {
+        #expect(SubscriptionErrorCopy.classify(Product.PurchaseError.productUnavailable, stage: .paying) == .paymentNotStarted)
+        #expect(SubscriptionErrorCopy.classify(StoreKitError.notAvailableInStorefront, stage: .paying) == .paymentNotStarted)
+        #expect(SubscriptionErrorCopy.classify(StoreKitError.networkError(URLError(.timedOut)), stage: .paying) == .serverUnavailable)
+    }
+
+    @Test func failuresAfterPaymentStillSuggestRestore() {
+        #expect(SubscriptionErrorCopy.classify(URLError(.timedOut), stage: .registering) == .serverUnavailable)
+        #expect(SubscriptionErrorCopy.classify(SubscriptionServerError.transactionRejected, stage: .registering) == .verificationFailed)
+        #expect(SubscriptionErrorCopy.classify(SubscriptionFlowError.entitlementNotGranted, stage: .registering) == .entitlementNotGranted)
+    }
+
+    @Test func restoreFailuresUseRestoreCopy() {
+        #expect(SubscriptionErrorCopy.classify(URLError(.timedOut), stage: .restoring) == .restoreFailed)
+        #expect(SubscriptionErrorCopy.classify(SubscriptionFlowError.entitlementNotGranted, stage: .restoring) == .restoreFailed)
+        #expect(SubscriptionErrorCopy.classify(SubscriptionFlowError.nothingToRestore, stage: .restoring) == .nothingToRestore)
+        #expect(SubscriptionErrorCopy.classify(SubscriptionServerError.subscriptionOwnedByAnotherAccount, stage: .restoring) == .ownedByAnotherAccount)
+    }
+}
+
+// MARK: - 페이월: 로그인 뒤 다시 열기 (P2 #26)
+@MainActor
+struct PaywallResumeTests {
+    @Test func waitsUntilTheEligibleAccountMainViewIsReady() {
+        let account = UUID()
+        let guestStore = UUID()
+        #expect(PaywallResumePolicy.decide(isPending: true, accountUserID: account, mainViewUserID: guestStore, isEligible: true) == .keepWaiting)
+        #expect(PaywallResumePolicy.decide(isPending: true, accountUserID: account, mainViewUserID: account, isEligible: false) == .keepWaiting)
+        #expect(PaywallResumePolicy.decide(isPending: true, accountUserID: account, mainViewUserID: account, isEligible: true) == .reopen)
+    }
+
+    @Test func aGuestMainViewOrNoIntentDropsIt() {
+        let guestStore = UUID()
+        #expect(PaywallResumePolicy.decide(isPending: true, accountUserID: nil, mainViewUserID: guestStore, isEligible: true) == .discard)
+        #expect(PaywallResumePolicy.decide(isPending: false, accountUserID: UUID(), mainViewUserID: nil, isEligible: true) == .discard)
+    }
+
+    @Test func theIntentReopensThePaywallOnlyOnce() {
+        let account = UUID()
+        PaywallResumeIntent.forget()
+        PaywallResumeIntent.remember()
+        #expect(!PaywallResumeIntent.resolve(accountUserID: account, mainViewUserID: UUID(), isEligible: true))
+        #expect(PaywallResumeIntent.isPending)
+        #expect(PaywallResumeIntent.resolve(accountUserID: account, mainViewUserID: account, isEligible: true))
+        #expect(!PaywallResumeIntent.isPending)
+        #expect(!PaywallResumeIntent.resolve(accountUserID: account, mainViewUserID: account, isEligible: true))
     }
 }

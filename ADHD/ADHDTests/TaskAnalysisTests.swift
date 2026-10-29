@@ -239,6 +239,14 @@ struct AnalysisExecutionBoundaryTests {
         #expect(!LLMFunctionCall.isValidAnalysis([valid, .handleOffTopicChat(.init(message: "hello"))]))
     }
 
+    @Test func clearingTimeIsAllowedOnlyAfterLocalEditing() {
+        let edited = LLMFunctionCall.updateTask(.init(target_task_name: "회의", new_time: ""))
+        #expect(edited.isExecutionPayloadValid)
+        #expect(!LLMFunctionCall.isValidAnalysis([edited]))
+        let cloud = LLMFunctionCall.updateTask(.init(target_task_name: "회의", new_time: "09:00 AM"))
+        #expect(LLMFunctionCall.isValidAnalysis([cloud]))
+    }
+
     @Test func duplicateTargetsRequireSelectionAndSelectedSnapshotCanBecomeStale() throws {
         let container = try ModelContainer(for: AppTask.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
         let manager = TaskManager()
@@ -259,4 +267,29 @@ struct AnalysisExecutionBoundaryTests {
         #expect(result.items.first?.issue == .staleTarget)
         #expect(!first.isCompleted && !second.isCompleted)
     }
+
+    @Test func staleDuplicateSelectionKeepsCandidatesForRetry() throws {
+        let container = try ModelContainer(for: AppTask.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let manager = TaskManager()
+        let context = ModelContext(container)
+        manager.modelContext = context
+        let first = AppTask(task: "회의", category: "Routine")
+        let second = AppTask(task: "회의", category: "Routine")
+        context.insert(first); context.insert(second); try context.save()
+        let call = LLMFunctionCall.markTaskComplete(.init(target_task_name: "회의"))
+        var pending = try #require(manager.preparePendingCalls([PendingLLMCall(call: call)]).first)
+        pending.selectTarget(id: second.id)
+        second.time = "10:00 AM"; try context.save()
+        let stale = manager.executeDetailed(pendingCalls: [pending], explicitlyConfirmed: true)
+        #expect(stale.items.first?.issue == .staleTarget)
+        var retry = try #require(stale.remainingCalls.first)
+        #expect(retry.executionIssue == .ambiguousTarget)
+        #expect(retry.targetCandidates.count == 2)
+        #expect(!first.isCompleted && !second.isCompleted)
+        retry.selectTarget(id: second.id)
+        let result = manager.executeDetailed(pendingCalls: [retry], explicitlyConfirmed: true)
+        #expect(result.allSucceeded)
+        #expect(!first.isCompleted && second.isCompleted)
+    }
+
 }

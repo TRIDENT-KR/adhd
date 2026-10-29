@@ -136,6 +136,10 @@ extension TaskManager {
         var stoppedForStoreFailure = false
 
         for originalPending in pendingCalls {
+            // 되묻기·잡담은 저장할 내용이 없으므로 실행 결과(성공·실패)에 넣지 않습니다.
+            // 화면은 이 응답을 따로 안내하고 초안을 그대로 둡니다.
+            if originalPending.call.isFeedbackOnly { continue }
+
             if stoppedForStoreFailure {
                 results.append(
                     failedItem(originalPending, issue: .notExecutedAfterStoreFailure)
@@ -177,7 +181,10 @@ extension TaskManager {
                     guard isUnchanged else {
                         var refreshed = preparePendingCalls([originalPending]).first
                             ?? originalPending
-                        refreshed.executionIssue = .staleTarget
+                        // 다시 모호해진 대상은 후보 선택 UI를 유지합니다.
+                        if refreshed.executionIssue != .ambiguousTarget {
+                            refreshed.executionIssue = .staleTarget
+                        }
                         refreshed.requiresReconfirmation = true
                         results.append(
                             LLMExecutionItemResult(
@@ -268,19 +275,7 @@ extension TaskManager {
             )
 
         case .clearAllTasks(let params):
-            let isAllTime = params.target_date.lowercased() == "all"
-            let targetDate = date(from: params.target_date)
-            let finalCategory = params.target_category == nil && !isAllTime
-                ? "Appointment"
-                : params.target_category
-            targets = all.filter { task in
-                let dateMatches = isAllTime
-                    || (targetDate.map { task.occursOn($0) } ?? false)
-                let categoryMatches = finalCategory == nil
-                    || finalCategory?.lowercased() == "all"
-                    || task.category == finalCategory
-                return dateMatches && categoryMatches
-            }
+            targets = Self.clearTargets(for: params, in: all)
 
         case .postponeAllTasks(let params):
             guard let fromDate = date(from: params.from_date) else { return [] }
@@ -311,6 +306,115 @@ extension TaskManager {
         return matches
     }
 
+    /// "오늘 일정 다 지워줘"처럼 날짜를 정한 일괄 삭제는 그날 하루짜리 일정만 대상으로 합니다.
+    /// 반복 일정은 기록 하나가 시리즈 전체이고, 날짜 없는 루틴은 매일 반복분 전체라서
+    /// 지우면 그날 밖의 일정까지 사라지므로 제외합니다(일괄 연기와 같은 기준).
+    /// "all"(전체 삭제)은 사용자가 모두 지우겠다고 말한 경우라 반복·루틴도 포함합니다.
+    static func clearTargets(
+        for params: ClearTasksParams,
+        in tasks: [AppTask],
+        calendar: Calendar = .current
+    ) -> [AppTask] {
+        let isAllTime = params.target_date.lowercased() == "all"
+        let targetDate = StoredTaskFormat.date.date(from: params.target_date)
+        let finalCategory = params.target_category == nil && !isAllTime
+            ? "Appointment"
+            : params.target_category
+
+        return tasks.filter { task in
+            let categoryMatches = finalCategory == nil
+                || finalCategory?.lowercased() == "all"
+                || task.category == finalCategory
+            guard categoryMatches else { return false }
+            if isAllTime { return true }
+
+            guard let targetDate,
+                  let taskDate = task.date,
+                  task.recurrenceRule == nil else { return false }
+            return calendar.isDate(taskDate, inSameDayAs: targetDate)
+        }
+    }
+
+    /// 같은 이름 후보 중 사용자가 말한 대상일 가능성이 가장 높은 하나를 고릅니다.
+    /// 정확히 같은 이름 → 부분 일치 순으로 찾고, 같은 단계 안에서는
+    /// 미완료 → 오늘 이후 가장 가까운 일정 → 지난 일정 중 가장 최근 → 이른 시간 → id 순으로 정합니다.
+    static func bestMatch(
+        name: String,
+        in tasks: [AppTask],
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> AppTask? {
+        let query = name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let exact = tasks.filter { $0.task.lowercased() == query }
+        if !exact.isEmpty {
+            return rankedMatches(exact, now: now, calendar: calendar).first
+        }
+        guard query.count >= 2 else { return nil }
+        let partial = tasks.filter { $0.task.lowercased().contains(query) }
+        return rankedMatches(partial, now: now, calendar: calendar).first
+    }
+
+    private struct MatchRank: Comparable {
+        let completed: Int
+        /// 0 = 오늘 이후 발생 있음, 1 = 지난 일정만 있음
+        let timing: Int
+        /// timing 0이면 다음 발생까지 일수, 1이면 마지막 날짜로부터 지난 일수
+        let distanceDays: Int
+        let sortableTime: String
+        let id: String
+
+        static func < (lhs: MatchRank, rhs: MatchRank) -> Bool {
+            (lhs.completed, lhs.timing, lhs.distanceDays, lhs.sortableTime, lhs.id)
+                < (rhs.completed, rhs.timing, rhs.distanceDays, rhs.sortableTime, rhs.id)
+        }
+    }
+
+    private static func rankedMatches(
+        _ tasks: [AppTask],
+        now: Date,
+        calendar: Calendar
+    ) -> [AppTask] {
+        let today = calendar.startOfDay(for: now)
+        return tasks
+            .map { task -> (AppTask, MatchRank) in
+                let upcoming = daysUntilNextOccurrence(of: task, from: today, calendar: calendar)
+                let pastDays = task.date.map {
+                    calendar.dateComponents([.day], from: calendar.startOfDay(for: $0), to: today).day ?? Int.max
+                } ?? Int.max
+                return (task, MatchRank(
+                    completed: task.isCompleted ? 1 : 0,
+                    timing: upcoming == nil ? 1 : 0,
+                    distanceDays: upcoming ?? pastDays,
+                    sortableTime: task.sortableTime,
+                    id: task.id.uuidString
+                ))
+            }
+            .sorted { $0.1 < $1.1 }
+            .map(\.0)
+    }
+
+    /// 오늘부터 다음 발생일까지의 일수입니다. 오늘 이후 발생이 없으면 nil입니다.
+    private static func daysUntilNextOccurrence(
+        of task: AppTask,
+        from today: Date,
+        calendar: Calendar
+    ) -> Int? {
+        guard let date = task.date else {
+            // 날짜 없는 루틴은 매일 반복이므로 오늘 발생합니다.
+            return task.category == "Appointment" ? nil : 0
+        }
+        guard task.category == "Appointment", task.recurrenceRule != nil else {
+            let days = calendar.dateComponents([.day], from: today, to: calendar.startOfDay(for: date)).day ?? -1
+            return days >= 0 ? days : nil
+        }
+        // 반복 규칙은 모두 1년 안에 다음 발생일이 있으므로 윤년 여유를 두고 찾습니다.
+        for offset in 0...370 {
+            guard let day = calendar.date(byAdding: .day, value: offset, to: today) else { continue }
+            if task.occursOn(day, calendar: calendar) { return offset }
+        }
+        return nil
+    }
+
     private func matchingTasks(
         name: String,
         category: String?,
@@ -318,7 +422,7 @@ extension TaskManager {
         in tasks: [AppTask]
     ) -> [AppTask] {
         let query = name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard query.count >= 2 else { return [] }
+        guard !query.isEmpty else { return [] }
         let parsedDate = date(from: dateString)
 
         let filtered = tasks.filter { item in
@@ -337,9 +441,10 @@ extension TaskManager {
         }
 
         let exact = filtered.filter { $0.task.lowercased() == query }
-        return exact.isEmpty
-            ? filtered.filter { $0.task.lowercased().contains(query) }
-            : exact
+        if !exact.isEmpty { return exact }
+        // 한 글자 이름은 부분 일치를 쓰지 않습니다('약'이 '예약'·'약속'까지 지우지 않게).
+        guard query.count >= 2 else { return [] }
+        return filtered.filter { $0.task.lowercased().contains(query) }
     }
 
     // MARK: - Per-item Persistence
@@ -377,6 +482,8 @@ extension TaskManager {
                 recurrenceRule: params.recurrence,
                 urgency: pending.urgency
             )
+            task.normalizeSchedule()
+            placeNewTask(task, in: context)
             context.insert(task)
             return AppliedLLMCall(
                 affectedCount: 1,
@@ -392,13 +499,16 @@ extension TaskManager {
             }
             let previous = AppTaskSnapshot(task)
             if let value = params.new_task_name { task.task = value }
-            if let value = params.new_time { task.time = value }
+            // 빈 문자열은 확인 카드에서 "시간 없음"으로 바꾼 경우입니다.
+            if let value = params.new_time { task.time = normalizedTime(value) }
             if let value = params.new_category { task.category = value }
             if let value = params.new_date, let parsed = date(from: value) {
                 task.date = parsed
             }
             if let value = params.new_recurrence { task.recurrenceRule = value }
             if task.category == "Routine" { task.date = nil }
+            // 루틴→일정으로 바꾸면 날짜가 없어 어디에도 안 보이면서 매일 울리던 문제를 막습니다.
+            task.normalizeSchedule()
             let changed = !previous.matches(task)
             return AppliedLLMCall(
                 affectedCount: changed ? 1 : 0,
@@ -457,17 +567,9 @@ extension TaskManager {
                     : [.completed(AppTaskSnapshot(task))]
             )
 
-        case .requestClarification(let params):
-            requestClarification(params: params)
-            return AppliedLLMCall(
-                affectedCount: 0,
-                needsSave: false,
-                undoAction: nil,
-                notificationEffects: []
-            )
-
-        case .handleOffTopicChat(let params):
-            handleOffTopicChat(params: params)
+        case .requestClarification, .handleOffTopicChat:
+            // executeDetailed에서 먼저 걸러지므로 여기까지 오지 않습니다.
+            // 되돌리기 스낵바 등 다른 화면 상태를 건드리지 않도록 아무것도 하지 않습니다.
             return AppliedLLMCall(
                 affectedCount: 0,
                 needsSave: false,
@@ -512,35 +614,6 @@ extension TaskManager {
             case .completed(let snapshot):
                 clearNotificationsAfterCompletion(of: snapshot.makeTask())
             }
-        }
-    }
-
-    // MARK: - Feedback-only Calls
-
-    private func requestClarification(params: ClarificationParams) {
-        undoSnackbarMessage = "🤔 \(params.reason)"
-        withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-            showUndoSnackbar = true
-        }
-
-        undoDismissWorkItem?.cancel()
-        let workItem = DispatchWorkItem { [weak self] in
-            guard let self else { return }
-            withAnimation(.easeOut(duration: 0.3)) {
-                self.showUndoSnackbar = false
-            }
-        }
-        undoDismissWorkItem = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + 5, execute: workItem)
-    }
-
-    private func handleOffTopicChat(params: OffTopicChatParams) {
-        DispatchQueue.main.async {
-            NotificationCenter.default.post(
-                name: .didReceiveOffTopicChat,
-                object: nil,
-                userInfo: ["message": params.message]
-            )
         }
     }
 

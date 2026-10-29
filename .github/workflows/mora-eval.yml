@@ -1,0 +1,29 @@
+name: MORA Eval offline checks
+on:
+  pull_request:
+    paths:
+      - 'tools/mora-eval/**'
+      - 'supabase/functions/analyze-task/**'
+      - '.github/workflows/mora-eval.yml'
+  push:
+    branches: [main, codex/mora-ai-eval]
+    paths:
+      - 'tools/mora-eval/**'
+      - 'supabase/functions/analyze-task/**'
+      - '.github/workflows/mora-eval.yml'
+permissions:
+  contents: read
+jobs:
+  offline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.9.6
+      - run: deno fmt --check tools/mora-eval supabase/functions/analyze-task/prompt.ts
+      - run: deno lint tools/mora-eval
+      - run: deno task --cwd tools/mora-eval check
+      - run: deno task --cwd tools/mora-eval validate
+      - run: deno task --cwd tools/mora-eval test
+      - run: deno test --no-remote supabase/functions/analyze-task/validator_test.ts supabase/functions/analyze-task/analysis-service_test.ts

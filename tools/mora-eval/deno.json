@@ -1,0 +1,13 @@
+{
+  "lock": false,
+  "tasks": {
+    "validate": "deno run --no-remote --allow-read cli.ts validate",
+    "prepare": "deno run --no-remote --allow-read --allow-write cli.ts prepare",
+    "fixture": "deno run --no-remote --allow-read --allow-write cli.ts fixture",
+    "score": "deno run --no-remote --allow-read --allow-write cli.ts score",
+    "compare": "deno run --no-remote --allow-read --allow-write cli.ts compare",
+    "live": "deno run --no-remote --allow-read --allow-write --allow-env=GEMINI_API_KEY --allow-net=generativelanguage.googleapis.com cli.ts live",
+    "test": "deno test --no-remote --allow-read --allow-write=./runs .",
+    "check": "deno check --no-remote cli.ts core_test.ts cli_test.ts provider_test.ts verify-prompt_test.ts"
+  }
+}

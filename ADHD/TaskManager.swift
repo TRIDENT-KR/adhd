@@ -21,6 +21,7 @@ struct AppTaskSnapshot {
     let urgency: Urgency
     let sortOrder: Int
     let weeklyCompletions: [Bool]
+    let skippedDayKeys: [String]
 
     init(_ task: AppTask) {
         id = task.id
@@ -33,6 +34,7 @@ struct AppTaskSnapshot {
         urgency = task.urgency
         sortOrder = task.sortOrder
         weeklyCompletions = task.weeklyCompletions
+        skippedDayKeys = task.skippedDayKeys
     }
 
     func matches(_ candidate: AppTask) -> Bool {
@@ -46,6 +48,7 @@ struct AppTaskSnapshot {
             && candidate.urgency == urgency
             && candidate.sortOrder == sortOrder
             && candidate.weeklyCompletions == weeklyCompletions
+            && candidate.skippedDayKeys == skippedDayKeys
     }
 
     func makeTask() -> AppTask {
@@ -61,6 +64,7 @@ struct AppTaskSnapshot {
             urgency: urgency
         )
         restored.weeklyCompletions = weeklyCompletions
+        restored.skippedDayKeys = skippedDayKeys
         return restored
     }
 
@@ -74,6 +78,7 @@ struct AppTaskSnapshot {
         target.urgency = urgency
         target.sortOrder = sortOrder
         target.weeklyCompletions = weeklyCompletions
+        target.skippedDayKeys = skippedDayKeys
     }
 }
 
@@ -117,7 +122,13 @@ class TaskManager: ObservableObject {
         // 메인 화면을 즉시 표시한 뒤 무거운 초기화를 실행 (첫 실행 렉 방지)
         isReady = true
         Task { @MainActor in
+            // 콜드 런치에는 scenePhase 변화가 오지 않으므로, 앱이 꺼진 동안
+            // 알림·알람·위젯에서 누른 완료를 여기서 날짜 초기화 앞뒤로 반영합니다.
+            processPendingAlarmCompletions()
+            syncWidgetToggles()
             checkAndResetDailyTasks()
+            syncWidgetToggles()
+            writeWidgetSnapshot()
         }
     }
 
@@ -130,10 +141,9 @@ class TaskManager: ObservableObject {
         return cal
     }
 
-    /// ISO 8601 weekday 컴포넌트 → 0=월, 1=화, … 6=일
+    /// 0=월, 1=화, … 6=일
     private func isoWeekdayIndex(of date: Date) -> Int {
-        // Foundation weekday is 1=Sunday, even on an ISO calendar.
-        (isoCalendar.component(.weekday, from: date) + 5) % 7
+        WeekdayIndex.mondayBased(date, calendar: isoCalendar)
     }
 
     /// 두 날짜가 서로 다른 ISO 주(週)에 속하는지 확인
@@ -150,9 +160,26 @@ class TaskManager: ObservableObject {
     /// - 매일: 리셋 전 어제 완료 여부를 weeklyCompletions에 기록
     /// - 주 경계(일→월): weeklyCompletions 전체 초기화
     /// now/defaults 파라미터는 단위 테스트 주입용 (기존 무인자 호출은 그대로 유효)
+    /// 저장소가 계정마다 따로이므로 기준일도 계정별로 둡니다. 게스트는 기존 전역 키를 씁니다.
+    /// 계정 키가 아직 없으면(업데이트 직후) 기존 전역 값을 한 번 이어받습니다.
+    private let lastResetKey = "lastResetDate"
+
+    private func lastResetRecord(defaults: UserDefaults) -> (key: String, date: Date?) {
+        let resetKey = AccountPreferences.scopedKey(AccountPreferences.lastResetDateBase, defaults: defaults)
+            ?? lastResetKey
+        let date = (defaults.object(forKey: resetKey) ?? defaults.object(forKey: lastResetKey)) as? Date
+        return (resetKey, date)
+    }
+
+    /// 오늘 일일 초기화가 아직이면(저장된 완료 상태가 이전 날짜 기준이면) true입니다.
+    func isDailyResetPending(now: Date = Date(), defaults: UserDefaults = .standard) -> Bool {
+        guard let lastReset = lastResetRecord(defaults: defaults).date else { return true }
+        return !Calendar.current.isDate(lastReset, inSameDayAs: now)
+    }
+
     func checkAndResetDailyTasks(now: Date = Date(), defaults: UserDefaults = .standard) {
         guard let context = modelContext else { return }
-        let lastReset = AccountPreferences.date(.lastDailyResetDate, defaults: defaults)
+        let (resetKey, lastReset) = lastResetRecord(defaults: defaults)
 
         guard lastReset == nil || !Calendar.current.isDate(lastReset!, inSameDayAs: now) else { return }
 
@@ -180,11 +207,12 @@ class TaskManager: ObservableObject {
             }
 
             // 3) isCompleted 리셋
-            var resetCount = 0
+            var resetTasks: [AppTask] = []
             for task in routineTasks where task.isCompleted {
                 task.isCompleted = false
-                resetCount += 1
+                resetTasks.append(task)
             }
+            let resetCount = resetTasks.count
 
             guard safeSave() else {
                 // Preserve yesterday's completion for the next retry without
@@ -195,7 +223,12 @@ class TaskManager: ObservableObject {
                 }
                 return
             }
-            AccountPreferences.set(now, for: .lastDailyResetDate, defaults: defaults)
+            defaults.set(now, forKey: resetKey)
+
+            // 4) 어제 완료하면서 '오늘만 건너뛰기'로 바꿔 둔 알림을 원래 반복 예약으로 되돌림
+            for task in resetTasks {
+                NotificationManager.shared.scheduleNotification(for: task)
+            }
             print("✅ \(resetCount)개의 태스크 초기화 완료.")
         } catch {
             print("daily_reset_failed")
@@ -226,17 +259,14 @@ class TaskManager: ObservableObject {
     }
 
     /// 완료 시 알림 정리:
-    /// 반복 태스크(루틴/반복 일정)는 본체 스케줄을 살려두고 파생(팔로업/스누즈)만 제거 —
-    /// 기존처럼 전부 취소하면 다음 회차 알림이 영구히 죽는 버그가 있었음.
+    /// 반복 태스크(루틴/반복 일정)는 파생(팔로업/스누즈)을 지우고, 오늘 아직 울리지 않은 회차만 뺀
+    /// 예약으로 바꿉니다(다음 회차는 유지). 다음 날 일일 초기화가 원래 반복 예약으로 되돌립니다.
     /// 일회성은 본체+파생+AlarmKit 전부 취소.
     func clearNotificationsAfterCompletion(of task: AppTask) {
         let isRepeating = task.isRecurring || task.date == nil
         if isRepeating {
             NotificationManager.shared.cancelFollowUps(taskIdString: task.id.uuidString)
-            // 격주·월간·연간은 one-shot이므로 완료 처리 시 다음 기준일 회차를 즉시 재무장합니다.
-            if RecurrenceEngine.requiresOneShotNotification(task.recurrenceRule) {
-                NotificationManager.shared.scheduleNotification(for: task)
-            }
+            NotificationManager.shared.scheduleNotification(for: task)
         } else {
             NotificationManager.shared.cancelNotification(for: task)
         }
@@ -244,6 +274,13 @@ class TaskManager: ObservableObject {
 
     /// 알림 액션/AlarmKit Stop이 App Group 큐에 적재한 완료 요청을 일괄 처리합니다.
     /// (scenePhase active 및 .alarmTaskCompleted 수신 시 호출)
+    /// 포그라운드에 도착한 알림이 이미 완료한 태스크의 것인지 확인합니다.
+    func isTaskCompleted(id: UUID) -> Bool {
+        guard let context = modelContext else { return false }
+        let descriptor = FetchDescriptor<AppTask>(predicate: #Predicate { $0.id == id })
+        return (try? context.fetch(descriptor).first?.isCompleted) ?? false
+    }
+
     func processPendingAlarmCompletions() {
         let queue = AlarmCompletionRelay.drain()
         guard !queue.isEmpty else { return }
@@ -262,7 +299,7 @@ class TaskManager: ObservableObject {
         guard let context = modelContext else { return }
         do {
             let all = try context.fetch(FetchDescriptor<AppTask>())
-            for task in all where task.urgency == .strong && !task.isCompleted {
+            for task in all where task.urgency == .strong && (!task.isCompleted || task.hasRepeatingSchedule) {
                 NotificationManager.shared.scheduleNotification(for: task)
             }
         } catch {
@@ -270,17 +307,61 @@ class TaskManager: ObservableObject {
         }
     }
 
-    /// one-shot 반복 알림은 강도와 무관하게 포그라운드마다 다음 회차를 보장합니다.
-    func rescheduleAllOneShotRecurringTasks() {
+    /// 한 회차씩 거는 반복(격주·매월·매년), 건너뛴 회차가 남은 반복, 시작 전인 매주 반복은
+    /// 강도와 무관하게 포그라운드마다 다음 회차를 다시 계산합니다.
+    func rescheduleTasksNeedingRearm() {
         guard let context = modelContext else { return }
         do {
             let all = try context.fetch(FetchDescriptor<AppTask>())
-            for task in all where RecurrenceEngine.requiresOneShotNotification(task.recurrenceRule) {
+            // 오래된 건너뛰기 기록은 지워, 다 지나간 기록 때문에 매번 다시 계산하지 않게 합니다.
+            var pruned = false
+            if let cutoff = Calendar.current.date(byAdding: .day, value: -60, to: Date()) {
+                let cutoffKey = AppTask.dayKey(cutoff)
+                for task in all where task.skippedDayKeys.contains(where: { $0 < cutoffKey }) {
+                    task.pruneSkippedDayKeys(before: cutoff)
+                    pruned = true
+                }
+            }
+            if pruned { safeSave() }
+            for task in all where NotificationManager.needsForegroundRearm(task) {
                 NotificationManager.shared.scheduleNotification(for: task)
             }
         } catch {
             print("recurring_notification_reschedule_failed")
         }
+    }
+
+    /// iOS는 대기 알림을 가장 가까운 64건만 남기고 나머지는 조용히 버립니다.
+    /// 포그라운드마다 예약이 사라진 할 일을 다시 걸어, 앞선 알림이 울려 자리가 나면 먼 일정도 채워지게 합니다.
+    func refillDroppedNotifications() {
+        Task { @MainActor in
+            let scheduledIds = await NotificationManager.shared.pendingTaskIds()
+            guard let context = modelContext,
+                  let tasks = try? context.fetch(FetchDescriptor<AppTask>()) else { return }
+            // AlarmKit으로 울리는 strong 태스크는 UN 대기 목록에 없으므로 제외합니다(별도 재무장).
+            let alarmKitManaged = WidgetDataStore.isPremium && SystemAlarmScheduler.shared.isAuthorized
+            var refilled = 0
+            for task in tasks where !scheduledIds.contains(task.id) {
+                guard task.time?.isEmpty == false,
+                      !task.isCompleted || task.hasRepeatingSchedule,
+                      !(alarmKitManaged && task.urgency == .strong) else { continue }
+                NotificationManager.shared.scheduleNotification(for: task)
+                refilled += 1
+            }
+            if refilled > 0 { print("notification_refill count=\(refilled)") }
+        }
+    }
+
+    /// 앱 언어를 바꾸면 이미 예약된 알림 문구와 버튼 이름, 위젯 문구를 새 언어로 다시 만듭니다.
+    func refreshForLanguageChange() {
+        NotificationManager.shared.refreshCategoriesForLanguageChange()
+        if let context = modelContext,
+           let tasks = try? context.fetch(FetchDescriptor<AppTask>()) {
+            for task in tasks where !task.isCompleted || task.hasRepeatingSchedule {
+                NotificationManager.shared.scheduleNotification(for: task)
+            }
+        }
+        writeWidgetSnapshot()
     }
 
     /// 현재 계정의 알림 설정이 바뀌면 기존 예약을 모두 폐기하고 저장소를 원천으로 재구성합니다.
@@ -294,7 +375,8 @@ class TaskManager: ObservableObject {
             let tasks = try context.fetch(FetchDescriptor<AppTask>())
             for task in tasks {
                 NotificationManager.shared.cancelNotification(for: task)
-                if !task.isCompleted {
+                // 반복 태스크는 오늘 완료했어도 다음 회차 알림을 다시 겁니다(오늘 남은 회차는 예약 단계에서 뺌).
+                if !task.isCompleted || task.hasRepeatingSchedule {
                     NotificationManager.shared.scheduleNotification(for: task)
                 }
             }
@@ -319,7 +401,7 @@ class TaskManager: ObservableObject {
 
     /// Pro + AlarmKit 허용 상태에서만 재무장 (매 포그라운드 호출용 가드)
     func rescheduleStrongTasksIfNeeded() {
-        rescheduleAllOneShotRecurringTasks()
+        rescheduleTasksNeedingRearm()
         guard WidgetDataStore.isPremium,
               SystemAlarmScheduler.shared.isAuthorized else { return }
         rescheduleAllStrongTasks()
@@ -348,14 +430,30 @@ class TaskManager: ObservableObject {
         NotificationManager.shared.scheduleNotification(for: task)
     }
 
+    // MARK: - Skip One Occurrence
+    /// 반복 일정·루틴의 한 회차만 건너뜁니다. 시리즈와 다른 날 알림은 그대로 두고, 되돌릴 수 있습니다.
+    func skipOccurrence(of task: AppTask, on date: Date) {
+        guard task.hasRepeatingSchedule, !task.isSkipped(on: date) else { return }
+        let previous = AppTaskSnapshot(task)
+        task.skippedDayKeys.append(AppTask.dayKey(date))
+        if let monthAgo = Calendar.current.date(byAdding: .day, value: -60, to: Date()) {
+            task.pruneSkippedDayKeys(before: monthAgo)
+        }
+        safeSave()
+        NotificationManager.shared.scheduleNotification(for: task)
+        writeWidgetSnapshot()
+        setUndoAction(.updated(previous: previous), message: L.voice.undoSkippedOccurrence(task.task))
+    }
+
     // MARK: - Delete (by reference)
     func delete(task: AppTask) {
-        guard let context = modelContext else { return }
+        // 삭제 버튼을 빠르게 두 번 눌러도 이미 지운 항목을 다시 지우거나 되돌리기를 두 번 쌓지 않습니다.
+        guard let context = modelContext, task.modelContext != nil, !task.isDeleted else { return }
         let snapshot = AppTaskSnapshot(task)
         NotificationManager.shared.cancelNotification(for: task)
         context.delete(task)
         safeSave()
-        setUndoAction(.deleted([snapshot]), message: L.voice.undoDeletedSingle(task.task))
+        setUndoAction(.deleted([snapshot]), message: L.voice.undoDeletedSingle(snapshot.task))
     }
 
     // MARK: - Undo (스택 기반)
@@ -422,16 +520,29 @@ class TaskManager: ObservableObject {
     }
 
     // MARK: - Bulk Delete (Settings)
+    /// '완료한 일정 지우기' 대상: 끝난 일회성 일정만. 루틴과 반복 일정은 오늘 회차만 완료된 것이라 빼야
+    /// 시리즈 전체(미래 회차 포함)가 지워지지 않습니다.
+    private func isClearableCompleted(_ task: AppTask) -> Bool {
+        task.isCompleted && task.category != "Routine" && !task.hasRepeatingSchedule
+    }
+
+    func completedClearableCount() -> Int {
+        guard let context = modelContext else { return 0 }
+        return ((try? context.fetch(FetchDescriptor<AppTask>())) ?? []).filter(isClearableCompleted).count
+    }
+
     func deleteCompleted() {
         guard let context = modelContext else { return }
         do {
-            let all = try context.fetch(FetchDescriptor<AppTask>())
-            for task in all where task.isCompleted && task.category != "Routine" {
-                // 반복 일정은 완료 시 본체 알림을 살려두므로 삭제 시 반드시 취소해야 함
+            let targets = try context.fetch(FetchDescriptor<AppTask>()).filter(isClearableCompleted)
+            guard !targets.isEmpty else { return }
+            let snapshots = targets.map(AppTaskSnapshot.init)
+            for task in targets {
                 NotificationManager.shared.cancelNotification(for: task)
                 context.delete(task)
             }
             safeSave()
+            setUndoAction(.deleted(snapshots), message: L.voice.undoDeleted(snapshots.count))
         } catch {
             print("completed_task_delete_failed")
         }
@@ -475,7 +586,9 @@ class TaskManager: ObservableObject {
             }
         }
         undoDismissWorkItem = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + 5, execute: workItem)
+        // VoiceOver로 '되돌리기'까지 찾아가려면 5초로는 부족합니다.
+        let visibleSeconds: Double = UIAccessibility.isVoiceOverRunning ? 15 : 5
+        DispatchQueue.main.asyncAfter(deadline: .now() + visibleSeconds, execute: workItem)
     }
 
     /// 이름 기반 AppTask 삭제 (배치, save 호출 안함)
@@ -540,6 +653,7 @@ class TaskManager: ObservableObject {
             print("⚠️ TaskManager: ModelContext가 주입되지 않았습니다.")
             return
         }
+        placeNewTask(task, in: context)
         context.insert(task)
         print("task_inserted category=\(task.category)")
     }
@@ -574,6 +688,7 @@ class TaskManager: ObservableObject {
             print("task_store_context_missing")
             return false
         }
+        placeNewTask(task, in: context)
         context.insert(task)
         guard safeSave() else {
             // 저장되지 않은 insert를 남겨두면 이후 다른 저장에 알림 없이 섞여 들어갑니다.
@@ -581,6 +696,30 @@ class TaskManager: ObservableObject {
             return false
         }
         return true
+    }
+
+    // MARK: - New Task Placement
+    /// 새 항목을 같은 날 같은 목록의 시간 순서에 맞는 자리에 놓습니다.
+    /// 순서를 한 번 바꾼 목록에서 정렬값 0이 시간과 상관없이 맨 위로 가는 것을 막습니다.
+    func placeNewTask(_ task: AppTask, in context: ModelContext) {
+        guard task.sortOrder == 0,
+              let all = try? context.fetch(FetchDescriptor<AppTask>()) else { return }
+        let day = task.date ?? Date()
+        let peers = all.filter { $0.id != task.id && $0.category == task.category && $0.occursOn(day) }
+        task.sortOrder = Self.placementSortOrder(forSortableTime: task.sortableTime, among: peers)
+    }
+
+    /// 화면 정렬(정렬값 → 시간)에서 시간이 더 늦은 첫 항목 바로 앞에 오는 정렬값입니다.
+    /// 아무도 순서를 바꾸지 않았으면 0을 그대로 두어 시간순을 따릅니다.
+    static func placementSortOrder(forSortableTime time: String, among peers: [AppTask]) -> Int {
+        guard peers.contains(where: { $0.sortOrder != 0 }) else { return 0 }
+        let ordered = peers.sorted { a, b in
+            if a.sortOrder != b.sortOrder { return a.sortOrder < b.sortOrder }
+            return a.sortableTime < b.sortableTime
+        }
+        // 같은 정렬값끼리는 시간순이므로, 늦은 항목과 같은 값을 쓰면 그 바로 앞에 놓입니다.
+        if let later = ordered.first(where: { $0.sortableTime > time }) { return later.sortOrder }
+        return (ordered.last?.sortOrder ?? 0) + 10
     }
 
     func taskCount(completedOnly: Bool? = nil) -> Int {
@@ -597,7 +736,11 @@ class TaskManager: ObservableObject {
 
     // MARK: - Widget Toggle Sync
     /// 위젯에서 토글된 태스크를 SwiftData에 반영합니다.
-    func syncWidgetToggles() {
+    /// 일일 초기화 앞뒤로 한 번씩 호출합니다. 큐 항목은 "scope:id:바뀐상태(1|0):누른시각(초)"이며,
+    /// 예전 위젯이 남긴 "scope:id"는 뒤집기로 처리합니다.
+    /// - 반복 태스크: 어제 누른 체크는 초기화 전에만(어제 칸에 기록되도록), 오늘 누른 체크는 초기화 뒤에만 반영합니다.
+    /// - 반영할 때 알림도 앱 안 완료/해제와 같은 경로로 정리·재예약합니다.
+    func syncWidgetToggles(now: Date = Date()) {
         guard let context = modelContext,
               let defaults = UserDefaults(suiteName: "group.trident-KR.ADHD") else { return }
 
@@ -608,23 +751,49 @@ class TaskManager: ObservableObject {
         // 처리 완료 표시 (중복 방지)
         defaults.removeObject(forKey: "pendingWidgetToggles")
 
+        let resetPending = isDailyResetPending(now: now)
+        let startOfToday = Calendar.current.startOfDay(for: now)
+        var deferred: [String] = []
+
         do {
             let descriptor = FetchDescriptor<AppTask>()
             let allTasks = try context.fetch(descriptor)
 
             for scopedToggle in pendingToggles {
-                let parts = scopedToggle.split(separator: ":", maxSplits: 1).map(String.init)
-                guard parts.count == 2, parts[0] == activeScope else { continue }
-                let idString = parts[1]
-                guard let uuid = UUID(uuidString: idString),
+                let parts = scopedToggle.split(separator: ":").map(String.init)
+                guard parts.count >= 2, parts[0] == activeScope,
+                      let uuid = UUID(uuidString: parts[1]),
                       let task = allTasks.first(where: { $0.id == uuid }) else { continue }
-                task.isCompleted.toggle()
+
+                let pressedAt = parts.count >= 4 ? Double(parts[3]).map(Date.init(timeIntervalSince1970:)) : nil
+                let pressedBeforeToday = pressedAt.map { $0 < startOfToday } ?? false
+                if task.isRecurring || task.date == nil {
+                    if pressedBeforeToday && !resetPending { continue }        // 이미 오늘로 넘어감: 어제 체크는 버림
+                    if !pressedBeforeToday && resetPending {                   // 초기화 뒤에 오늘 상태로 반영
+                        deferred.append(scopedToggle)
+                        continue
+                    }
+                }
+
+                let target = parts.count >= 3 ? parts[2] == "1" : !task.isCompleted
+                guard task.isCompleted != target else { continue }
+                task.isCompleted = target
+                if target {
+                    clearNotificationsAfterCompletion(of: task)
+                } else {
+                    NotificationManager.shared.scheduleNotification(for: task)
+                }
             }
 
             try context.save()
-            print("✅ 위젯 토글 \(pendingToggles.count)개 동기화 완료")
+            print("✅ 위젯 토글 \(pendingToggles.count - deferred.count)개 동기화 완료")
         } catch {
             print("widget_toggle_sync_failed")
+        }
+
+        if !deferred.isEmpty {
+            let arrivedMeanwhile = defaults.stringArray(forKey: "pendingWidgetToggles") ?? []
+            defaults.set(deferred + arrivedMeanwhile, forKey: "pendingWidgetToggles")
         }
     }
 
@@ -648,16 +817,51 @@ class TaskManager: ObservableObject {
                 .sorted { $0.sortableTime < $1.sortableTime }
                 .map { $0.toWidgetSnapshot() }
 
+            let calendar = Calendar.current
+            let startOfToday = calendar.startOfDay(for: today)
             let payload = WidgetDataPayload(
                 accountScope: accountScope,
                 routines: routines,
                 appointments: appointments,
-                updatedAt: today
+                updatedAt: today,
+                upcomingDays: (1...Self.widgetUpcomingDayCount)
+                    .compactMap { calendar.date(byAdding: .day, value: $0, to: startOfToday) }
+                    .map { Self.widgetDayTasks(from: allTasks, on: $0) }
             )
             WidgetDataStore.write(payload)
             WidgetCenter.shared.reloadAllTimelines()
         } catch {
             print("widget_snapshot_failed")
         }
+    }
+
+    /// 위젯에 미리 담는 날 수. 며칠씩 앱을 열지 않아도 위젯이 그날 목록을 보여 줍니다.
+    static let widgetUpcomingDayCount = 7
+
+    /// 앱을 열지 않은 채 자정이 지나도 위젯이 그날 목록을 보여 주도록 미리 담는 하루치 목록입니다.
+    /// 그날 아침 초기화되는 할 일(루틴·반복 일정 — checkAndResetDailyTasks와 같은 기준)은 미완료로,
+    /// 일회성 일정은 지금 완료 상태 그대로 담습니다.
+    static func widgetDayTasks(from tasks: [AppTask], on day: Date, calendar: Calendar = .current) -> WidgetDayTasks {
+        func snapshots(_ category: String) -> [WidgetTaskSnapshot] {
+            tasks
+                .filter { $0.category == category && $0.occursOn(day, calendar: calendar) }
+                .sorted { $0.sortableTime < $1.sortableTime }
+                .map { task in
+                    let resetsDaily = task.category == "Routine" || task.isRecurring
+                    return WidgetTaskSnapshot(
+                        id: task.id,
+                        task: task.task,
+                        time: task.time,
+                        category: task.category,
+                        isCompleted: resetsDaily ? false : task.isCompleted,
+                        recurrenceLabel: task.recurrenceLabel
+                    )
+                }
+        }
+        return WidgetDayTasks(
+            day: calendar.startOfDay(for: day),
+            routines: snapshots("Routine"),
+            appointments: snapshots("Appointment")
+        )
     }
 }

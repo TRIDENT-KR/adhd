@@ -77,6 +77,9 @@ final class AlarmCoordinator: NSObject, ObservableObject, UNUserNotificationCent
     /// 알람 확인 시 호출될 클로저 (Task를 완료 상태로 변경하는 등의 용도)
     var onTaskConfirmed: ((UUID) -> Void)?
 
+    /// 앱 사용 중 도착한 알림이 이미 완료한 태스크의 것인지 확인하는 클로저 (저장소가 열린 뒤 설정됨)
+    var isTaskCompleted: ((UUID) -> Bool)?
+
     /// D14: 풀스크린 오버레이는 Pro 전용
     private var isPremium: Bool {
         UserDefaults(suiteName: appGroupID)?.bool(forKey: SubscriptionManager.premiumFlagKey) ?? false
@@ -95,6 +98,15 @@ final class AlarmCoordinator: NSObject, ObservableObject, UNUserNotificationCent
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
         let userInfo = notification.request.content.userInfo
+
+        // 이미 완료한 할 일이면 앱 사용 중에는 울리지 않습니다 (위젯·다른 경로로 먼저 완료한 경우의 안전망).
+        // 저장소 조회는 메인 스레드에서만 합니다.
+        if Thread.isMainThread,
+           let taskId = (userInfo["taskId"] as? String).flatMap(UUID.init),
+           isTaskCompleted?(taskId) == true {
+            completionHandler([])
+            return
+        }
 
         if urgency(from: userInfo) == .strong && isPremium {
             // 강한 알림(Pro): 오버레이 표시 + 시스템 배너 없음
@@ -155,6 +167,7 @@ final class AlarmCoordinator: NSObject, ObservableObject, UNUserNotificationCent
     }
 
     // MARK: - Dismiss
+    /// '다 했어요': 할 일을 완료로 표시하고 다음 대기 알람으로 넘어갑니다.
     func dismiss() {
         guard let alarm = activeAlarm else { return }
         let alarmId = alarm.id
@@ -162,12 +175,25 @@ final class AlarmCoordinator: NSObject, ObservableObject, UNUserNotificationCent
             // onTaskConfirmed와 activeAlarm 변경을 같은 async 블록에서 처리해
             // 사이에 다른 alarm set이 끼어드는 race를 방지
             self.onTaskConfirmed?(alarmId)
-            withAnimation(.easeInOut(duration: 0.4)) {
-                if self.pendingAlarms.isEmpty {
-                    self.activeAlarm = nil
-                } else {
-                    self.activeAlarm = self.pendingAlarms.removeFirst()
-                }
+            self.showNextAlarm()
+        }
+    }
+
+    /// '5분 뒤 다시': 완료하지 않고 알람을 닫은 뒤 5분 뒤에 다시 알려줍니다.
+    func snooze() {
+        guard let alarm = activeAlarm else { return }
+        NotificationManager.shared.scheduleSnooze(taskID: alarm.id, taskName: alarm.taskName)
+        DispatchQueue.main.async {
+            self.showNextAlarm()
+        }
+    }
+
+    private func showNextAlarm() {
+        withAnimation(.easeInOut(duration: 0.4)) {
+            if pendingAlarms.isEmpty {
+                activeAlarm = nil
+            } else {
+                activeAlarm = pendingAlarms.removeFirst()
             }
         }
     }

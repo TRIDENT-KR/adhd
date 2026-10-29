@@ -62,8 +62,6 @@ def main():
     probe_token = secrets.token_urlsafe(48)
     probe_hash = hashlib.sha256(probe_token.encode()).hexdigest()
     source = ROOT / "supabase/functions/analyze-task"
-    index = (source / "index.ts").read_text()
-    prompt = re.search(r"const finalPrompt\s*=\s*(`.*?`);", index, re.S).group(1)
     report = {"project_ref": args.project_ref, "probe": name,
               "production_settings_changed": False, "cases": []}
     deploy_attempted = False
@@ -73,12 +71,13 @@ def main():
             work = Path(tmp)
             target = work / "supabase/functions" / name
             target.mkdir(parents=True)
-            for filename in ["model-router.ts", "model-config.ts", "analysis-service.ts", "validator.ts", "deno.json"]:
+            for filename in ["model-router.ts", "model-config.ts", "analysis-service.ts", "validator.ts", "prompt.ts", "deno.json"]:
                 shutil.copy2(source / filename, target / filename)
             (work / "supabase/config.toml").write_text(
                 f'project_id = "mora-live-verification"\n[functions.{name}]\n'
                 f'verify_jwt = false\nimport_map = "./functions/{name}/deno.json"\n')
             probe = '''import { createModelRouter, readBoundedJSON, type ModelAttempt } from "./model-router.ts";
+import { buildAnalysisPrompt } from "./prompt.ts";
 Deno.serve(async (req: Request) => {
   const supplied = req.headers.get("X-Mora-Probe-Token") ?? "";
   const bytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(supplied));
@@ -120,7 +119,7 @@ Deno.serve(async (req: Request) => {
   }});
   const localTimeStr = "2026-10-26 10:00";
   const userLanguage = "ko";
-  const finalPrompt = __PROMPT__;
+  const finalPrompt = buildAnalysisPrompt(localTimeStr, userLanguage);
   try {
     const calls = await route(finalPrompt, "내일 오후 3시 치과 예약 추가해줘", event => events.push(event));
     return Response.json({calls, events, realRequests, providerErrors});
@@ -128,7 +127,7 @@ Deno.serve(async (req: Request) => {
     return Response.json({error:"probe_failed", events, realRequests, providerErrors}, {status:502});
   }
 });
-'''.replace("__PROMPT__", prompt).replace("__PROBE_HASH__", probe_hash)
+'''.replace("__PROBE_HASH__", probe_hash)
             (target / "index.ts").write_text(probe)
             deploy_attempted = True
             cli("functions", "deploy", name, "--project-ref", args.project_ref,

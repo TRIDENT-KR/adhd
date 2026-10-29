@@ -9,7 +9,9 @@ enum AccountPreferenceKey: String {
     case notificationSoundDisabled
     case confirmBeforeSave
     case aiDataConsentVersion
-    case lastDailyResetDate
+    case lastDailyResetDate = "lastResetDate"
+    /// 로그인 직후 '기기 일정 가져오기'를 이미 물어봤는지 (계정마다 한 번)
+    case guestImportOffered
 }
 
 /// 계정별 설정을 raw Mora UUID가 노출되지 않는 UserDefaults namespace에 저장합니다.
@@ -85,11 +87,21 @@ enum AccountPreferences {
             .confirmBeforeSave,
             .aiDataConsentVersion,
             .lastDailyResetDate,
+            .guestImportOffered,
         ] {
             defaults.removeObject(
                 forKey: "mora.account.\(accountScope).\(key.rawValue).v1"
             )
         }
+        defaults.removeObject(forKey: "mora.account.\(accountScope).\(lastResetDateBase).v1")
+    }
+
+    /// 계정별 일일 초기화 기준일 키의 바탕 이름입니다(TaskManager가 사용).
+    static let lastResetDateBase = "lastResetDate"
+
+    /// 활성 계정 범위로 묶인 키입니다. 활성 계정이 없으면(게스트) nil입니다.
+    static func scopedKey(_ base: String, defaults: UserDefaults = .standard) -> String? {
+        defaults.string(forKey: activeScopeKey).map { "mora.account.\($0).\(base).v1" }
     }
 
     static func set(
@@ -171,6 +183,16 @@ final class NotificationManager {
         ["\(id)-f1", "\(id)-f2", "\(id)-snooze"]
     }
 
+    /// 건너뛸 회차가 있는 반복의 알림 id 슬롯 7개.
+    /// 매일 루틴은 요일별 반복(1=일 … 7=토), 매주 반복은 다가오는 회차를 차례로 담습니다.
+    /// '완료' 액션의 팔로업 정리(cancelFollowUps)에는 포함하지 않습니다 — 지우면 다른 날 알림까지 사라집니다.
+    static func skipDayIdentifiers(for id: String) -> [String] {
+        (1...upcomingSlotCount).map { "\(id)-d\($0)" }
+    }
+
+    /// 매주 반복에서 직접 예약하는 다가오는 회차 수 (id 슬롯 수와 같음)
+    static let upcomingSlotCount = 7
+
     /// 일회성 strong의 재알림 체인 오프셋 (기준 시각 + 초)
     private static let followUpOffsets: [(suffix: String, seconds: TimeInterval)] = [
         ("-f1", 300),   // +5분
@@ -218,6 +240,20 @@ final class NotificationManager {
         UserDefaults(suiteName: appGroupID)?.bool(forKey: SubscriptionManager.premiumFlagKey) ?? false
     }
 
+    // MARK: - Launch Wiring
+    /// 앱 실행이 끝나기 전에(AppDelegate) 호출합니다.
+    /// 앱이 꺼진 상태에서 잠금화면 '완료'·'5분 뒤 다시'로 깨어나면 화면이 뜨지 않으므로,
+    /// delegate를 화면 흐름에서 연결하면 그 응답을 받을 곳이 없습니다.
+    func configureNotificationHandling() {
+        registerCategories()
+        center.delegate = AlarmCoordinator.shared
+    }
+
+    /// 사용자가 iPhone 설정에서 알림을 거부했는지 확인합니다. 아직 묻지 않았으면 false입니다.
+    func isAuthorizationDenied() async -> Bool {
+        await center.notificationSettings().authorizationStatus == .denied
+    }
+
     // MARK: - Permission Request
     /// App 실행 시 onAppear에서 한 번 호출합니다.
     func requestAuthorization() {
@@ -228,7 +264,16 @@ final class NotificationManager {
             }
             print(granted ? "✅ 알림 권한 허용됨" : "🔕 알림 권한 거부됨")
         }
+        // 실행 이후 바뀐 앱 언어로 액션 이름을 다시 등록합니다.
+        registerCategories()
+    }
 
+    /// 앱 언어를 바꾸면 알림의 '완료'·'5분 뒤 다시' 버튼 이름도 새 언어로 다시 등록합니다.
+    func refreshCategoriesForLanguageChange() {
+        registerCategories()
+    }
+
+    private func registerCategories() {
         // 강한 알림: 완료 + 5분 뒤 다시 / 약한 알림: 완료
         // (액션 타이틀은 등록 시점 언어로 고정 — 알려진 제한)
         let doneAction = UNNotificationAction(
@@ -254,9 +299,6 @@ final class NotificationManager {
             options: []
         )
         center.setNotificationCategories([strongCategory, weakCategory])
-
-        // 포그라운드 알림 수신 + 액션 처리를 위한 Delegate 설정
-        center.delegate = AlarmCoordinator.shared
     }
 
     // MARK: - Schedule (백엔드 라우터)
@@ -265,32 +307,49 @@ final class NotificationManager {
     func scheduleNotification(for task: AppTask) {
         cancelledIds.remove(task.id)   // 재등록이므로 이전 취소 기록 해제
 
+        // 끝난 일회성 일정은 수정·되돌리기를 거쳐도 다시 울리지 않게 합니다.
+        if task.isCompleted && !task.hasRepeatingSchedule {
+            cancelNotification(for: task)
+            return
+        }
+
         // 카테고리별 토글 확인
         if task.category == "Routine" && !routineRemindersEnabled { return }
         if task.category == "Appointment" && !appointmentRemindersEnabled { return }
 
-        guard let time = task.time, !time.isEmpty else { return }
+        // 시간을 지웠거나 읽을 수 없으면 예전 시각의 알림이 남지 않게 지웁니다.
+        guard let time = task.time, !time.isEmpty else {
+            cancelNotification(for: task)
+            return
+        }
         let calendar = Calendar.current
         guard let clock = parseTimeComponents(time, calendar: calendar) else {
             print("notification_time_parse_failed")
+            cancelNotification(for: task)
             return
         }
 
         let now = Date()
         let leadMinutes = remindBeforeMinutes
+        // 오늘 회차를 이미 완료한 반복 태스크는 오늘 남은 알림을 울리지 않습니다.
+        // '이번만 건너뛰기'로 뺀 날도 같은 방식으로 뺍니다.
+        let completedToday = task.isCompleted && task.hasRepeatingSchedule
+        let isExcluded: (Date) -> Bool = { day in
+            (completedToday && calendar.isDate(day, inSameDayAs: now)) || task.isSkipped(on: day)
+        }
         let fireDate: Date
         if let rule = task.recurrenceRule,
            RecurrenceEngine.requiresOneShotNotification(rule) {
             guard let anchor = task.date,
-                  let next = RecurrenceEngine.nextScheduledDate(
-                    after: now,
-                    anchor: anchor,
-                    rule: rule,
-                    hour: clock.hour,
-                    minute: clock.minute,
-                    leadMinutes: leadMinutes,
-                    calendar: calendar
-                  ) else { return }
+                  let next = Self.nextIncludedFireDate(
+                    after: now, anchor: anchor, rule: rule,
+                    hour: clock.hour, minute: clock.minute,
+                    leadMinutes: leadMinutes, calendar: calendar,
+                    isExcluded: isExcluded
+                  ) else {
+                cancelNotification(for: task)
+                return
+            }
             fireDate = next
         } else {
             guard let occurrence = RecurrenceEngine.wallClockDate(
@@ -306,12 +365,20 @@ final class NotificationManager {
             fireDate = adjusted
         }
 
+        let skipPlan = Self.skipPlan(
+            recurrenceRule: task.recurrenceRule, anchor: task.date,
+            hour: clock.hour, minute: clock.minute,
+            leadMinutes: leadMinutes, now: now, calendar: calendar,
+            isExcluded: isExcluded
+        )
+
         // ── strong × Pro → AlarmKit 시도 (최초 저장 시 권한 요청, 거부 시 UN 폴백) ──
         if task.urgency == .strong && isPremiumUser {
             let spec = makeSpec(
                 for: task,
                 fireDate: fireDate,
-                alarmKit: alarmKitSchedule(for: task, fireDate: fireDate)
+                alarmKit: alarmKitSchedule(for: task, fireDate: fireDate, skipPlan: skipPlan),
+                skipPlan: skipPlan
             )
             let generation = sessionGeneration
             let accountScope = AccountPreferences.activeScope
@@ -327,14 +394,6 @@ final class NotificationManager {
                         AccountPreferences.activeScope == accountScope &&
                         !self.cancelledIds.contains(spec.id)
                     }
-                    // Cancellation may have happened while AlarmKit registered.
-                    if self.sessionGeneration != generation ||
-                        AccountPreferences.activeScope != accountScope ||
-                        self.cancelledIds.contains(spec.id) {
-                        SystemAlarmScheduler.shared.cancel(id: spec.id)
-                        self.removeAllUserNotifications(for: spec.id.uuidString)
-                        self.center.removeDeliveredNotifications(withIdentifiers: [spec.id.uuidString])
-                    }
                 } else {
                     SystemAlarmScheduler.shared.cancel(id: spec.id)
                     self.scheduleUserNotification(spec)
@@ -345,7 +404,103 @@ final class NotificationManager {
 
         // ── 그 외 전부 UN 경로 (백엔드 전환 대비 AlarmKit 흔적 제거) ──
         SystemAlarmScheduler.shared.cancel(id: task.id)
-        scheduleUserNotification(makeSpec(for: task, fireDate: fireDate, alarmKit: nil))
+        scheduleUserNotification(makeSpec(for: task, fireDate: fireDate, alarmKit: nil, skipPlan: skipPlan))
+    }
+
+    /// 포그라운드마다 다시 계산해야 하는 예약인지:
+    /// 한 회차씩만 거는 반복(격주·매월·매년), 건너뛴 회차 기록이 있는 반복, 시작 전인 매주 반복.
+    /// 건너뛴 날이 지난 뒤에도 한 번은 다시 계산해야 빼 두었던 요일·회차가 평소 반복으로 돌아옵니다.
+    static func needsForegroundRearm(_ task: AppTask, now: Date = Date(), calendar: Calendar = .current) -> Bool {
+        if RecurrenceEngine.requiresOneShotNotification(task.recurrenceRule) { return true }
+        guard task.hasRepeatingSchedule else { return false }
+        if !task.skippedDayKeys.isEmpty { return true }
+        if task.recurrenceRule == "weekly", let anchor = task.date {
+            return calendar.startOfDay(for: anchor) > calendar.startOfDay(for: now)
+        }
+        return false
+    }
+
+    /// 격주·매월·매년 반복에서 뺄 날을 건너뛴 다음 알림 시각입니다.
+    static func nextIncludedFireDate(
+        after now: Date,
+        anchor: Date,
+        rule: String,
+        hour: Int,
+        minute: Int,
+        leadMinutes: Int,
+        calendar: Calendar,
+        isExcluded: (Date) -> Bool
+    ) -> Date? {
+        var searchStart = now
+        // 건너뛴 날이 연달아 있어도 끝없이 돌지 않게 상한을 둡니다.
+        for _ in 0..<12 {
+            guard let fire = RecurrenceEngine.nextScheduledDate(
+                after: searchStart, anchor: anchor, rule: rule,
+                hour: hour, minute: minute, leadMinutes: leadMinutes, calendar: calendar
+            ) else { return nil }
+            // 알림 시각이 아니라 회차 날짜(리드 타임을 되돌린 날)로 판단합니다.
+            let occurrenceDay = calendar.date(byAdding: .minute, value: leadMinutes, to: fire) ?? fire
+            guard isExcluded(occurrenceDay) else { return fire }
+            guard let nextDay = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: occurrenceDay)) else { return nil }
+            searchStart = max(nextDay, fire)
+        }
+        return nil
+    }
+
+    /// 매일·매주 반복에서 뺄 회차가 다가오거나(오늘 미리 완료, '이번만 건너뛰기') 매주 반복이 아직 시작 전이면
+    /// 그 회차를 뺀 예약 형태를 고릅니다. nil이면 평소 반복 예약입니다.
+    /// 뺄 날이 지나면 nil로 돌아가므로, 일일 초기화와 포그라운드 재무장이 원래 반복으로 되돌립니다.
+    /// - Parameter isExcluded: 그날(현지 날짜) 회차를 울리지 않아야 하면 true
+    static func skipPlan(
+        recurrenceRule: String?,
+        anchor: Date?,
+        hour: Int,
+        minute: Int,
+        leadMinutes: Int,
+        now: Date,
+        calendar: Calendar,
+        isExcluded: (Date) -> Bool
+    ) -> SkipPlan? {
+        let today = calendar.startOfDay(for: now)
+        func fireDate(on day: Date) -> Date? {
+            RecurrenceEngine.wallClockDate(on: day, hour: hour, minute: minute, calendar: calendar)
+                .flatMap { calendar.date(byAdding: .minute, value: -leadMinutes, to: $0) }
+        }
+
+        switch (recurrenceRule, anchor) {
+        case (nil, nil):
+            // 다가오는 7회(요일마다 한 번) 중 뺄 회차가 있으면 그 요일만 빼고 매주 반복합니다.
+            var excludedWeekdays = Set<Int>()
+            var seen = 0
+            for offset in 0..<8 where seen < 7 {   // 오늘 알림이 이미 지났으면 8일째까지 봐야 7회
+                guard let day = calendar.date(byAdding: .day, value: offset, to: today),
+                      let fire = fireDate(on: day), fire > now else { continue }
+                seen += 1
+                if isExcluded(day) { excludedWeekdays.insert(calendar.component(.weekday, from: fire)) }
+            }
+            guard !excludedWeekdays.isEmpty else { return nil }
+            return .otherWeekdays((1...7).filter { !excludedWeekdays.contains($0) })
+
+        case ("weekly", let anchor?):
+            // 반복 트리거는 시작일을 정할 수 없으므로, 시작 전이거나 뺄 회차가 있으면 회차를 직접 예약합니다.
+            let notStarted = calendar.startOfDay(for: anchor) > today
+            let searchStart = max(today, calendar.startOfDay(for: anchor))
+            var dates: [Date] = []
+            var excludedAny = false
+            var seen = 0
+            for offset in 0..<(7 * (upcomingSlotCount + 1)) where seen < upcomingSlotCount {
+                guard let day = calendar.date(byAdding: .day, value: offset, to: searchStart),
+                      RecurrenceEngine.occurs(on: day, anchor: anchor, rule: "weekly", calendar: calendar),
+                      let fire = fireDate(on: day), fire > now else { continue }
+                seen += 1
+                if isExcluded(day) { excludedAny = true } else { dates.append(fire) }
+            }
+            guard notStarted || excludedAny else { return nil }
+            return .upcoming(dates)
+
+        default:
+            return nil
+        }
     }
 
     // MARK: - UN 등록
@@ -354,8 +509,10 @@ final class NotificationManager {
     func scheduleUserNotification(_ spec: AlarmSpec) {
         guard !cancelledIds.contains(spec.id) else { return }  // AlarmKit 폴백 도중 삭제됨
         let (components, repeats) = triggerComponents(for: spec)
+        // 기존 알림(본체+파생)을 먼저 지웁니다. 일회성을 지난 시각으로 옮겨도 예전 시각 알림이 남지 않습니다.
+        removeAllUserNotifications(for: spec.id.uuidString)
         // 반복 알림은 기준시각이 과거여도 다음 발생에 매칭되므로 통과 (일회성만 미래 요구)
-        guard repeats || spec.fireDate > Date() else { return }
+        guard spec.skipPlan != nil || repeats || spec.fireDate > Date() else { return }
 
         let content = UNMutableNotificationContent()
         let isRoutine = spec.category == "Routine"
@@ -380,8 +537,10 @@ final class NotificationManager {
             content.categoryIdentifier = Self.weakCategoryID
         }
 
-        // 기존 알림(본체+파생) 제거 후 새로 등록
-        removeAllUserNotifications(for: spec.id.uuidString)
+        if let skipPlan = spec.skipPlan {
+            scheduleSkipping(skipPlan, spec: spec, content: content)
+            return
+        }
 
         let request = UNNotificationRequest(
             identifier: spec.id.uuidString,
@@ -419,6 +578,42 @@ final class NotificationManager {
         }
     }
 
+    /// 건너뛸 회차를 뺀 반복 알림을 등록합니다. 반복 태스크라 팔로업 체인은 걸지 않습니다.
+    private func scheduleSkipping(_ plan: SkipPlan, spec: AlarmSpec, content: UNNotificationContent) {
+        let cal = Calendar.current
+        let requests: [UNNotificationRequest]
+        switch plan {
+        case .otherWeekdays(let weekdays):
+            let clock = cal.dateComponents([.hour, .minute], from: spec.fireDate)
+            requests = weekdays.map { weekday in
+                var components = clock
+                components.weekday = weekday
+                return UNNotificationRequest(
+                    identifier: "\(spec.id.uuidString)-d\(weekday)",
+                    content: content,
+                    trigger: UNCalendarNotificationTrigger(dateMatching: components, repeats: true)
+                )
+            }
+        case .upcoming(let dates):
+            requests = zip(Self.skipDayIdentifiers(for: spec.id.uuidString), dates).map { identifier, date in
+                UNNotificationRequest(
+                    identifier: identifier,
+                    content: content,
+                    trigger: UNCalendarNotificationTrigger(
+                        dateMatching: cal.dateComponents([.year, .month, .day, .hour, .minute], from: date),
+                        repeats: false
+                    )
+                )
+            }
+        }
+        for request in requests {
+            center.add(request) { error in
+                if error != nil { print("notification_schedule_failed") }
+            }
+        }
+        print("notification_scheduled_skipping count=\(requests.count)")
+    }
+
     // MARK: - Snooze ("5분 뒤 다시")
     /// 울린 알림의 콘텐츠를 복사해 +5분 뒤 일회성으로 재등록합니다.
     func scheduleSnooze(from request: UNNotificationRequest) {
@@ -434,6 +629,31 @@ final class NotificationManager {
             trigger: UNTimeIntervalNotificationTrigger(timeInterval: Self.snoozeInterval, repeats: false)
         ))
         print("notification_snoozed interval=\(Int(Self.snoozeInterval))")
+    }
+
+    /// 앱 안 알람 화면의 '5분 뒤 다시': 같은 할 일을 5분 뒤 강한 알림으로 한 번 더 알려줍니다.
+    func scheduleSnooze(taskID: UUID, taskName: String) {
+        let content = UNMutableNotificationContent()
+        content.title = L.alarm.countdownTitle
+        content.subtitle = L.alarm.notifSubtitleFollowUp
+        content.body = "「\(taskName)」"
+        content.userInfo = [
+            "taskId": taskID.uuidString,
+            "taskName": taskName,
+            "urgency": Urgency.strong.rawValue,
+        ]
+        content.interruptionLevel = .timeSensitive
+        content.sound = .defaultRingtone
+        content.categoryIdentifier = Self.strongCategoryID
+
+        let snoozeID = "\(taskID.uuidString)-snooze"
+        center.removePendingNotificationRequests(withIdentifiers: [snoozeID])
+        center.add(UNNotificationRequest(
+            identifier: snoozeID,
+            content: content,
+            trigger: UNTimeIntervalNotificationTrigger(timeInterval: Self.snoozeInterval, repeats: false)
+        ))
+        print("overlay_snoozed interval=\(Int(Self.snoozeInterval))")
     }
 
     // MARK: - Cancel
@@ -461,12 +681,18 @@ final class NotificationManager {
         }
     }
 
-    /// "uuid" / "uuid-f1" / "uuid-f2" / "uuid-snooze" → uuid
+    /// "uuid" / "uuid-f1" / "uuid-f2" / "uuid-snooze" / "uuid-d1"…"uuid-d7" → uuid
     private static func baseTaskId(fromIdentifier identifier: String) -> UUID? {
-        for follow in followUpIdentifiers(for: "") where identifier.hasSuffix(follow) {
+        for follow in followUpIdentifiers(for: "") + skipDayIdentifiers(for: "") where identifier.hasSuffix(follow) {
             return UUID(uuidString: String(identifier.dropLast(follow.count)))
         }
         return UUID(uuidString: identifier)
+    }
+
+    /// 대기 중인 UN 알림이 하나라도 남아 있는 태스크 id
+    func pendingTaskIds() async -> Set<UUID> {
+        let requests = await center.pendingNotificationRequests()
+        return Set(requests.compactMap { Self.baseTaskId(fromIdentifier: $0.identifier) })
     }
 
     /// 본체(반복 스케줄)는 유지하고 파생 알림만 제거 — 반복 태스크의 오늘 완료 시 사용
@@ -477,12 +703,17 @@ final class NotificationManager {
 
     private func removeAllUserNotifications(for idString: String) {
         center.removePendingNotificationRequests(
-            withIdentifiers: [idString] + Self.followUpIdentifiers(for: idString))
+            withIdentifiers: [idString] + Self.followUpIdentifiers(for: idString) + Self.skipDayIdentifiers(for: idString))
     }
 
     // MARK: - Spec Builders
 
-    private func makeSpec(for task: AppTask, fireDate: Date, alarmKit: AlarmKitScheduleKind?) -> AlarmSpec {
+    private func makeSpec(
+        for task: AppTask,
+        fireDate: Date,
+        alarmKit: AlarmKitScheduleKind?,
+        skipPlan: SkipPlan?
+    ) -> AlarmSpec {
         AlarmSpec(
             id: task.id,
             title: task.task,
@@ -491,7 +722,8 @@ final class NotificationManager {
             hasDate: task.date != nil,
             fireDate: fireDate,
             urgency: task.urgency,
-            alarmKitSchedule: alarmKit
+            alarmKitSchedule: alarmKit,
+            skipPlan: skipPlan
         )
     }
 
@@ -522,10 +754,24 @@ final class NotificationManager {
     /// 매일 루틴 → 7요일 relative / weekly → 해당 요일 relative
     /// biweekly·monthly·yearly → RecurrenceEngine이 계산한 다음 발생일 fixed
     /// 일회성 → fixed
-    private func alarmKitSchedule(for task: AppTask, fireDate: Date) -> AlarmKitScheduleKind? {
+    private func alarmKitSchedule(
+        for task: AppTask,
+        fireDate: Date,
+        skipPlan: SkipPlan?
+    ) -> AlarmKitScheduleKind? {
         let cal = Calendar.current
         let hour = cal.component(.hour, from: fireDate)
         let minute = cal.component(.minute, from: fireDate)
+
+        // AlarmKit은 태스크마다 알람 하나라서 다가오는 회차는 첫 번째만 걸고, 다음은 포그라운드 재무장이 겁니다.
+        switch skipPlan {
+        case .otherWeekdays(let weekdays):
+            return .weekdays(weekdays.map(Self.localeWeekday), hour: hour, minute: minute)
+        case .upcoming(let dates):
+            return dates.first.map { .fixed($0) }
+        case nil:
+            break
+        }
 
         if let rule = task.recurrenceRule {
             switch rule {
@@ -546,7 +792,7 @@ final class NotificationManager {
     }
 
     /// Calendar weekday(1=일 … 7=토) → Locale.Weekday
-    private static func localeWeekday(_ calendarWeekday: Int) -> Locale.Weekday {
+    nonisolated private static func localeWeekday(_ calendarWeekday: Int) -> Locale.Weekday {
         switch calendarWeekday {
         case 1: return .sunday
         case 2: return .monday
