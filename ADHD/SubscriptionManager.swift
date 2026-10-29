@@ -426,6 +426,27 @@ nonisolated enum SubscriptionServerError: Error, Equatable {
     case subscriptionOwnedByAnotherAccount
     case familySharingNotSupported
     case transactionRejected
+    /// claim한 구독이 지금 유효하지 않음. 복원할 것이 없다는 뜻이라 조용히 넘깁니다.
+    case claimNotActive
+}
+
+/// 현재 권리 거래를 이 계정에 어떻게 보낼지 고릅니다.
+/// 이 계정 토큰으로 산 거래는 register, 이전(다른) 계정 토큰이나 토큰 없이 산 거래는 claim입니다.
+/// 같은 Apple ID로 앱을 다시 설치하거나 다른 기기에서 열면 새 익명 계정이 claim으로 Pro를 이어받습니다.
+nonisolated enum StoreKitSyncAction: String, Equatable {
+    case register
+    case claim
+
+    static func choose(transactionToken: UUID?, accountToken: UUID) -> StoreKitSyncAction {
+        transactionToken == accountToken ? .register : .claim
+    }
+
+    /// register가 거절됐을 때 같은 JWS로 다시 보낼 동작. 이 계정 토큰으로 산 거래라도
+    /// 원래 구독이 이전 계정에 묶여 있으면(예: 이어받은 구독을 이 설치에서 업그레이드) 서버가
+    /// subscription_owned_by_another_account(409)로 거절하므로 claim으로 다시 보냅니다.
+    static func retry(afterRegisterFailure error: Error) -> StoreKitSyncAction? {
+        (error as? SubscriptionServerError) == .subscriptionOwnedByAnotherAccount ? .claim : nil
+    }
 }
 
 /// storekit-sync의 `{ "error": { "code": ... } }` 응답을 앱 오류로 옮깁니다.
@@ -447,6 +468,8 @@ nonisolated enum StoreKitSyncErrorMapper {
             return .restoreRebindUnavailable
         case "family_sharing_not_supported":
             return .familySharingNotSupported
+        case "claim_not_active":
+            return .claimNotActive
         default:
             // 422는 Apple 서명·상품·형식 검증 실패라 재시도해도 결과가 같습니다.
             return status == 422 ? .transactionRejected : nil
@@ -502,18 +525,16 @@ nonisolated struct SubscriptionOperationScope {
 @MainActor
 protocol SubscriptionServerClient {
     var supportsTransactionRegistration: Bool { get }
-    var supportsRestoreRebind: Bool { get }
 
     func fetchAppAccountToken(for operation: SubscriptionOperationContext) async throws -> UUID
     func fetchEntitlement(for operation: SubscriptionOperationContext) async throws -> ServerEntitlementSnapshot
     func registerVerifiedTransaction(jws: String, for operation: SubscriptionOperationContext) async throws
-    func claimSubscriptionRebind(jws: String, for operation: SubscriptionOperationContext) async throws
+    func claimVerifiedTransaction(jws: String, for operation: SubscriptionOperationContext) async throws
 }
 
 /// 요청별 토큰을 고정해 SDK가 await 중 바뀐 다른 계정 세션으로 요청을 보내지 못하게 합니다.
 struct SupabaseSubscriptionServerClient: SubscriptionServerClient {
     let supportsTransactionRegistration = true
-    let supportsRestoreRebind = true
 
     private func client(for operation: SubscriptionOperationContext) -> SupabaseClient {
         SupabaseConfig.requestClient(accessToken: operation.accessToken)
@@ -534,20 +555,20 @@ struct SupabaseSubscriptionServerClient: SubscriptionServerClient {
     }
 
     func registerVerifiedTransaction(jws: String, for operation: SubscriptionOperationContext) async throws {
-        try await syncTransaction(action: "register", jws: jws, for: operation)
+        try await syncTransaction(action: .register, jws: jws, for: operation)
     }
 
-    func claimSubscriptionRebind(jws: String, for operation: SubscriptionOperationContext) async throws {
-        try await syncTransaction(action: "rebind", jws: jws, for: operation)
+    func claimVerifiedTransaction(jws: String, for operation: SubscriptionOperationContext) async throws {
+        try await syncTransaction(action: .claim, jws: jws, for: operation)
     }
 
     private struct SyncResponse: Decodable {
         let result: String
     }
 
-    private func syncTransaction(action: String, jws: String, for operation: SubscriptionOperationContext) async throws {
+    private func syncTransaction(action: StoreKitSyncAction, jws: String, for operation: SubscriptionOperationContext) async throws {
         let options = FunctionInvokeOptions(
-            body: ["action": action, "signedTransaction": jws]
+            body: ["action": action.rawValue, "signedTransaction": jws]
         )
         do {
             let _: SyncResponse = try await client(for: operation).functions.invoke("storekit-sync", options: options)
@@ -601,7 +622,6 @@ nonisolated enum SubscriptionFlowStage: Equatable {
 }
 
 enum SubscriptionErrorCopy: Equatable {
-    case accountRequired
     case eligibility(AdultEligibilityError)
     case paymentNotStarted
     case registrationUnavailable
@@ -621,9 +641,9 @@ enum SubscriptionErrorCopy: Equatable {
             // 성인 확인 서버가 응답하지 않은 것은 결제 전 일시 장애입니다.
             return eligibilityError == .unavailable ? .paymentNotStarted : .eligibility(eligibilityError)
         }
+        // 계정이 아직 준비되지 않은 경우(SubscriptionFlowError.accountRequired)는 로그인 안내 없이
+        // 아래 단계별 문구(결제 안 됨·복원 실패)로 보냅니다. 익명 계정이 붙으면 다시 누르면 됩니다.
         switch error {
-        case SubscriptionFlowError.accountRequired:
-            return .accountRequired
         case SubscriptionFlowError.transactionRegistrationUnavailable:
             return .registrationUnavailable
         case SubscriptionFlowError.appAccountTokenChanged:
@@ -678,7 +698,6 @@ enum SubscriptionErrorCopy: Equatable {
 
     var message: String {
         switch self {
-        case .accountRequired: return L.paywall.accountRequired
         case .eligibility(let error): return L.adultEligibility.error(error)
         case .paymentNotStarted: return L.paywall.paymentNotStarted
         case .registrationUnavailable: return L.paywall.registrationUnavailable
@@ -731,6 +750,8 @@ final class SubscriptionManager: ObservableObject {
     private let now: () -> Date
     private var operationScope = SubscriptionOperationScope()
     private var activeUserID: UUID? { operationScope.userID }
+    /// 활성 계정의 로컬 성인 확인 범위. 익명 계정은 기기 범위, Apple 계정은 자기 계정 범위입니다.
+    private var activeLocalScopeID: UUID?
     private var transactionListenerTask: Task<Void, Never>?
     private var authListenerTask: Task<Void, Never>?
 
@@ -751,6 +772,11 @@ final class SubscriptionManager: ObservableObject {
             limit: Self.freeAILimit,
             now: now()
         )
+    }
+
+    /// 이 서버 계정의 구독 범위가 열려 있는지. 익명 계정을 막 만든 직후 결제 전에 확인합니다.
+    func isActiveAccount(_ userID: UUID) -> Bool {
+        activeUserID == userID
     }
 
     /// 자정이 지나거나 앱으로 돌아왔을 때 배지를 다시 계산하게 합니다(남은 횟수는 현재 시각에 따라 달라짐).
@@ -887,7 +913,7 @@ final class SubscriptionManager: ObservableObject {
                     expectedToken: appAccountToken
                 )
                 try ensureCurrentOperation(context)
-                try await server.registerVerifiedTransaction(jws: evidence.jws, for: context)
+                try await registerFallingBackToClaim(jws: evidence.jws, for: context)
                 try ensureCurrentOperation(context)
                 let entitlement = try await server.fetchEntitlement(for: context)
                 try ensureCurrentOperation(context)
@@ -965,25 +991,10 @@ final class SubscriptionManager: ObservableObject {
             try await AppStore.sync()
             try ensureCurrentOperation(context)
 
-            var restoredTransactions: [Transaction] = []
-            for await verification in Transaction.currentEntitlements {
-                guard case .verified(let transaction) = verification,
-                      SubscriptionProductID.allIDs.contains(transaction.productID),
-                      transaction.ownershipType == .purchased,
-                      transaction.revocationDate == nil else { continue }
-
-                try ensureCurrentOperation(context)
-                if transaction.appAccountToken == appAccountToken {
-                    try await server.registerVerifiedTransaction(jws: verification.jwsRepresentation, for: context)
-                } else {
-                    // 자동 이전은 금지합니다. 이 경로는 사용자가 Restore를 누른 경우에만 실행됩니다.
-                    guard server.supportsRestoreRebind else {
-                        throw SubscriptionServerError.restoreRebindUnavailable
-                    }
-                    try await server.claimSubscriptionRebind(jws: verification.jwsRepresentation, for: context)
-                }
-                restoredTransactions.append(transaction)
-            }
+            // 사용자가 누른 복원은 claim 실패도 그대로 알려 줍니다(지금 유효하지 않은 구독만 조용히 건너뜀).
+            let restoredTransactions = try await syncCurrentEntitlements(
+                for: context, accountToken: appAccountToken, claims: .reportingFailures
+            )
 
             guard !restoredTransactions.isEmpty else {
                 throw SubscriptionFlowError.nothingToRestore
@@ -1010,13 +1021,20 @@ final class SubscriptionManager: ObservableObject {
     }
 
     // MARK: - Server Entitlement Refresh
-    func refreshPremiumStatus() async {
+    /// claimsOtherAccountPurchases는 계정을 열 때(실행·익명 계정 생성·다시 연결)만 켭니다.
+    /// 토큰 갱신 같은 잦은 이벤트에서는 이 계정 토큰 거래만 register합니다.
+    func refreshPremiumStatus(claimsOtherAccountPurchases: Bool = false) async {
         guard let operation = try? currentOperation() else { return }
         let userID = operation.userID
 
         do {
             if server.supportsTransactionRegistration {
-                try await registerMatchingCurrentEntitlements(for: operation)
+                // 이 경로의 claim 실패는 Pro 판정을 막지 않도록 넘기고, 아래 서버 entitlement가 최종 판단합니다.
+                let appAccountToken = try await fetchStableAppAccountToken(for: operation)
+                _ = try await syncCurrentEntitlements(
+                    for: operation, accountToken: appAccountToken,
+                    claims: claimsOtherAccountPurchases ? .quietly : .skipped
+                )
             }
             try ensureCurrentOperation(operation)
             let entitlement = try await server.fetchEntitlement(for: operation)
@@ -1047,16 +1065,18 @@ final class SubscriptionManager: ObservableObject {
     }
 
     /// AuthManager가 검증한 로컬 범위만 구독 계정을 열 수 있습니다.
-    func activateLocalAccountScope(_ userID: UUID) {
-        guard AdultEligibilityManager.shared.allowsLocalUse(for: userID) else {
+    /// 익명 계정은 localScopeID로 기기 범위를 넘깁니다. 구독·캐시는 서버 계정(userID) 기준입니다.
+    func activateLocalAccountScope(_ userID: UUID, localScopeID: UUID? = nil) {
+        let scopeID = localScopeID ?? userID
+        guard AdultEligibilityManager.shared.allowsLocalUse(for: scopeID) else {
             activateGuestScope()
             return
         }
-        activateAccount(userID)
+        activateAccount(userID, localScopeID: scopeID)
         applyCachedEntitlement(for: userID)
         Task { [weak self] in
             guard let self, self.activeUserID == userID else { return }
-            await self.refreshPremiumStatus()
+            await self.refreshPremiumStatus(claimsOtherAccountPurchases: true)
         }
     }
 
@@ -1097,12 +1117,13 @@ final class SubscriptionManager: ObservableObject {
         deactivateAccount(clearCache: true)
     }
 
-    private func activateAccount(_ userID: UUID) {
+    private func activateAccount(_ userID: UUID, localScopeID: UUID) {
         guard activeUserID != userID else { return }
         if let previousUserID = activeUserID {
             accountCache.clearAccount(previousUserID)
         }
         operationScope.activate(userID)
+        activeLocalScopeID = localScopeID
         purchaseError = nil
         purchaseNotice = nil
         billingIssue = nil
@@ -1117,6 +1138,7 @@ final class SubscriptionManager: ObservableObject {
             accountCache.clearAccount(activeUserID)
         }
         operationScope.deactivate()
+        activeLocalScopeID = nil
         purchaseError = nil
         purchaseNotice = nil
         billingIssue = nil
@@ -1153,7 +1175,7 @@ final class SubscriptionManager: ObservableObject {
 
         do {
             try ensureCurrentOperation(operation)
-            try await server.registerVerifiedTransaction(jws: evidence.jws, for: operation)
+            try await registerFallingBackToClaim(jws: evidence.jws, for: operation)
             try ensureCurrentOperation(operation)
             let entitlement = try await server.fetchEntitlement(for: operation)
             try ensureCurrentOperation(operation)
@@ -1165,16 +1187,76 @@ final class SubscriptionManager: ObservableObject {
         }
     }
 
-    private func registerMatchingCurrentEntitlements(for operation: SubscriptionOperationContext) async throws {
-        let appAccountToken = try await fetchStableAppAccountToken(for: operation)
+    /// 다른(이전) 계정 토큰으로 산 거래를 어떻게 다룰지
+    private enum ClaimHandling {
+        /// claim하지 않고 건너뜀 (토큰 갱신 같은 잦은 갱신)
+        case skipped
+        /// claim하고 실패는 넘김 (계정을 열 때)
+        case quietly
+        /// claim하고 실패를 알림 (사용자가 누른 구매 복원)
+        case reportingFailures
+    }
+
+    /// 검증된 현재 권리 거래를 이 계정에 보냅니다. 이 계정 토큰이면 register, 아니면 claim입니다.
+    /// 이 계정에 보낸 거래만 돌려줍니다. 지금 유효하지 않은 구독(claim_not_active)은 복원할 것이 없으므로 건너뜁니다.
+    private func syncCurrentEntitlements(
+        for operation: SubscriptionOperationContext,
+        accountToken: UUID,
+        claims: ClaimHandling
+    ) async throws -> [Transaction] {
+        var synced: [Transaction] = []
         for await verification in Transaction.currentEntitlements {
             try ensureCurrentOperation(operation)
-            guard let evidence = try? verifiedEvidence(
-                verification,
-                expectedProductID: nil,
-                expectedToken: appAccountToken
-            ) else { continue }
-            try await server.registerVerifiedTransaction(jws: evidence.jws, for: operation)
+            guard case .verified(let transaction) = verification,
+                  SubscriptionProductID.allIDs.contains(transaction.productID),
+                  transaction.ownershipType == .purchased,
+                  transaction.revocationDate == nil else { continue }
+
+            let jws = verification.jwsRepresentation
+            var action = StoreKitSyncAction.choose(transactionToken: transaction.appAccountToken, accountToken: accountToken)
+            if action == .register {
+                do {
+                    try await server.registerVerifiedTransaction(jws: jws, for: operation)
+                } catch {
+                    guard let retry = StoreKitSyncAction.retry(afterRegisterFailure: error) else { throw error }
+                    try ensureCurrentOperation(operation)
+                    action = retry
+                }
+            }
+            if action == .claim {
+                guard claims != .skipped,
+                      try await claim(jws: jws, for: operation, reportingFailures: claims == .reportingFailures) else { continue }
+            }
+            synced.append(transaction)
+        }
+        return synced
+    }
+
+    /// claim을 보내고 이 계정에 묶였는지 돌려줍니다.
+    /// 지금 유효한 구독이 아니면(claim_not_active: 만료, 또는 StoreKit이 아직 이전 기간 거래를 들고 있는 경우)
+    /// 복원할 것이 없다는 뜻이라 조용히 false입니다. 다음 갱신 때 다시 claim합니다.
+    private func claim(jws: String, for operation: SubscriptionOperationContext, reportingFailures: Bool) async throws -> Bool {
+        do {
+            try await server.claimVerifiedTransaction(jws: jws, for: operation)
+            return true
+        } catch SubscriptionServerError.claimNotActive {
+            return false
+        } catch {
+            try ensureCurrentOperation(operation)
+            if reportingFailures { throw error }
+            print("storekit_claim_failed")
+            return false
+        }
+    }
+
+    /// 결제 직후·거래 업데이트용 register. 다른 계정 소유로 거절되면 같은 JWS를 claim으로 다시 보냅니다.
+    private func registerFallingBackToClaim(jws: String, for operation: SubscriptionOperationContext) async throws {
+        do {
+            try await server.registerVerifiedTransaction(jws: jws, for: operation)
+        } catch {
+            guard StoreKitSyncAction.retry(afterRegisterFailure: error) == .claim else { throw error }
+            try ensureCurrentOperation(operation)
+            try await server.claimVerifiedTransaction(jws: jws, for: operation)
         }
     }
 
@@ -1200,7 +1282,7 @@ final class SubscriptionManager: ObservableObject {
         if let cached = SubscriptionAccessPolicy.cacheRecord(from: entitlement, at: now()) {
             accountCache.save(entitlement: cached, for: userID)
             accountCache.markServerConfirmed(for: userID, at: now())
-            publishPremium(AdultEligibilityManager.shared.allowsLocalUse(for: userID))
+            publishPremium(allowsLocalUse(for: userID))
         } else {
             accountCache.clearEntitlement(for: userID)
             publishPremium(false)
@@ -1209,7 +1291,7 @@ final class SubscriptionManager: ObservableObject {
 
     /// 서버 일시 장애 동안 마지막 서버 확인(24시간 이내)을 믿고 Pro를 유지합니다. 유지하지 못하면 false.
     private func keepCachedEntitlementDuringOutage(for userID: UUID) -> Bool {
-        guard AdultEligibilityManager.shared.allowsLocalUse(for: userID),
+        guard allowsLocalUse(for: userID),
               let cached = accountCache.entitlement(for: userID),
               SubscriptionAccessPolicy.allowsProDuringServerOutage(
                 cached,
@@ -1220,8 +1302,14 @@ final class SubscriptionManager: ObservableObject {
         return true
     }
 
+    /// 서버 계정의 로컬 성인 확인을 봅니다. 익명 계정은 기기 범위의 확인을 씁니다.
+    private func allowsLocalUse(for userID: UUID) -> Bool {
+        let scopeID = activeUserID == userID ? (activeLocalScopeID ?? userID) : userID
+        return AdultEligibilityManager.shared.allowsLocalUse(for: scopeID)
+    }
+
     private func applyCachedEntitlement(for userID: UUID) {
-        guard AdultEligibilityManager.shared.allowsLocalUse(for: userID) else {
+        guard allowsLocalUse(for: userID) else {
             publishPremium(false, removeSharedFlag: true)
             return
         }

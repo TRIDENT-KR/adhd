@@ -12,10 +12,8 @@ struct MainTabView: View {
     @State private var loadedTabs: Set<TabSelection> = [.voice]
     /// HomeVoiceInterfaceView에서 모달이 열려 있는지 여부
     @State private var isVoiceModalVisible = false
-    /// 이전 버전의 저장된 페이월 딥링크 호환, 그리고 페이월에서 로그인한 뒤 다시 열기.
+    /// 이전 버전의 저장된 페이월 딥링크 호환.
     @State private var showPaywall = false
-    /// 로그인 뒤 페이월을 먼저 다시 열었다면, 게스트 일정 가져오기 제안은 페이월이 닫힌 뒤에 합니다.
-    @State private var offersGuestImportAfterPaywall = false
     @State private var isPlayingPresentationDemo = false
     @EnvironmentObject private var accountStoreController: AccountStoreController
     /// 로그인 직후 기기(게스트) 일정 가져오기 제안
@@ -142,20 +140,12 @@ struct MainTabView: View {
         .onReceive(NotificationCenter.default.publisher(for: .openPaywall)) { _ in
             showPaywall = true
         }
-        .sheet(isPresented: $showPaywall, onDismiss: {
-            guard offersGuestImportAfterPaywall else { return }
-            offersGuestImportAfterPaywall = false
-            offerGuestImportIfNeeded()
-        }) {
+        .sheet(isPresented: $showPaywall) {
             NavigationView { PaywallView() }
         }
-        // 8. 로그인 직후: 페이월에서 로그인했다면 페이월부터 다시 열고,
-        //    아니면 계정이 비어 있고 기기에 게스트 일정이 있을 때 한 번 가져오기를 제안
-        .task(id: authManager.accessState.accountUserID) {
-            if await resumePaywallAfterSignInIfNeeded() {
-                offersGuestImportAfterPaywall = true
-                return
-            }
+        // 8. Apple로 로그인한 직후: 계정이 비어 있고 기기에 게스트 일정이 있을 때 한 번 가져오기를 제안
+        //    익명 계정은 기기 일정을 그대로 쓰므로 제안하지 않습니다.
+        .task(id: authManager.accessState.exposedUserID) {
             offerGuestImportIfNeeded()
         }
         .alert(L.authRelease.importGuestTitle, isPresented: $showGuestImportOffer) {
@@ -173,10 +163,6 @@ struct MainTabView: View {
             Text(guestImportResult ?? "")
         }
         .task {
-            if authManager.accessState.accountUserID == nil && !MoraApp.presentationDemoMode {
-                loadedTabs.insert(.routine)
-                activeTab = .routine
-            }
             guard MoraApp.presentationDemoMode, !isPlayingPresentationDemo else { return }
             isPlayingPresentationDemo = true
             try? await Task.sleep(nanoseconds: 5_000_000_000)
@@ -190,26 +176,11 @@ struct MainTabView: View {
 }
 
 extension MainTabView {
-    /// 페이월의 '로그인하고 구독하기'로 로그인했다면, 계정 화면이 준비되고 구매할 수 있을 때 페이월을 다시 엽니다.
-    fileprivate func resumePaywallAfterSignInIfNeeded() async -> Bool {
-        guard PaywallResumeIntent.isPending else { return false }
-        // 계정 화면으로 막 바뀐 참이라 바로 시트를 올리면 뜨지 않을 수 있어 잠깐 기다립니다.
-        try? await Task.sleep(for: .milliseconds(400))
-        guard !Task.isCancelled else { return false }
-        let userID = authManager.accessState.accountUserID
-        guard PaywallResumeIntent.resolve(
-            accountUserID: userID,
-            mainViewUserID: accountStoreController.activeUserID,
-            isEligible: userID.map { AdultEligibilityManager.shared.allowsLocalUse(for: $0) } ?? false
-        ) else { return false }
-        showPaywall = true
-        return true
-    }
-
-    /// 로그인하면 게스트 일정의 알림이 멈추므로, 계정이 비어 있을 때 한 번만 가져오기를 묻습니다.
+    /// Apple로 로그인하면 게스트 일정의 알림이 멈추므로, 계정이 비어 있을 때 한 번만 가져오기를 묻습니다.
     /// 이미 일정이 있는 계정이거나 한 번 물어본 계정은 설정의 '기기 일정을 이 계정으로 복사'를 씁니다.
+    /// 익명 계정은 기기 저장소를 그대로 쓰므로(exposedUserID == nil) 묻지 않습니다.
     fileprivate func offerGuestImportIfNeeded() {
-        guard let userID = authManager.accessState.accountUserID,
+        guard let userID = authManager.accessState.exposedUserID,
               accountStoreController.activeUserID == userID,
               !AccountPreferences.bool(.guestImportOffered, default: false, for: userID),
               accountStoreController.activeTaskCount() == 0 else { return }
@@ -221,7 +192,7 @@ extension MainTabView {
     }
 
     fileprivate func importGuestTasks() {
-        guard let userID = authManager.accessState.accountUserID else { return }
+        guard let userID = authManager.accessState.exposedUserID else { return }
         do {
             let count = try accountStoreController.copyGuestTasks(to: userID)
             taskManager.reconcileNotificationsWithPreferences()
