@@ -41,22 +41,6 @@ extension VoiceError {
     }
 }
 
-// MARK: - Permission Gap
-/// iPhone 설정에서 켜야 하는 권한. 아직 한 번도 묻지 않은 권한은 앱 안에서 다시 물으므로 넣지 않습니다.
-struct VoicePermissionGap: Equatable {
-    var speechRecognition: Bool
-    var microphone: Bool
-
-    static var current: VoicePermissionGap {
-        VoicePermissionGap(
-            speechRecognition: SFSpeechRecognizer.authorizationStatus() == .denied,
-            microphone: AVAudioApplication.shared.recordPermission == .denied
-        )
-    }
-
-    var isEmpty: Bool { !speechRecognition && !microphone }
-}
-
 // MARK: - Mic Input Mode
 enum MicInputMode: String {
     case tapToggle = "tap"    // 탭해서 시작/종료
@@ -214,11 +198,12 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
         }
     }
 
-    /// iPhone 설정에서 돌아왔을 때 권한이 풀렸는지 확인합니다.
+    /// iPhone 설정에서 돌아왔을 때 음성 인식·마이크가 더는 거부 상태가 아닌지 확인합니다.
     /// 둘 다 허용됐으면 "다시 눌러 녹음" 안내를 띄웁니다. 설정에서 더 켤 것이 없으면 true.
     @discardableResult
     func refreshPermissionsAfterSettings() -> Bool {
-        guard VoicePermissionGap.current.isEmpty else { return false }
+        guard SFSpeechRecognizer.authorizationStatus() != .denied,
+              AVAudioApplication.shared.recordPermission != .denied else { return false }
         errorMessage = nil
         lastError = nil
         showPermissionReadyHint = SFSpeechRecognizer.authorizationStatus() == .authorized

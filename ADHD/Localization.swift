@@ -321,35 +321,6 @@ struct VoiceStrings {
     var errorSpeechPermission: String { t("Allow speech recognition in Settings, or type your task.", "설정에서 음성 인식을 허용하거나 글로 입력해주세요.", "設定で音声認識を許可するか、文字で入力してください。") }
     var errorSpeechRestricted: String { t("Speech recognition is restricted on this device. You can type your task.", "이 기기에서 음성 인식이 제한되어 있어요. 글로 입력할 수 있습니다.", "この端末では音声認識が制限されています。文字で入力できます。") }
     var openSettings: String { t("Open Settings", "설정 열기", "設定を開く") }
-    var howToTurnOn: String { t("How to turn on", "켜는 방법", "オンにする方法") }
-    var permissionGuideTitle: String { t("Turn on voice input", "음성 입력 켜기", "音声入力をオンにする") }
-    var permissionGuideSubtitle: String {
-        t("You only need to do this once in iPhone Settings.",
-          "iPhone 설정에서 한 번만 켜 두면 돼요.",
-          "iPhoneの設定で一度オンにするだけです。")
-    }
-    var permissionStepOpen: String { t("Tap Open Settings below.", "아래 '설정 열기'를 눌러요.", "下の「設定を開く」をタップします。") }
-    var permissionStepFind: String {
-        t("If Mora's page doesn't open, scroll down to Apps and tap Mora.",
-          "Mora 화면이 바로 안 열리면, 맨 아래 '앱'에서 'Mora'를 눌러요.",
-          "Moraの画面が開かないときは、下の「アプリ」から「Mora」をタップします。")
-    }
-    func permissionStepToggle(speech: Bool, microphone: Bool) -> String {
-        switch (speech, microphone) {
-        case (true, true):
-            return t("Turn on Speech Recognition and Microphone.", "'음성 인식'과 '마이크'를 켜요.", "「音声認識」と「マイク」をオンにします。")
-        case (false, true):
-            return t("Turn on Microphone.", "'마이크'를 켜요.", "「マイク」をオンにします。")
-        default:
-            return t("Turn on Speech Recognition.", "'음성 인식'을 켜요.", "「音声認識」をオンにします。")
-        }
-    }
-    var permissionStepReturn: String {
-        t("Come back to Mora, and you're ready to talk.",
-          "Mora로 돌아오면 바로 말할 수 있어요.",
-          "Moraに戻れば、すぐに話せます。")
-    }
-    var typeInstead: String { t("I'll type instead", "글로 입력할게요", "文字で入力する") }
     var tryAgain: String { t("Try Again", "다시 시도", "再試行") }
     var confirmTitle: String { t("Review & Confirm", "확인 및 검토", "確認と検討") }
     var confirmUpdate: String { t("Edit", "수정", "編集") }
