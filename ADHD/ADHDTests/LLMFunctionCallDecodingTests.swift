@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+import AVFoundation
 @testable import ADHD
 
 // MARK: - LLMFunctionCall 디코딩 Tests
@@ -498,5 +499,75 @@ struct PendingCallEditTests {
         guard case .addSingleTask(let params) = pending.call else { Issue.record("wrong case"); return }
         #expect(params.date == today)
         #expect(params.time == nil)
+    }
+}
+
+// MARK: - P2 홈·음성 (서버 검증 기준, 대기 상한, 원인별 안내, 배지, 녹음 형식)
+@MainActor
+struct HomeVoiceReliabilityTests {
+
+    @Test func oneCharacterDeleteTargetMatchesServerRule() {
+        // 서버는 빈 이름만 거부하므로 '약 지워줘'도 유효합니다(대상 찾기에서 정확히 같은 이름만 고름).
+        let delete = LLMFunctionCall.deleteSpecificTask(
+            DeleteTaskParams(target_task_name: "약", target_category: "all", target_date: "all")
+        )
+        let blank = LLMFunctionCall.deleteSpecificTask(
+            DeleteTaskParams(target_task_name: "  ", target_category: "all", target_date: "all")
+        )
+        #expect(delete.isExecutionPayloadValid)
+        #expect(!blank.isExecutionPayloadValid)
+    }
+
+    @Test func analysisNeverWaitsLongerThanTheOverallDeadline() {
+        #expect(CloudLLMManager.attemptTimeout(elapsed: 0) == 15)
+        #expect(CloudLLMManager.attemptTimeout(elapsed: 20) == 10)
+        #expect(CloudLLMManager.attemptTimeout(elapsed: 28) == nil)
+        #expect(CloudLLMManager.totalDeadline == 30)
+    }
+
+    @Test func tooLongAndOfflineGetTheirOwnErrors() {
+        #expect(CloudLLMManager.mappedHTTPError(status: 400, code: "input_too_long") == .inputTooLong)
+        #expect(CloudLLMManager.mappedHTTPError(status: 400, code: "invalid_request") == .requestRejected)
+        #expect(CloudLLMManager.isOfflineError(.notConnectedToInternet))
+        #expect(!CloudLLMManager.isOfflineError(.timedOut))
+    }
+
+    @Test func draftLengthAppearsOnlyNearTheLimit() {
+        #expect(!HomeVoiceInterfaceView.showsDraftLength(String(repeating: "가", count: 800)))
+        #expect(HomeVoiceInterfaceView.showsDraftLength(String(repeating: "가", count: 801)))
+    }
+
+    @Test func badgeRefillsAfterServerMidnight() {
+        var seoul = Calendar(identifier: .gregorian)
+        seoul.timeZone = TimeZone(identifier: "Asia/Seoul")!
+        let sameDay = seoul.date(from: DateComponents(year: 2026, month: 10, day: 29, hour: 23))!
+        let nextDay = seoul.date(from: DateComponents(year: 2026, month: 10, day: 30, hour: 0, minute: 5))!
+
+        #expect(ServerQuotaAccessPolicy.displayedRemaining(
+            remaining: 0, usageDate: "2026-10-29", timeZone: "Asia/Seoul", limit: 3, now: sameDay) == 0)
+        #expect(ServerQuotaAccessPolicy.displayedRemaining(
+            remaining: 0, usageDate: "2026-10-29", timeZone: "Asia/Seoul", limit: 3, now: nextDay) == 3)
+        #expect(ServerQuotaAccessPolicy.displayedRemaining(
+            remaining: nil, usageDate: nil, timeZone: nil, limit: 3, now: sameDay) == 3)
+    }
+
+    @Test func zeroAudioFormatIsRejectedBeforeInstallingTap() {
+        #expect(!VoiceInputManager.isUsableRecordingFormat(sampleRate: 0, channelCount: 1))
+        #expect(!VoiceInputManager.isUsableRecordingFormat(sampleRate: 48_000, channelCount: 0))
+        #expect(VoiceInputManager.isUsableRecordingFormat(sampleRate: 48_000, channelCount: 1))
+    }
+
+    @Test func onlyDeviceChangesStopRecording() {
+        #expect(VoiceInputManager.isInputDeviceChange(.newDeviceAvailable))
+        #expect(VoiceInputManager.isInputDeviceChange(.oldDeviceUnavailable))
+        // 녹음을 시작하며 카테고리를 바꿀 때 오는 알림에는 멈추지 않습니다.
+        #expect(!VoiceInputManager.isInputDeviceChange(.categoryChange))
+        #expect(!VoiceInputManager.isInputDeviceChange(nil))
+    }
+
+    @Test func onlyRecognitionFailuresOfferRecording() {
+        #expect(VoiceError.emptyTranscription.canRetryRecording)
+        #expect(!VoiceError.speechPermissionDenied.canRetryRecording)
+        #expect(!VoiceError.speechRestricted.canRetryRecording)
     }
 }

@@ -524,7 +524,8 @@ enum LLMFunctionCall: Decodable {
                 && Self.isValidCategory(params.new_category, allowsAll: false)
                 && Self.isValidDate(params.new_date, allowsNil: true, allowsAll: false)
         case .deleteSpecificTask(let params):
-            return params.target_task_name.trimmingCharacters(in: .whitespacesAndNewlines).count >= 2
+            // 서버와 같은 기준(빈 이름만 거부)입니다. 한 글자 이름은 대상 찾기에서 정확히 같은 이름만 고릅니다.
+            return !params.target_task_name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                 && Self.isValidCategory(params.target_category, allowsAll: true)
                 && Self.isValidDate(params.target_date, allowsNil: true, allowsAll: true)
         case .clearAllTasks(let params):

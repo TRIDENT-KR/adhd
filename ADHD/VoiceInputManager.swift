@@ -39,6 +39,11 @@ extension VoiceError {
     var needsSettings: Bool {
         self == .permissionDenied || self == .speechPermissionDenied
     }
+
+    /// '다시 시도'로 바로 다시 녹음해 볼 수 있는 오류인지
+    var canRetryRecording: Bool {
+        self == .emptyTranscription || self == .recognitionFailed
+    }
 }
 
 // MARK: - Mic Input Mode
@@ -84,6 +89,7 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
     }()
     private var micModeObserver: AnyCancellable?
     private var backgroundObserver: AnyCancellable?
+    private var audioRouteObserver: AnyCancellable?
 
     // Audio power downsampling: 4프레임당 1회만 계산
     private let audioFrameLock = NSLock()
@@ -131,6 +137,36 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
             .sink { [weak self] _ in
                 self?.handleDidEnterBackground()
             }
+
+        // 녹음 중 에어팟 연결·해제처럼 입력 장치가 바뀌면 엔진 형식이 달라지므로,
+        // 지금까지 받아쓴 내용을 초안으로 넘기고 녹음을 멈춥니다.
+        // (녹음을 시작하며 카테고리를 바꿀 때도 경로 변경 알림이 오므로 장치 연결·해제만 봅니다.)
+        audioRouteObserver = NotificationCenter.default
+            .publisher(for: AVAudioSession.routeChangeNotification)
+            .filter { notification in
+                let raw = notification.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt
+                return Self.isInputDeviceChange(raw.flatMap(AVAudioSession.RouteChangeReason.init(rawValue:)))
+            }
+            .map { _ in true }
+            .merge(with: NotificationCenter.default
+                .publisher(for: .AVAudioEngineConfigurationChange)
+                .map { _ in false })
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] deviceChanged in
+                self?.handleAudioRouteChange(deviceChanged: deviceChanged)
+            }
+    }
+
+    nonisolated static func isInputDeviceChange(_ reason: AVAudioSession.RouteChangeReason?) -> Bool {
+        reason == .oldDeviceUnavailable || reason == .newDeviceAvailable
+    }
+
+    /// 입력 장치가 바뀌었거나 엔진이 멈췄으면 지금까지의 받아쓰기를 초안으로 넘깁니다.
+    private func handleAudioRouteChange(deviceChanged: Bool) {
+        guard activeRecognitionSessionID != nil, isListening else { return }
+        // 엔진 설정 변경 알림은 엔진이 실제로 멈췄을 때만 처리합니다.
+        if !deviceChanged && audioEngine.isRunning { return }
+        stopListening()
     }
 
     private func handleDidEnterBackground() {
@@ -375,6 +411,13 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
         }
         
         let recordingFormat = inputNode.outputFormat(forBus: 0)
+        // 입력 장치가 바뀌는 순간에는 샘플레이트·채널 수가 0인 형식이 올 수 있고,
+        // 그대로 installTap을 부르면 앱이 종료됩니다. 이때는 녹음 실패로 처리합니다.
+        guard Self.isUsableRecordingFormat(sampleRate: recordingFormat.sampleRate,
+                                           channelCount: recordingFormat.channelCount) else {
+            abandonRecognitionSession(sessionID, error: .recognitionFailed)
+            return
+        }
         inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { [weak self] (buffer, when) in
             // 오디오 스레드에서 실행됨 — 메인 스레드가 self.recognitionRequest를 nil로 바꾸는 것과
             // 경쟁하지 않도록 guard-let 로컬 상수를 사용 (종료된 request에 append는 무해)
@@ -511,6 +554,10 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
             errorMessage = error.message
             lastError = error
         }
+    }
+
+    nonisolated static func isUsableRecordingFormat(sampleRate: Double, channelCount: AVAudioChannelCount) -> Bool {
+        sampleRate > 0 && channelCount > 0
     }
 
     private func removeInputTapIfNeeded() {

@@ -389,7 +389,7 @@ extension TaskManager {
         in tasks: [AppTask]
     ) -> [AppTask] {
         let query = name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard query.count >= 2 else { return [] }
+        guard !query.isEmpty else { return [] }
         let parsedDate = date(from: dateString)
 
         let filtered = tasks.filter { item in
@@ -408,9 +408,10 @@ extension TaskManager {
         }
 
         let exact = filtered.filter { $0.task.lowercased() == query }
-        return exact.isEmpty
-            ? filtered.filter { $0.task.lowercased().contains(query) }
-            : exact
+        if !exact.isEmpty { return exact }
+        // 한 글자 이름은 부분 일치를 쓰지 않습니다('약'이 '예약'·'약속'까지 지우지 않게).
+        guard query.count >= 2 else { return [] }
+        return filtered.filter { $0.task.lowercased().contains(query) }
     }
 
     // MARK: - Per-item Persistence

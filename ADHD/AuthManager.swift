@@ -446,13 +446,13 @@ class AuthManager: NSObject, ObservableObject {
         accessState = .signedOut
         isSessionLoaded = true
 
+        // 이 기기의 세션만 끝냅니다. 기본값(.global)은 같은 계정의 다른 기기까지 로그아웃시킵니다.
+        // .local은 서버 요청 전에 로컬 세션부터 지우므로, 서버 폐기가 실패해도 캐시된 세션이 남지 않습니다.
         do {
-            try await supabase.auth.signOut()
+            try await supabase.auth.signOut(scope: .local)
         } catch {
             print("auth_sign_out_failed")
         }
-        // A failed remote revocation must not leave the provider's local cached session usable.
-        try? await supabase.auth.signOut(scope: .local)
     }
 
     func prepareAppleAccountDeletionRequest(_ request: ASAuthorizationAppleIDRequest) {
