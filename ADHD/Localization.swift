@@ -250,6 +250,10 @@ struct SettingsStrings {
     var routineNotifTitle: String { t("🔔 Routine Reminder", "🔔 루틴 알림", "🔔 ルーティン通知") }
     var appointmentNotifTitle: String { t("Appointment Reminder", "일정 알림", "予定通知") }
     var about: String { t("About", "앱 정보", "アプリ情報") }
+    var general: String { t("General", "일반", "一般") }
+    var voiceInput: String { t("Voice Input", "음성 입력", "音声入力") }
+    var ageCheck: String { t("Age", "연령 확인", "年齢確認") }
+    var ageAdult: String { t("18+", "만 18세 이상", "18歳以上") }
     var version: String { t("Version", "버전", "バージョン") }
     var privacyPolicy: String { t("Privacy Policy", "개인정보 처리방침", "プライバシーポリシー") }
     var termsOfService: String { t("Terms of Service", "이용약관", "利用規約") }
