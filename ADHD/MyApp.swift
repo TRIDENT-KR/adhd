@@ -56,38 +56,24 @@ struct MoraApp: App {
     }
 
     // MARK: - Widget Deep Link Handling
+    /// 앱 루트에서 받습니다. 앱이 꺼져 있다가 위젯으로 열리면 아직 로딩 화면이라 메인 화면이 없으므로,
+    /// 고른 탭을 WidgetDeepLinkInbox에 맡겨 두고 메인 화면이 뜰 때 엽니다. 이미 떠 있으면 알림으로 바로 옮깁니다.
     private func handleWidgetDeepLink(_ url: URL) {
         guard url.scheme == "mora" else { return }
         switch url.host {
         case "tab":
-            let tabName = url.lastPathComponent
-            let tab: TabSelection
-            switch tabName {
-            case "routine": tab = .routine
-            case "planner": tab = .planner
-            default:        tab = .voice
+            guard let tab = WidgetDeepLink.tab(from: url) else { return }
+            // 위젯은 오늘 할 일만 보여 주므로, 플래너가 다른 날을 보고 있었어도 오늘로 엽니다.
+            if tab == .planner {
+                NotificationCenter.default.post(name: .plannerJumpToDate, object: Date())
             }
-            NotificationCenter.default.post(name: .widgetDeepLink, object: tab)
+            WidgetDeepLinkInbox.store(tab)
+            NotificationCenter.default.post(name: .widgetDeepLink, object: nil)
         case "paywall":
             // D13: 무료 사용자가 잠금 위젯 탭 → 앱 내 페이월 시트
             NotificationCenter.default.post(name: .openPaywall, object: nil)
         default:
             break
-        }
-    }
-
-    private func handlePendingDeepLink() {
-        guard let defaults = UserDefaults(suiteName: "group.trident-KR.ADHD"),
-              let link = defaults.string(forKey: "widgetDeepLink") else { return }
-        defaults.removeObject(forKey: "widgetDeepLink")
-        let tab: TabSelection
-        switch link {
-        case "routine": tab = .routine
-        case "planner": tab = .planner
-        default:        tab = .voice
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            NotificationCenter.default.post(name: .widgetDeepLink, object: tab)
         }
     }
 
@@ -117,6 +103,10 @@ struct MoraApp: App {
                     Task { @MainActor in
                         await removeCompletedAccountStore(for: userID)
                     }
+                }
+                // 위젯 링크는 로딩·온보딩 화면에서도 받을 수 있게 루트에 둡니다 (콜드 런치 포함).
+                .onOpenURL { url in
+                    handleWidgetDeepLink(url)
                 }
         }
     }
@@ -246,9 +236,6 @@ struct MoraApp: App {
                     NotificationManager.shared.requestAuthorization()
                 }
             }
-            .onOpenURL { url in
-                handleWidgetDeepLink(url)
-            }
             .onChange(of: scenePhase) { _, newPhase in
                 if newPhase == .active {
                     // 익명 계정 만들기에 실패했던 기기 사용자는 앱으로 돌아올 때 다시 시도합니다.
@@ -262,7 +249,6 @@ struct MoraApp: App {
                     taskManager.checkAndResetDailyTasks()
                     taskManager.syncWidgetToggles()
                     taskManager.rescheduleStrongTasksIfNeeded()
-                    handlePendingDeepLink()
                     Task { @MainActor in
                         taskManager.writeWidgetSnapshot()
                         taskManager.cleanupOrphanedNotifications()

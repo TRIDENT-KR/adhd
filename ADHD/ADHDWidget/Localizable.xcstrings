@@ -1,0 +1,83 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "Check off today's routines." : {
+      "comment" : "Widget gallery description: Today Routines widget",
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "今日のルーティンをすぐにチェックできます。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "오늘 루틴을 바로 체크해요." } }
+      }
+    },
+    "How many tasks are left today." : {
+      "comment" : "Widget gallery description: Tasks Left lock screen widget",
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "今日の残りのタスク数を表示します。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "오늘 남은 할 일 수를 보여 줘요." } }
+      }
+    },
+    "Next Task" : {
+      "comment" : "Widget gallery name",
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "次のタスク" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "다음 할 일" } }
+      }
+    },
+    "Routine Progress" : {
+      "comment" : "Widget gallery name: lock screen ring",
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ルーティンの進み具合" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "루틴 진행률" } }
+      }
+    },
+    "Routines" : {
+      "comment" : "Widget gallery name",
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ルーティン" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "루틴" } }
+      }
+    },
+    "See how today's routines are going." : {
+      "comment" : "Widget gallery description: Routine Progress lock screen widget",
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "今日のルーティンの進み具合を表示します。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "오늘 루틴을 얼마나 했는지 보여 줘요." } }
+      }
+    },
+    "See your next task and check it off." : {
+      "comment" : "Widget gallery description: Next Task home screen widget",
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "次のタスクを見て、すぐにチェックできます。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "다음 할 일을 보고 바로 체크해요." } }
+      }
+    },
+    "Tasks Left" : {
+      "comment" : "Widget gallery name: lock screen count",
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "残りのタスク" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "남은 할 일" } }
+      }
+    },
+    "Today" : {
+      "comment" : "Widget gallery name: daily overview",
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "今日" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "오늘" } }
+      }
+    },
+    "Today's routines and plans in one place." : {
+      "comment" : "Widget gallery description: Today overview widget",
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "今日のルーティンと予定をまとめて見られます。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "오늘 루틴과 일정을 한곳에서 봐요." } }
+      }
+    },
+    "Your next task on the Lock Screen." : {
+      "comment" : "Widget gallery description: Next Task lock screen widget",
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ロック画面に次のタスクを表示します。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "잠금 화면에서 다음 할 일을 봐요." } }
+      }
+    }
+  },
+  "version" : "1.0"
+}

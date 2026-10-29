@@ -140,7 +140,8 @@ final class AccountStoreController: ObservableObject {
             let directoryURL = layout.accountDirectoryURL(for: userID)
             try fileManager.createDirectory(at: directoryURL, withIntermediateDirectories: true)
 
-            let schema = Schema([AppTask.self])
+            // 버전이 붙은 스키마와 마이그레이션 계획으로 엽니다(출시 뒤 모델이 바뀌어도 기존 데이터를 옮길 수 있게).
+            let schema = Schema(versionedSchema: MoraSchemaV1.self)
             let configuration = ModelConfiguration(
                 "MoraAccount",
                 schema: schema,
@@ -150,6 +151,7 @@ final class AccountStoreController: ObservableObject {
             )
             let accountContainer = try ModelContainer(
                 for: schema,
+                migrationPlan: MoraMigrationPlan.self,
                 configurations: [configuration]
             )
 
@@ -167,9 +169,9 @@ final class AccountStoreController: ObservableObject {
     func activatePresentationStore() {
         guard container == nil else { return }
         do {
-            let schema = Schema([AppTask.self])
+            let schema = Schema(versionedSchema: MoraSchemaV1.self)
             let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
-            container = try ModelContainer(for: schema, configurations: [configuration])
+            container = try ModelContainer(for: schema, migrationPlan: MoraMigrationPlan.self, configurations: [configuration])
             failureCode = nil
         } catch {
             failureCode = "MORA-DATA-001"
@@ -249,9 +251,10 @@ final class AccountStoreController: ObservableObject {
     private func openGuestContainer() throws -> ModelContainer? {
         let guestURL = layout.storeURL(for: LocalGuestIdentity.storageID)
         guard fileManager.fileExists(atPath: guestURL.path) else { return nil }
-        let schema = Schema([AppTask.self])
+        let schema = Schema(versionedSchema: MoraSchemaV1.self)
         return try ModelContainer(
             for: schema,
+            migrationPlan: MoraMigrationPlan.self,
             configurations: [ModelConfiguration(
                 "MoraAccount", schema: schema, url: guestURL,
                 allowsSave: true, cloudKitDatabase: .none

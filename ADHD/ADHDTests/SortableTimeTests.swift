@@ -4,6 +4,7 @@ import Foundation
 
 // MARK: - AppTask.sortableTime Tests
 /// "hh:mm a"/"h:mm a"/"HH:mm" → 24시간 정렬 키 변환 검증
+@MainActor
 struct SortableTimeTests {
 
     private func task(time: String?) -> AppTask {

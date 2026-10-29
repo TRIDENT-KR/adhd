@@ -807,16 +807,51 @@ class TaskManager: ObservableObject {
                 .sorted { $0.sortableTime < $1.sortableTime }
                 .map { $0.toWidgetSnapshot() }
 
+            let calendar = Calendar.current
+            let startOfToday = calendar.startOfDay(for: today)
             let payload = WidgetDataPayload(
                 accountScope: accountScope,
                 routines: routines,
                 appointments: appointments,
-                updatedAt: today
+                updatedAt: today,
+                upcomingDays: (1...Self.widgetUpcomingDayCount)
+                    .compactMap { calendar.date(byAdding: .day, value: $0, to: startOfToday) }
+                    .map { Self.widgetDayTasks(from: allTasks, on: $0) }
             )
             WidgetDataStore.write(payload)
             WidgetCenter.shared.reloadAllTimelines()
         } catch {
             print("widget_snapshot_failed")
         }
+    }
+
+    /// 위젯에 미리 담는 날 수. 며칠씩 앱을 열지 않아도 위젯이 그날 목록을 보여 줍니다.
+    static let widgetUpcomingDayCount = 7
+
+    /// 앱을 열지 않은 채 자정이 지나도 위젯이 그날 목록을 보여 주도록 미리 담는 하루치 목록입니다.
+    /// 그날 아침 초기화되는 할 일(루틴·반복 일정 — checkAndResetDailyTasks와 같은 기준)은 미완료로,
+    /// 일회성 일정은 지금 완료 상태 그대로 담습니다.
+    static func widgetDayTasks(from tasks: [AppTask], on day: Date, calendar: Calendar = .current) -> WidgetDayTasks {
+        func snapshots(_ category: String) -> [WidgetTaskSnapshot] {
+            tasks
+                .filter { $0.category == category && $0.occursOn(day, calendar: calendar) }
+                .sorted { $0.sortableTime < $1.sortableTime }
+                .map { task in
+                    let resetsDaily = task.category == "Routine" || task.isRecurring
+                    return WidgetTaskSnapshot(
+                        id: task.id,
+                        task: task.task,
+                        time: task.time,
+                        category: task.category,
+                        isCompleted: resetsDaily ? false : task.isCompleted,
+                        recurrenceLabel: task.recurrenceLabel
+                    )
+                }
+        }
+        return WidgetDayTasks(
+            day: calendar.startOfDay(for: day),
+            routines: snapshots("Routine"),
+            appointments: snapshots("Appointment")
+        )
     }
 }
