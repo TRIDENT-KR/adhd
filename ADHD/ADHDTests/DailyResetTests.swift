@@ -143,6 +143,51 @@ struct DailyResetTests {
         #expect(WidgetDataPayload.nextRefreshDate(after: noon, calendar: cal) == noon.addingTimeInterval(900))
     }
 
+    @Test func widgetShowsPreparedListTheDayAfter() {
+        let yesterdayNoon = cal.date(from: DateComponents(year: 2026, month: 7, day: 7, hour: 12))!
+        let justAfterMidnight = cal.date(from: DateComponents(year: 2026, month: 7, day: 8, minute: 5))!
+        let yesterdayOnly = WidgetTaskSnapshot(id: UUID(), task: "어제만", time: nil, category: "Routine", isCompleted: true, recurrenceLabel: nil)
+        let routine = WidgetTaskSnapshot(id: UUID(), task: "약", time: "09:00 PM", category: "Routine", isCompleted: false, recurrenceLabel: nil)
+        let dentist = WidgetTaskSnapshot(id: UUID(), task: "치과", time: "03:00 PM", category: "Appointment", isCompleted: false, recurrenceLabel: nil)
+        let payload = WidgetDataPayload(
+            accountScope: "s", routines: [yesterdayOnly], appointments: [], updatedAt: yesterdayNoon,
+            nextDay: WidgetDayTasks(routines: [routine], appointments: [dentist])
+        )
+
+        let today = payload.normalized(for: justAfterMidnight, calendar: cal)
+        #expect(today.routines.map(\.task) == ["약"])
+        #expect(today.appointments.map(\.task) == ["치과"])
+        // 위젯에서 체크한 뒤 다시 읽어도 그날 일정이 사라지지 않습니다.
+        let evening = cal.date(from: DateComponents(year: 2026, month: 7, day: 8, hour: 18))!
+        #expect(today.normalized(for: evening, calendar: cal).appointments.map(\.task) == ["치과"])
+        // 이틀 넘게 지나면 미리 담은 목록도 맞지 않으므로 예전처럼 일정은 숨깁니다.
+        #expect(payload.normalized(for: date(2026, 7, 9), calendar: cal).appointments.isEmpty)
+    }
+
+    @Test func payloadFromPreviousAppVersionStillDecodes() throws {
+        let json = #"{"accountScope":"s","routines":[],"appointments":[],"updatedAt":0}"#
+        let payload = try JSONDecoder().decode(WidgetDataPayload.self, from: Data(json.utf8))
+        #expect(payload.nextDay == nil)
+        #expect(payload.hasTasks == false)
+    }
+
+    @Test func nextDayWidgetListResetsOnlyTasksThatResetDaily() {
+        let today = date(2026, 7, 7)
+        let tomorrow = date(2026, 7, 8)   // 수요일
+        let daily = AppTask(task: "약", time: "09:00 PM", category: "Routine", isCompleted: true)
+        let todayOnlyRoutine = AppTask(task: "오늘만 루틴", date: today, category: "Routine")
+        let weekly = AppTask(task: "회의", time: "02:00 PM", date: date(2026, 7, 1), category: "Appointment",
+                             isCompleted: true, recurrenceRule: "weekly")
+        let dentist = AppTask(task: "치과", time: "03:00 PM", date: tomorrow, category: "Appointment", isCompleted: true)
+        let lunch = AppTask(task: "점심 약속", date: today, category: "Appointment")
+
+        let list = TaskManager.widgetDayTasks(from: [daily, todayOnlyRoutine, weekly, dentist, lunch], on: tomorrow)
+        #expect(list.routines.map(\.task) == ["약"])
+        #expect(list.routines.map(\.isCompleted) == [false])
+        #expect(list.appointments.map(\.task) == ["회의", "치과"])
+        #expect(list.appointments.map(\.isCompleted) == [false, true])   // 반복 일정만 새로 시작
+    }
+
     @Test func accountWithoutOwnResetDateInheritsLegacyValueOnce() throws {
         let manager = try makeManager()
         let defaults = freshDefaults("test.dailyreset.legacy")
@@ -174,5 +219,54 @@ struct WeekdayIndexTests {
         #expect(WeekdayIndex.mondayBased(day(26), calendar: calendar) == 0)   // 월
         #expect(WeekdayIndex.mondayBased(day(29), calendar: calendar) == 3)   // 목
         #expect(WeekdayIndex.mondayBased(day(25), calendar: calendar) == 6)   // 일
+    }
+}
+
+// MARK: - 위젯 잠금 이유
+@MainActor
+struct WidgetLockReasonTests {
+    @Test func widgetGuestScopeMatchesAppGuestScope() {
+        #expect(WidgetAccountScope.guest == AccountPreferences.scope(for: LocalGuestIdentity.storageID))
+    }
+
+    @Test func lockReasonSaysWhyTheWidgetIsLocked() {
+        let guest = AccountPreferences.scope(for: LocalGuestIdentity.storageID)
+        let account = AccountPreferences.scope(for: UUID())
+
+        #expect(WidgetLockReason.resolve(activeScope: nil, premiumScope: nil, premiumFlag: nil) == .needsAppOpen)
+        #expect(WidgetLockReason.resolve(activeScope: guest, premiumScope: nil, premiumFlag: nil) == .signedOut)
+        // 업데이트 직후: 이 계정의 Pro 여부가 아직 기록되지 않음
+        #expect(WidgetLockReason.resolve(activeScope: account, premiumScope: nil, premiumFlag: true) == .needsAppOpen)
+        #expect(WidgetLockReason.resolve(activeScope: account, premiumScope: account, premiumFlag: nil) == .needsAppOpen)
+        // 다른 계정의 Pro는 이어받지 않음
+        #expect(WidgetLockReason.resolve(activeScope: account, premiumScope: guest, premiumFlag: true) == .needsAppOpen)
+        #expect(WidgetLockReason.resolve(activeScope: account, premiumScope: account, premiumFlag: false) == .needsPro)
+        #expect(WidgetLockReason.resolve(activeScope: account, premiumScope: account, premiumFlag: true) == nil)
+    }
+}
+
+// MARK: - 위젯 딥링크
+@MainActor
+struct WidgetDeepLinkTests {
+    @Test func widgetLinksOpenTheirOwnTab() {
+        #expect(WidgetDeepLink.tab(from: URL(string: "mora://tab/routine")!) == .routine)
+        #expect(WidgetDeepLink.tab(from: URL(string: "mora://tab/planner")!) == .planner)
+        #expect(WidgetDeepLink.tab(from: URL(string: "mora://tab/voice")!) == .voice)
+        #expect(WidgetDeepLink.tab(named: "routine") == .routine)   // 앱 열기 Intent가 App Group에 남긴 이름
+    }
+
+    @Test func unknownLinksDoNotMoveTabs() {
+        #expect(WidgetDeepLink.tab(from: URL(string: "mora://tab/unknown")!) == nil)
+        #expect(WidgetDeepLink.tab(from: URL(string: "mora://tab")!) == nil)
+        #expect(WidgetDeepLink.tab(from: URL(string: "mora://paywall")!) == nil)
+        #expect(WidgetDeepLink.tab(from: URL(string: "https://tab/routine")!) == nil)
+        #expect(WidgetDeepLink.tab(named: "") == nil)
+    }
+
+    @Test func inboxHandsOverTheLatestTabOnlyOnce() {
+        WidgetDeepLinkInbox.store(.routine)
+        WidgetDeepLinkInbox.store(.planner)
+        #expect(WidgetDeepLinkInbox.take() == .planner)
+        #expect(WidgetDeepLinkInbox.take() == nil)   // 화면을 다시 만들어도 예전 링크로 돌아가지 않음
     }
 }

@@ -56,18 +56,15 @@ struct MoraApp: App {
     }
 
     // MARK: - Widget Deep Link Handling
+    /// 앱 루트에서 받습니다. 앱이 꺼져 있다가 위젯으로 열리면 아직 로딩 화면이라 메인 화면이 없으므로,
+    /// 고른 탭을 WidgetDeepLinkInbox에 맡겨 두고 메인 화면이 뜰 때 엽니다. 이미 떠 있으면 알림으로 바로 옮깁니다.
     private func handleWidgetDeepLink(_ url: URL) {
         guard url.scheme == "mora" else { return }
         switch url.host {
         case "tab":
-            let tabName = url.lastPathComponent
-            let tab: TabSelection
-            switch tabName {
-            case "routine": tab = .routine
-            case "planner": tab = .planner
-            default:        tab = .voice
-            }
-            NotificationCenter.default.post(name: .widgetDeepLink, object: tab)
+            guard let tab = WidgetDeepLink.tab(from: url) else { return }
+            WidgetDeepLinkInbox.store(tab)
+            NotificationCenter.default.post(name: .widgetDeepLink, object: nil)
         case "paywall":
             // D13: 무료 사용자가 잠금 위젯 탭 → 앱 내 페이월 시트
             NotificationCenter.default.post(name: .openPaywall, object: nil)
@@ -80,15 +77,9 @@ struct MoraApp: App {
         guard let defaults = UserDefaults(suiteName: "group.trident-KR.ADHD"),
               let link = defaults.string(forKey: "widgetDeepLink") else { return }
         defaults.removeObject(forKey: "widgetDeepLink")
-        let tab: TabSelection
-        switch link {
-        case "routine": tab = .routine
-        case "planner": tab = .planner
-        default:        tab = .voice
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            NotificationCenter.default.post(name: .widgetDeepLink, object: tab)
-        }
+        guard let tab = WidgetDeepLink.tab(named: link) else { return }
+        WidgetDeepLinkInbox.store(tab)
+        NotificationCenter.default.post(name: .widgetDeepLink, object: nil)
     }
 
     var body: some Scene {
@@ -117,6 +108,10 @@ struct MoraApp: App {
                     Task { @MainActor in
                         await removeCompletedAccountStore(for: userID)
                     }
+                }
+                // 위젯 링크는 로딩·온보딩 화면에서도 받을 수 있게 루트에 둡니다 (콜드 런치 포함).
+                .onOpenURL { url in
+                    handleWidgetDeepLink(url)
                 }
         }
     }
@@ -244,9 +239,6 @@ struct MoraApp: App {
                           adultEligibility.allowsLocalUse(for: scopeID) else { return }
                     NotificationManager.shared.requestAuthorization()
                 }
-            }
-            .onOpenURL { url in
-                handleWidgetDeepLink(url)
             }
             .onChange(of: scenePhase) { _, newPhase in
                 if newPhase == .active {
