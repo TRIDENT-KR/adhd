@@ -234,7 +234,7 @@ struct WidgetLockReasonTests {
         let account = AccountPreferences.scope(for: UUID())
 
         #expect(WidgetLockReason.resolve(activeScope: nil, premiumScope: nil, premiumFlag: nil) == .needsAppOpen)
-        #expect(WidgetLockReason.resolve(activeScope: guest, premiumScope: nil, premiumFlag: nil) == .signedOut)
+        #expect(WidgetLockReason.resolve(activeScope: guest, premiumScope: nil, premiumFlag: nil) == .needsPro)
         // 업데이트 직후: 이 계정의 Pro 여부가 아직 기록되지 않음
         #expect(WidgetLockReason.resolve(activeScope: account, premiumScope: nil, premiumFlag: true) == .needsAppOpen)
         #expect(WidgetLockReason.resolve(activeScope: account, premiumScope: account, premiumFlag: nil) == .needsAppOpen)

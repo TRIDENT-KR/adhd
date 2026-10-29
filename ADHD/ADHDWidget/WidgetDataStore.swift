@@ -60,15 +60,13 @@ struct WidgetDataStore {
 enum WidgetLockReason: Equatable {
     /// 앱이 아직 계정·Pro 상태를 남기지 않았어요 (업데이트·설치 직후 등). 앱을 한 번 열면 풀립니다.
     case needsAppOpen
-    /// 로그인하지 않은 게스트예요. Pro는 계정에 붙습니다.
-    case signedOut
-    /// 로그인했지만 Pro가 아니에요.
+    /// Pro가 아니에요. 로그인 없이 쓰는 앱이라(#76) 게스트에게도 로그인 대신 Pro만 안내합니다.
     case needsPro
 
     /// App Group에 남은 값으로 잠금 이유를 정합니다. Pro면 nil입니다.
     static func resolve(activeScope: String?, premiumScope: String?, premiumFlag: Bool?) -> WidgetLockReason? {
         guard let activeScope else { return .needsAppOpen }
-        if activeScope == WidgetAccountScope.guest { return .signedOut }
+        if activeScope == WidgetAccountScope.guest { return .needsPro }
         // Pro 여부가 지금 계정 것으로 아직 기록되지 않았으면, 앱을 한 번 열어야 알 수 있습니다.
         guard premiumScope == activeScope, let premiumFlag else { return .needsAppOpen }
         return premiumFlag ? nil : .needsPro

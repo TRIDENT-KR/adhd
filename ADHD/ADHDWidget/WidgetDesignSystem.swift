@@ -414,12 +414,6 @@ struct WidgetL {
             case "ja": return "Mora\u{00A0}Proで使えます。"
             default:   return "Widgets come with Mora\u{00A0}Pro."
             }
-        case .signedOut:
-            switch currentLang {
-            case "ko": return "Mora\u{00A0}Pro 계정으로 로그인해 주세요."
-            case "ja": return "Mora\u{00A0}Proのアカウントでログインしてください。"
-            default:   return "Sign in with your Mora\u{00A0}Pro account."
-            }
         case .needsAppOpen:
             switch currentLang {
             case "ko": return "Mora를 한 번 열면 바로 보여요."
