@@ -60,106 +60,77 @@ struct SettingsView: View {
 
     var body: some View {
         NavigationView {
+            // 긴 설명은 각 화면(연령 확인·AI 동의·계정 삭제)으로 옮기고, 여기에는 한 줄짜리 항목만 둡니다.
+            // 기본 List의 회색 배경·구분선 대신 앱 배경과 카드 색을 씁니다 (DESIGN.md No-Line).
             List {
-                // ── Account ──
+                // ── 계정 ──
                 Section {
                     if accountUserID == nil {
-                        Label(L.authRelease.guestTitle, systemImage: "iphone")
-                        Text(L.authRelease.guestPreserved).font(.footnote)
+                        settingsRow(L.authRelease.guestTitle, icon: "iphone")
                         if authManager.accessState == .lockedInvalidSession {
-                            Text(L.authRelease.sessionExpired).foregroundStyle(.orange)
+                            Text(L.authRelease.sessionExpired)
+                                .font(.footnote)
+                                .foregroundStyle(DesignSystem.Colors.error)
                         }
-                        Button(L.authRelease.signIn) { showLogin = true }
+                        Button { showLogin = true } label: {
+                            settingsRow(L.authRelease.signIn, icon: "person.crop.circle.badge.plus", tint: DesignSystem.Colors.primary)
+                        }
                     } else {
-                    HStack {
-                        Image(systemName: "person.circle.fill")
-                            .font(.title)
-                            .foregroundColor(DesignSystem.Colors.primary.opacity(0.7))
-                            .accessibilityHidden(true)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(authManager.userEmail ?? L.authRelease.accountTitle)
-                                .font(DesignSystem.Typography.bodyMd)
-                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
-                            Text("Apple ID")
-                                .font(DesignSystem.Typography.labelSm)
-                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.7))
-                        }
-                    }
-                    .padding(.vertical, 4)
-
-                    Button(action: { showLogoutConfirm = true }) {
-                        HStack {
-                            Image(systemName: "rectangle.portrait.and.arrow.right")
+                        HStack(spacing: 12) {
+                            Image(systemName: "person.crop.circle.fill")
+                                .font(.title2)
+                                .foregroundStyle(DesignSystem.Colors.primary)
                                 .accessibilityHidden(true)
-                            Text(L.settings.logOut)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(authManager.userEmail ?? L.authRelease.accountTitle)
+                                    .font(DesignSystem.Typography.bodyMd)
+                                    .foregroundStyle(DesignSystem.Colors.onSurface)
+                                Text("Apple ID")
+                                    .font(.footnote)
+                                    .foregroundStyle(DesignSystem.Colors.onSurfaceMeta)
+                            }
                         }
-                        .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
-                    }
-                    .accessibilityHint(L.authRelease.logOutHint)
+                        .padding(.vertical, 2)
+                        .accessibilityElement(children: .combine)
 
-                    Button(action: { showDeleteFlow = true }) {
-                        HStack {
-                            Image(systemName: "trash")
-                                .accessibilityHidden(true)
-                            Text(L.settings.deleteAccount)
+                        Button {
+                            guestCopyAccountID = accountUserID
+                            showGuestCopyConfirmation = true
+                        } label: {
+                            settingsRow(L.authRelease.copyGuestTasks, icon: "square.and.arrow.down")
                         }
-                        .foregroundColor(.red.opacity(0.7))
                     }
-                    .accessibilityHint(L.authRelease.deleteAccountHint)
 
-                    Button(L.authRelease.copyGuestTasks) {
-                        guestCopyAccountID = accountUserID
-                        showGuestCopyConfirmation = true
+                    Button { showAdultEligibility = true } label: {
+                        settingsRow(L.settings.ageCheck, icon: "person.badge.shield.checkmark", value: L.settings.ageAdult, chevron: true)
                     }
-                    Text(L.authRelease.guestPreserved).font(.footnote)
+                    .accessibilityHint(L.adultEligibility.reviewDeclaration)
+                    if let error = adultEligibility.lastError {
+                        Text(L.adultEligibility.error(error))
+                            .font(.footnote)
+                            .foregroundStyle(DesignSystem.Colors.error)
                     }
                 } header: {
                     Text(L.settings.account)
                 }
+                .settingsSectionStyle()
 
-                // ── Subscription ──
+                // ── 구독 ──
                 Section {
-                    Text(L.adultEligibility.acceptedStatus)
-                    Text(L.adultEligibility.settingsExplanation).font(.footnote)
-                    Button(L.adultEligibility.reviewDeclaration) { showAdultEligibility = true }
-                    if let error = adultEligibility.lastError {
-                        Text(L.adultEligibility.error(error)).font(.footnote).foregroundStyle(.red)
-                    }
-                } header: { Text(L.adultEligibility.title) }
-
-                Section {
-                    HStack {
-                        ZStack {
-                            Circle()
-                                .fill(subscriptionManager.isPremium
-                                      ? DesignSystem.Colors.primary.opacity(0.15)
-                                      : DesignSystem.Colors.onSurfaceVariant.opacity(0.1))
-                                .frame(width: 36, height: 36)
-                            Image(systemName: subscriptionManager.isPremium ? "crown.fill" : "crown")
-                                .font(.system(size: 16))
-                                .foregroundColor(subscriptionManager.isPremium
-                                                 ? DesignSystem.Colors.primary
-                                                 : DesignSystem.Colors.onSurfaceVariant.opacity(0.5))
-                        }
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(subscriptionManager.isPremium
-                                 ? L.paywall.premiumActive
-                                 : L.paywall.premiumInactive)
-                                .font(DesignSystem.Typography.bodyMd)
-                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
-                            if subscriptionManager.isPremium {
-                                Text("Mora Pro")
-                                    .font(DesignSystem.Typography.labelSm)
-                                    .foregroundColor(DesignSystem.Colors.primary.opacity(0.8))
-                            }
-                        }
+                    HStack(spacing: 12) {
+                        Image(systemName: subscriptionManager.isPremium ? "crown.fill" : "crown")
+                            .foregroundStyle(DesignSystem.Colors.primary)
+                            .frame(width: 24)
+                            .accessibilityHidden(true)
+                        Text(subscriptionManager.isPremium ? L.paywall.premiumActive : L.paywall.premiumInactive)
+                            .foregroundStyle(DesignSystem.Colors.onSurface)
                         Spacer()
                         if subscriptionManager.isPremium {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundColor(DesignSystem.Colors.primary)
+                            Text("Mora Pro")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(DesignSystem.Colors.primary)
                         }
                     }
-                    .padding(.vertical, 2)
 
                     // 결제가 밀린 동안 말없이 무료로 바뀌지 않게, 무엇을 하면 되는지 함께 알려 줍니다.
                     if let billingIssue = subscriptionManager.billingIssue {
@@ -178,105 +149,28 @@ struct SettingsView: View {
                         .accessibilityElement(children: .combine)
 
                         Link(destination: URL(string: "https://apps.apple.com/account/billing")!) {
-                            Label(L.paywall.updatePaymentMethod, systemImage: "arrow.up.right.square")
+                            settingsRow(L.paywall.updatePaymentMethod, icon: "creditcard", external: true)
                         }
                     }
-
-                    Link(destination: URL(string: "https://apps.apple.com/account/subscriptions")!) {
-                        Label(L.paywall.manageSubscription, systemImage: "arrow.up.right.square")
-                    }
-                    Text(L.settings.deletionSubscriptionNotice).font(.footnote)
 
                     if !subscriptionManager.isPremium {
                         Button {
                             if accountUserID == nil { showLogin = true }
                             else { showPaywall = true }
                         } label: {
-                            HStack {
-                                Image(systemName: "sparkles")
-                                    .foregroundColor(DesignSystem.Colors.primary)
-                                    .accessibilityHidden(true)
-                                Text(L.paywall.upgradeToPro)
-                                    .foregroundColor(DesignSystem.Colors.primary)
-                                    .fontWeight(.semibold)
-                                Spacer()
-                                Image(systemName: "chevron.right")
-                                    .font(.caption)
-                                    .foregroundColor(DesignSystem.Colors.primary.opacity(0.6))
-                            }
+                            settingsRow(L.paywall.upgradeToPro, icon: "sparkles", tint: DesignSystem.Colors.primary, chevron: true)
                         }
+                    }
+
+                    Link(destination: URL(string: "https://apps.apple.com/account/subscriptions")!) {
+                        settingsRow(L.paywall.manageSubscription, icon: "creditcard.and.123", external: true)
                     }
                 } header: {
                     Text(L.paywall.subscriptionSection)
                 }
+                .settingsSectionStyle()
 
-                // ── Language ──
-                Section {
-                    Picker(selection: $langManager.currentLanguage) {
-                        ForEach(AppLanguage.allCases, id: \.self) { lang in
-                            Text(lang.label).tag(lang)
-                        }
-                    } label: {
-                        HStack {
-                            Image(systemName: "globe")
-                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.5))
-                            Text(L.settings.languageLabel)
-                        }
-                    }
-                } header: {
-                    Text(L.settings.languageLabel)
-                }
-
-                // ── Voice ──
-                Section {
-                    Picker(selection: $micInputMode) {
-                        Text(L.voice.micModeTap).tag("tap")
-                        Text(L.voice.micModeHold).tag("hold")
-                    } label: {
-                        HStack {
-                            Image(systemName: "mic.circle")
-                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.5))
-                            Text(L.voice.micModeTitle)
-                        }
-                    }
-
-                    Toggle(isOn: $confirmBeforeSave) {
-                        HStack {
-                            Image(systemName: "checkmark.shield")
-                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.5))
-                            Text(L.voice.confirmBeforeSave)
-                        }
-                    }
-                    .onChange(of: confirmBeforeSave) { _, value in
-                        persist(value, for: .confirmBeforeSave, default: true)
-                    }
-                } header: {
-                    Text(L.tabVoice)
-                }
-
-                Section {
-                    Toggle(L.aiPrivacy.allow, isOn: Binding(
-                        get: { aiDataConsentGranted },
-                        set: { granted in
-                            if granted { showAIConsent = true }
-                            else {
-                                AIDataConsent.setGranted(false, for: accountUserID)
-                                aiDataConsentGranted = false
-                            }
-                        }
-                    ))
-                    .disabled(accountUserID == nil)
-                    Text(L.aiPrivacy.choice).font(.footnote)
-                    Button(L.aiPrivacy.title) { showAIConsent = true }
-                        .disabled(accountUserID == nil)
-                    if accountUserID == nil {
-                        Button(L.authRelease.signIn) { showLogin = true }
-                    }
-                } header: {
-                    Text(L.aiPrivacy.title)
-                }
-
-                // ── Notifications ──
+                // ── 알림 ──
                 Section {
                     // 시스템에서 알림을 거부하면 아래 토글이 켜져 있어도 아무것도 울리지 않습니다.
                     if notificationsDenied {
@@ -284,10 +178,6 @@ struct SettingsView: View {
                             Label(L.settings.notificationsOffTitle, systemImage: "bell.slash")
                                 .font(.subheadline.weight(.semibold))
                                 .foregroundColor(DesignSystem.Colors.primary)
-                            Text(L.settings.notificationsOffBody)
-                                .font(.footnote)
-                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
-                                .fixedSize(horizontal: false, vertical: true)
                             Button(L.settings.openNotificationSettings) {
                                 if let url = URL(string: UIApplication.openNotificationSettingsURLString) {
                                     UIApplication.shared.open(url)
@@ -296,16 +186,13 @@ struct SettingsView: View {
                             .font(.subheadline.weight(.semibold))
                             .foregroundColor(DesignSystem.Colors.primary)
                             .buttonStyle(.borderless)
+                            .frame(minHeight: 44)
                         }
                         .padding(.vertical, 4)
                     }
 
                     Toggle(isOn: $routineReminders) {
-                        HStack {
-                            Image(systemName: "bell")
-                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.5))
-                            Text(L.settings.routineReminders)
-                        }
+                        settingsRow(L.settings.routineReminders, icon: "bell")
                     }
                     .onChange(of: routineReminders) { _, val in
                         if persist(!val, for: .routineRemindersDisabled) {
@@ -314,11 +201,7 @@ struct SettingsView: View {
                     }
 
                     Toggle(isOn: $appointmentReminders) {
-                        HStack {
-                            Image(systemName: "bell.badge")
-                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.5))
-                            Text(L.settings.appointmentReminders)
-                        }
+                        settingsRow(L.settings.appointmentReminders, icon: "calendar")
                     }
                     .onChange(of: appointmentReminders) { _, val in
                         if persist(!val, for: .appointmentRemindersDisabled) {
@@ -331,11 +214,7 @@ struct SettingsView: View {
                             Text(option.label).tag(option.value)
                         }
                     } label: {
-                        HStack {
-                            Image(systemName: "clock")
-                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.5))
-                            Text(L.settings.remindBefore)
-                        }
+                        settingsRow(L.settings.remindBefore, icon: "clock")
                     }
                     .onChange(of: remindBefore) { _, val in
                         if persist(val, for: .remindBeforeMinutes) {
@@ -344,11 +223,7 @@ struct SettingsView: View {
                     }
 
                     Toggle(isOn: $notificationSound) {
-                        HStack {
-                            Image(systemName: "speaker.wave.2")
-                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.5))
-                            Text(L.settings.sound)
-                        }
+                        settingsRow(L.settings.sound, icon: "speaker.wave.2")
                     }
                     .onChange(of: notificationSound) { _, val in
                         if persist(!val, for: .notificationSoundDisabled) {
@@ -358,126 +233,139 @@ struct SettingsView: View {
                 } header: {
                     Text(L.settings.notifications)
                 }
+                .settingsSectionStyle()
 
-                // ── Appearance ──
+                // ── 음성 입력 ──
                 Section {
+                    Picker(selection: $micInputMode) {
+                        Text(L.voice.micModeTap).tag("tap")
+                        Text(L.voice.micModeHold).tag("hold")
+                    } label: {
+                        settingsRow(L.voice.micModeTitle, icon: "mic")
+                    }
+
+                    Toggle(isOn: $confirmBeforeSave) {
+                        settingsRow(L.voice.confirmBeforeSave, icon: "checkmark.shield")
+                    }
+                    .onChange(of: confirmBeforeSave) { _, value in
+                        persist(value, for: .confirmBeforeSave, default: true)
+                    }
+
+                    // AI는 로그인해야 쓸 수 있으므로 동의 토글도 로그인한 뒤에만 보입니다.
+                    // 켜려고 하면 무엇이 전송되는지 보여 주는 동의 화면이 먼저 열립니다.
+                    if accountUserID != nil {
+                        Toggle(isOn: Binding(
+                            get: { aiDataConsentGranted },
+                            set: { granted in
+                                if granted { showAIConsent = true }
+                                else {
+                                    AIDataConsent.setGranted(false, for: accountUserID)
+                                    aiDataConsentGranted = false
+                                }
+                            }
+                        )) {
+                            settingsRow(L.aiPrivacy.allow, icon: "sparkles")
+                        }
+                    }
+                } header: {
+                    Text(L.settings.voiceInput)
+                }
+                .settingsSectionStyle()
+
+                // ── 일반 ──
+                Section {
+                    Picker(selection: $langManager.currentLanguage) {
+                        ForEach(AppLanguage.allCases, id: \.self) { lang in
+                            Text(lang.label).tag(lang)
+                        }
+                    } label: {
+                        settingsRow(L.settings.languageLabel, icon: "globe")
+                    }
+
                     Picker(selection: $appTheme) {
                         Text(L.settings.systemResource).tag("system")
                         Text(L.settings.light).tag("light")
                         Text(L.settings.dark).tag("dark")
                     } label: {
-                        HStack {
-                            Image(systemName: "paintbrush")
-                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.5))
-                            Text(L.settings.theme)
-                        }
+                        settingsRow(L.settings.theme, icon: "circle.lefthalf.filled")
                     }
 
                     Toggle(isOn: $hapticEnabled) {
-                        HStack {
-                            Image(systemName: "hand.tap")
-                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.5))
-                            Text(L.settings.haptic)
-                        }
+                        settingsRow(L.settings.haptic, icon: "hand.tap")
                     }
                 } header: {
-                    Text(L.settings.appearance)
+                    Text(L.settings.general)
                 }
+                .settingsSectionStyle()
 
-                // ── Data Management ──
+                // ── 데이터 ──
                 Section {
-                    Button(action: {
+                    Button {
                         clearCompletedCount = taskManager.completedClearableCount()
                         showClearCompletedConfirm = true
-                    }) {
-                        HStack {
-                            Image(systemName: "checkmark.circle")
-                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.5))
-                                .accessibilityHidden(true)
-                            Text(L.settings.clearCompleted)
-                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
-                        }
+                    } label: {
+                        settingsRow(L.settings.clearCompleted, icon: "checkmark.circle")
                     }
                     .accessibilityHint(L.authRelease.clearCompletedHint)
 
-                    Button(action: {
+                    Button {
                         clearAllCount = taskManager.taskCount()
                         showClearAllConfirm = true
-                    }) {
-                        HStack {
-                            Image(systemName: "trash.circle")
-                                .accessibilityHidden(true)
-                            Text(L.settings.clearAll)
-                        }
-                        .foregroundColor(.red.opacity(0.7))
+                    } label: {
+                        settingsRow(L.settings.clearAll, icon: "trash", tint: DesignSystem.Colors.error)
                     }
                     .accessibilityHint(L.authRelease.clearAllHint)
                 } header: {
                     Text(L.settings.dataManagement)
                 }
+                .settingsSectionStyle()
 
-                // ── About ──
+                // ── 앱 정보 ──
                 Section {
-                    Link(L.adultEligibility.support, destination: URL(string: "https://trident-kr.github.io/waitwhat-site/")!)
+                    // 고객 지원은 지원 페이지 하나로 모읍니다 (문의 메일도 그 페이지에 있음).
+                    Link(destination: URL(string: "https://trident-kr.github.io/waitwhat-site/")!) {
+                        settingsRow(L.settings.contactSupport, icon: "questionmark.circle", external: true)
+                    }
+                    Link(destination: URL(string: "https://trident-kr.github.io/waitwhat-site/privacy")!) {
+                        settingsRow(L.settings.privacyPolicy, icon: "hand.raised", external: true)
+                    }
+                    Link(destination: URL(string: "https://trident-kr.github.io/waitwhat-site/terms")!) {
+                        settingsRow(L.settings.termsOfService, icon: "doc.text", external: true)
+                    }
                     NavigationLink {
                         ThirdPartyNoticesView()
                     } label: {
-                        Label(L.authRelease.openSourceNotices, systemImage: "doc.plaintext")
+                        settingsRow(L.authRelease.openSourceNotices, icon: "doc.plaintext")
                     }
-                    HStack {
-                        Image(systemName: "info.circle")
-                            .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.5))
-                        Text(L.settings.version)
-                        Spacer()
-                        Text(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0")
-                            .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.5))
-                    }
-
-                    Link(destination: URL(string: "https://trident-kr.github.io/waitwhat-site/privacy")!) {
-                        HStack {
-                            Image(systemName: "hand.raised")
-                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.5))
-                            Text(L.settings.privacyPolicy)
-                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
-                            Spacer()
-                            Image(systemName: "arrow.up.right")
-                                .font(.caption)
-                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.5))
-                                .accessibilityHidden(true)
-                        }
-                    }
-
-                    Link(destination: URL(string: "https://trident-kr.github.io/waitwhat-site/terms")!) {
-                        HStack {
-                            Image(systemName: "doc.text")
-                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.5))
-                            Text(L.settings.termsOfService)
-                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
-                            Spacer()
-                            Image(systemName: "arrow.up.right")
-                                .font(.caption)
-                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.5))
-                                .accessibilityHidden(true)
-                        }
-                    }
-
-                    Link(destination: URL(string: "mailto:trident1398@gmail.com")!) {
-                        HStack {
-                            Image(systemName: "envelope")
-                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.5))
-                            Text(L.settings.contactSupport)
-                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
-                            Spacer()
-                            Image(systemName: "arrow.up.right")
-                                .font(.caption)
-                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.5))
-                                .accessibilityHidden(true)
-                        }
-                    }
+                    settingsRow(
+                        L.settings.version,
+                        icon: "info.circle",
+                        value: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+                    )
                 } header: {
                     Text(L.settings.about)
                 }
+                .settingsSectionStyle()
+
+                // ── 계정 나가기 (가장 아래, 위험한 동작은 끝에) ──
+                if accountUserID != nil {
+                    Section {
+                        Button { showLogoutConfirm = true } label: {
+                            settingsRow(L.settings.logOut, icon: "rectangle.portrait.and.arrow.right")
+                        }
+                        .accessibilityHint(L.authRelease.logOutHint)
+
+                        Button { showDeleteFlow = true } label: {
+                            settingsRow(L.settings.deleteAccount, icon: "person.crop.circle.badge.xmark", tint: DesignSystem.Colors.error)
+                        }
+                        .accessibilityHint(L.authRelease.deleteAccountHint)
+                    }
+                    .settingsSectionStyle()
+                }
             }
+            .scrollContentBackground(.hidden)
+            .background(DesignSystem.Colors.background.ignoresSafeArea())
+            .tint(DesignSystem.Colors.primary)
             .navigationTitle(L.authRelease.settingsTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -569,6 +457,37 @@ struct SettingsView: View {
         .onChange(of: preferenceUserID) { _, _ in
             loadAccountPreferences()
         }
+    }
+
+    /// 설정 한 줄: 아이콘 + 제목 (+ 오른쪽 값·화살표). 글자는 토큰 색만 씁니다.
+    private func settingsRow(
+        _ title: String,
+        icon: String,
+        tint: Color = DesignSystem.Colors.onSurface,
+        value: String? = nil,
+        chevron: Bool = false,
+        external: Bool = false
+    ) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .foregroundStyle(tint == DesignSystem.Colors.onSurface ? DesignSystem.Colors.primary : tint)
+                .frame(width: 24)
+                .accessibilityHidden(true)
+            Text(title)
+                .foregroundStyle(tint)
+            Spacer(minLength: 8)
+            if let value {
+                Text(value)
+                    .foregroundStyle(DesignSystem.Colors.onSurfaceMeta)
+            }
+            if chevron || external {
+                Image(systemName: external ? "arrow.up.right" : "chevron.right")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(DesignSystem.Colors.onSurfaceMeta)
+                    .accessibilityHidden(true)
+            }
+        }
+        .contentShape(Rectangle())
     }
 
     private func loadAccountPreferences() {
@@ -793,5 +712,16 @@ struct AccountDeletionFlowView: View {
                 }
             }
         }
+    }
+}
+
+// MARK: - Settings Section Style
+private extension View {
+    /// 설정 섹션: 카드 색 배경, 구분선 없음 (DESIGN.md No-Line)
+    func settingsSectionStyle() -> some View {
+        self
+            .listRowBackground(DesignSystem.Colors.surfaceContainerLow)
+            .listRowSeparator(.hidden)
+            .listSectionSeparator(.hidden)
     }
 }
