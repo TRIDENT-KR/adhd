@@ -523,52 +523,57 @@ struct HomeVoiceInterfaceView: View {
     }
 
     private var guestVoiceContent: some View {
-        ScrollView {
-            VStack(spacing: 24) {
-                HStack {
-                    Spacer()
-                    Button { showSettings = true } label: {
-                        Image(systemName: "gearshape")
-                            .font(.title3)
-                            .frame(minWidth: 44, minHeight: 44)
-                    }
-                    .accessibilityLabel(L.settings.title)
-                }
-                Spacer()
+        // 내용은 화면 한가운데에 두고, 설정 버튼만 오른쪽 위에 따로 띄웁니다.
+        // 큰 글씨에서 넘치면 스크롤되도록 ScrollView 안에서 최소 높이를 화면 높이로 맞춥니다.
+        GeometryReader { proxy in
+            ScrollView {
                 // 한 문장 + 버튼 하나만 둡니다 (DESIGN.md "Embrace the Void"). 직접 추가는 보조 링크로 뒤에 둡니다.
-                Image(systemName: "mic.fill")
-                    .font(.system(size: 40))
-                    .foregroundStyle(DesignSystem.Colors.primary)
-                    .accessibilityHidden(true)
-                VStack(spacing: 8) {
-                    Text(L.t("Add tasks by voice", "말로 일정 추가하기", "声でタスクを追加"))
-                        .font(.title2.weight(.semibold))
-                        .foregroundStyle(DesignSystem.Colors.onSurface)
-                    Text(L.t("Sign in to use AI.", "AI는 로그인하면 쓸 수 있어요.", "AIはサインインすると使えます。"))
-                        .font(DesignSystem.Typography.bodyMd)
-                        .foregroundStyle(DesignSystem.Colors.onSurfaceMeta)
-                        .fixedSize(horizontal: false, vertical: true)
+                VStack(spacing: 24) {
+                    Image(systemName: "mic.fill")
+                        .font(.system(size: 40))
+                        .foregroundStyle(DesignSystem.Colors.primary)
+                        .accessibilityHidden(true)
+                    VStack(spacing: 8) {
+                        Text(L.t("Add tasks by voice", "말로 일정 추가하기", "声でタスクを追加"))
+                            .font(.title2.weight(.semibold))
+                            .foregroundStyle(DesignSystem.Colors.onSurface)
+                        Text(L.t("Sign in to use AI.", "AI는 로그인하면 쓸 수 있어요.", "AIはサインインすると使えます。"))
+                            .font(DesignSystem.Typography.bodyMd)
+                            .foregroundStyle(DesignSystem.Colors.onSurfaceMeta)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Button { showSignIn = true } label: {
+                        Text(L.t("Sign in", "로그인", "サインイン"))
+                            .font(.body.weight(.semibold))
+                            .frame(minWidth: 160, minHeight: 52)
+                            .padding(.horizontal, 24)
+                            .foregroundStyle(DesignSystem.Colors.onPrimary)
+                            .background(DesignSystem.Gradients.primaryCTA, in: Capsule())
+                    }
+                    .buttonStyle(PressScaleButtonStyle())
+                    Button { activeTab = .routine } label: {
+                        Text(L.t("Add it myself", "직접 추가하기", "自分で追加する"))
+                            .frame(minHeight: 44)
+                    }
                 }
-                Button { showSignIn = true } label: {
-                    Text(L.t("Sign in", "로그인", "サインイン"))
-                        .font(.body.weight(.semibold))
-                        .frame(minWidth: 160, minHeight: 52)
-                        .padding(.horizontal, 24)
-                        .foregroundStyle(DesignSystem.Colors.onPrimary)
-                        .background(DesignSystem.Gradients.primaryCTA, in: Capsule())
-                }
-                .buttonStyle(PressScaleButtonStyle())
-                Button { activeTab = .routine } label: {
-                    Text(L.t("Add it myself", "직접 추가하기", "自分で追加する"))
-                        .frame(minHeight: 44)
-                }
-                Spacer()
+                .multilineTextAlignment(.center)
+                .foregroundStyle(DesignSystem.Colors.onSurfaceVariant)
+                .padding(.horizontal, 28)
+                .padding(.vertical, 60)
+                .frame(maxWidth: .infinity, minHeight: proxy.size.height)
             }
-            .multilineTextAlignment(.center)
-            .foregroundStyle(DesignSystem.Colors.onSurfaceVariant)
-            .padding(.horizontal, 28)
+            .scrollBounceBehavior(.basedOnSize)
+        }
+        .overlay(alignment: .topTrailing) {
+            Button { showSettings = true } label: {
+                Image(systemName: "gearshape")
+                    .font(.title3)
+                    .foregroundStyle(DesignSystem.Colors.onSurfaceVariant)
+                    .frame(minWidth: 44, minHeight: 44)
+            }
+            .accessibilityLabel(L.settings.title)
+            .padding(.trailing, 28)
             .padding(.top, 16)
-            .padding(.bottom, 30)
         }
     }
 
