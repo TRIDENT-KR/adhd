@@ -11,9 +11,6 @@ struct SearchView: View {
     @State private var searchText = ""
     @FocusState private var isSearchFocused: Bool
 
-    /// 탭 전환 + PlannerView 날짜 이동용 콜백
-    var onSelectAppointment: ((Date) -> Void)?
-
     private var filteredTasks: [AppTask] {
         guard !searchText.trimmingCharacters(in: .whitespaces).isEmpty else { return [] }
         let query = searchText.lowercased()
@@ -100,9 +97,7 @@ struct SearchView: View {
                                 sectionHeader(L.voice.confirmRoutine)
                                 ForEach(filteredRoutines) { task in
                                     SearchResultRow(task: task)
-                                        .onTapGesture {
-                                            dismiss()
-                                        }
+                                        .onTapGesture { open(task) }
                                 }
                             }
 
@@ -110,12 +105,7 @@ struct SearchView: View {
                                 sectionHeader(L.voice.confirmAppointment)
                                 ForEach(filteredAppointments) { task in
                                     SearchResultRow(task: task, dateFormatter: Self.dateFormatter)
-                                        .onTapGesture {
-                                            if let date = task.date {
-                                                onSelectAppointment?(date)
-                                            }
-                                            dismiss()
-                                        }
+                                        .onTapGesture { open(task) }
                                 }
                             }
                         }
@@ -138,6 +128,21 @@ struct SearchView: View {
                 isSearchFocused = true
             }
         }
+    }
+
+    /// 결과를 고르면 그 할 일이 있는 탭으로 갑니다. 일정은 플래너에서 그 날을 엽니다.
+    /// 루틴·플래너 어느 쪽에서 검색을 열었든 같은 알림으로 처리합니다.
+    private func open(_ task: AppTask) {
+        dismiss()
+        guard task.category == "Appointment" else {
+            NotificationCenter.default.post(name: .widgetDeepLink, object: TabSelection.routine)
+            return
+        }
+        // 날짜 이동을 먼저 보내야 아직 만들어지지 않은 플래너도 그 날로 열립니다.
+        if let date = task.plannerJumpDate() {
+            NotificationCenter.default.post(name: .plannerJumpToDate, object: date)
+        }
+        NotificationCenter.default.post(name: .widgetDeepLink, object: TabSelection.planner)
     }
 
     private func sectionHeader(_ title: String) -> some View {
@@ -203,6 +208,32 @@ struct SearchResultRow: View {
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(task.task)\(task.isCompleted ? L.t(", completed", ", 완료", ", 完了") : "")\(task.time.map { ", \(StoredTaskFormat.displayTime($0))" } ?? "")")
-        .accessibilityHint(L.t("Double tap to navigate to this task", "이 일정으로 이동하려면 이중 탭하세요", "このタスクに移動するにはダブルタップ"))
+        .accessibilityHint(task.category == "Appointment"
+            ? L.t("Double tap to open this day in Planner", "플래너에서 이 날을 열려면 이중 탭하세요", "プランナーでこの日を開くにはダブルタップ")
+            : L.t("Double tap to open Routine", "루틴 탭으로 이동하려면 이중 탭하세요", "ルーティンタブを開くにはダブルタップ"))
+        .accessibilityAddTraits(.isButton)
+    }
+}
+
+// MARK: - Planner Jump Date
+extension AppTask {
+    /// 검색에서 고른 일정을 플래너에서 보여 줄 날.
+    /// 반복 일정은 오늘 이후(오늘 포함) 첫 회차, 찾지 못하거나 일회성이면 기준일입니다. 날짜가 없으면 nil.
+    func plannerJumpDate(
+        from now: Date = Date(),
+        calendar: Calendar = .current,
+        searchDays: Int = 400
+    ) -> Date? {
+        guard let anchor = date else { return nil }
+        let anchorDay = calendar.startOfDay(for: anchor)
+        guard isRecurring else { return anchorDay }
+
+        // 기준일 전에는 회차가 없으므로 오늘과 기준일 중 늦은 날부터 찾습니다.
+        let start = max(calendar.startOfDay(for: now), anchorDay)
+        for offset in 0...searchDays {
+            guard let day = calendar.date(byAdding: .day, value: offset, to: start) else { continue }
+            if occursOn(day, calendar: calendar) { return day }
+        }
+        return anchorDay
     }
 }

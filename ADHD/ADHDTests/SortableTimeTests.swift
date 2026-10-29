@@ -75,3 +75,37 @@ struct StoredTaskFormatTests {
         #expect(hm("") == nil)
     }
 }
+
+// MARK: - 새 항목 자리 (순서를 바꾼 목록에서도 시간에 맞게)
+@MainActor
+struct NewTaskPlacementTests {
+
+    private func task(_ time: String?, order: Int) -> AppTask {
+        AppTask(task: "t", time: time, category: "Routine", sortOrder: order)
+    }
+
+    private func displayOrder(_ tasks: [AppTask]) -> [String?] {
+        tasks.sorted { a, b in
+            if a.sortOrder != b.sortOrder { return a.sortOrder < b.sortOrder }
+            return a.sortableTime < b.sortableTime
+        }.map(\.time)
+    }
+
+    @Test func untouchedListKeepsTimeOrder() {
+        let peers = [task("09:00 AM", order: 0), task("06:00 PM", order: 0)]
+        #expect(TaskManager.placementSortOrder(forSortableTime: "12:00", among: peers) == 0)
+    }
+
+    @Test func reorderedListPlacesNewTaskBeforeFirstLaterOne() {
+        let peers = [task("09:00 AM", order: 10), task("06:00 PM", order: 20), task("08:00 PM", order: 30)]
+        let new = task("12:00 PM", order: 0)
+        new.sortOrder = TaskManager.placementSortOrder(forSortableTime: new.sortableTime, among: peers)
+        #expect(displayOrder(peers + [new]) == ["09:00 AM", "12:00 PM", "06:00 PM", "08:00 PM"])
+    }
+
+    @Test func latestOrUntimedTaskGoesLast() {
+        let peers = [task("09:00 AM", order: 10), task("06:00 PM", order: 20)]
+        #expect(TaskManager.placementSortOrder(forSortableTime: "21:00", among: peers) == 30)
+        #expect(TaskManager.placementSortOrder(forSortableTime: "99:99", among: peers) == 30)
+    }
+}

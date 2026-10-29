@@ -21,6 +21,8 @@ struct HomeVoiceInterfaceView: View {
     @State private var showErrorToast = false
     @State private var errorToastMessage = ""
     @State private var errorToastOpensSettings = false
+    /// '설정 열기'로 설정 앱에 다녀오는 중인지 (돌아오면 권한을 다시 확인)
+    @State private var awaitingSettingsReturn = false
     @State private var errorToastAllowsRetry = true
     @State private var errorToastStyle: HomeToastStyle = .error
     @State private var errorToastID = UUID()
@@ -363,6 +365,7 @@ struct HomeVoiceInterfaceView: View {
                                     showErrorToast = false
                                 }
                                 if errorToastOpensSettings {
+                                    awaitingSettingsReturn = true
                                     if let url = URL(string: UIApplication.openSettingsURLString) {
                                         UIApplication.shared.open(url)
                                     }
@@ -458,6 +461,14 @@ struct HomeVoiceInterfaceView: View {
             if newPhase != .active {
                 preserveSpeechDraftAndStopListening()
             }
+            // 설정에서 켜고 돌아오면 안내 글 없이 오류 토스트를 거두고 바로 말할 수 있게 합니다.
+            if newPhase == .active, awaitingSettingsReturn || (showErrorToast && errorToastOpensSettings) {
+                awaitingSettingsReturn = false
+                if voiceManager.refreshPermissionsAfterSettings() {
+                    withAnimation(.easeOut(duration: 0.2)) { showErrorToast = false }
+                    Haptic.notification(.success)
+                }
+            }
             // 제어 센터·알림 센터를 잠깐 내리는 비활성 상태에서는 분석을 이어갑니다.
             // 서버는 이미 요청을 처리·차감하고 있으므로, 앱을 실제로 떠날 때만 취소합니다.
             if newPhase == .background {
@@ -512,51 +523,57 @@ struct HomeVoiceInterfaceView: View {
     }
 
     private var guestVoiceContent: some View {
-        ScrollView {
-            VStack(spacing: 24) {
-                HStack {
-                    Spacer()
-                    Button { showSettings = true } label: {
-                        Image(systemName: "gearshape")
-                            .font(.title3)
-                            .frame(minWidth: 44, minHeight: 44)
+        // 내용은 화면 한가운데에 두고, 설정 버튼만 오른쪽 위에 따로 띄웁니다.
+        // 큰 글씨에서 넘치면 스크롤되도록 ScrollView 안에서 최소 높이를 화면 높이로 맞춥니다.
+        GeometryReader { proxy in
+            ScrollView {
+                // 한 문장 + 버튼 하나만 둡니다 (DESIGN.md "Embrace the Void"). 직접 추가는 보조 링크로 뒤에 둡니다.
+                VStack(spacing: 24) {
+                    Image(systemName: "mic.fill")
+                        .font(.system(size: 40))
+                        .foregroundStyle(DesignSystem.Colors.primary)
+                        .accessibilityHidden(true)
+                    VStack(spacing: 8) {
+                        Text(L.t("Add tasks by voice", "말로 일정 추가하기", "声でタスクを追加"))
+                            .font(.title2.weight(.semibold))
+                            .foregroundStyle(DesignSystem.Colors.onSurface)
+                        Text(L.t("Sign in to use AI.", "AI는 로그인하면 쓸 수 있어요.", "AIはサインインすると使えます。"))
+                            .font(DesignSystem.Typography.bodyMd)
+                            .foregroundStyle(DesignSystem.Colors.onSurfaceMeta)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
-                    .accessibilityLabel(L.settings.title)
+                    Button { showSignIn = true } label: {
+                        Text(L.t("Sign in", "로그인", "サインイン"))
+                            .font(.body.weight(.semibold))
+                            .frame(minWidth: 160, minHeight: 52)
+                            .padding(.horizontal, 24)
+                            .foregroundStyle(DesignSystem.Colors.onPrimary)
+                            .background(DesignSystem.Gradients.primaryCTA, in: Capsule())
+                    }
+                    .buttonStyle(PressScaleButtonStyle())
+                    Button { activeTab = .routine } label: {
+                        Text(L.t("Add it myself", "직접 추가하기", "自分で追加する"))
+                            .frame(minHeight: 44)
+                    }
                 }
-                Spacer()
-                Image(systemName: "text.bubble")
-                    .font(.system(size: 44))
-                    .foregroundStyle(DesignSystem.Colors.primary)
-                    .accessibilityHidden(true)
-                Text(L.t("A little help from AI", "말로 편하게 정리하기", "AIでかんたんに整理"))
-                    .font(DesignSystem.Typography.titleSm)
-                Text(L.t(
-                    "Sign in to turn your words into tasks with AI. You can add tasks and reminders manually without an account.",
-                    "AI로 음성이나 글을 일정으로 정리하려면 로그인해 주세요. 일정과 알림은 계정 없이 직접 추가할 수 있어요.",
-                    "音声や文章をAIでタスクにするにはサインインしてください。タスクや通知はアカウントなしで直接追加できます。"
-                ))
-                .font(DesignSystem.Typography.bodyMd)
+                .multilineTextAlignment(.center)
                 .foregroundStyle(DesignSystem.Colors.onSurfaceVariant)
-                .fixedSize(horizontal: false, vertical: true)
-                Button { showSignIn = true } label: {
-                    Text(L.t("Sign in for AI", "로그인하고 AI 사용하기", "サインインしてAIを使う"))
-                        .font(.body.weight(.semibold))
-                        .padding(.horizontal, 24)
-                        .padding(.vertical, 16)
-                        .foregroundStyle(DesignSystem.Colors.onPrimary)
-                        .background(DesignSystem.Gradients.primaryCTA, in: Capsule())
-                }
-                Button { activeTab = .routine } label: {
-                    Text(L.t("Add tasks myself", "직접 일정 추가하기", "自分でタスクを追加"))
-                        .frame(minHeight: 44)
-                }
-                Spacer()
+                .padding(.horizontal, 28)
+                .padding(.vertical, 60)
+                .frame(maxWidth: .infinity, minHeight: proxy.size.height)
             }
-            .multilineTextAlignment(.center)
-            .foregroundStyle(DesignSystem.Colors.onSurfaceVariant)
-            .padding(.horizontal, 28)
+            .scrollBounceBehavior(.basedOnSize)
+        }
+        .overlay(alignment: .topTrailing) {
+            Button { showSettings = true } label: {
+                Image(systemName: "gearshape")
+                    .font(.title3)
+                    .foregroundStyle(DesignSystem.Colors.onSurfaceVariant)
+                    .frame(minWidth: 44, minHeight: 44)
+            }
+            .accessibilityLabel(L.settings.title)
+            .padding(.trailing, 28)
             .padding(.top, 16)
-            .padding(.bottom, 30)
         }
     }
 

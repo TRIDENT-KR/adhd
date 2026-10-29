@@ -227,6 +227,14 @@ struct SubscriptionEntitlementTests {
         ))
     }
 
+    @Test func billingIssueIsShownOnlyWhileAppStoreRetriesPayment() {
+        #expect(SubscriptionBillingIssue(status: .grace) == .gracePeriod)
+        #expect(SubscriptionBillingIssue(status: .billingRetry) == .paused)
+        for status in [SubscriptionEntitlementStatus.none, .active, .expired, .revoked, .refunded] {
+            #expect(SubscriptionBillingIssue(status: status) == nil)
+        }
+    }
+
     @Test func onlyTransportFailuresPermitOfflineCache() {
         #expect(SubscriptionFailureClassifier.permitsOfflineCache(
             URLError(.notConnectedToInternet)

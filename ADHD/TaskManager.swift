@@ -21,6 +21,7 @@ struct AppTaskSnapshot {
     let urgency: Urgency
     let sortOrder: Int
     let weeklyCompletions: [Bool]
+    let skippedDayKeys: [String]
 
     init(_ task: AppTask) {
         id = task.id
@@ -33,6 +34,7 @@ struct AppTaskSnapshot {
         urgency = task.urgency
         sortOrder = task.sortOrder
         weeklyCompletions = task.weeklyCompletions
+        skippedDayKeys = task.skippedDayKeys
     }
 
     func matches(_ candidate: AppTask) -> Bool {
@@ -46,6 +48,7 @@ struct AppTaskSnapshot {
             && candidate.urgency == urgency
             && candidate.sortOrder == sortOrder
             && candidate.weeklyCompletions == weeklyCompletions
+            && candidate.skippedDayKeys == skippedDayKeys
     }
 
     func makeTask() -> AppTask {
@@ -61,6 +64,7 @@ struct AppTaskSnapshot {
             urgency: urgency
         )
         restored.weeklyCompletions = weeklyCompletions
+        restored.skippedDayKeys = skippedDayKeys
         return restored
     }
 
@@ -74,6 +78,7 @@ struct AppTaskSnapshot {
         target.urgency = urgency
         target.sortOrder = sortOrder
         target.weeklyCompletions = weeklyCompletions
+        target.skippedDayKeys = skippedDayKeys
     }
 }
 
@@ -137,9 +142,9 @@ class TaskManager: ObservableObject {
         return cal
     }
 
-    /// ISO 8601 weekday 컴포넌트 → 0=월, 1=화, … 6=일
+    /// 0=월, 1=화, … 6=일
     private func isoWeekdayIndex(of date: Date) -> Int {
-        isoCalendar.component(.weekday, from: date) - 1   // iso8601: 1=Mon … 7=Sun
+        WeekdayIndex.mondayBased(date, calendar: isoCalendar)
     }
 
     /// 두 날짜가 서로 다른 ISO 주(週)에 속하는지 확인
@@ -292,17 +297,61 @@ class TaskManager: ObservableObject {
         }
     }
 
-    /// one-shot 반복 알림은 강도와 무관하게 포그라운드마다 다음 회차를 보장합니다.
-    func rescheduleAllOneShotRecurringTasks() {
+    /// 한 회차씩 거는 반복(격주·매월·매년), 건너뛴 회차가 남은 반복, 시작 전인 매주 반복은
+    /// 강도와 무관하게 포그라운드마다 다음 회차를 다시 계산합니다.
+    func rescheduleTasksNeedingRearm() {
         guard let context = modelContext else { return }
         do {
             let all = try context.fetch(FetchDescriptor<AppTask>())
-            for task in all where RecurrenceEngine.requiresOneShotNotification(task.recurrenceRule) {
+            // 오래된 건너뛰기 기록은 지워, 다 지나간 기록 때문에 매번 다시 계산하지 않게 합니다.
+            var pruned = false
+            if let cutoff = Calendar.current.date(byAdding: .day, value: -60, to: Date()) {
+                let cutoffKey = AppTask.dayKey(cutoff)
+                for task in all where task.skippedDayKeys.contains(where: { $0 < cutoffKey }) {
+                    task.pruneSkippedDayKeys(before: cutoff)
+                    pruned = true
+                }
+            }
+            if pruned { safeSave() }
+            for task in all where NotificationManager.needsForegroundRearm(task) {
                 NotificationManager.shared.scheduleNotification(for: task)
             }
         } catch {
             print("recurring_notification_reschedule_failed")
         }
+    }
+
+    /// iOS는 대기 알림을 가장 가까운 64건만 남기고 나머지는 조용히 버립니다.
+    /// 포그라운드마다 예약이 사라진 할 일을 다시 걸어, 앞선 알림이 울려 자리가 나면 먼 일정도 채워지게 합니다.
+    func refillDroppedNotifications() {
+        Task { @MainActor in
+            let scheduledIds = await NotificationManager.shared.pendingTaskIds()
+            guard let context = modelContext,
+                  let tasks = try? context.fetch(FetchDescriptor<AppTask>()) else { return }
+            // AlarmKit으로 울리는 strong 태스크는 UN 대기 목록에 없으므로 제외합니다(별도 재무장).
+            let alarmKitManaged = WidgetDataStore.isPremium && SystemAlarmScheduler.shared.isAuthorized
+            var refilled = 0
+            for task in tasks where !scheduledIds.contains(task.id) {
+                guard task.time?.isEmpty == false,
+                      !task.isCompleted || task.hasRepeatingSchedule,
+                      !(alarmKitManaged && task.urgency == .strong) else { continue }
+                NotificationManager.shared.scheduleNotification(for: task)
+                refilled += 1
+            }
+            if refilled > 0 { print("notification_refill count=\(refilled)") }
+        }
+    }
+
+    /// 앱 언어를 바꾸면 이미 예약된 알림 문구와 버튼 이름, 위젯 문구를 새 언어로 다시 만듭니다.
+    func refreshForLanguageChange() {
+        NotificationManager.shared.refreshCategoriesForLanguageChange()
+        if let context = modelContext,
+           let tasks = try? context.fetch(FetchDescriptor<AppTask>()) {
+            for task in tasks where !task.isCompleted || task.hasRepeatingSchedule {
+                NotificationManager.shared.scheduleNotification(for: task)
+            }
+        }
+        writeWidgetSnapshot()
     }
 
     /// 현재 계정의 알림 설정이 바뀌면 기존 예약을 모두 폐기하고 저장소를 원천으로 재구성합니다.
@@ -342,7 +391,7 @@ class TaskManager: ObservableObject {
 
     /// Pro + AlarmKit 허용 상태에서만 재무장 (매 포그라운드 호출용 가드)
     func rescheduleStrongTasksIfNeeded() {
-        rescheduleAllOneShotRecurringTasks()
+        rescheduleTasksNeedingRearm()
         guard WidgetDataStore.isPremium,
               SystemAlarmScheduler.shared.isAuthorized else { return }
         rescheduleAllStrongTasks()
@@ -371,14 +420,30 @@ class TaskManager: ObservableObject {
         NotificationManager.shared.scheduleNotification(for: task)
     }
 
+    // MARK: - Skip One Occurrence
+    /// 반복 일정·루틴의 한 회차만 건너뜁니다. 시리즈와 다른 날 알림은 그대로 두고, 되돌릴 수 있습니다.
+    func skipOccurrence(of task: AppTask, on date: Date) {
+        guard task.hasRepeatingSchedule, !task.isSkipped(on: date) else { return }
+        let previous = AppTaskSnapshot(task)
+        task.skippedDayKeys.append(AppTask.dayKey(date))
+        if let monthAgo = Calendar.current.date(byAdding: .day, value: -60, to: Date()) {
+            task.pruneSkippedDayKeys(before: monthAgo)
+        }
+        safeSave()
+        NotificationManager.shared.scheduleNotification(for: task)
+        writeWidgetSnapshot()
+        setUndoAction(.updated(previous: previous), message: L.voice.undoSkippedOccurrence(task.task))
+    }
+
     // MARK: - Delete (by reference)
     func delete(task: AppTask) {
-        guard let context = modelContext else { return }
+        // 삭제 버튼을 빠르게 두 번 눌러도 이미 지운 항목을 다시 지우거나 되돌리기를 두 번 쌓지 않습니다.
+        guard let context = modelContext, task.modelContext != nil, !task.isDeleted else { return }
         let snapshot = AppTaskSnapshot(task)
         NotificationManager.shared.cancelNotification(for: task)
         context.delete(task)
         safeSave()
-        setUndoAction(.deleted([snapshot]), message: L.voice.undoDeletedSingle(task.task))
+        setUndoAction(.deleted([snapshot]), message: L.voice.undoDeletedSingle(snapshot.task))
     }
 
     // MARK: - Undo (스택 기반)
@@ -578,6 +643,7 @@ class TaskManager: ObservableObject {
             print("⚠️ TaskManager: ModelContext가 주입되지 않았습니다.")
             return
         }
+        placeNewTask(task, in: context)
         context.insert(task)
         print("task_inserted category=\(task.category)")
     }
@@ -612,6 +678,7 @@ class TaskManager: ObservableObject {
             print("task_store_context_missing")
             return false
         }
+        placeNewTask(task, in: context)
         context.insert(task)
         guard safeSave() else {
             // 저장되지 않은 insert를 남겨두면 이후 다른 저장에 알림 없이 섞여 들어갑니다.
@@ -619,6 +686,30 @@ class TaskManager: ObservableObject {
             return false
         }
         return true
+    }
+
+    // MARK: - New Task Placement
+    /// 새 항목을 같은 날 같은 목록의 시간 순서에 맞는 자리에 놓습니다.
+    /// 순서를 한 번 바꾼 목록에서 정렬값 0이 시간과 상관없이 맨 위로 가는 것을 막습니다.
+    func placeNewTask(_ task: AppTask, in context: ModelContext) {
+        guard task.sortOrder == 0,
+              let all = try? context.fetch(FetchDescriptor<AppTask>()) else { return }
+        let day = task.date ?? Date()
+        let peers = all.filter { $0.id != task.id && $0.category == task.category && $0.occursOn(day) }
+        task.sortOrder = Self.placementSortOrder(forSortableTime: task.sortableTime, among: peers)
+    }
+
+    /// 화면 정렬(정렬값 → 시간)에서 시간이 더 늦은 첫 항목 바로 앞에 오는 정렬값입니다.
+    /// 아무도 순서를 바꾸지 않았으면 0을 그대로 두어 시간순을 따릅니다.
+    static func placementSortOrder(forSortableTime time: String, among peers: [AppTask]) -> Int {
+        guard peers.contains(where: { $0.sortOrder != 0 }) else { return 0 }
+        let ordered = peers.sorted { a, b in
+            if a.sortOrder != b.sortOrder { return a.sortOrder < b.sortOrder }
+            return a.sortableTime < b.sortableTime
+        }
+        // 같은 정렬값끼리는 시간순이므로, 늦은 항목과 같은 값을 쓰면 그 바로 앞에 놓입니다.
+        if let later = ordered.first(where: { $0.sortableTime > time }) { return later.sortOrder }
+        return (ordered.last?.sortOrder ?? 0) + 10
     }
 
     func taskCount(completedOnly: Bool? = nil) -> Int {

@@ -170,9 +170,9 @@ struct WidgetL {
     // MARK: - Alarm Live Activity Strings
     static var alarmNow: String {
         switch currentLang {
-        case "ko": return "지금 할 시간!"
-        case "ja": return "今すぐ!"
-        default:   return "Time now!"
+        case "ko": return "할 시간이에요"
+        case "ja": return "時間です"
+        default:   return "It's time"
         }
     }
 

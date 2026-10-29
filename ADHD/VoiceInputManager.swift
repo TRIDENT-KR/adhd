@@ -198,6 +198,19 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
         }
     }
 
+    /// iPhone 설정에서 돌아왔을 때 음성 인식·마이크가 더는 거부 상태가 아닌지 확인합니다.
+    /// 둘 다 허용됐으면 "다시 눌러 녹음" 안내를 띄웁니다. 설정에서 더 켤 것이 없으면 true.
+    @discardableResult
+    func refreshPermissionsAfterSettings() -> Bool {
+        guard SFSpeechRecognizer.authorizationStatus() != .denied,
+              AVAudioApplication.shared.recordPermission != .denied else { return false }
+        errorMessage = nil
+        lastError = nil
+        showPermissionReadyHint = SFSpeechRecognizer.authorizationStatus() == .authorized
+            && AVAudioApplication.shared.recordPermission == .granted
+        return true
+    }
+
     private func publishPermissionError(_ error: VoiceError) {
         errorMessage = error.message
         lastError = error

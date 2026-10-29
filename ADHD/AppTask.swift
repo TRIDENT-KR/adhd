@@ -127,6 +127,15 @@ enum RecurrenceEngine {
     }
 }
 
+// MARK: - Week Index
+/// 주간 완료 기록 칸 번호 (0=월 … 6=일).
+/// Calendar의 `.weekday`는 ISO 8601 달력이어도 항상 1=일요일이므로 그대로 빼면 하루씩 밀립니다.
+enum WeekdayIndex {
+    static func mondayBased(_ date: Date, calendar: Calendar = .current) -> Int {
+        (calendar.component(.weekday, from: date) + 5) % 7
+    }
+}
+
 // MARK: - SwiftData Persistent Model
 /// 영구 저장소에 기록되는 실제 데이터 모델.
 /// ParsedTask(DTO)와 분리하여 Codable 디코딩과의 충돌을 방지합니다.
@@ -157,6 +166,10 @@ final class AppTask {
     /// Lightweight migration: 기존 레코드는 SwiftData가 기본값([false×7])으로 채움
     var weeklyCompletions: [Bool] = Array(repeating: false, count: 7)
 
+    /// '이번만 건너뛰기'로 뺀 회차의 날짜 ("yyyy-MM-dd"). 시리즈 자체는 그대로 둡니다.
+    /// Lightweight migration: 기존 레코드는 빈 배열로 채워집니다.
+    var skippedDayKeys: [String] = []
+
     init(id: UUID = UUID(),
          task: String,
          time: String? = nil,
@@ -182,6 +195,21 @@ final class AppTask {
 
     /// 알림이 반복되는 태스크(매일 루틴·반복 일정)인지. 오늘 완료해도 다음 회차 알림은 남겨야 합니다.
     var hasRepeatingSchedule: Bool { isRecurring || date == nil }
+
+    static let supportedRecurrenceRules: Set<String> = ["weekly", "biweekly", "monthly", "yearly"]
+
+    /// 종류를 바꾼 뒤에도 화면 표시와 알림 예약이 같은 규칙을 따르게 맞춥니다.
+    /// 일정은 날짜가 있어야 플래너에 보이고(없으면 매일 울리기만 함), 루틴은 반복 규칙 없이 매일 나타납니다.
+    func normalizeSchedule(defaultDate: Date = Date()) {
+        if let rule = recurrenceRule, !Self.supportedRecurrenceRules.contains(rule) {
+            recurrenceRule = nil
+        }
+        if category == "Appointment" {
+            if date == nil { date = defaultDate }
+        } else {
+            recurrenceRule = nil
+        }
+    }
 
     // MARK: - 정렬용 시간 키 (24시간 형식)
     /// "02:00 PM" → "14:00", "09:00 AM" → "09:00", nil → "99:99" (맨 뒤)
@@ -212,6 +240,7 @@ final class AppTask {
     /// 반복 → 시작일(date) 이후, 규칙에 따라 해당 날짜에 발생하는지 계산
     func occursOn(_ targetDate: Date, calendar: Calendar = .current) -> Bool {
         let cal = calendar
+        if !skippedDayKeys.isEmpty, isSkipped(on: targetDate) { return false }
 
         // Routine은 기존 로직 유지 (date == nil → 매일)
         guard category == "Appointment" else {
@@ -229,6 +258,22 @@ final class AppTask {
             rule: rule,
             calendar: cal
         )
+    }
+
+    /// 날짜를 건너뛰기 기록용 키로 바꿉니다 (기기 시간대 기준 그날).
+    static func dayKey(_ date: Date) -> String {
+        StoredTaskFormat.date.string(from: date)
+    }
+
+    /// '이번만 건너뛰기'로 뺀 날인지
+    func isSkipped(on date: Date) -> Bool {
+        skippedDayKeys.contains(Self.dayKey(date))
+    }
+
+    /// 지난 건너뛰기 기록을 정리합니다 (기록이 끝없이 쌓이지 않게).
+    func pruneSkippedDayKeys(before date: Date) {
+        let cutoff = Self.dayKey(date)
+        skippedDayKeys.removeAll { $0 < cutoff }   // "yyyy-MM-dd"는 문자열 순서가 날짜 순서와 같음
     }
 
     /// 반복 일정의 사람이 읽을 수 있는 라벨
