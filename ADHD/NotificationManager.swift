@@ -371,12 +371,12 @@ final class NotificationManager {
     }
 
     /// 포그라운드마다 다시 계산해야 하는 예약인지:
-    /// 한 회차씩만 거는 반복(격주·매월·매년), 아직 지나지 않은 건너뛴 회차가 있는 반복, 시작 전인 매주 반복.
+    /// 한 회차씩만 거는 반복(격주·매월·매년), 건너뛴 회차 기록이 있는 반복, 시작 전인 매주 반복.
+    /// 건너뛴 날이 지난 뒤에도 한 번은 다시 계산해야 빼 두었던 요일·회차가 평소 반복으로 돌아옵니다.
     static func needsForegroundRearm(_ task: AppTask, now: Date = Date(), calendar: Calendar = .current) -> Bool {
         if RecurrenceEngine.requiresOneShotNotification(task.recurrenceRule) { return true }
         guard task.hasRepeatingSchedule else { return false }
-        let todayKey = AppTask.dayKey(now)
-        if task.skippedDayKeys.contains(where: { $0 >= todayKey }) { return true }
+        if !task.skippedDayKeys.isEmpty { return true }
         if task.recurrenceRule == "weekly", let anchor = task.date {
             return calendar.startOfDay(for: anchor) > calendar.startOfDay(for: now)
         }

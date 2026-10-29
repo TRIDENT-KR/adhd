@@ -303,6 +303,16 @@ class TaskManager: ObservableObject {
         guard let context = modelContext else { return }
         do {
             let all = try context.fetch(FetchDescriptor<AppTask>())
+            // 오래된 건너뛰기 기록은 지워, 다 지나간 기록 때문에 매번 다시 계산하지 않게 합니다.
+            var pruned = false
+            if let cutoff = Calendar.current.date(byAdding: .day, value: -60, to: Date()) {
+                let cutoffKey = AppTask.dayKey(cutoff)
+                for task in all where task.skippedDayKeys.contains(where: { $0 < cutoffKey }) {
+                    task.pruneSkippedDayKeys(before: cutoff)
+                    pruned = true
+                }
+            }
+            if pruned { safeSave() }
             for task in all where NotificationManager.needsForegroundRearm(task) {
                 NotificationManager.shared.scheduleNotification(for: task)
             }
