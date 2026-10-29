@@ -1,4 +1,10 @@
 export const DEFAULT_GEMINI_MODEL = "gemini-3.5-flash-lite";
+export const DEFAULT_CLAUDE_MODEL = "claude-haiku-5-5";
+
+export function claudeModel(configured: string | undefined): string | null {
+  const model = configured?.trim() || DEFAULT_CLAUDE_MODEL;
+  return /^claude-[a-z0-9][a-z0-9._-]*$/.test(model) ? model : null;
+}
 
 /** Only a model identifier is accepted, never a URL, path or query string. */
 export function geminiModel(configured: string | undefined): string | null {

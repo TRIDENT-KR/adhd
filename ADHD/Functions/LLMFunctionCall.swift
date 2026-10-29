@@ -9,6 +9,8 @@ struct PendingLLMCall: Identifiable {
     /// nil은 아직 승인용 대상이 고정되지 않았다는 뜻이고, 빈 배열은 고정했지만 대상이 0개라는 뜻입니다.
     var targetSnapshots: [AppTaskSnapshot]?
     var executionIssue: LLMExecutionIssue?
+    /// 단일 변경에 동명 후보가 여럿이면 사용자가 UUID를 선택할 때까지 실행하지 않습니다.
+    var targetCandidates: [AppTaskSnapshot] = []
     /// stale 감지 후 최신 미리보기를 다시 보여준 경우, 다음 확인 전에는 실행하지 않습니다.
     var requiresReconfirmation = false
 
@@ -22,8 +24,17 @@ struct PendingLLMCall: Identifiable {
     mutating func invalidatePreparedTargets() {
         guard call.requiresPreparedTargets else { return }
         targetSnapshots = nil
+        targetCandidates = []
         executionIssue = nil
         requiresReconfirmation = true
+    }
+
+    mutating func selectTarget(id: UUID) {
+        guard let selected = targetCandidates.first(where: { $0.id == id }) else { return }
+        targetSnapshots = [selected]
+        targetCandidates = []
+        executionIssue = nil
+        requiresReconfirmation = false
     }
 
     /// 하이브리드 urgency 분류:
@@ -56,6 +67,7 @@ enum LLMExecutionIssue: Equatable {
     case storeUnavailable
     case previewRequired
     case noMatchingTarget
+    case ambiguousTarget
     case staleTarget
     case persistenceFailed
     case notExecutedAfterStoreFailure
@@ -132,18 +144,38 @@ enum LLMFunctionCall: Decodable {
     }
 
     init(from decoder: Decoder) throws {
+        let raw = try decoder.container(keyedBy: AnalysisCodingKey.self)
+        guard Set(raw.allKeys.map(\.stringValue)) == ["function_name", "parameters"] else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Unexpected command keys"))
+        }
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let functionName = try container.decode(String.self, forKey: .function_name)
+        let allowed: [String: Set<String>] = [
+            "add_single_task": ["task_name", "time", "date", "category", "recurrence", "urgency"],
+            "update_task": ["target_task_name", "new_task_name", "new_time", "new_date", "new_category", "new_recurrence"],
+            "delete_specific_task": ["target_task_name", "target_category", "target_date"],
+            "clear_all_tasks": ["target_category", "target_date"],
+            "postpone_all_tasks": ["from_date", "to_date"],
+            "mark_task_complete": ["target_task_name"],
+            "request_clarification": ["reason"],
+            "handle_off_topic_chat": ["message"],
+        ]
+        if let keys = allowed[functionName] {
+            let parameters = try raw.nestedContainer(keyedBy: AnalysisCodingKey.self, forKey: AnalysisCodingKey("parameters"))
+            guard Set(parameters.allKeys.map(\.stringValue)).isSubset(of: keys) else {
+                throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Unexpected parameter keys"))
+            }
+        }
 
         switch functionName {
         case "add_single_task":
             var params = try container.decode(AddSingleTaskParams.self, forKey: .parameters)
-            params.category = (params.category.lowercased() == "appointment") ? "Appointment" : "Routine"
+            params.category = try Self.decodeCategory(params.category, decoder: decoder)
             self = .addSingleTask(params)
         case "update_task":
             var params = try container.decode(UpdateTaskParams.self, forKey: .parameters)
             if let cat = params.new_category {
-                params.new_category = (cat.lowercased() == "appointment") ? "Appointment" : "Routine"
+                params.new_category = try Self.decodeCategory(cat, decoder: decoder)
             }
             self = .updateTask(params)
         case "delete_specific_task":
@@ -296,11 +328,17 @@ enum LLMFunctionCall: Decodable {
     var isExecutionPayloadValid: Bool {
         switch self {
         case .addSingleTask(let params):
-            return !params.task_name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            return Self.isValidText(params.task_name)
                 && Self.isValidCategory(params.category, allowsAll: false)
                 && Self.isValidDate(params.date, allowsNil: true, allowsAll: false)
+                && Self.isValidTime(params.time)
+                && Self.isValidRecurrence(params.recurrence)
+                && (params.urgency == nil || ["strong", "weak"].contains(params.urgency!))
         case .updateTask(let params):
-            return !params.target_task_name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            return Self.isValidText(params.target_task_name)
+                && (params.new_task_name == nil || Self.isValidText(params.new_task_name!))
+                && Self.isValidTime(params.new_time)
+                && Self.isValidRecurrence(params.new_recurrence)
                 && [
                     params.new_task_name,
                     params.new_time,
@@ -312,6 +350,7 @@ enum LLMFunctionCall: Decodable {
                 && Self.isValidDate(params.new_date, allowsNil: true, allowsAll: false)
         case .deleteSpecificTask(let params):
             return params.target_task_name.trimmingCharacters(in: .whitespacesAndNewlines).count >= 2
+                && Self.isValidText(params.target_task_name)
                 && Self.isValidCategory(params.target_category, allowsAll: true)
                 && Self.isValidDate(params.target_date, allowsNil: true, allowsAll: true)
         case .clearAllTasks(let params):
@@ -321,14 +360,47 @@ enum LLMFunctionCall: Decodable {
             return Self.isValidDate(params.from_date, allowsNil: false, allowsAll: false)
                 && Self.isValidDate(params.to_date, allowsNil: false, allowsAll: false)
         case .markTaskComplete(let params):
-            return !params.target_task_name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            return Self.isValidText(params.target_task_name)
         case .requestClarification(let params):
-            return !params.reason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            return Self.isValidText(params.reason, maximum: 500)
         case .handleOffTopicChat(let params):
-            return !params.message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            return Self.isValidText(params.message, maximum: 500)
         case .unknown:
             return false
         }
+    }
+
+    /// 모든 엔진에 같은 수량·필드 계약을 적용합니다. 안내와 변경을 섞어 숨기지 않습니다.
+    static func isValidAnalysis(_ calls: [LLMFunctionCall]) -> Bool {
+        (1...50).contains(calls.count) && calls.allSatisfy(\.isExecutionPayloadValid)
+            && (calls.count == 1 || !calls.contains(where: { call in
+                switch call {
+                case .requestClarification, .handleOffTopicChat: return true
+                default: return false
+                }
+            }))
+    }
+
+    private static func decodeCategory(_ value: String, decoder: Decoder) throws -> String {
+        switch value.lowercased() {
+        case "routine": return "Routine"
+        case "appointment": return "Appointment"
+        default: throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid category"))
+        }
+    }
+
+    private static func isValidText(_ value: String, maximum: Int = 200) -> Bool {
+        !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && value.utf16.count <= maximum
+            && !value.unicodeScalars.contains { $0.value < 0x20 || (0x7F...0x9F).contains($0.value) }
+    }
+
+    private static func isValidTime(_ value: String?) -> Bool {
+        guard let value else { return true }
+        return value.range(of: #"\A(0[1-9]|1[0-2]):[0-5][0-9] (AM|PM)\z"#, options: .regularExpression) != nil
+    }
+
+    private static func isValidRecurrence(_ value: String?) -> Bool {
+        value == nil || ["weekly", "biweekly", "monthly", "yearly"].contains(value!)
     }
 
     private static func isValidCategory(_ value: String?, allowsAll: Bool) -> Bool {
@@ -351,7 +423,8 @@ enum LLMFunctionCall: Decodable {
               parts[2].count == 2,
               let year = Int(parts[0]),
               let month = Int(parts[1]),
-              let day = Int(parts[2]) else {
+              let day = Int(parts[2]), (1...9999).contains(year),
+              value.range(of: #"\A[0-9]{4}-[0-9]{2}-[0-9]{2}\z"#, options: .regularExpression) != nil else {
             return false
         }
 
@@ -367,6 +440,14 @@ enum LLMFunctionCall: Decodable {
         if case .unknown = self { return true }
         return false
     }
+}
+
+private struct AnalysisCodingKey: CodingKey {
+    let stringValue: String
+    var intValue: Int? { nil }
+    init(_ value: String) { stringValue = value }
+    init?(stringValue: String) { self.init(stringValue) }
+    init?(intValue: Int) { return nil }
 }
 
 enum LLMConfirmationPolicy {

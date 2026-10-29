@@ -77,6 +77,7 @@ extension TaskManager {
 
         return pendingCalls.map { pending in
             var prepared = pending
+            prepared.targetCandidates = []
             guard pending.call.requiresPreparedTargets else {
                 prepared.targetSnapshots = []
                 prepared.executionIssue = nil
@@ -89,6 +90,11 @@ extension TaskManager {
                     in: context
                 )
                 prepared.executionIssue = nil
+                prepared.requiresReconfirmation = false
+            } catch TargetResolutionError.ambiguous(let candidates) {
+                prepared.targetSnapshots = []
+                prepared.targetCandidates = candidates
+                prepared.executionIssue = .ambiguousTarget
                 prepared.requiresReconfirmation = false
             } catch {
                 prepared.targetSnapshots = nil
@@ -113,6 +119,11 @@ extension TaskManager {
         }
 
         let calls = pendingCalls.map(\.call)
+        guard calls.count <= 50,
+              calls.count == 1 || !calls.contains(where: {
+                  if case .requestClarification = $0 { return true }
+                  return $0.isOffTopic
+              }) else { return failureResult(for: pendingCalls, issue: .invalidCommand) }
         guard explicitlyConfirmed
                 || !LLMConfirmationPolicy.requiresExplicitConfirmation(for: calls) else {
             print("ai_command_execution_blocked reason=confirmation_required count=\(calls.count)")
@@ -141,6 +152,10 @@ extension TaskManager {
             }
 
             if originalPending.call.requiresPreparedTargets {
+                guard originalPending.executionIssue != .ambiguousTarget else {
+                    results.append(failedItem(originalPending, issue: .ambiguousTarget))
+                    continue
+                }
                 guard let expected = originalPending.targetSnapshots else {
                     results.append(failedItem(originalPending, issue: .previewRequired))
                     continue
@@ -228,6 +243,10 @@ extension TaskManager {
 
     // MARK: - Target Preparation
 
+    private enum TargetResolutionError: Error {
+        case ambiguous([AppTaskSnapshot])
+    }
+
     private func resolveTargetSnapshots(
         for call: LLMFunctionCall,
         in context: ModelContext
@@ -238,7 +257,7 @@ extension TaskManager {
         let targets: [AppTask]
         switch call {
         case .updateTask(let params):
-            targets = bestMatch(name: params.target_task_name, in: all).map { [$0] } ?? []
+            targets = try uniqueMatch(name: params.target_task_name, in: all)
 
         case .deleteSpecificTask(let params):
             targets = matchingTasks(
@@ -272,7 +291,7 @@ extension TaskManager {
             }
 
         case .markTaskComplete(let params):
-            targets = bestMatch(name: params.target_task_name, in: all).map { [$0] } ?? []
+            targets = try uniqueMatch(name: params.target_task_name, in: all)
 
         case .addSingleTask, .requestClarification, .handleOffTopicChat, .unknown:
             targets = []
@@ -281,13 +300,15 @@ extension TaskManager {
         return targets.map(AppTaskSnapshot.init)
     }
 
-    private func bestMatch(name: String, in tasks: [AppTask]) -> AppTask? {
+    private func uniqueMatch(name: String, in tasks: [AppTask]) throws -> [AppTask] {
         let query = name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        if let exact = tasks.first(where: { $0.task.lowercased() == query }) {
-            return exact
+        let exact = tasks.filter { $0.task.lowercased() == query }
+        let matches = !exact.isEmpty ? exact : (query.count >= 2
+            ? tasks.filter { $0.task.lowercased().contains(query) } : [])
+        guard matches.count <= 1 else {
+            throw TargetResolutionError.ambiguous(matches.map(AppTaskSnapshot.init))
         }
-        guard query.count >= 2 else { return nil }
-        return tasks.first(where: { $0.task.lowercased().contains(query) })
+        return matches
     }
 
     private func matchingTasks(
@@ -556,8 +577,11 @@ extension TaskManager {
     private func date(from string: String?) -> Date? {
         guard let string, string.lowercased() != "all" else { return nil }
         let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
         formatter.dateFormat = "yyyy-MM-dd"
         formatter.locale = Locale(identifier: "en_US_POSIX")
-        return formatter.date(from: string)
+        formatter.isLenient = false
+        guard let date = formatter.date(from: string), formatter.string(from: date) == string else { return nil }
+        return date
     }
 }

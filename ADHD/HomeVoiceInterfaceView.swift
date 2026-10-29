@@ -28,6 +28,7 @@ struct HomeVoiceInterfaceView: View {
     // Confirmation card state
     @State private var pendingTasks: [PendingLLMCall] = []
     @State private var pendingSubmittedDraft: String?
+    @State private var pendingAnalysisContext: TaskAnalysisContext?
     @State private var showConfirmation = false
     @State private var editingTask: PendingLLMCall? = nil
     
@@ -465,6 +466,9 @@ struct HomeVoiceInterfaceView: View {
             }
         }
         .onChange(of: authManager.accessState) { _, _ in
+            if let context = pendingAnalysisContext, !canUseAnalysisContext(context) {
+                cancelPendingTasks()
+            }
             loadConfirmBeforeSavePreference()
             if authManager.accessState.accountUserID != nil { showSignIn = false }
         }
@@ -496,6 +500,7 @@ struct HomeVoiceInterfaceView: View {
             voiceManager.discardAccountSensitiveState()
             textInputValue = ""
             pendingSubmittedDraft = nil
+            pendingAnalysisContext = nil
             pendingTasks = []
             editingTask = nil
             showConfirmation = false
@@ -608,25 +613,18 @@ struct HomeVoiceInterfaceView: View {
         guard !text.isEmpty, activeAnalysisID == nil,
               !cloudLLM.isProcessing, !voiceManager.isProcessing else { return }
 
-        guard authManager.accessState.accountUserID != nil else {
+        guard let userID = authManager.accessState.exposedUserID else {
             isTextInputFocused = false
             showSignIn = true
             return
         }
 
-        guard networkMonitor.isConnected else {
-            networkMonitor.showOfflineBannerTemporarily()
-            return
-        }
-
-        guard AIDataConsent.isGranted(for: authManager.accessState.accountUserID) else {
-            isTextInputFocused = false
-            showAIConsent = true
-            return
-        }
-
-        if !subscriptionManager.canUseAI {
-            showPaywall = true
+        guard taskManager.isReady, taskManager.modelContext != nil,
+              AdultEligibilityManager.shared.allowsLocalUse(for: userID),
+              let scope = AccountPreferences.activeScope,
+              scope == AccountPreferences.scope(for: userID),
+              let generation = AccountPreferences.sessionGeneration() else {
+            triggerErrorFeedback(message: L.voice.errorApi)
             return
         }
 
@@ -637,13 +635,28 @@ struct HomeVoiceInterfaceView: View {
 
         let analysisID = UUID()
         activeAnalysisID = analysisID
+        let context = TaskAnalysisContext(requestID: analysisID, language: langManager.currentLanguage.rawValue,
+                                          accountScope: scope, accountGeneration: generation)
 
         analysisTask = Task {
             do {
-                let parsedTasks = try await cloudLLM.analyzeText(text: text)
+                let result = try await TaskAnalysisRouter.analyze(
+                    text: text, context: context,
+                    localRulesEnabled: TaskAnalysisRollout.localRulesEnabled,
+                    isCurrent: { activeAnalysisID == analysisID && canUseAnalysisContext(context) },
+                    authorizeCloud: {
+                        guard networkMonitor.isConnected else { throw TaskAnalysisError.offline }
+                        guard AIDataConsent.isGranted(for: userID) else { throw CloudLLMError.consentRequired }
+                        guard subscriptionManager.canUseAI else { throw CloudLLMError.quotaExhausted }
+                    },
+                    cloud: { input, capturedContext in
+                        let calls = try await cloudLLM.analyzeText(text: input, context: capturedContext)
+                        return TaskAnalysisResult(calls: calls, source: .cloud, quota: cloudLLM.latestQuota)
+                    }
+                )
                 let shouldHideSuccess = await MainActor.run {
-                    guard activeAnalysisID == analysisID else { return false }
-                    let shouldHide = handleSuccessfulAnalysis(parsedTasks, submittedText: text)
+                    guard activeAnalysisID == analysisID, canUseAnalysisContext(context) else { return false }
+                    let shouldHide = handleSuccessfulAnalysis(result, submittedText: text, context: context)
                     activeAnalysisID = nil
                     analysisTask = nil
                     if shouldHide {
@@ -666,6 +679,15 @@ struct HomeVoiceInterfaceView: View {
                     activeAnalysisID = nil
                     analysisTask = nil
                 }
+            } catch TaskAnalysisError.offline {
+                guard activeAnalysisID == analysisID else { return }
+                activeAnalysisID = nil
+                analysisTask = nil
+                networkMonitor.showOfflineBannerTemporarily()
+                triggerErrorFeedback(message: L.t(
+                    "This draft needs an online analysis. Your text is saved here; you can also add it manually.",
+                    "이 문장은 온라인 분석이 필요해요. 초안은 그대로 있으니 직접 추가할 수도 있어요.",
+                    "この下書きにはオンライン解析が必要です。文章は残っているので手動でも追加できます。"))
             } catch CloudLLMError.adultEligibilityRequired {
                 await MainActor.run {
                     guard activeAnalysisID == analysisID else { return }
@@ -679,6 +701,16 @@ struct HomeVoiceInterfaceView: View {
                     activeAnalysisID = nil
                     analysisTask = nil
                     showAIConsent = true
+                }
+            } catch CloudLLMError.rateLimited {
+                await MainActor.run {
+                    guard activeAnalysisID == analysisID else { return }
+                    activeAnalysisID = nil
+                    analysisTask = nil
+                    triggerErrorFeedback(message: L.t(
+                        "Please wait a moment and try again. Your draft is still here.",
+                        "잠시 후 다시 시도해 주세요. 입력한 내용은 그대로 있어요.",
+                        "少し待ってからもう一度お試しください。下書きは残っています。"))
                 }
             } catch CloudLLMError.quotaExhausted {
                 await MainActor.run {
@@ -699,30 +731,39 @@ struct HomeVoiceInterfaceView: View {
         }
     }
 
-    /// 서버가 검증·확정한 분석과 quota 스냅샷만 화면과 실행 단계에 반영합니다.
+    private func canUseAnalysisContext(_ context: TaskAnalysisContext) -> Bool {
+        guard let userID = authManager.accessState.exposedUserID else { return false }
+        return context.isCurrentAccount && context.accountScope == AccountPreferences.scope(for: userID)
+            && context.timeZone == .current && taskManager.isReady && taskManager.modelContext != nil
+            && AdultEligibilityManager.shared.allowsLocalUse(for: userID)
+    }
+
+    /// 모든 엔진이 같은 확인·실행 경계로 합류합니다. 로컬 성공에는 서버 quota가 없습니다.
     @MainActor
     private func handleSuccessfulAnalysis(
-        _ parsedTasks: [LLMFunctionCall],
-        submittedText: String
+        _ result: TaskAnalysisResult,
+        submittedText: String,
+        context: TaskAnalysisContext
     ) -> Bool {
-        guard !parsedTasks.isEmpty,
-              parsedTasks.allSatisfy(\.isExecutionPayloadValid) else {
+        let parsedTasks = result.calls
+        guard canUseAnalysisContext(context), LLMFunctionCall.isValidAnalysis(parsedTasks) else {
             triggerErrorFeedback(message: L.voice.errorApi)
             return false
         }
 
         // 성공 분석의 서버 원장 스냅샷만 UI에 반영합니다. 로컬 추정 차감은 권한 원천이 아닙니다.
-        if let quota = cloudLLM.latestQuota {
+        if result.source == .cloud, let quota = result.quota {
             subscriptionManager.applyServerQuota(quota)
         }
 
-        let mustConfirm = confirmBeforeSave
+        let prepared = taskManager.preparePendingCalls(parsedTasks.map { PendingLLMCall(call: $0) })
+        let mustConfirm = result.requiresPreview || confirmBeforeSave
+            || prepared.contains(where: { $0.executionIssue == .ambiguousTarget })
             || LLMConfirmationPolicy.requiresExplicitConfirmation(for: parsedTasks)
         if mustConfirm {
             pendingSubmittedDraft = submittedText
-            pendingTasks = taskManager.preparePendingCalls(
-                parsedTasks.map { PendingLLMCall(call: $0) }
-            )
+            pendingAnalysisContext = context
+            pendingTasks = prepared
             withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
                 showConfirmation = true
             }
@@ -763,6 +804,15 @@ struct HomeVoiceInterfaceView: View {
 
     // MARK: - Confirmation Actions
     private func confirmPendingTasks() {
+        guard let context = pendingAnalysisContext, canUseAnalysisContext(context) else {
+            cancelPendingTasks()
+            triggerErrorFeedback(message: L.voice.reviewUpdatedPreview)
+            return
+        }
+        guard !pendingTasks.contains(where: { $0.executionIssue == .ambiguousTarget }) else {
+            triggerErrorFeedback(message: L.t("Choose which task to change.", "변경할 일정을 선택해 주세요.", "変更するタスクを選んでください。"))
+            return
+        }
         if let invalidTask = pendingTasks.first(where: { task in
             guard task.uiAction == "add" else { return false }
             let isMissingTime = task.uiTime == nil || task.uiTime!.isEmpty
@@ -866,6 +916,7 @@ struct HomeVoiceInterfaceView: View {
             showConfirmation = false
             pendingTasks = []
             pendingSubmittedDraft = nil
+            pendingAnalysisContext = nil
         }
     }
 
@@ -1096,11 +1147,14 @@ struct VoiceConfirmationSheet: View {
 
                             Button(L.voice.save) {
                                 let tf = DateFormatter()
-                                tf.timeStyle = .short
-                                tf.dateStyle = .none
+                                tf.locale = Locale(identifier: "en_US_POSIX")
+                                tf.calendar = Calendar(identifier: .gregorian)
+                                tf.dateFormat = "hh:mm a"
                                 let numStr = tf.string(from: editDateTime)
                                 
                                 let df = DateFormatter()
+                                df.locale = Locale(identifier: "en_US_POSIX")
+                                df.calendar = Calendar(identifier: .gregorian)
                                 df.dateFormat = "yyyy-MM-dd"
                                 let newDateStr = df.string(from: editDateTime)
                                 
@@ -1242,6 +1296,44 @@ struct VoiceConfirmationSheet: View {
                                             ? .orange
                                             : DesignSystem.Colors.onSurfaceVariant.opacity(0.6)
                                     )
+                                    if let selected = task.targetSnapshots?.first,
+                                       task.targetSnapshots?.count == 1 {
+                                        HStack {
+                                            Text(selected.task)
+                                            if let date = selected.date {
+                                                Text(date, format: .dateTime.year().month().day())
+                                            }
+                                            if let time = selected.time { Text(time) }
+                                        }
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                    }
+                                }
+                                if task.executionIssue == .ambiguousTarget {
+                                    Text(L.t("Choose which task to change", "변경할 일정을 선택해 주세요", "変更するタスクを選んでください"))
+                                        .font(.subheadline.weight(.semibold))
+                                    ForEach(task.targetCandidates, id: \.id) { candidate in
+                                        Button {
+                                            guard let index = tasks.firstIndex(where: { $0.id == task.id }) else { return }
+                                            tasks[index].selectTarget(id: candidate.id)
+                                        } label: {
+                                            VStack(alignment: .leading, spacing: 4) {
+                                                Text(candidate.task)
+                                                HStack {
+                                                    if let date = candidate.date {
+                                                        Text(date, format: .dateTime.year().month().day())
+                                                    }
+                                                    if let time = candidate.time { Text(time) }
+                                                    Text(candidate.category == "Routine"
+                                                         ? L.t("Routine", "루틴", "ルーティン")
+                                                         : L.t("Appointment", "일정", "予定"))
+                                                }
+                                                .font(.caption)
+                                            }
+                                            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                                        }
+                                        .buttonStyle(.bordered)
+                                    }
                                 }
                             }
                             .padding(.vertical, 16)
@@ -1255,6 +1347,7 @@ struct VoiceConfirmationSheet: View {
                             )
                             .shadow(color: .black.opacity(0.03), radius: 8, x: 0, y: 4)
                             .onTapGesture {
+                                guard task.executionIssue != .ambiguousTarget else { return }
                                 switch task.call {
                                 case .addSingleTask, .updateTask, .deleteSpecificTask, .markTaskComplete:
                                     withAnimation(.spring()) { editingTask = task }

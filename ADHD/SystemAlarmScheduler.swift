@@ -102,7 +102,7 @@ final class SystemAlarmScheduler: Sendable {
 
     // MARK: - Schedule
 
-    func schedule(_ spec: AlarmSpec) async {
+    func schedule(_ spec: AlarmSpec, isCurrent: @escaping @MainActor @Sendable () -> Bool) async {
         guard let kind = spec.alarmKitSchedule else { return }
         let manager = AlarmKit.AlarmManager.shared
 
@@ -157,10 +157,15 @@ final class SystemAlarmScheduler: Sendable {
         do {
             try? manager.cancel(id: spec.id)   // 동일 id 갱신을 위한 선취소 (미존재 시 무해)
             _ = try await manager.schedule(id: spec.id, configuration: configuration)
+            guard isCurrent() else {
+                try? manager.cancel(id: spec.id)
+                return
+            }
             print("alarmkit_schedule_succeeded")
         } catch {
             print("alarmkit_schedule_failed fallback=user_notification")
             await MainActor.run {
+                guard isCurrent() else { return }
                 NotificationManager.shared.scheduleUserNotification(spec)
             }
         }

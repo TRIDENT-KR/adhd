@@ -19,9 +19,9 @@ struct UrgencyClassificationTests {
     private func addTaskJSON(category: String, urgency: String?) -> String {
         let urgencyField: String
         if let urgency {
-            urgencyField = "\"urgency\": \"\(urgency)\","
+            urgencyField = "\"urgency\": \"\(urgency)\""
         } else {
-            urgencyField = ""
+            urgencyField = "\"urgency\": null"
         }
         return """
         {
@@ -33,7 +33,6 @@ struct UrgencyClassificationTests {
             "category": "\(category)",
             "recurrence": null,
             \(urgencyField)
-            "task_note": null
           }
         }
         """
@@ -65,10 +64,11 @@ struct UrgencyClassificationTests {
         #expect(PendingLLMCall(call: call).urgency == .weak)
     }
 
-    @Test func invalidUrgencyFallsBackToHeuristic() throws {
-        // 화이트리스트 외 값("urgent")은 서버에서 null 처리되지만, 뚫고 와도 휴리스틱으로 폴백
+    @Test func invalidUrgencyCannotExecuteEvenIfPreviewHasADefault() throws {
+        // 표시용 기본값은 실행 허가가 아니다. 현재 서버·클라이언트 계약은 이상값을 거부한다.
         let call = try decode(addTaskJSON(category: "Routine", urgency: "urgent"))
         #expect(PendingLLMCall(call: call).urgency == .weak)
+        #expect(!call.isExecutionPayloadValid)
     }
 
     @Test func categoryNormalizationStillApplies() throws {

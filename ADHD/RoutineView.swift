@@ -444,7 +444,7 @@ struct WeeklyBar: View {
     private var todayIndex: Int {
         var cal = Calendar(identifier: .iso8601)
         cal.timeZone = .current
-        return cal.component(.weekday, from: Date()) - 1
+        return (cal.component(.weekday, from: Date()) + 5) % 7
     }
 
     var body: some View {

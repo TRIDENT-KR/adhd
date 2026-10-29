@@ -27,106 +27,114 @@ struct QuickAddSheet: View {
     }
 
     var body: some View {
-        VStack(spacing: 20) {
-            // 타이틀 행
-            HStack {
-                Text(L.quickAdd.title)
-                    .font(.title3.bold())
-                    .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
-                Spacer()
-                Button(action: { dismiss() }) {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.title3)
-                        .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.4))
-                        .frame(minWidth: 44, minHeight: 44)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(NoEffectButtonStyle())
-                .accessibilityLabel(L.t("Close", "닫기", "閉じる"))
-            }
-
-            // 이름 입력
-            TextField(L.voice.fieldName, text: $name)
-                .font(DesignSystem.Typography.bodyMd)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 14)
-                .background(DesignSystem.Colors.surfaceContainerLow)
-                .cornerRadius(14)
-                .focused($isNameFocused)
-                .submitLabel(.done)
-                .onSubmit { save() }
-
-            // 칩 행: 시간 + 긴급도 (TaskRow 편집 모드와 동일 시각 패턴)
-            HStack(spacing: 8) {
-                Text(time.isEmpty ? L.voice.fieldTime : time)
-                    .font(DesignSystem.Typography.labelSm)
-                    .padding(.vertical, 4)
-                    .padding(.horizontal, 8)
-                    .background(DesignSystem.Colors.onSurfaceVariant.opacity(0.1))
-                    .cornerRadius(6)
-                    .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
-                    .onTapGesture { showTimePicker = true }
-                    .accessibilityLabel(L.t("Set time", "시간 설정", "時刻を設定"))
-                    .accessibilityAddTraits(.isButton)
-
-                Button(action: {
-                    urgency = (urgency == .weak) ? .strong : .weak
-                    Haptic.impact(.light)
-                }) {
-                    HStack(spacing: 3) {
-                        Image(systemName: urgency == .strong ? "bolt.fill" : "bolt")
-                            .font(.caption2.weight(.semibold))
-                        Text(urgency == .strong ? L.voice.urgencyStrong : L.voice.urgencyWeak)
-                            .font(.caption2.weight(.medium))
+        ScrollView {
+            VStack(spacing: 20) {
+                // 타이틀 행
+                HStack {
+                    Text(L.quickAdd.title)
+                        .font(.title3.bold())
+                        .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
+                    Spacer()
+                    Button(action: { dismiss() }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.title3)
+                            .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.4))
+                            .frame(minWidth: 44, minHeight: 44)
+                            .contentShape(Rectangle())
                     }
-                    .foregroundColor(urgency == .strong ? .orange : DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
-                    .padding(.vertical, 4)
-                    .padding(.horizontal, 8)
-                    .background((urgency == .strong ? Color.orange : DesignSystem.Colors.onSurfaceVariant).opacity(0.12))
-                    .cornerRadius(6)
+                    .buttonStyle(NoEffectButtonStyle())
+                    .accessibilityLabel(L.t("Close", "닫기", "閉じる"))
                 }
-                .buttonStyle(NoEffectButtonStyle())
-                .accessibilityLabel(urgency == .strong ? L.voice.urgencyStrong : L.voice.urgencyWeak)
 
-                Spacer()
-            }
-
-            // (appointment) 날짜 표시 행 — 표시 전용. 날짜 변경은 Planner 주간 셀렉터에서 (정보 밀도 금기)
-            if case .appointment(let date) = mode {
-                HStack(spacing: 6) {
-                    Image(systemName: "calendar")
-                        .font(.caption)
-                    Text(date.formatted(.dateTime.year().month(.abbreviated).day().locale(Locale(identifier: langManager.currentLanguage.rawValue))))
-                        .font(DesignSystem.Typography.labelSm)
-                }
-                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-
-            // 저장 실패 안내 — 입력은 남아 있으니 다시 누르기만 하면 된다
-            if saveFailed {
-                Text(L.quickAdd.saveFailed)
+                // 이름 입력
+                TextField(L.voice.fieldName, text: $name)
                     .font(DesignSystem.Typography.bodyMd)
-                    .foregroundColor(DesignSystem.Colors.primary)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 14)
+                    .background(DesignSystem.Colors.surfaceContainerLow)
+                    .cornerRadius(14)
+                    .focused($isNameFocused)
+                    .submitLabel(.done)
+                    .onSubmit { save() }
+
+                // 칩 행: 시간 + 긴급도 (TaskRow 편집 모드와 동일 시각 패턴)
+                HStack(spacing: 8) {
+                    Button { showTimePicker = true } label: {
+                        Text(time.isEmpty ? L.voice.fieldTime : time)
+                            .font(DesignSystem.Typography.labelSm)
+                            .padding(.vertical, 4)
+                            .padding(.horizontal, 8)
+                            .background(DesignSystem.Colors.onSurfaceVariant.opacity(0.1))
+                            .cornerRadius(6)
+                            .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
+                            .frame(minHeight: 44)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(NoEffectButtonStyle())
+                    .accessibilityLabel(L.t("Set time", "시간 설정", "時刻を設定"))
+
+                    Button(action: {
+                        urgency = (urgency == .weak) ? .strong : .weak
+                        Haptic.impact(.light)
+                    }) {
+                        HStack(spacing: 3) {
+                            Image(systemName: urgency == .strong ? "bolt.fill" : "bolt")
+                                .font(.caption2.weight(.semibold))
+                            Text(urgency == .strong ? L.voice.urgencyStrong : L.voice.urgencyWeak)
+                                .font(.caption2.weight(.medium))
+                        }
+                        .foregroundColor(urgency == .strong ? .orange : DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
+                        .padding(.vertical, 4)
+                        .padding(.horizontal, 8)
+                        .background((urgency == .strong ? Color.orange : DesignSystem.Colors.onSurfaceVariant).opacity(0.12))
+                        .cornerRadius(6)
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(NoEffectButtonStyle())
+                    .accessibilityLabel(urgency == .strong ? L.voice.urgencyStrong : L.voice.urgencyWeak)
+
+                    Spacer()
+                }
+
+                // (appointment) 날짜 표시 행 — 표시 전용. 날짜 변경은 Planner 주간 셀렉터에서 (정보 밀도 금기)
+                if case .appointment(let date) = mode {
+                    HStack(spacing: 6) {
+                        Image(systemName: "calendar")
+                            .font(.caption)
+                        Text(date.formatted(.dateTime.year().month(.abbreviated).day().locale(Locale(identifier: langManager.currentLanguage.rawValue))))
+                            .font(DesignSystem.Typography.labelSm)
+                    }
+                    .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
                     .frame(maxWidth: .infinity, alignment: .leading)
-            }
+                }
 
-            Spacer(minLength: 0)
+                // 저장 실패 안내 — 입력은 남아 있으니 다시 누르기만 하면 된다
+                if saveFailed {
+                    Text(L.quickAdd.saveFailed)
+                        .font(DesignSystem.Typography.bodyMd)
+                        .foregroundColor(DesignSystem.Colors.primary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
 
-            // 저장 버튼
-            Button(action: save) {
-                Text(L.quickAdd.save)
-                    .frame(maxWidth: .infinity)
+                Spacer(minLength: 0)
+
+                // 저장 버튼
+                Button(action: save) {
+                    Text(L.quickAdd.save)
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(SatisfyingButtonStyle(color: DesignSystem.Colors.primary))
+                .disabled(trimmedName.isEmpty)
+                .opacity(trimmedName.isEmpty ? 0.5 : 1)
             }
-            .buttonStyle(SatisfyingButtonStyle(color: DesignSystem.Colors.primary))
-            .disabled(trimmedName.isEmpty)
-            .opacity(trimmedName.isEmpty ? 0.5 : 1)
+            .padding(.horizontal, 24)
+            .padding(.top, 28)
+            .padding(.bottom, 24)
         }
-        .padding(.horizontal, 24)
-        .padding(.top, 28)
-        .padding(.bottom, 24)
+        .scrollDismissesKeyboard(.interactively)
         .background(DesignSystem.Colors.background)
-        .presentationDetents([.height(360)])
+        .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
         .sheet(isPresented: $showTimePicker) {
             TimePickerModal(timeString: $time, isPresented: $showTimePicker)

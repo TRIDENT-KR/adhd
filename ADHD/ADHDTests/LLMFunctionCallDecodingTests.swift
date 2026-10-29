@@ -78,10 +78,10 @@ struct LLMFunctionCallDecodingTests {
         #expect(p.category == "Appointment")
     }
 
-    @Test func normalizesUnknownCategoryToRoutine() throws {
-        let call = try decode(#"{"function_name":"add_single_task","parameters":{"task_name":"x","category":"banana"}}"#)
-        guard case .addSingleTask(let p) = call else { Issue.record("wrong case"); return }
-        #expect(p.category == "Routine")
+    @Test func rejectsUnknownCategoryRatherThanCreatingARoutine() {
+        #expect(throws: DecodingError.self) {
+            try decode(#"{"function_name":"add_single_task","parameters":{"task_name":"x","category":"banana"}}"#)
+        }
     }
 
     @Test func normalizesUpdateTaskNewCategory() throws {

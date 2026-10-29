@@ -138,7 +138,7 @@ struct DeleteByNameBatchTests {
         let calls = [
             PendingLLMCall(call: .addSingleTask(AddSingleTaskParams(
                 task_name: "새 일정",
-                time: "09:00",
+                time: "09:00 AM",
                 date: nil,
                 category: "Routine",
                 recurrence: nil,
@@ -182,7 +182,7 @@ struct DeleteByNameBatchTests {
         let calls = [
             PendingLLMCall(call: .addSingleTask(AddSingleTaskParams(
                 task_name: "물 마시기",
-                time: "10:00",
+                time: "10:00 AM",
                 date: nil,
                 category: "Routine",
                 recurrence: nil,
@@ -217,7 +217,7 @@ struct DeleteByNameBatchTests {
         let call = PendingLLMCall(call: .updateTask(UpdateTaskParams(
             target_task_name: "회의",
             new_task_name: nil,
-            new_time: "10:00",
+            new_time: "10:00 AM",
             new_date: nil,
             new_category: nil,
             new_recurrence: nil
@@ -243,7 +243,7 @@ struct DeleteByNameBatchTests {
             explicitlyConfirmed: true
         )
         #expect(secondAttempt.allSucceeded)
-        #expect(existing.time == "10:00")
+        #expect(existing.time == "10:00 AM")
     }
 
     @Test func approvedDeleteIDsDoNotExpandToNewMatches() throws {

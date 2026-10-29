@@ -122,7 +122,6 @@ class TaskManager: ObservableObject {
     }
 
     // MARK: - Daily / Weekly Reset Logic
-    private let lastResetKey = "lastResetDate"
 
     /// ISO 8601 기준 캘린더 (주 시작: 월요일). 타임존은 기기 로컬 자동 적용.
     private var isoCalendar: Calendar {
@@ -133,7 +132,8 @@ class TaskManager: ObservableObject {
 
     /// ISO 8601 weekday 컴포넌트 → 0=월, 1=화, … 6=일
     private func isoWeekdayIndex(of date: Date) -> Int {
-        isoCalendar.component(.weekday, from: date) - 1   // iso8601: 1=Mon … 7=Sun
+        // Foundation weekday is 1=Sunday, even on an ISO calendar.
+        (isoCalendar.component(.weekday, from: date) + 5) % 7
     }
 
     /// 두 날짜가 서로 다른 ISO 주(週)에 속하는지 확인
@@ -152,7 +152,7 @@ class TaskManager: ObservableObject {
     /// now/defaults 파라미터는 단위 테스트 주입용 (기존 무인자 호출은 그대로 유효)
     func checkAndResetDailyTasks(now: Date = Date(), defaults: UserDefaults = .standard) {
         guard let context = modelContext else { return }
-        let lastReset = defaults.object(forKey: lastResetKey) as? Date
+        let lastReset = AccountPreferences.date(.lastDailyResetDate, defaults: defaults)
 
         guard lastReset == nil || !Calendar.current.isDate(lastReset!, inSameDayAs: now) else { return }
 
@@ -160,6 +160,7 @@ class TaskManager: ObservableObject {
         do {
             let allTasks = try context.fetch(FetchDescriptor<AppTask>())
             let routineTasks = allTasks.filter { $0.category == "Routine" || $0.isRecurring }
+            let previousStates = routineTasks.map { ($0, $0.isCompleted, $0.weeklyCompletions) }
 
             // 1) 어제(lastReset) 요일에 완료 여부 기록
             if let lastReset {
@@ -185,8 +186,16 @@ class TaskManager: ObservableObject {
                 resetCount += 1
             }
 
-            defaults.set(now, forKey: lastResetKey)
-            safeSave()
+            guard safeSave() else {
+                // Preserve yesterday's completion for the next retry without
+                // rolling back unrelated edits in this context.
+                for (task, completed, weekly) in previousStates {
+                    task.isCompleted = completed
+                    task.weeklyCompletions = weekly
+                }
+                return
+            }
+            AccountPreferences.set(now, for: .lastDailyResetDate, defaults: defaults)
             print("✅ \(resetCount)개의 태스크 초기화 완료.")
         } catch {
             print("daily_reset_failed")

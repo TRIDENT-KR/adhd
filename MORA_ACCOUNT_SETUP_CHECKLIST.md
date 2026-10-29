@@ -1,10 +1,14 @@
 # Mora 계정 설정 인계 체크리스트
 
+> **2026-10-26 운영 갱신:** `ANTHROPIC_API_KEY` 등록 및 Claude 실호출을 확인했다. 성인 확인·AI 원장 migration과 `analyze-task` v24, `delete-account` v5를 배포했다. KO/EN/JA 분석·캐시·무료 한도 검증을 통과했다. Gemini는 실제 호출에서 402를 반환해 [이슈 #68](https://github.com/TRIDENT-KR/adhd/issues/68)로 보류했다. `APPLE_CLIENT_SECRET` 설정, 앱 배포·실기기 검증은 남는다. 서버 상태는 [배포 보고서](MORA_SERVER_DEPLOYMENT_20261026.md)를 우선한다.
+
+> **2026-10-13 갱신:** Claude 우선 → Gemini Flash-Lite 전환과 AI 동의 v2를 구현했다. 최신 배포 순서·검증·미완료 항목은 [출시 전 통합 보고서](MORA_PRELAUNCH_REPORT_20261013.md)를 따른다. 아래 9월 기록의 Gemini 단독 구조와 배포 순서는 현재 기준이 아니다.
+
 2026-09-30 작성 · 담당 이연재 · 최종 심사 제출은 김기홍 확인 후
 
 코드는 main에 들어가 있고, 남은 출시 작업은 대부분 Apple·Google·Supabase 계정 안에서 해야 하는 일이다. 이 문서는 그 작업을 순서대로 적은 것이다. 값은 모두 2026-09-30에 저장소와 운영 서버에서 직접 확인했다. 확인하지 못한 것은 "확인 필요"로 표시했다.
 
-**보안 원칙:** `.p8` 키, `APPLE_CLIENT_SECRET`, Gemini API 키, DB 비밀번호는 Slack·채팅·Git·스크린샷에 남기지 않는다. 팀 비밀번호 관리자에만 보관한다.
+**보안 원칙:** `.p8` 키, `APPLE_CLIENT_SECRET`, Anthropic·Gemini API 키, DB 비밀번호는 Slack·채팅·Git·스크린샷에 남기지 않는다. 팀 비밀번호 관리자에만 보관한다.
 
 ## 0. 현재 상태 (2026-09-30 확인)
 
@@ -60,6 +64,14 @@
 - [ ] `scripts/release-preflight.sh`의 [2] 항목이 모두 ✅인지 확인한다.
 - 확인: 삭제 전용 테스트 계정으로 탈퇴한 뒤, 그 Apple ID의 설정 → Apple로 로그인 목록에서 Mora가 사라졌는지 본다. 실제 사용자 계정으로는 시험하지 않는다.
 
+## 4-A. Anthropic — Claude 우선 호출 (2026-10-13 추가)
+
+- [x] Supabase `ANTHROPIC_API_KEY` 등록 및 운영 Claude 실호출 확인(2026-10-26). 키의 크레딧 조직·잔액·만료 조건은 별도 확인 대상이다.
+- [ ] 크레딧 종류·잔액·만료·자동 충전·지출 한도와 `claude-haiku-5-5` 접근 권한을 확인한다.
+- [x] Claude 우선 경로의 실제 성공을 임시 테스트 계정으로 확인했다(KO/EN/JA, 2026-10-26).
+- [ ] Gemini 대체 경로의 실제 성공: 402 결제·크레딧 오류로 [#68](https://github.com/TRIDENT-KR/adhd/issues/68)에 보류. 전환·실제 Gemini 요청까지만 확인했다.
+- [ ] AI 공유 동의 v2 및 공개 개인정보처리방침에 두 제공자를 반영한다.
+
 ## 4. Google — Gemini API
 
 - [ ] `GEMINI_API_KEY`를 발급한 Google Cloud 프로젝트에 **결제(Cloud Billing)가 연결돼 있는지** 확인한다. 무료 등급이면 입력 내용이 Google 제품 개선에 쓰이고 사람이 검토할 수 있다. 약관도 무료 등급에 개인정보를 보내지 말라고 한다. 따라서 유료 등급이 아니면 출시하면 안 된다([Gemini API 약관](https://ai.google.dev/gemini-api/terms)).
@@ -70,7 +82,7 @@
 
 ## 5. Supabase — 순서를 꼭 지킨다
 
-성인 확인 서버는 **migration → 호환 앱 → analyze-task gate** 순서로 올린다([상세](supabase/ADULT_ELIGIBILITY.md)).
+아래는 9월 성인 확인 배포 계획의 기록이다. **2026-10-26에 `202609300002`·`202610130001` 및 새 `analyze-task` 배포를 완료했다.** 아래 미체크 표시는 당시 기록이며 현재 서버 미배포를 뜻하지 않는다. 현재 서버는 성인 확인·AI 동의 v2가 포함된 앱을 요구한다. 앱 배포와 Apple 계정 작업은 남으며, [최신 배포 결과·복구 조건](MORA_SERVER_DEPLOYMENT_20261026.md)을 우선한다.
 
 - [ ] `supabase link --project-ref nmjtswtqwwxxwiolgsnk` (DB 비밀번호 필요)
 - [ ] 백업 상태를 확인한 뒤 `supabase db push`로 `202609300002_mora_adult_eligibility.sql`까지 적용한다. **심사 제출 전 필수**다. migration이 없으면 새 앱의 성인 확인이 실패해 AI와 구매가 막히고, 심사에서 "기능이 동작하지 않음"으로 거절될 수 있다.

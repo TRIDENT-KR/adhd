@@ -50,6 +50,30 @@ struct AnalyzePayloadTests {
         #expect(payload["currentTime"] == "2026-09-24 09:00")
         #expect(payload["language"] == "ko")
         #expect(payload["text"] == "내일 3시 병원")
+        #expect(payload["aiConsentVersion"] == "2")
+    }
+}
+
+@MainActor
+struct AnalysisErrorMappingTests {
+    private func error(_ status: Int, _ code: String) -> FunctionsError {
+        .httpError(code: status, data: Data("{\"error\":{\"code\":\"\(code)\"}}".utf8))
+    }
+
+    @Test func throttlingDoesNotOpenTheSubscriptionPaywall() {
+        let manager = CloudLLMManager()
+        #expect(manager.mappedError(error(429, "rate_limited")) == .rateLimited)
+        #expect(manager.mappedError(error(429, "request_replay_limit")) == .rateLimited)
+        #expect(manager.mappedError(error(429, "quota_exhausted")) == .quotaExhausted)
+        #expect(manager.mappedError(error(403, "ai_consent_required")) == .consentRequired)
+    }
+
+    @Test func providerOutageRetriesButQuotaAndConsentDoNot() {
+        let manager = CloudLLMManager()
+        #expect(manager.shouldRetry(error(502, "model_providers_unavailable")))
+        #expect(manager.shouldRetry(error(409, "analysis_in_progress")))
+        #expect(!manager.shouldRetry(error(429, "quota_exhausted")))
+        #expect(!manager.shouldRetry(error(403, "ai_consent_required")))
     }
 }
 

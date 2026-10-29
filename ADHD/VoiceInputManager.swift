@@ -14,6 +14,7 @@ enum VoiceError: Equatable {
     case permissionDenied
     case speechPermissionDenied
     case speechRestricted
+    case onDeviceUnavailable
 
     var message: String {
         switch self {
@@ -31,6 +32,10 @@ enum VoiceError: Equatable {
             return L.voice.errorSpeechPermission
         case .speechRestricted:
             return L.voice.errorSpeechRestricted
+        case .onDeviceUnavailable:
+            return L.t("On-device speech isn't available for this language on this iPhone. Please type your draft.",
+                       "이 iPhone에서는 선택한 언어의 기기 내 음성 인식을 사용할 수 없어요. 글로 입력해 주세요.",
+                       "このiPhoneでは選択した言語の端末内音声認識を利用できません。文字で入力してください。")
         }
     }
 }
@@ -285,6 +290,13 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
             return
         }
 
+        // Never silently send audio to Apple's servers when local recognition is unavailable.
+        guard recognizer.supportsOnDeviceRecognition else {
+            self.errorMessage = VoiceError.onDeviceUnavailable.message
+            self.lastError = .onDeviceUnavailable
+            return
+        }
+
         let sessionID = UUID()
         activeRecognitionSessionID = sessionID
         didEndRecognitionAudio = false
@@ -327,6 +339,7 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
         }
         
         recognitionRequest.shouldReportPartialResults = true // Real-time intermediate results
+        recognitionRequest.requiresOnDeviceRecognition = true
         
         let inputNode = audioEngine.inputNode
         

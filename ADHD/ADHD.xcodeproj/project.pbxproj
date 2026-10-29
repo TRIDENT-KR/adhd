@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		CE2310010000000000000001 /* TaskAnalysisRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE2310020000000000000001 /* TaskAnalysisRouter.swift */; };
+		CE2310030000000000000001 /* TaskAnalysisTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE2310040000000000000001 /* TaskAnalysisTests.swift */; };
 		B0E65CF08B1133DE41A1BCB3 /* AdultEligibilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AABE44F4658FCB85DEA5C8D /* AdultEligibilityTests.swift */; };
 		BC15186E8923D5767DEE3B45 /* AdultEligibilityStrings.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0D4B212A0D090A28DCA5586 /* AdultEligibilityStrings.swift */; };
 		0BB517A001449C30DAD6FA62 /* AdultEligibilityView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82BE3D23B4BDCAAB8E595409 /* AdultEligibilityView.swift */; };
@@ -107,6 +109,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		CE2310020000000000000001 /* TaskAnalysisRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskAnalysisRouter.swift; sourceTree = "<group>"; };
+		CE2310040000000000000001 /* TaskAnalysisTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskAnalysisTests.swift; sourceTree = "<group>"; };
 		0AABE44F4658FCB85DEA5C8D /* AdultEligibilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdultEligibilityTests.swift; sourceTree = "<group>"; };
 		E0D4B212A0D090A28DCA5586 /* AdultEligibilityStrings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdultEligibilityStrings.swift; sourceTree = "<group>"; };
 		82BE3D23B4BDCAAB8E595409 /* AdultEligibilityView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdultEligibilityView.swift; sourceTree = "<group>"; };
@@ -239,6 +243,7 @@
 				AC0000040000000000000001 /* SortableTimeTests.swift */,
 				AC0000060000000000000001 /* DailyResetTests.swift */,
 				AC0000080000000000000001 /* LLMFunctionCallDecodingTests.swift */,
+				CE2310040000000000000001 /* TaskAnalysisTests.swift */,
 				AC00000100000000000000001 /* DeleteByNameBatchTests.swift */,
 				EF00000400000000000000A1 /* SaveAndRetryContractTests.swift */,
 				AD1000060000000000000001 /* AccountStoreLayoutTests.swift */,
@@ -277,6 +282,7 @@
 				AD1000020000000000000001 /* AccountStoreController.swift */,
 				AD1000040000000000000001 /* AccountSessionCleanup.swift */,
 				F3D9E4A32F74CF5C00DA9A5A /* CloudLLMManager.swift */,
+				CE2310020000000000000001 /* TaskAnalysisRouter.swift */,
 				F3D9E4A42F74CF5C00DA9A5A /* Config.plist */,
 				F3D9E4A52F74CF5C00DA9A5A /* ContentView.swift */,
 				AA000002000000000000001A /* DesignSystem.swift */,
@@ -549,6 +555,7 @@
 				AD1000010000000000000001 /* AccountStoreController.swift in Sources */,
 				AD1000030000000000000001 /* AccountSessionCleanup.swift in Sources */,
 				F3D9E4B12F74D07100DA9A5A /* CloudLLMManager.swift in Sources */,
+				CE2310010000000000000001 /* TaskAnalysisRouter.swift in Sources */,
 				F3D9E4C42F74DA1800DA9A5A /* NetworkMonitor.swift in Sources */,
 				F3D9E4C52F74DA1800DA9A5A /* NotificationManager.swift in Sources */,
 				F3D9E4C62F74DA1800DA9A5A /* AppTask.swift in Sources */,
@@ -590,6 +597,7 @@
 				AC0000030000000000000001 /* SortableTimeTests.swift in Sources */,
 				AC0000050000000000000001 /* DailyResetTests.swift in Sources */,
 				AC0000070000000000000001 /* LLMFunctionCallDecodingTests.swift in Sources */,
+				CE2310030000000000000001 /* TaskAnalysisTests.swift in Sources */,
 				AC0000090000000000000001 /* DeleteByNameBatchTests.swift in Sources */,
 				EF00000300000000000000A1 /* SaveAndRetryContractTests.swift in Sources */,
 				AD1000050000000000000001 /* AccountStoreLayoutTests.swift in Sources */,

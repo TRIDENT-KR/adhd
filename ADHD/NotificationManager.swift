@@ -9,21 +9,32 @@ enum AccountPreferenceKey: String {
     case notificationSoundDisabled
     case confirmBeforeSave
     case aiDataConsentVersion
+    case lastDailyResetDate
 }
 
 /// 계정별 설정을 raw Mora UUID가 노출되지 않는 UserDefaults namespace에 저장합니다.
 enum AccountPreferences {
     private static let activeScopeKey = "mora.active-account-preference-scope.v1"
+    private static let generationKey = "mora.active-account-generation.v1"
+
+    static func sessionGeneration(defaults: UserDefaults = .standard) -> String? {
+        defaults.string(forKey: generationKey)
+    }
 
     static var hasActiveAccount: Bool {
         activeScope != nil
     }
 
     static func activate(for userID: UUID, defaults: UserDefaults = .standard) {
+        if defaults.string(forKey: activeScopeKey) != scope(for: userID)
+            || sessionGeneration(defaults: defaults) == nil {
+            defaults.set(UUID().uuidString, forKey: generationKey)
+        }
         defaults.set(scope(for: userID), forKey: activeScopeKey)
     }
 
     static func deactivate(defaults: UserDefaults = .standard) {
+        defaults.set(UUID().uuidString, forKey: generationKey)
         defaults.removeObject(forKey: activeScopeKey)
     }
 
@@ -73,6 +84,7 @@ enum AccountPreferences {
             .notificationSoundDisabled,
             .confirmBeforeSave,
             .aiDataConsentVersion,
+            .lastDailyResetDate,
         ] {
             defaults.removeObject(
                 forKey: "mora.account.\(accountScope).\(key.rawValue).v1"
@@ -98,6 +110,16 @@ enum AccountPreferences {
 
     static var activeScope: String? {
         UserDefaults.standard.string(forKey: activeScopeKey)
+    }
+
+    static func date(_ key: AccountPreferenceKey, defaults: UserDefaults = .standard) -> Date? {
+        guard let namespaced = namespacedKey(key, for: nil, defaults: defaults) else { return nil }
+        return defaults.object(forKey: namespaced) as? Date
+    }
+
+    static func set(_ value: Date, for key: AccountPreferenceKey, defaults: UserDefaults = .standard) {
+        guard let namespaced = namespacedKey(key, for: nil, defaults: defaults) else { return }
+        defaults.set(value, forKey: namespaced)
     }
 
     private static func namespacedKey(
@@ -131,6 +153,12 @@ final class NotificationManager {
     /// 취소가 먼저 실행되고 등록이 나중에 완료되어 고아 알람이 부활하는 경합이 있다.
     /// 등록 완료 직전에 이 집합을 확인해 삭제된 태스크의 등록을 무산시킨다. (메인 스레드 전용)
     private var cancelledIds = Set<UUID>()
+    private var sessionGeneration = 0
+
+    /// Invalidate registrations suspended inside the system scheduling API.
+    func invalidatePendingRegistrations() {
+        sessionGeneration += 1
+    }
 
     // MARK: - Identifiers
     static let strongCategoryID = "STRONG_ALARM"
@@ -285,11 +313,28 @@ final class NotificationManager {
                 fireDate: fireDate,
                 alarmKit: alarmKitSchedule(for: task, fireDate: fireDate)
             )
+            let generation = sessionGeneration
+            let accountScope = AccountPreferences.activeScope
             Task { @MainActor in
-                if await SystemAlarmScheduler.shared.ensureAuthorized() {
-                    guard !self.cancelledIds.contains(spec.id) else { return }  // await 중 삭제됨
+                let authorized = await SystemAlarmScheduler.shared.ensureAuthorized()
+                guard self.sessionGeneration == generation,
+                      AccountPreferences.activeScope == accountScope,
+                      !self.cancelledIds.contains(spec.id) else { return }
+                if authorized {
                     self.removeAllUserNotifications(for: spec.id.uuidString)  // UN 흔적 제거 (백엔드 이관)
-                    await SystemAlarmScheduler.shared.schedule(spec)
+                    await SystemAlarmScheduler.shared.schedule(spec) {
+                        self.sessionGeneration == generation &&
+                        AccountPreferences.activeScope == accountScope &&
+                        !self.cancelledIds.contains(spec.id)
+                    }
+                    // Cancellation may have happened while AlarmKit registered.
+                    if self.sessionGeneration != generation ||
+                        AccountPreferences.activeScope != accountScope ||
+                        self.cancelledIds.contains(spec.id) {
+                        SystemAlarmScheduler.shared.cancel(id: spec.id)
+                        self.removeAllUserNotifications(for: spec.id.uuidString)
+                        self.center.removeDeliveredNotifications(withIdentifiers: [spec.id.uuidString])
+                    }
                 } else {
                     SystemAlarmScheduler.shared.cancel(id: spec.id)
                     self.scheduleUserNotification(spec)
@@ -537,7 +582,7 @@ final class NotificationManager {
 
 /// Versioned per-account permission; signing out never grants another account access.
 enum AIDataConsent {
-    static let currentVersion = 1
+    static let currentVersion = 2
     static let didChange = Notification.Name("mora.aiDataConsentChanged")
 
     static func isGranted(for userID: UUID? = nil, defaults: UserDefaults = .standard) -> Bool {

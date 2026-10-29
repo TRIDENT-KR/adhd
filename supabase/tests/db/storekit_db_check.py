@@ -385,6 +385,70 @@ def evidence_and_retention_checks():
     check('보존 청소가 살아 있는 재연결 원장은 지우지 않는다', binding('9500')['user_id'] == rebind_user)
 
 
+def ai_broker_checks():
+    user, _ = new_account()
+    other, _ = new_account()
+    request = str(uuid.uuid4())
+    digest = "a" * 64
+    payload = '[{"function_name":"request_clarification","parameters":{"reason":"When?"}}]'
+    reserve = f"SELECT public.mora_reserve_ai_analysis_v2('{user}', '{request}', '{digest}');"
+    finalize = f"SELECT public.mora_finalize_ai_analysis_v2('{user}', '{request}', '{payload}'::jsonb);"
+    fail = f"SELECT public.mora_fail_ai_analysis_v2('{user}', '{request}', 'model_providers_unavailable');"
+    legacy = [
+        f"SELECT public.mora_reserve_ai_analysis('{request}', '{digest}');",
+        f"SELECT public.mora_finalize_ai_analysis('{request}', '{payload}'::jsonb);",
+        f"SELECT public.mora_fail_ai_analysis('{request}', 'analysis_failed');",
+        f"SELECT public.mora_record_operational_event('{request}', 'analysis_succeeded', 200, 1, 1, 1, null);",
+    ]
+    check("AI: legacy mutation RPCs cannot be invoked by clients or service role",
+          all("permission denied" in sql_error(query, user=user, role=role)
+              for role in ["anon", "authenticated", "service_role"] for query in legacy))
+    check("AI: v2 rejects anonymous, own-account and spoofed-account client writes",
+          all("permission denied" in sql_error(query, user=actor, role=role)
+              for role in ["anon", "authenticated"] for actor in [user, other]
+              for query in [reserve, finalize, fail]))
+    check("AI: trusted server reserves one slot", json.loads(sql(reserve, role="service_role"))["allowed"])
+    check("AI: attacker cannot refund an in-flight request",
+          "permission denied" in sql_error(legacy[2], user=user)
+          and "permission denied" in sql_error(fail, user=user)
+          and sql(f"SELECT reserved_count FROM mora_prod_private.ai_daily_quota WHERE user_id='{user}';") == "1")
+    quota = json.loads(sql(finalize, role="service_role"))
+    check("AI: trusted finalize charges once and replay preserves cached calls",
+          quota["used"] == 1 and quota["reserved"] == 0
+          and json.loads(sql(finalize, role="service_role"))["used"] == 1
+          and json.loads(sql(reserve, role="service_role"))["cachedCalls"] == json.loads(payload))
+    check("AI: same request ID cannot change its input hash",
+          json.loads(sql(reserve.replace(digest, "b" * 64), role="service_role"))["reason"] == "request_conflict")
+    for _ in range(2):
+        rid = str(uuid.uuid4())
+        sql(reserve.replace(request, rid), role="service_role")
+        sql(finalize.replace(request, rid), role="service_role")
+    check("AI: fourth free analysis is rejected",
+          json.loads(sql(reserve.replace(request, str(uuid.uuid4())), role="service_role"))["reason"] == "quota_exhausted")
+    failed_user, _ = new_account()
+    failed_reserve = reserve.replace(user, failed_user)
+    sql(failed_reserve, role="service_role")
+    sql(fail.replace(user, failed_user), role="service_role")
+    check("AI: provider failure frees the daily slot and can retry the same request",
+          sql(f"SELECT reserved_count FROM mora_prod_private.ai_daily_quota WHERE user_id='{failed_user}';") == "0"
+          and json.loads(sql(failed_reserve, role="service_role"))["allowed"])
+    # Each call is a separate DB connection, as on independent Edge instances.
+    burst_user, _ = new_account()
+    burst_reserve = reserve.replace(user, burst_user)
+    sql(burst_reserve, role="service_role")
+    sql(finalize.replace(user, burst_user), role="service_role")
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+        responses = list(pool.map(lambda _: json.loads(sql(burst_reserve, role="service_role")), range(35)))
+    check("AI: distributed limiter accepts exactly 30 requests including the first",
+          sum(r["allowed"] for r in responses) == 29
+          and sum(r.get("reason") == "rate_limited" for r in responses) == 6)
+    sql(f"UPDATE mora_internal.ai_request_windows SET window_started_at=now()-interval '61 seconds' WHERE user_id='{burst_user}';")
+    check("AI: persisted rate window resets after a minute", json.loads(sql(burst_reserve, role="service_role"))["allowed"])
+    sql(f"DELETE FROM auth.users WHERE id='{burst_user}';")
+    check("AI: account deletion cascades rate metadata",
+          sql(f"SELECT count(*) FROM mora_internal.ai_request_windows WHERE user_id='{burst_user}';") == "0")
+
+
 def run():
     for script in [BOOTSTRAP, *MIGRATIONS]:
         if script.name == '202609300001_mora_storekit_evidence_retention.sql':
@@ -552,6 +616,7 @@ def run():
 
     evidence_and_retention_checks()
     adult_eligibility_checks()
+    ai_broker_checks()
 
     # 11. Bounded retention must not shrink the 90-day aggregate on repeated runs.
     for duration in [10, 20]:

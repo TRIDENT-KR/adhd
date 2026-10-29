@@ -1,0 +1,58 @@
+[
+  {
+    "created_at": 1774484148870,
+    "entrypoint_path": "file:///tmp/user_fn_nmjtswtqwwxxwiolgsnk_304c4dc9-dac6-41fa-80e7-d6f7025c236d_24/source/supabase/functions/analyze-task/index.ts",
+    "ezbr_sha256": "9638589e83fa332df789dd33794e6043386f9a9b918d6a11c7c66b5bfbe4a506",
+    "id": "304c4dc9-dac6-41fa-80e7-d6f7025c236d",
+    "import_map": true,
+    "import_map_path": "file:///tmp/user_fn_nmjtswtqwwxxwiolgsnk_304c4dc9-dac6-41fa-80e7-d6f7025c236d_24/source/supabase/functions/analyze-task/deno.json",
+    "name": "analyze-task",
+    "slug": "analyze-task",
+    "status": "ACTIVE",
+    "updated_at": 1793015138631,
+    "verify_jwt": false,
+    "version": 24
+  },
+  {
+    "created_at": 1775100530091,
+    "entrypoint_path": "file:///tmp/user_fn_nmjtswtqwwxxwiolgsnk_3b963caa-dcb8-4d34-bd0b-0f90c62cce05_5/source/supabase/functions/delete-account/index.ts",
+    "ezbr_sha256": "fe02952bbb526412c89b4fca324a699f17b9f4c2f9e2f056efd7a959104008d5",
+    "id": "3b963caa-dcb8-4d34-bd0b-0f90c62cce05",
+    "import_map": true,
+    "import_map_path": "file:///tmp/user_fn_nmjtswtqwwxxwiolgsnk_3b963caa-dcb8-4d34-bd0b-0f90c62cce05_5/source/supabase/functions/delete-account/deno.json",
+    "name": "delete-account",
+    "slug": "delete-account",
+    "status": "ACTIVE",
+    "updated_at": 1793015140613,
+    "verify_jwt": false,
+    "version": 5
+  },
+  {
+    "created_at": 1790648908144,
+    "entrypoint_path": "file:///tmp/user_fn_nmjtswtqwwxxwiolgsnk_4194718b-a7eb-4a57-a410-7c157eda1b84_2/source/supabase/functions/storekit-sync/index.ts",
+    "ezbr_sha256": "44b9f66392b0692cc67601e94456545c0a6a4818b95ccddbbc4f896f57e86e25",
+    "id": "4194718b-a7eb-4a57-a410-7c157eda1b84",
+    "import_map": true,
+    "import_map_path": "file:///tmp/user_fn_nmjtswtqwwxxwiolgsnk_4194718b-a7eb-4a57-a410-7c157eda1b84_2/source/supabase/functions/storekit-sync/deno.json",
+    "name": "storekit-sync",
+    "slug": "storekit-sync",
+    "status": "ACTIVE",
+    "updated_at": 1790658288646,
+    "verify_jwt": false,
+    "version": 3
+  },
+  {
+    "created_at": 1790649125576,
+    "entrypoint_path": "file:///tmp/user_fn_nmjtswtqwwxxwiolgsnk_7abb2c88-af30-4fed-bbe7-2fe08f994f9b_2/source/supabase/functions/app-store-notifications/index.ts",
+    "ezbr_sha256": "7e8112c019fc87316258c0ae1872a50aeb0a9d57f0a373810bfaa12eb552cbf4",
+    "id": "7abb2c88-af30-4fed-bbe7-2fe08f994f9b",
+    "import_map": true,
+    "import_map_path": "file:///tmp/user_fn_nmjtswtqwwxxwiolgsnk_7abb2c88-af30-4fed-bbe7-2fe08f994f9b_2/source/supabase/functions/app-store-notifications/deno.json",
+    "name": "app-store-notifications",
+    "slug": "app-store-notifications",
+    "status": "ACTIVE",
+    "updated_at": 1790658310991,
+    "verify_jwt": false,
+    "version": 3
+  }
+]
