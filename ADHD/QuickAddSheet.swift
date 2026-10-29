@@ -80,10 +80,10 @@ struct QuickAddSheet: View {
                         Text(urgency == .strong ? L.voice.urgencyStrong : L.voice.urgencyWeak)
                             .font(.caption2.weight(.medium))
                     }
-                    .foregroundColor(urgency == .strong ? .orange : DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
+                    .foregroundColor(urgency == .strong ? DesignSystem.Colors.primary : DesignSystem.Colors.onSurfaceMeta)
                     .padding(.vertical, 4)
                     .padding(.horizontal, 8)
-                    .background((urgency == .strong ? Color.orange : DesignSystem.Colors.onSurfaceVariant).opacity(0.12))
+                    .background(urgency == .strong ? DesignSystem.Colors.primary.opacity(0.12) : DesignSystem.Colors.surfaceContainerLow)
                     .cornerRadius(6)
                 }
                 .buttonStyle(NoEffectButtonStyle())

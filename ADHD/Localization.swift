@@ -151,6 +151,9 @@ struct Strings {
 
     // Alarm / Notification
     var alarm: AlarmStrings { AlarmStrings(language: language) }
+
+    // Task Edit Sheet
+    var taskEdit: TaskEditStrings { TaskEditStrings(language: language) }
 }
 
 struct PersistenceStrings {
@@ -627,4 +630,54 @@ struct AIPrivacyStrings {
     var allow: String { t("Allow AI data sharing", "AI 데이터 전송에 동의", "AIへの送信に同意する") }
     var notNow: String { t("Not now", "나중에", "今はしない") }
     var googlePolicy: String { t("Google Gemini data policy", "Google Gemini 데이터 정책", "Google Geminiのデータポリシー") }
+}
+
+// MARK: - Task Edit Sheet
+/// 루틴·일정 수정 시트와 반복 일정 삭제 확인에 쓰는 문구
+struct TaskEditStrings {
+    let language: AppLanguage
+    private func t(_ en: String, _ ko: String, _ ja: String) -> String {
+        switch language {
+        case .en: return en
+        case .ko: return ko
+        case .ja: return ja
+        }
+    }
+
+    var editRoutine: String { t("Edit routine", "루틴 수정", "ルーティンを編集") }
+    var editAppointment: String { t("Edit appointment", "일정 수정", "予定を編集") }
+    var namePlaceholder: String { t("Task name", "할 일 이름", "タスク名") }
+
+    var date: String { t("Date", "날짜", "日付") }
+    var startDate: String { t("Starts", "시작일", "開始日") }
+    var time: String { t("Time", "시간", "時刻") }
+    var setTime: String { t("Set a time", "시간 정하기", "時刻を設定") }
+    var noTime: String { t("No time", "시간 없음", "時刻なし") }
+    var repeatTitle: String { t("Repeat", "반복", "繰り返し") }
+    var repeatNever: String { t("Never", "안 함", "しない") }
+    var repeatBiweekly: String { t("Every 2 weeks", "격주", "隔週") }
+    var reminder: String { t("Reminder", "알림", "通知") }
+    var reminderHelp: String {
+        t("Firm rings like an alarm. Gentle shows a quiet banner.",
+          "꼭 알림은 알람처럼 울리고, 살짝 알림은 조용히 알려 줘요.",
+          "しっかり通知はアラームのように鳴り、そっと通知は静かにお知らせします。")
+    }
+    var delete: String { t("Delete", "삭제", "削除") }
+
+    // 반복 일정 삭제: 이번만 건너뛰기 / 모든 회차 삭제
+    var repeatingDeleteTitle: String { t("This one repeats", "반복되는 일정이에요", "繰り返しの予定です") }
+    var repeatingDeleteMessage: String {
+        t("You can skip just this one and keep the rest.",
+          "이번 한 번만 건너뛰고 나머지는 그대로 둘 수 있어요.",
+          "今回だけスキップして、ほかはそのまま残せます。")
+    }
+    var skipThisOne: String { t("Skip just this one", "이번만 건너뛰기", "今回だけスキップ") }
+    var deleteAll: String { t("Delete all", "모든 회차 삭제", "すべて削除") }
+
+    /// 다른 날 보고 있는 반복 일정의 체크 원 (완료 표시는 그날 할 수 있음)
+    var checkOffOnTheDay: String {
+        t("You can check this off on the day",
+          "그날이 되면 완료로 표시할 수 있어요",
+          "当日になったら完了にできます")
+    }
 }
