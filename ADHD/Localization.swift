@@ -322,6 +322,9 @@ struct VoiceStrings {
     var errorSpeechRestricted: String { t("Speech recognition is restricted on this device. You can type your task.", "이 기기에서 음성 인식이 제한되어 있어요. 글로 입력할 수 있습니다.", "この端末では音声認識が制限されています。文字で入力できます。") }
     var openSettings: String { t("Open Settings", "설정 열기", "設定を開く") }
     var tryAgain: String { t("Try Again", "다시 시도", "再試行") }
+    var errorTooLong: String { t("That's a bit long. Keep it under 1,000 characters.", "글이 조금 길어요. 1,000자 안으로 줄여 주세요.", "少し長すぎます。1,000文字以内にしてください。") }
+    var errorSignInAgain: String { t("Please sign in again.", "다시 로그인해 주세요.", "もう一度サインインしてください。") }
+    var clearDraft: String { t("Clear draft", "초안 지우기", "下書きを消す") }
     var confirmTitle: String { t("Review & Confirm", "확인 및 검토", "確認と検討") }
     var confirmUpdate: String { t("Edit", "수정", "編集") }
     
@@ -544,11 +547,17 @@ struct PaywallStrings {
     var title: String { t("Mora Pro", "Mora Pro", "Mora Pro") }
     var subtitle: String { t("More room for AI task planning,\nwith advanced reminders and task widgets.", "AI 일정 입력을 더 자유롭게,\n고급 알림과 일정 위젯까지.", "AIで予定をもっと自由に。\n高度なリマインダーとタスクウィジェットも。") }
     var purchaseErrorTitle: String { t("Purchase Error", "구매 오류", "購入エラー") }
+    var restoreErrorTitle: String { t("Restore Error", "복원 오류", "復元エラー") }
     var ok: String { t("OK", "확인", "OK") }
     var choosePlan: String { t("CHOOSE YOUR PLAN", "플랜 선택", "プランを選択") }
     var planMonthly: String { t("Monthly", "월간", "月額") }
     var planYearly: String { t("Yearly", "연간", "年額") }
     var billedMonthly: String { t("Billed monthly", "매월 청구", "毎月請求") }
+    var billedAnnually: String { t("Billed annually", "연 1회 청구", "年1回請求") }
+    /// VoiceOver용 플랜 카드 한 줄: 이름, 가격, 청구 주기
+    func planAccessibilityLabel(name: String, price: String, period: String, badge: String?) -> String {
+        [name, price, period, badge].compactMap { $0 }.joined(separator: t(", ", ", ", "、"))
+    }
     func billedYearly(monthlyEquivalent: String) -> String {
         t(
             "Billed annually · \(monthlyEquivalent)/mo",
@@ -571,8 +580,6 @@ struct PaywallStrings {
 
     var featureVoiceTitle: String { t("AI beyond the daily free limit", "AI 일일 무료 횟수 제한 해제", "AIの1日の無料回数制限を解除") }
     var featureVoiceDesc: String { t("Free includes 3 AI analyses per day. Pro removes this daily limit. Excessive requests may be temporarily limited to keep the service available.", "무료 AI 분석은 하루 3회입니다. Pro는 이 일일 횟수 제한을 해제합니다. 안정적인 서비스 운영을 위해 과도한 요청은 일시적으로 제한될 수 있어요.", "無料のAI分析は1日3回です。Proではこの1日の回数制限を解除します。安定したサービス提供のため、過剰なリクエストは一時的に制限される場合があります。") }
-    var featureAITitle: String { t("Smart task sorting", "AI 자동 분류", "AIが自動で分類") }
-    var featureAIDesc: String { t("AI tells apart routines, tasks, and appointments automatically.", "루틴인지, 할 일인지, 일정인지 AI가 알아서 구분해요.", "ルーティンか、タスクか、予定か、AIが自動で判断します。") }
     var featureAlarmsTitle: String { t("Full-screen alarms", "전체 화면 알람", "フルスクリーンアラーム") }
     var featureAlarmsDesc: String { t("Firm reminders show up full-screen, with Done and Snooze right there. Delivery depends on device permissions and settings.", "꼭 알림은 전체 화면으로 알려 주고, 완료와 다시 알림을 바로 누를 수 있어요. 전달은 기기 권한과 설정에 따라 달라져요.", "しっかり通知は全画面で表示され、完了とスヌーズをすぐ操作できます。通知は端末の許可と設定によって異なります。") }
     var featureWidgetsTitle: String { t("Home screen widgets", "홈 화면 위젯", "ホーム画面ウィジェット") }
@@ -590,6 +597,8 @@ struct PaywallStrings {
     var nothingToRestore: String { t("No active subscription was found to restore.", "복원할 수 있는 활성 구독을 찾지 못했어요.", "復元できる有効なサブスクリプションが見つかりませんでした。") }
     var accountTokenChanged: String { t("The subscription account could not be confirmed. Please contact support.", "구독 계정을 확인할 수 없어요. 고객 지원에 문의해 주세요.", "サブスクリプションのアカウントを確認できませんでした。サポートにお問い合わせください。") }
     var entitlementNotGranted: String { t("Your purchase was received, but Pro access has not been confirmed. Try Restore Purchases before buying again, or contact support.", "구매 정보는 받았지만 Pro 권한을 확인하지 못했어요. 다시 결제하기 전에 구매 복원을 시도하거나 고객 지원에 문의해 주세요.", "購入情報は受信しましたが、Proの利用権限を確認できませんでした。再購入の前に購入を復元するか、サポートにお問い合わせください。") }
+    var paymentNotStarted: String { t("Payment didn't start. Please try again in a moment.", "결제는 시작되지 않았어요. 잠시 후 다시 시도해 주세요.", "お支払いは開始されていません。しばらくしてからもう一度お試しください。") }
+    var restoreFailed: String { t("Couldn't restore your purchase. Please try again in a moment.", "구매를 복원하지 못했어요. 잠시 후 다시 시도해 주세요.", "購入を復元できませんでした。しばらくしてからもう一度お試しください。") }
     var serverUnavailable: String { t("We could not confirm your subscription. Check your connection and try Restore Purchases before buying again.", "구독 상태를 확인하지 못했어요. 연결을 확인하고, 다시 결제하기 전에 구매 복원을 시도해 주세요.", "サブスクリプションを確認できませんでした。接続を確認し、再購入の前に購入の復元をお試しください。") }
 
     var subscriptionSection: String { t("Subscription", "구독", "サブスクリプション") }

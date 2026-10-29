@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 
 // MARK: - Home Voice Interface View
 struct HomeVoiceInterfaceView: View {
@@ -23,7 +24,10 @@ struct HomeVoiceInterfaceView: View {
     @State private var errorToastOpensSettings = false
     /// '설정 열기'로 설정 앱에 다녀오는 중인지 (돌아오면 권한을 다시 확인)
     @State private var awaitingSettingsReturn = false
-    @State private var errorToastAllowsRetry = true
+    /// 오류 토스트 버튼이 할 일. 오류마다 맞는 동작을 함께 넘기고, 없으면 버튼을 두지 않습니다.
+    @State private var errorToastRetry: ToastRetryAction = .none
+    /// 누른 채 말하기에서 손가락이 버튼 위에 있는지. 탭 넘김 등으로 제스처가 취소돼도 false로 돌아옵니다.
+    @GestureState private var isHoldingMic = false
     @State private var errorToastStyle: HomeToastStyle = .error
     @State private var errorToastID = UUID()
     @AppStorage("hasSeenVoiceOnboarding") private var hasSeenVoiceOnboarding = false
@@ -105,14 +109,14 @@ struct HomeVoiceInterfaceView: View {
                                     Text("\(subscriptionManager.remainingAIUsage)/\(SubscriptionManager.freeAILimit)")
                                         .font(.system(size: 13, weight: .bold, design: .rounded))
                                 }
-                                .foregroundColor(subscriptionManager.canUseAI ? DesignSystem.Colors.primary : .red.opacity(0.8))
+                                .foregroundColor(subscriptionManager.canUseAI ? DesignSystem.Colors.primary : DesignSystem.Colors.error)
                                 .padding(.horizontal, 10)
                                 .padding(.vertical, 5)
                                 .background(
                                     Capsule()
-                                        .fill(subscriptionManager.canUseAI
-                                              ? DesignSystem.Colors.primary.opacity(0.1)
-                                              : Color.red.opacity(0.1))
+                                        .fill((subscriptionManager.canUseAI
+                                               ? DesignSystem.Colors.primary
+                                               : DesignSystem.Colors.error).opacity(0.1))
                                 )
                             }
                         }
@@ -140,20 +144,46 @@ struct HomeVoiceInterfaceView: View {
                                 .foregroundColor(DesignSystem.Colors.primary.opacity(0.4))
                                 .accessibilityHidden(true)
 
-                            HStack(spacing: 12) {
-                                TextField(L.voice.textInputPlaceholder, text: $textInputValue)
-                                    .font(.body.weight(.medium))
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 14)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 14)
-                                            .fill(DesignSystem.Colors.surfaceContainerLow)
-                                    )
-                                    .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
-                                    .focused($isTextInputFocused)
-                                    .disabled(voiceManager.isProcessing)
-                                    .submitLabel(.send)
-                                    .onSubmit { sendTextInput() }
+                            HStack(alignment: .bottom, spacing: 12) {
+                                // 받아쓴 초안(150~250자)이 한눈에 보이도록 여러 줄로 늘어납니다.
+                                HStack(alignment: .top, spacing: 8) {
+                                    TextField(L.voice.textInputPlaceholder, text: $textInputValue, axis: .vertical)
+                                        .font(.body.weight(.medium))
+                                        .lineLimit(1...6)
+                                        .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
+                                        .focused($isTextInputFocused)
+                                        .disabled(voiceManager.isProcessing)
+                                        .submitLabel(.send)
+                                        .onChange(of: textInputValue) { _, newValue in
+                                            // 여러 줄 입력칸에서는 return이 줄바꿈이 되므로, return을 보내기로 바꿉니다.
+                                            guard newValue.contains("\n") else { return }
+                                            textInputValue = newValue.replacingOccurrences(of: "\n", with: " ")
+                                                .trimmingCharacters(in: .whitespaces)
+                                            if newValue.hasSuffix("\n") { sendTextInput() }
+                                        }
+
+                                    if !textInputValue.isEmpty && !voiceManager.isProcessing && activeAnalysisID == nil {
+                                        Button {
+                                            textInputValue = ""
+                                            Haptic.impact(.light)
+                                        } label: {
+                                            Image(systemName: "xmark.circle.fill")
+                                                .font(.body)
+                                                .foregroundColor(DesignSystem.Colors.onSurfaceMeta)
+                                                .frame(minWidth: 32, minHeight: 32)
+                                                .contentShape(Rectangle())
+                                        }
+                                        .accessibilityLabel(L.voice.clearDraft)
+                                    }
+                                }
+                                .padding(.leading, 16)
+                                .padding(.trailing, 8)
+                                .padding(.vertical, 10)
+                                .frame(minHeight: 50)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 14)
+                                        .fill(DesignSystem.Colors.surfaceContainerLow)
+                                )
 
                                 Button(action: { sendTextInput() }) {
                                     Image(systemName: "arrow.up.circle.fill")
@@ -175,10 +205,23 @@ struct HomeVoiceInterfaceView: View {
                             }
                             .padding(.horizontal, 24)
 
-                            if voiceManager.isProcessing || activeAnalysisID != nil {
-                                Text(voiceManager.isProcessing ? L.voice.preparingDraft : L.voiceAnalyzing)
+                            // 서버 한도(1,000자)에 가까워질 때만 글자 수를 보여 줍니다.
+                            if Self.showsDraftLength(textInputValue) {
+                                Text("\(textInputValue.utf16.count)/\(Self.maxDraftLength)")
+                                    .font(.caption.monospacedDigit())
+                                    .foregroundColor(textInputValue.utf16.count > Self.maxDraftLength
+                                        ? DesignSystem.Colors.error
+                                        : DesignSystem.Colors.onSurfaceMeta)
+                                    .frame(maxWidth: .infinity, alignment: .trailing)
+                                    .padding(.horizontal, 32)
+                            }
+
+                            if activeAnalysisID != nil {
+                                analyzingStatus
+                            } else if voiceManager.isProcessing {
+                                Text(L.voice.preparingDraft)
                                     .font(DesignSystem.Typography.bodyMd)
-                                    .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
+                                    .foregroundColor(DesignSystem.Colors.onSurfaceMeta)
                             }
                         }
 
@@ -276,8 +319,7 @@ struct HomeVoiceInterfaceView: View {
                                     .transition(reduceMotion ? .opacity : .scale.combined(with: .opacity))
                                     .accessibilityLabel(L.t("Task saved successfully", "일정을 저장했어요", "タスクを保存しました"))
                             } else if activeAnalysisID != nil {
-                                Text(L.voiceAnalyzing)
-                                    .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
+                                analyzingStatus
                             } else if voiceManager.isProcessing {
                                 Text(L.voice.preparingDraft)
                                     .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
@@ -317,10 +359,10 @@ struct HomeVoiceInterfaceView: View {
             if showConfirmation {
                 ZStack {
                     // Background Dim (Blurry Material)
+                    // 바깥을 스쳐도 차감된 분석 결과가 사라지지 않도록 탭으로 닫지 않습니다(카드의 취소 버튼만 사용).
                     Rectangle()
                         .fill(.ultraThinMaterial.opacity(0.8))
                         .ignoresSafeArea()
-                        .onTapGesture { cancelPendingTasks() }
                         .transition(.opacity)
 
                     VoiceConfirmationSheet(
@@ -359,7 +401,7 @@ struct HomeVoiceInterfaceView: View {
                         Spacer()
 
                         // 확인 카드가 떠 있을 때 "다시 시도"는 새 분석을 시작하므로 보여주지 않습니다.
-                        if errorToastOpensSettings || (errorToastAllowsRetry && !showConfirmation) {
+                        if errorToastOpensSettings || (errorToastRetry != .none && !showConfirmation) {
                             Button(action: {
                                 withAnimation(reduceMotion ? .none : .easeOut(duration: 0.2)) {
                                     showErrorToast = false
@@ -369,11 +411,16 @@ struct HomeVoiceInterfaceView: View {
                                     if let url = URL(string: UIApplication.openSettingsURLString) {
                                         UIApplication.shared.open(url)
                                     }
-                                } else if textInputValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                    return
+                                }
+                                switch errorToastRetry {
+                                case .record:
                                     handleMicTap()
-                                } else {
+                                case .analyzeDraft:
                                     showTextInput = true
                                     sendTextInput()
+                                case .none:
+                                    break
                                 }
                             }) {
                                 Text(errorToastOpensSettings ? L.voice.openSettings : L.voice.tryAgain)
@@ -397,6 +444,10 @@ struct HomeVoiceInterfaceView: View {
                     )
                     .padding(.horizontal, 24)
                     .padding(.bottom, 140)
+                    // 안내를 눌러 바로 닫을 수 있게 합니다 (VoiceOver는 두 손가락 문지르기로 닫기).
+                    .contentShape(Rectangle())
+                    .onTapGesture { dismissToast() }
+                    .accessibilityAction(.escape) { dismissToast() }
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
                 .zIndex(30)
@@ -434,7 +485,11 @@ struct HomeVoiceInterfaceView: View {
         }
         .onChange(of: voiceManager.lastError) { _, newError in
             if let error = newError {
-                triggerErrorFeedback(message: error.message, openSettings: error.needsSettings)
+                triggerErrorFeedback(
+                    message: error.message,
+                    openSettings: error.needsSettings,
+                    retry: error.canRetryRecording ? .record : .none
+                )
                 voiceManager.lastError = nil
             }
         }
@@ -461,6 +516,7 @@ struct HomeVoiceInterfaceView: View {
             if newPhase != .active {
                 preserveSpeechDraftAndStopListening()
             }
+            if newPhase == .active { subscriptionManager.refreshQuotaDisplay() }
             // 설정에서 켜고 돌아오면 안내 글 없이 오류 토스트를 거두고 바로 말할 수 있게 합니다.
             if newPhase == .active, awaitingSettingsReturn || (showErrorToast && errorToastOpensSettings) {
                 awaitingSettingsReturn = false
@@ -474,6 +530,12 @@ struct HomeVoiceInterfaceView: View {
             if newPhase == .background {
                 cancelActiveAnalysis()
             }
+        }
+        .onReceive(
+            NotificationCenter.default.publisher(for: .NSCalendarDayChanged)
+                .receive(on: DispatchQueue.main)
+        ) { _ in
+            subscriptionManager.refreshQuotaDisplay()
         }
         .onChange(of: activeTab) { _, newTab in
             if newTab != .voice {
@@ -598,6 +660,7 @@ struct HomeVoiceInterfaceView: View {
                 .animation(.easeOut(duration: 0.2), value: voiceManager.isListening)
                 .gesture(
                     DragGesture(minimumDistance: 0)
+                        .updating($isHoldingMic) { _, holding, _ in holding = true }
                         .onChanged { _ in
                             if !voiceManager.isListening
                                 && activeAnalysisID == nil
@@ -612,6 +675,12 @@ struct HomeVoiceInterfaceView: View {
                             }
                         }
                 )
+                // 손가락이 밀려 페이지 넘김이 제스처를 가져가면 onEnded가 오지 않으므로, 눌림이 풀리면 멈춥니다.
+                .onChange(of: isHoldingMic) { _, holding in
+                    if !holding && voiceManager.isListening {
+                        voiceManager.stopListening()
+                    }
+                }
                 .accessibilityAddTraits(.isButton)
                 .accessibilityAction { handleMicTap() }
         } else {
@@ -629,6 +698,12 @@ struct HomeVoiceInterfaceView: View {
         let text = textInputValue.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, activeAnalysisID == nil,
               !cloudLLM.isProcessing, !voiceManager.isProcessing else { return }
+
+        // 서버가 거절할 길이는 보내기 전에 알려 줍니다 (횟수 차감 없이).
+        guard text.utf16.count <= Self.maxDraftLength else {
+            triggerErrorFeedback(message: L.voice.errorTooLong)
+            return
+        }
 
         guard authManager.accessState.accountUserID != nil else {
             isTextInputFocused = false
@@ -715,7 +790,28 @@ struct HomeVoiceInterfaceView: View {
                     guard activeAnalysisID == analysisID else { return }
                     activeAnalysisID = nil
                     analysisTask = nil
-                    triggerErrorFeedback(message: L.voice.errorBusy, allowsRetry: false)
+                    triggerErrorFeedback(message: L.voice.errorBusy)
+                }
+            } catch CloudLLMError.offline {
+                await MainActor.run {
+                    guard activeAnalysisID == analysisID else { return }
+                    activeAnalysisID = nil
+                    analysisTask = nil
+                    triggerErrorFeedback(message: L.voice.errorNetwork, retry: .analyzeDraft)
+                }
+            } catch CloudLLMError.inputTooLong {
+                await MainActor.run {
+                    guard activeAnalysisID == analysisID else { return }
+                    activeAnalysisID = nil
+                    analysisTask = nil
+                    triggerErrorFeedback(message: L.voice.errorTooLong)
+                }
+            } catch CloudLLMError.authenticationRequired {
+                await MainActor.run {
+                    guard activeAnalysisID == analysisID else { return }
+                    activeAnalysisID = nil
+                    analysisTask = nil
+                    triggerErrorFeedback(message: L.voice.errorSignInAgain)
                 }
             } catch {
                 print("ai_analysis_failed")
@@ -723,7 +819,7 @@ struct HomeVoiceInterfaceView: View {
                     guard activeAnalysisID == analysisID else { return }
                     activeAnalysisID = nil
                     analysisTask = nil
-                    triggerErrorFeedback(message: L.voice.errorApi)
+                    triggerErrorFeedback(message: L.voice.errorApi, retry: .analyzeDraft)
                 }
             }
         }
@@ -732,11 +828,15 @@ struct HomeVoiceInterfaceView: View {
     /// 서버가 검증·확정한 분석과 quota 스냅샷만 화면과 실행 단계에 반영합니다.
     @MainActor
     private func handleSuccessfulAnalysis(
-        _ parsedTasks: [LLMFunctionCall],
+        _ analyzedCalls: [LLMFunctionCall],
         submittedText: String
     ) -> Bool {
-        guard !parsedTasks.isEmpty,
-              parsedTasks.allSatisfy(\.isExecutionPayloadValid) else {
+        // 서버가 이미 차감한 분석이므로, 실행할 수 없는 항목만 빼고 나머지는 그대로 씁니다.
+        let parsedTasks = analyzedCalls.filter(\.isExecutionPayloadValid)
+        guard !parsedTasks.isEmpty else {
+            if let quota = cloudLLM.latestQuota {
+                subscriptionManager.applyServerQuota(quota)
+            }
             triggerErrorFeedback(message: L.voice.errorApi)
             return false
         }
@@ -843,7 +943,7 @@ struct HomeVoiceInterfaceView: View {
                 refreshed.requiresReconfirmation = true
                 return refreshed
             }
-            triggerErrorFeedback(message: L.voice.reviewUpdatedPreview, allowsRetry: false)
+            triggerErrorFeedback(message: L.voice.reviewUpdatedPreview)
             return
         }
 
@@ -890,9 +990,9 @@ struct HomeVoiceInterfaceView: View {
             }
             if result.hasAnySuccess {
                 Haptic.notification(.success)
-                triggerErrorFeedback(message: L.voice.partialSaveResult, allowsRetry: false)
+                triggerErrorFeedback(message: L.voice.partialSaveResult)
             } else {
-                triggerErrorFeedback(message: Self.failureMessage(for: result), allowsRetry: false)
+                triggerErrorFeedback(message: Self.failureMessage(for: result))
             }
             return false
         }
@@ -956,12 +1056,12 @@ struct HomeVoiceInterfaceView: View {
     }
 
     // MARK: - Error Feedback
-    /// 실패를 알립니다. allowsRetry가 false면 "다시 시도" 버튼을 숨깁니다
-    /// (확인 카드 안의 안내, 잠시 뒤 다시 해야 하는 경우 등).
+    /// 실패를 알립니다. retry가 있을 때만 "다시 시도" 버튼을 두고, 그 오류에 맞는 동작을 합니다.
+    /// (입력창 상태로 동작을 추측하면 안내만 보여야 할 때 초안이 AI로 전송될 수 있습니다.)
     private func triggerErrorFeedback(
         message: String,
         openSettings: Bool = false,
-        allowsRetry: Bool = true
+        retry: ToastRetryAction = .none
     ) {
         withAnimation(.spring(response: 0.1, dampingFraction: 0.2)) {
             shakeOffset = 12
@@ -988,8 +1088,8 @@ struct HomeVoiceInterfaceView: View {
             message: message,
             style: .error,
             openSettings: openSettings,
-            allowsRetry: allowsRetry,
-            duration: 4
+            retry: retry,
+            duration: openSettings ? 8 : 4
         )
     }
 
@@ -1003,7 +1103,7 @@ struct HomeVoiceInterfaceView: View {
             message: trimmed,
             style: .notice,
             openSettings: false,
-            allowsRetry: false,
+            retry: .none,
             duration: 8
         )
     }
@@ -1012,13 +1112,13 @@ struct HomeVoiceInterfaceView: View {
         message: String,
         style: HomeToastStyle,
         openSettings: Bool,
-        allowsRetry: Bool,
+        retry: ToastRetryAction,
         duration: TimeInterval
     ) {
         errorToastMessage = message
         errorToastStyle = style
         errorToastOpensSettings = openSettings
-        errorToastAllowsRetry = allowsRetry
+        errorToastRetry = retry
         let toastID = UUID()
         errorToastID = toastID
         withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
@@ -1026,13 +1126,49 @@ struct HomeVoiceInterfaceView: View {
         }
         // VoiceOver 사용자는 화면 아래 토스트를 놓치기 쉬우므로 내용을 바로 읽어줍니다.
         AccessibilityNotification.Announcement(message).post()
-        guard !openSettings else { return }
+        // 권한 안내도 잠시 뒤 스스로 사라집니다(글로 입력하려는 사람 화면에 계속 남지 않게).
         DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
             guard errorToastID == toastID else { return }
             withAnimation(.easeOut(duration: 0.3)) {
                 showErrorToast = false
             }
         }
+    }
+
+    private func dismissToast() {
+        withAnimation(reduceMotion ? .none : .easeOut(duration: 0.2)) {
+            showErrorToast = false
+        }
+    }
+
+    /// 분석 중 표시: 진행 표시와 취소 버튼 (기다리는 동안 그만둘 수 있게)
+    private var analyzingStatus: some View {
+        VStack(spacing: 8) {
+            HStack(spacing: 10) {
+                ProgressView()
+                    .tint(DesignSystem.Colors.primary)
+                Text(L.voiceAnalyzing)
+                    .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
+            }
+            Button {
+                cancelActiveAnalysis()
+                Haptic.impact(.light)
+            } label: {
+                Text(L.voice.cancel)
+                    .font(.callout.weight(.medium))
+                    .foregroundColor(DesignSystem.Colors.primary)
+                    .frame(minWidth: 88, minHeight: 44)
+                    .contentShape(Rectangle())
+            }
+        }
+    }
+
+    /// 서버가 받는 초안 최대 길이 (analyze-task의 text.length, UTF-16 기준)
+    static let maxDraftLength = 1000
+
+    /// 한도의 80%를 넘으면 글자 수를 보여 줍니다.
+    static func showsDraftLength(_ text: String) -> Bool {
+        text.utf16.count > maxDraftLength * 4 / 5
     }
 
     private func loadConfirmBeforeSavePreference() {
@@ -1103,6 +1239,15 @@ struct HomeVoiceInterfaceView: View {
         successPresentationID = nil
         showSuccessCheck = false
     }
+}
+
+/// 오류 토스트의 '다시 시도'가 할 일
+enum ToastRetryAction {
+    case none
+    /// 다시 녹음 (받아쓰기 실패)
+    case record
+    /// 지금 초안을 다시 분석 (연결·서버 문제)
+    case analyzeDraft
 }
 
 // MARK: - Blinking Cursor (isolated to avoid parent re-renders)
