@@ -244,7 +244,7 @@ extension MainTabView {
 }
 
 // MARK: - Widget Deep Link
-/// 위젯 링크(mora://tab/routine)와 App Group에 남긴 탭 이름을 앱 탭으로 바꿉니다.
+/// 위젯 링크(mora://tab/routine)를 앱 탭으로 바꿉니다.
 enum WidgetDeepLink {
     /// mora://tab/<이름>만 받습니다. 모르는 링크는 nil이라 탭을 바꾸지 않습니다.
     static func tab(from url: URL) -> TabSelection? {

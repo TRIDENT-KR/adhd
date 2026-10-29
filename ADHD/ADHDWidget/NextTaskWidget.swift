@@ -116,7 +116,7 @@ struct NextTaskSmallView: View {
             .containerBackground(for: .widget) {
                 WDS.Colors.background
             }
-            .widgetURL(URL(string: "mora://tab/voice"))
+            .widgetURL(task.tabURL)
         } else {
             NextTaskEmptyView(hasTasks: entry.hasTasks, iconSize: 32)
         }
@@ -156,7 +156,7 @@ struct NextTaskMediumView: View {
                 // 태스크 목록 (인터랙티브 토글)
                 VStack(alignment: .leading, spacing: 0) {
                     ForEach(entry.upcomingTasks.prefix(rowLimit)) { task in
-                        WidgetTaskRow(task: task, showsCategory: true)
+                        WidgetTaskRow(task: task, showsCategory: true, link: task.tabURL)
                     }
 
                     if entry.upcomingTasks.count > rowLimit {
@@ -172,8 +172,17 @@ struct NextTaskMediumView: View {
             .containerBackground(for: .widget) {
                 WDS.Colors.background
             }
-            .widgetURL(URL(string: "mora://tab/voice"))
+            // 줄 밖(제목·'외 N개')을 누르면 맨 위 할 일의 탭으로 갑니다.
+            .widgetURL(entry.upcomingTasks.first?.tabURL)
         }
+    }
+}
+
+// MARK: - 누르면 열 탭
+private extension WidgetTaskSnapshot {
+    /// 이 할 일이 있는 탭: 루틴은 루틴 탭, 일정은 플래너(앱이 오늘 날짜로 엽니다).
+    var tabURL: URL? {
+        URL(string: category == "Routine" ? "mora://tab/routine" : "mora://tab/planner")
     }
 }
 
@@ -242,8 +251,8 @@ struct NextTaskWidget: Widget {
         StaticConfiguration(kind: kind, provider: NextTaskProvider()) { entry in
             NextTaskWidgetView(entry: entry)
         }
-        .configurationDisplayName(WidgetL.nextTask)
-        .description(WidgetL.nextTaskDescription)
+        .configurationDisplayName("Next Task")
+        .description("See your next task and check it off.")
         .supportedFamilies([.systemSmall, .systemMedium])
     }
 }

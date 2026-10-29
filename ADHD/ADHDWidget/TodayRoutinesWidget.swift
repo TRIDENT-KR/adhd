@@ -228,8 +228,8 @@ struct TodayRoutinesWidget: Widget {
         StaticConfiguration(kind: kind, provider: TodayRoutinesProvider()) { entry in
             TodayRoutinesWidgetView(entry: entry)
         }
-        .configurationDisplayName(WidgetL.routines)
-        .description(WidgetL.routinesDescription)
+        .configurationDisplayName("Routines")
+        .description("Check off today's routines.")
         .supportedFamilies([.systemSmall, .systemMedium])
     }
 }

@@ -152,11 +152,24 @@ struct WidgetTaskRow: View {
     var hitSize: CGFloat = 30
     /// 루틴·일정이 섞인 목록에서만 종류 아이콘을 보여 줍니다.
     var showsCategory = false
+    /// 있으면 완료 버튼 옆(이름·시간)을 눌렀을 때 이 링크를 엽니다. 중간 크기 이상 위젯에서만 동작합니다.
+    var link: URL? = nil
 
     var body: some View {
         HStack(spacing: 4) {
             WidgetCompleteButton(task: task, hitSize: hitSize)
 
+            if let link {
+                Link(destination: link) { details }
+            } else {
+                details
+            }
+        }
+        .frame(minHeight: hitSize)
+    }
+
+    private var details: some View {
+        HStack(spacing: 4) {
             Text(task.task)
                 .font(WDS.Typography.bodyMd)
                 .foregroundStyle(task.isCompleted ? WDS.Colors.onSurfaceMeta : WDS.Colors.onSurfaceVariant)
@@ -182,11 +195,13 @@ struct WidgetTaskRow: View {
             }
         }
         .frame(minHeight: hitSize)
+        .contentShape(Rectangle())
     }
 }
 
 // MARK: - Widget Localized Strings
-/// 위젯에서 사용하는 최소한의 다국어 문자열
+/// 위젯에서 사용하는 최소한의 다국어 문자열. 위젯 안 글자는 앱 언어를 따릅니다.
+/// 위젯 갤러리 이름·설명은 시스템 화면이라 기기 언어를 따르도록 Localizable.xcstrings에 둡니다.
 struct WidgetL {
     static var nextTask: String {
         switch currentLang {
@@ -198,7 +213,7 @@ struct WidgetL {
     static var allDone: String {
         switch currentLang {
         case "ko": return "모두 완료!"
-        case "ja": return "全て完了!"
+        case "ja": return "すべて完了！"
         default:   return "All Done!"
         }
     }
@@ -276,16 +291,8 @@ struct WidgetL {
     static var routineProgress: String {
         switch currentLang {
         case "ko": return "루틴 진행률"
-        case "ja": return "ルーティン進捗"
+        case "ja": return "ルーティンの進み具合"
         default:   return "Routine Progress"
-        }
-    }
-
-    static var taskCount: String {
-        switch currentLang {
-        case "ko": return "남은 할 일"
-        case "ja": return "残りタスク"
-        default:   return "Tasks Left"
         }
     }
 
@@ -294,55 +301,6 @@ struct WidgetL {
         case "ko": return "남은 할 일이 없어요"
         case "ja": return "残りのタスクはありません"
         default:   return "No pending tasks"
-        }
-    }
-
-    // MARK: - 위젯 갤러리 설명 (한 문장)
-    static var nextTaskDescription: String {
-        switch currentLang {
-        case "ko": return "다음 할 일을 보고 바로 체크해요."
-        case "ja": return "次のタスクを見て、すぐにチェックできます。"
-        default:   return "See your next task and check it off."
-        }
-    }
-
-    static var routinesDescription: String {
-        switch currentLang {
-        case "ko": return "오늘 루틴을 바로 체크해요."
-        case "ja": return "今日のルーティンをすぐにチェックできます。"
-        default:   return "Check off today's routines."
-        }
-    }
-
-    static var overviewDescription: String {
-        switch currentLang {
-        case "ko": return "오늘 루틴과 일정을 한곳에서 봐요."
-        case "ja": return "今日のルーティンと予定をまとめて見られます。"
-        default:   return "Today's routines and plans in one place."
-        }
-    }
-
-    static var routineProgressDescription: String {
-        switch currentLang {
-        case "ko": return "오늘 루틴을 얼마나 했는지 보여 줘요."
-        case "ja": return "今日のルーティンの進み具合を表示します。"
-        default:   return "See how today's routines are going."
-        }
-    }
-
-    static var nextTaskLockDescription: String {
-        switch currentLang {
-        case "ko": return "잠금 화면에서 다음 할 일을 봐요."
-        case "ja": return "ロック画面に次のタスクを表示します。"
-        default:   return "Your next task on the Lock Screen."
-        }
-    }
-
-    static var taskCountDescription: String {
-        switch currentLang {
-        case "ko": return "오늘 남은 할 일 수를 보여 줘요."
-        case "ja": return "今日の残りタスク数を表示します。"
-        default:   return "How many tasks are left today."
         }
     }
 
@@ -391,7 +349,7 @@ struct WidgetL {
     static var alarmSnoozed: String {
         switch currentLang {
         case "ko": return "다시 알림"
-        case "ja": return "再通知"
+        case "ja": return "スヌーズ"
         default:   return "Snoozed"
         }
     }
@@ -399,7 +357,7 @@ struct WidgetL {
     static var alarmPaused: String {
         switch currentLang {
         case "ko": return "일시정지"
-        case "ja": return "一時停止"
+        case "ja": return "一時停止中"
         default:   return "Paused"
         }
     }
@@ -411,13 +369,13 @@ struct WidgetL {
         case .needsPro:
             switch currentLang {
             case "ko": return "위젯은 Mora\u{00A0}Pro에서 쓸 수 있어요."
-            case "ja": return "Mora\u{00A0}Proで使えます。"
+            case "ja": return "ウィジェットはMora\u{00A0}Proで使えます。"
             default:   return "Widgets come with Mora\u{00A0}Pro."
             }
         case .needsAppOpen:
             switch currentLang {
             case "ko": return "Mora를 한 번 열면 바로 보여요."
-            case "ja": return "Moraを一度開くと使えます。"
+            case "ja": return "Moraを一度開くと表示されます。"
             default:   return "Open Mora once to show it here."
             }
         }

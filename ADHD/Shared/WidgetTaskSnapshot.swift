@@ -75,9 +75,11 @@ struct WidgetTaskSnapshot: Codable, Identifiable {
     }
 }
 
-// MARK: - 다음 날 목록
-/// 앱을 다음 날 아침까지 열지 않아도 자정 이후 위젯이 그날 목록을 보여 주도록, 앱이 미리 담아 두는 하루치 목록입니다.
+// MARK: - 앞으로의 날 목록
+/// 앱을 며칠 열지 않아도 위젯이 그날 목록을 보여 주도록, 앱이 미리 담아 두는 하루치 목록입니다.
 struct WidgetDayTasks: Codable {
+    /// 그날 0시
+    let day: Date
     let routines: [WidgetTaskSnapshot]
     let appointments: [WidgetTaskSnapshot]
 }
@@ -89,8 +91,8 @@ struct WidgetDataPayload: Codable {
     let routines: [WidgetTaskSnapshot]
     let appointments: [WidgetTaskSnapshot]
     let updatedAt: Date
-    /// updatedAt 다음 날의 목록. 이전 버전 앱이 남긴 기록에는 없습니다.
-    var nextDay: WidgetDayTasks? = nil
+    /// updatedAt 다음 날부터 며칠치 목록(앱은 일주일치를 담습니다). 이전 버전 앱이 남긴 기록에는 없습니다.
+    var upcomingDays: [WidgetDayTasks]? = nil
 
     /// 오늘 보여 줄 할 일이 하나라도 있는지 (모두 끝냄 / 아예 없음 구분)
     var hasTasks: Bool {
@@ -112,20 +114,20 @@ struct WidgetDataPayload: Codable {
 
 // MARK: - 날짜가 지난 위젯 데이터
 extension WidgetDataPayload {
-    /// 앱이 오늘 아직 열리지 않아 어제 기록이 남아 있으면 오늘 기준으로 고칩니다.
-    /// 바로 다음 날이면 앱이 미리 담아 둔 그날 목록(오늘 일정, 날짜를 정한 루틴까지)을 씁니다.
+    /// 앱이 오늘 아직 열리지 않아 지난 기록이 남아 있으면 오늘 기준으로 고칩니다.
+    /// 앱이 미리 담아 둔 그날 목록(그날 일정, 날짜를 정한 루틴까지)이 있으면 그것을 씁니다.
     /// 그보다 오래됐으면 루틴은 미완료로 되돌리고, 날짜가 있던 일정은 오늘 것이 아니므로 숨깁니다.
     func normalized(for now: Date, calendar: Calendar = .current) -> WidgetDataPayload {
         guard !calendar.isDate(updatedAt, inSameDayAs: now) else { return self }
-        if let nextDay,
-           let followingDay = calendar.date(byAdding: .day, value: 1, to: updatedAt),
-           calendar.isDate(followingDay, inSameDayAs: now) {
+        if let today = upcomingDays?.first(where: { calendar.isDate($0.day, inSameDayAs: now) }) {
             // 그날 0시를 기록 시각으로 두어, 다시 고쳐도 같은 결과가 나오게 합니다.
+            // 남은 날은 그대로 두어, 위젯에서 체크한 뒤에도 다음 날들 목록이 남게 합니다.
             return WidgetDataPayload(
                 accountScope: accountScope,
-                routines: nextDay.routines,
-                appointments: nextDay.appointments,
-                updatedAt: calendar.startOfDay(for: now)
+                routines: today.routines,
+                appointments: today.appointments,
+                updatedAt: calendar.startOfDay(for: now),
+                upcomingDays: upcomingDays?.filter { $0.day > today.day }
             )
         }
         return WidgetDataPayload(

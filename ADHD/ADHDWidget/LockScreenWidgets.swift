@@ -71,8 +71,8 @@ struct RoutineProgressWidget: Widget {
         StaticConfiguration(kind: kind, provider: LockScreenProvider()) { entry in
             RoutineProgressView(entry: entry)
         }
-        .configurationDisplayName(WidgetL.routineProgress)
-        .description(WidgetL.routineProgressDescription)
+        .configurationDisplayName("Routine Progress")
+        .description("See how today's routines are going.")
         .supportedFamilies([.accessoryCircular])
     }
 }
@@ -117,8 +117,8 @@ struct NextTaskLockWidget: Widget {
         StaticConfiguration(kind: kind, provider: LockScreenProvider()) { entry in
             NextTaskLockView(entry: entry)
         }
-        .configurationDisplayName(WidgetL.nextTask)
-        .description(WidgetL.nextTaskLockDescription)
+        .configurationDisplayName("Next Task")
+        .description("Your next task on the Lock Screen.")
         .supportedFamilies([.accessoryRectangular])
     }
 }
@@ -193,8 +193,8 @@ struct TaskCountInlineWidget: Widget {
         StaticConfiguration(kind: kind, provider: LockScreenProvider()) { entry in
             TaskCountInlineView(entry: entry)
         }
-        .configurationDisplayName(WidgetL.taskCount)
-        .description(WidgetL.taskCountDescription)
+        .configurationDisplayName("Tasks Left")
+        .description("How many tasks are left today.")
         .supportedFamilies([.accessoryInline])
     }
 }

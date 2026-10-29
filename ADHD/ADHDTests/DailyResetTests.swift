@@ -143,31 +143,39 @@ struct DailyResetTests {
         #expect(WidgetDataPayload.nextRefreshDate(after: noon, calendar: cal) == noon.addingTimeInterval(900))
     }
 
-    @Test func widgetShowsPreparedListTheDayAfter() {
+    @Test func widgetShowsPreparedListsForTheComingWeek() {
         let yesterdayNoon = cal.date(from: DateComponents(year: 2026, month: 7, day: 7, hour: 12))!
         let justAfterMidnight = cal.date(from: DateComponents(year: 2026, month: 7, day: 8, minute: 5))!
         let yesterdayOnly = WidgetTaskSnapshot(id: UUID(), task: "어제만", time: nil, category: "Routine", isCompleted: true, recurrenceLabel: nil)
         let routine = WidgetTaskSnapshot(id: UUID(), task: "약", time: "09:00 PM", category: "Routine", isCompleted: false, recurrenceLabel: nil)
         let dentist = WidgetTaskSnapshot(id: UUID(), task: "치과", time: "03:00 PM", category: "Appointment", isCompleted: false, recurrenceLabel: nil)
+        let meeting = WidgetTaskSnapshot(id: UUID(), task: "회의", time: "02:00 PM", category: "Appointment", isCompleted: false, recurrenceLabel: nil)
         let payload = WidgetDataPayload(
             accountScope: "s", routines: [yesterdayOnly], appointments: [], updatedAt: yesterdayNoon,
-            nextDay: WidgetDayTasks(routines: [routine], appointments: [dentist])
+            upcomingDays: [
+                WidgetDayTasks(day: date(2026, 7, 8), routines: [routine], appointments: [dentist]),
+                WidgetDayTasks(day: date(2026, 7, 11), routines: [routine], appointments: [meeting]),
+            ]
         )
 
         let today = payload.normalized(for: justAfterMidnight, calendar: cal)
         #expect(today.routines.map(\.task) == ["약"])
         #expect(today.appointments.map(\.task) == ["치과"])
-        // 위젯에서 체크한 뒤 다시 읽어도 그날 일정이 사라지지 않습니다.
+        // 위젯에서 체크한 뒤 다시 읽어도 그날 일정이 사라지지 않고, 뒷날 목록도 남습니다.
         let evening = cal.date(from: DateComponents(year: 2026, month: 7, day: 8, hour: 18))!
         #expect(today.normalized(for: evening, calendar: cal).appointments.map(\.task) == ["치과"])
-        // 이틀 넘게 지나면 미리 담은 목록도 맞지 않으므로 예전처럼 일정은 숨깁니다.
-        #expect(payload.normalized(for: date(2026, 7, 9), calendar: cal).appointments.isEmpty)
+        #expect(today.upcomingDays?.map(\.day) == [date(2026, 7, 11)])
+        // 며칠 뒤에도 미리 담은 그날 목록을 씁니다.
+        #expect(payload.normalized(for: date(2026, 7, 11), calendar: cal).appointments.map(\.task) == ["회의"])
+        #expect(today.normalized(for: date(2026, 7, 11), calendar: cal).appointments.map(\.task) == ["회의"])
+        // 담아 둔 날이 없으면 예전처럼 루틴은 미완료로, 일정은 숨깁니다.
+        #expect(payload.normalized(for: date(2026, 7, 20), calendar: cal).appointments.isEmpty)
     }
 
     @Test func payloadFromPreviousAppVersionStillDecodes() throws {
         let json = #"{"accountScope":"s","routines":[],"appointments":[],"updatedAt":0}"#
         let payload = try JSONDecoder().decode(WidgetDataPayload.self, from: Data(json.utf8))
-        #expect(payload.nextDay == nil)
+        #expect(payload.upcomingDays == nil)
         #expect(payload.hasTasks == false)
     }
 
@@ -181,7 +189,12 @@ struct DailyResetTests {
         let dentist = AppTask(task: "치과", time: "03:00 PM", date: tomorrow, category: "Appointment", isCompleted: true)
         let lunch = AppTask(task: "점심 약속", date: today, category: "Appointment")
 
-        let list = TaskManager.widgetDayTasks(from: [daily, todayOnlyRoutine, weekly, dentist, lunch], on: tomorrow)
+        let list = TaskManager.widgetDayTasks(
+            from: [daily, todayOnlyRoutine, weekly, dentist, lunch],
+            on: tomorrow.addingTimeInterval(9 * 3600),
+            calendar: cal
+        )
+        #expect(list.day == tomorrow)
         #expect(list.routines.map(\.task) == ["약"])
         #expect(list.routines.map(\.isCompleted) == [false])
         #expect(list.appointments.map(\.task) == ["회의", "치과"])

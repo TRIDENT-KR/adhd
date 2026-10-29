@@ -285,8 +285,8 @@ struct DailyOverviewWidget: Widget {
         StaticConfiguration(kind: kind, provider: DailyOverviewProvider()) { entry in
             DailyOverviewWidgetView(entry: entry)
         }
-        .configurationDisplayName(WidgetL.today)
-        .description(WidgetL.overviewDescription)
+        .configurationDisplayName("Today")
+        .description("Today's routines and plans in one place.")
         .supportedFamilies([.systemLarge])
     }
 }

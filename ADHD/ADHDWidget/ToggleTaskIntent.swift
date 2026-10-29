@@ -56,13 +56,13 @@ struct ToggleTaskIntent: AppIntent {
         let newState = toggle(&routines, id: uuid) ?? toggle(&appointments, id: uuid)
 
         if let newState {
-            // 미리 담아 둔 다음 날 목록은 그대로 넘겨, 자정 이후에도 그날 목록이 보이게 합니다.
+            // 미리 담아 둔 앞으로의 날 목록은 그대로 넘겨, 자정 이후에도 그날 목록이 보이게 합니다.
             let newPayload = WidgetDataPayload(
                 accountScope: current.accountScope,
                 routines: routines,
                 appointments: appointments,
                 updatedAt: now,
-                nextDay: current.nextDay
+                upcomingDays: current.upcomingDays
             )
             if let encoded = try? JSONEncoder().encode(newPayload) {
                 defaults.set(encoded, forKey: "widgetTaskPayload")
@@ -76,39 +76,6 @@ struct ToggleTaskIntent: AppIntent {
         }
 
         WidgetCenter.shared.reloadAllTimelines()
-        return .result()
-    }
-}
-
-// MARK: - Open App Intent
-/// 위젯 탭 시 특정 탭으로 앱을 여는 딥링크 Intent
-
-struct OpenRoutineIntent: AppIntent {
-    static var title: LocalizedStringResource = "Open Routines"
-    static var openAppWhenRun: Bool = true
-
-    func perform() async throws -> some IntentResult {
-        UserDefaults(suiteName: appGroupID)?.set("routine", forKey: "widgetDeepLink")
-        return .result()
-    }
-}
-
-struct OpenPlannerIntent: AppIntent {
-    static var title: LocalizedStringResource = "Open Planner"
-    static var openAppWhenRun: Bool = true
-
-    func perform() async throws -> some IntentResult {
-        UserDefaults(suiteName: appGroupID)?.set("planner", forKey: "widgetDeepLink")
-        return .result()
-    }
-}
-
-struct OpenVoiceIntent: AppIntent {
-    static var title: LocalizedStringResource = "Open Voice"
-    static var openAppWhenRun: Bool = true
-
-    func perform() async throws -> some IntentResult {
-        UserDefaults(suiteName: appGroupID)?.set("voice", forKey: "widgetDeepLink")
         return .result()
     }
 }

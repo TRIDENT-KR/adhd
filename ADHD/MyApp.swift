@@ -63,6 +63,10 @@ struct MoraApp: App {
         switch url.host {
         case "tab":
             guard let tab = WidgetDeepLink.tab(from: url) else { return }
+            // 위젯은 오늘 할 일만 보여 주므로, 플래너가 다른 날을 보고 있었어도 오늘로 엽니다.
+            if tab == .planner {
+                NotificationCenter.default.post(name: .plannerJumpToDate, object: Date())
+            }
             WidgetDeepLinkInbox.store(tab)
             NotificationCenter.default.post(name: .widgetDeepLink, object: nil)
         case "paywall":
@@ -71,15 +75,6 @@ struct MoraApp: App {
         default:
             break
         }
-    }
-
-    private func handlePendingDeepLink() {
-        guard let defaults = UserDefaults(suiteName: "group.trident-KR.ADHD"),
-              let link = defaults.string(forKey: "widgetDeepLink") else { return }
-        defaults.removeObject(forKey: "widgetDeepLink")
-        guard let tab = WidgetDeepLink.tab(named: link) else { return }
-        WidgetDeepLinkInbox.store(tab)
-        NotificationCenter.default.post(name: .widgetDeepLink, object: nil)
     }
 
     var body: some Scene {
@@ -249,7 +244,6 @@ struct MoraApp: App {
                     taskManager.checkAndResetDailyTasks()
                     taskManager.syncWidgetToggles()
                     taskManager.rescheduleStrongTasksIfNeeded()
-                    handlePendingDeepLink()
                     Task { @MainActor in
                         taskManager.writeWidgetSnapshot()
                         taskManager.cleanupOrphanedNotifications()
