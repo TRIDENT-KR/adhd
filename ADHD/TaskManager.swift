@@ -21,6 +21,7 @@ struct AppTaskSnapshot {
     let urgency: Urgency
     let sortOrder: Int
     let weeklyCompletions: [Bool]
+    let skippedDayKeys: [String]
 
     init(_ task: AppTask) {
         id = task.id
@@ -33,6 +34,7 @@ struct AppTaskSnapshot {
         urgency = task.urgency
         sortOrder = task.sortOrder
         weeklyCompletions = task.weeklyCompletions
+        skippedDayKeys = task.skippedDayKeys
     }
 
     func matches(_ candidate: AppTask) -> Bool {
@@ -46,6 +48,7 @@ struct AppTaskSnapshot {
             && candidate.urgency == urgency
             && candidate.sortOrder == sortOrder
             && candidate.weeklyCompletions == weeklyCompletions
+            && candidate.skippedDayKeys == skippedDayKeys
     }
 
     func makeTask() -> AppTask {
@@ -61,6 +64,7 @@ struct AppTaskSnapshot {
             urgency: urgency
         )
         restored.weeklyCompletions = weeklyCompletions
+        restored.skippedDayKeys = skippedDayKeys
         return restored
     }
 
@@ -74,6 +78,7 @@ struct AppTaskSnapshot {
         target.urgency = urgency
         target.sortOrder = sortOrder
         target.weeklyCompletions = weeklyCompletions
+        target.skippedDayKeys = skippedDayKeys
     }
 }
 
@@ -369,6 +374,21 @@ class TaskManager: ObservableObject {
     func update(task: AppTask) {
         safeSave()
         NotificationManager.shared.scheduleNotification(for: task)
+    }
+
+    // MARK: - Skip One Occurrence
+    /// 반복 일정·루틴의 한 회차만 건너뜁니다. 시리즈와 다른 날 알림은 그대로 두고, 되돌릴 수 있습니다.
+    func skipOccurrence(of task: AppTask, on date: Date) {
+        guard task.hasRepeatingSchedule, !task.isSkipped(on: date) else { return }
+        let previous = AppTaskSnapshot(task)
+        task.skippedDayKeys.append(AppTask.dayKey(date))
+        if let monthAgo = Calendar.current.date(byAdding: .day, value: -60, to: Date()) {
+            task.pruneSkippedDayKeys(before: monthAgo)
+        }
+        safeSave()
+        NotificationManager.shared.scheduleNotification(for: task)
+        writeWidgetSnapshot()
+        setUndoAction(.updated(previous: previous), message: L.voice.undoSkippedOccurrence(task.task))
     }
 
     // MARK: - Delete (by reference)

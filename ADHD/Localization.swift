@@ -187,9 +187,9 @@ struct AlarmStrings {
     }
 
     // 알림 콘텐츠
-    var notifSubtitleStrong: String { t("⚠️ Needs your attention now", "⚠️ 긴급 확인이 필요합니다", "⚠️ 今すぐ確認が必要です") }
+    var notifSubtitleStrong: String { t("Time for this one", "할 시간이 됐어요", "そろそろ時間です") }
     var notifSubtitleWeak: String { t("One small step today", "오늘의 한 걸음", "今日の一歩") }
-    var notifSubtitleFollowUp: String { t("Still waiting on this", "아직 완료되지 않았어요", "まだ完了していません") }
+    var notifSubtitleFollowUp: String { t("Still on your list. No rush.", "아직 남아 있어요. 천천히 해도 괜찮아요.", "まだ残っています。ゆっくりで大丈夫です。") }
 
     // 알림 액션
     var completeAction: String { t("Done", "완료", "完了") }
@@ -368,6 +368,7 @@ struct VoiceStrings {
     func undoDeleted(_ count: Int) -> String { t("\(count) task(s) deleted", "\(count)개 삭제됨", "\(count)件削除") }
     func undoDeletedSingle(_ name: String) -> String { t("\"\(name)\" deleted", "\"\(name)\" 삭제됨", "\"\(name)\"を削除") }
     var undoCompleted: String { t("Marked as done", "완료 처리됨", "完了にしました") }
+    func undoSkippedOccurrence(_ name: String) -> String { t("Skipped \"\(name)\" this time", "\"\(name)\" 이번만 건너뛰었어요", "\"\(name)\"を今回だけスキップしました") }
     var undoUncompleted: String { t("Marked as not done", "미완료 처리됨", "未完了にしました") }
     func undoUpdated(_ name: String) -> String { t("\"\(name)\" updated", "\"\(name)\" 수정됨", "「\(name)」を更新") }
     func undoBatch(_ count: Int) -> String { t("\(count) change(s) saved", "\(count)개 변경사항 저장됨", "\(count)件の変更を保存") }
@@ -424,8 +425,8 @@ struct VoiceStrings {
     var errorMissingDate: String { t("Check the date. It's set to today for now.", "날짜를 확인해 주세요. 우선 오늘로 맞춰 뒀어요.", "日付を確認してください。ひとまず今日にしています。") }
     var errorBusy: String { t("Lots of requests right now. Please try again in a moment.", "잠깐 요청이 몰렸어요. 조금 뒤에 다시 해 주세요.", "リクエストが集中しています。少し時間をおいてからもう一度お試しください。") }
 
-    var urgencyStrong: String { t("Strong Alert", "기습 알림", "強い通知") }
-    var urgencyWeak: String { t("Gentle Alert", "잔잔 알림", "優しい通知") }
+    var urgencyStrong: String { t("Firm reminder", "꼭 알림", "しっかり通知") }
+    var urgencyWeak: String { t("Gentle reminder", "살짝 알림", "そっと通知") }
 }
 
 struct LoginStrings {
@@ -570,7 +571,7 @@ struct PaywallStrings {
     var featureAITitle: String { t("Smart task sorting", "AI 자동 분류", "AIが自動で分類") }
     var featureAIDesc: String { t("AI tells apart routines, tasks, and appointments automatically.", "루틴인지, 할 일인지, 일정인지 AI가 알아서 구분해요.", "ルーティンか、タスクか、予定か、AIが自動で判断します。") }
     var featureAlarmsTitle: String { t("Full-screen alarms", "전체 화면 알람", "フルスクリーンアラーム") }
-    var featureAlarmsDesc: String { t("Full-screen reminders for urgent tasks, with completion and snooze actions. Delivery depends on device permissions and settings.", "긴급한 일정의 전체 화면 알림에서 완료와 다시 알림을 처리하세요. 전달은 기기 권한과 설정에 따라 달라져요.", "緊急なタスクを全画面で通知し、完了やスヌーズを操作できます。通知は端末の許可と設定に依存します。") }
+    var featureAlarmsDesc: String { t("Firm reminders show up full-screen, with Done and Snooze right there. Delivery depends on device permissions and settings.", "꼭 알림은 전체 화면으로 알려 주고, 완료와 다시 알림을 바로 누를 수 있어요. 전달은 기기 권한과 설정에 따라 달라져요.", "しっかり通知は全画面で表示され、完了とスヌーズをすぐ操作できます。通知は端末の許可と設定によって異なります。") }
     var featureWidgetsTitle: String { t("Home screen widgets", "홈 화면 위젯", "ホーム画面ウィジェット") }
     var featureWidgetsDesc: String { t("See your next task and routine progress from Home and Lock Screen task widgets with Pro.", "Pro 일정 위젯에서 다음 할 일과 루틴 진행 상황을 홈·잠금 화면으로 확인하세요.", "Proのタスクウィジェットで、次のタスクやルーティンの進捗をホーム・ロック画面から確認できます。") }
 

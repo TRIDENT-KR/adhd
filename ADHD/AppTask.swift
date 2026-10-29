@@ -157,6 +157,10 @@ final class AppTask {
     /// Lightweight migration: 기존 레코드는 SwiftData가 기본값([false×7])으로 채움
     var weeklyCompletions: [Bool] = Array(repeating: false, count: 7)
 
+    /// '이번만 건너뛰기'로 뺀 회차의 날짜 ("yyyy-MM-dd"). 시리즈 자체는 그대로 둡니다.
+    /// Lightweight migration: 기존 레코드는 빈 배열로 채워집니다.
+    var skippedDayKeys: [String] = []
+
     init(id: UUID = UUID(),
          task: String,
          time: String? = nil,
@@ -212,6 +216,7 @@ final class AppTask {
     /// 반복 → 시작일(date) 이후, 규칙에 따라 해당 날짜에 발생하는지 계산
     func occursOn(_ targetDate: Date, calendar: Calendar = .current) -> Bool {
         let cal = calendar
+        if !skippedDayKeys.isEmpty, isSkipped(on: targetDate) { return false }
 
         // Routine은 기존 로직 유지 (date == nil → 매일)
         guard category == "Appointment" else {
@@ -229,6 +234,22 @@ final class AppTask {
             rule: rule,
             calendar: cal
         )
+    }
+
+    /// 날짜를 건너뛰기 기록용 키로 바꿉니다 (기기 시간대 기준 그날).
+    static func dayKey(_ date: Date) -> String {
+        StoredTaskFormat.date.string(from: date)
+    }
+
+    /// '이번만 건너뛰기'로 뺀 날인지
+    func isSkipped(on date: Date) -> Bool {
+        skippedDayKeys.contains(Self.dayKey(date))
+    }
+
+    /// 지난 건너뛰기 기록을 정리합니다 (기록이 끝없이 쌓이지 않게).
+    func pruneSkippedDayKeys(before date: Date) {
+        let cutoff = Self.dayKey(date)
+        skippedDayKeys.removeAll { $0 < cutoff }   // "yyyy-MM-dd"는 문자열 순서가 날짜 순서와 같음
     }
 
     /// 반복 일정의 사람이 읽을 수 있는 라벨
