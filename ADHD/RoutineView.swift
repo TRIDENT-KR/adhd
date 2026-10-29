@@ -43,7 +43,8 @@ struct RoutineView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @Binding var activeTab: TabSelection
-    @State private var editingTaskId: UUID?
+    /// 수정 시트로 연 할 일 (카드를 누르면 열림)
+    @State private var editingTask: AppTask?
     @State private var selectedSection: RoutineSection = .routines
     @State private var showSearch = false
     @State private var showQuickAdd = false
@@ -155,10 +156,10 @@ struct RoutineView: View {
                             let (incomplete, completed) = currentTasks.partitioned { !$0.isCompleted }
                             LazyVStack(spacing: 12) {
                                 ForEach(incomplete) { task in
-                                    TaskRow(task: task, editingTaskId: $editingTaskId)
+                                    TaskRow(task: task, onEdit: { editingTask = task })
                                 }
                                 ForEach(completed) { task in
-                                    TaskRow(task: task, editingTaskId: $editingTaskId)
+                                    TaskRow(task: task, onEdit: { editingTask = task })
                                 }
                             }
                         }
@@ -176,6 +177,10 @@ struct RoutineView: View {
         .sheet(isPresented: $showQuickAdd) {
             QuickAddSheet(mode: selectedSection == .routines ? .routine : .todayTask)
         }
+        // 루틴 탭은 항상 오늘을 보여 주므로 '이번만 건너뛰기'도 오늘 회차입니다.
+        .sheet(item: $editingTask) { task in
+            TaskEditSheet(task: task, viewedDate: Date())
+        }
     }
 
 }
@@ -185,7 +190,6 @@ extension RoutineView {
         let anim: Animation? = reduceMotion ? .none : .timingCurve(0.4, 0, 0.2, 1, duration: 0.3)
         withAnimation(anim) {
             isReordering.toggle()
-            if isReordering { editingTaskId = nil }
         }
     }
 }
@@ -193,20 +197,12 @@ extension RoutineView {
 // MARK: - Task Row Component
 struct TaskRow: View {
     var task: AppTask
-    @Binding var editingTaskId: UUID?
+    /// 카드를 누르면 수정 시트를 엽니다.
+    var onEdit: () -> Void
 
     @EnvironmentObject private var taskManager: TaskManager
-    @Environment(\.modelContext) private var modelContext
 
-    @FocusState private var isTitleFocused: Bool
-    @State private var showingTimePicker = false
-    @State private var localTaskName: String = ""
-    @State private var localTime: String     = ""
-    @State private var localUrgency: Urgency  = .strong
     @State private var cachedCategoryIcon: String = "circle.fill"
-
-    var isEditing: Bool { editingTaskId == task.id }
-    var isDimmed:  Bool { editingTaskId != nil && editingTaskId != task.id }
 
     var body: some View {
         HStack(alignment: .top, spacing: 16) {
@@ -222,139 +218,64 @@ struct TaskRow: View {
             }
             .frame(minWidth: 44, minHeight: 44)
             .contentShape(Rectangle())
-            .disabled(isEditing)
             .accessibilityLabel("\(task.task), \(task.isCompleted ? L.t("completed", "완료", "完了") : L.t("not completed", "미완료", "未完了"))")
             .accessibilityHint(L.t("Double tap to toggle completion", "완료 상태를 바꾸려면 이중 탭하세요", "完了状態を切り替えるにはダブルタップ"))
 
-            if isEditing {
-                // ── 편집 모드 ──
-                VStack(alignment: .leading, spacing: 8) {
-                    TextField("Task", text: $localTaskName)
-                        .focused($isTitleFocused)
-                        .font(DesignSystem.Typography.bodyMd)
-                        .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
-                        .submitLabel(.done)
-                        .onSubmit { finishEditing() }
+            VStack(alignment: .leading, spacing: 0) {
 
-                    HStack(spacing: 8) {
-                        Text(localTime.isEmpty ? L.t("Set time", "시간 설정", "時刻を設定") : StoredTaskFormat.displayTime(localTime))
-                            .font(DesignSystem.Typography.labelSm)
-                            .padding(.vertical, 4)
-                            .padding(.horizontal, 8)
-                            .background(DesignSystem.Colors.background)
-                            .cornerRadius(8)
-                            .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
-                            .onTapGesture { showingTimePicker = true }
-                            .sheet(isPresented: $showingTimePicker) {
-                                TimePickerModal(timeString: $localTime, isPresented: $showingTimePicker)
-                            }
+                // 1행: 아이콘 + 제목
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: cachedCategoryIcon)
+                        .font(.footnote)
+                        .dynamicTypeSize(...DynamicTypeSize.large)
+                        .foregroundColor(task.isCompleted ? DesignSystem.Colors.onSurfaceMeta : DesignSystem.Colors.primary)
+                        .frame(width: 18)
+                        .padding(.top, 3)
+                        .accessibilityHidden(true)
 
-                        Button(action: {
-                            localUrgency = (localUrgency == .weak) ? .strong : .weak
-                            Haptic.impact(.light)
-                        }) {
-                            HStack(spacing: 3) {
-                                Image(systemName: localUrgency == .strong ? "bolt.fill" : "bolt")
-                                    .font(.caption2.weight(.semibold))
-                                Text(localUrgency == .strong ? L.voice.urgencyStrong : L.voice.urgencyWeak)
-                                    .font(.caption2.weight(.medium))
-                            }
-                            .foregroundColor(localUrgency == .strong ? DesignSystem.Colors.primary : DesignSystem.Colors.onSurfaceMeta)
-                            .padding(.vertical, 4)
-                            .padding(.horizontal, 8)
-                            .background(localUrgency == .strong ? DesignSystem.Colors.primary.opacity(0.12) : DesignSystem.Colors.background)
-                            .cornerRadius(8)
-                        }
-                        .buttonStyle(NoEffectButtonStyle())
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-                // 삭제 + 완료
-                HStack(spacing: 4) {
-                    Button(action: {
-                        withAnimation {
-                            taskManager.delete(task: task)
-                            editingTaskId = nil
-                        }
-                        Haptic.impact(.medium)
-                    }) {
-                        Image(systemName: "trash")
-                            .font(.footnote)
-                            .foregroundColor(.red.opacity(0.7))
-                            .frame(minWidth: 44, minHeight: 44)
-                            .contentShape(Rectangle())
-                    }
-                    .accessibilityLabel(L.t("Delete task", "일정 삭제", "タスクを削除"))
-
-                    Button(action: { finishEditing() }) {
-                        Image(systemName: "checkmark")
-                            .font(.body.weight(.bold))
-                            .foregroundColor(DesignSystem.Colors.primary)
-                            .frame(minWidth: 44, minHeight: 44)
-                            .contentShape(Rectangle())
-                    }
-                    .accessibilityLabel(L.t("Save changes", "변경사항 저장", "変更を保存"))
+                    Text(task.task)
+                        .font(.body.weight(.semibold))
+                        .foregroundColor(task.isCompleted ? DesignSystem.Colors.onSurfaceMeta : DesignSystem.Colors.onSurface)
+                        .strikethrough(task.isCompleted, color: DesignSystem.Colors.onSurfaceMeta)
+                        .lineLimit(nil)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
-            } else {
-                // ── 일반 모드 ──
-                VStack(alignment: .leading, spacing: 0) {
-
-                    // 1행: 아이콘 + 제목
-                    HStack(alignment: .top, spacing: 8) {
-                            Image(systemName: cachedCategoryIcon)
-                                .font(.footnote)
-                                .dynamicTypeSize(...DynamicTypeSize.large)
-                            .foregroundColor(task.isCompleted ? DesignSystem.Colors.onSurfaceMeta : DesignSystem.Colors.primary)
-                            .frame(width: 18)
-                            .padding(.top, 3)
-                            .accessibilityHidden(true)
-
-                        Text(task.task)
-                            .font(.body.weight(.semibold))
-                            .foregroundColor(task.isCompleted ? DesignSystem.Colors.onSurfaceMeta : DesignSystem.Colors.onSurface)
-                            .strikethrough(task.isCompleted, color: DesignSystem.Colors.onSurfaceMeta)
-                            .lineLimit(nil)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-
-                    // 2행: 시간 + 반복 + 알림 (아이콘 좌측 정렬)
-                    HStack(spacing: 5) {
-                        if let time = task.time, !time.isEmpty {
-                            if task.isRecurring {
-                                Image(systemName: "repeat")
-                                    .font(.caption2.weight(.semibold))
-                                    .foregroundColor(DesignSystem.Colors.onSurfaceMeta)
-                                    .accessibilityHidden(true)
-                            }
-                            Text(StoredTaskFormat.displayTime(time))
-                                .font(.subheadline)
+                // 2행: 시간 + 반복 + 알림 (아이콘 좌측 정렬)
+                HStack(spacing: 5) {
+                    if let time = task.time, !time.isEmpty {
+                        if task.isRecurring {
+                            Image(systemName: "repeat")
+                                .font(.caption2.weight(.semibold))
                                 .foregroundColor(DesignSystem.Colors.onSurfaceMeta)
+                                .accessibilityHidden(true)
                         }
-                        Image(systemName: task.urgency == .strong ? "bolt.fill" : "bolt")
-                            .font(.caption.weight(.semibold))
-                            .foregroundColor(task.urgency == .strong ? DesignSystem.Colors.primary : DesignSystem.Colors.onSurfaceMeta)
-                            .accessibilityLabel(task.urgency == .strong ? L.voice.urgencyStrong : L.voice.urgencyWeak)
+                        Text(StoredTaskFormat.displayTime(time))
+                            .font(.subheadline)
+                            .foregroundColor(DesignSystem.Colors.onSurfaceMeta)
                     }
-                    .padding(.top, 4)
+                    Image(systemName: task.urgency == .strong ? "bolt.fill" : "bolt")
+                        .font(.caption.weight(.semibold))
+                        .foregroundColor(task.urgency == .strong ? DesignSystem.Colors.primary : DesignSystem.Colors.onSurfaceMeta)
+                        .accessibilityLabel(task.urgency == .strong ? L.voice.urgencyStrong : L.voice.urgencyWeak)
+                }
+                .padding(.top, 4)
 
-                    // 3행: WeeklyBar (Routine만)
-                    if task.category == "Routine" {
-                        WeeklyBar(task: task)
-                            .padding(.top, 14)
-                    }
+                // 3행: WeeklyBar (Routine만)
+                if task.category == "Routine" {
+                    WeeklyBar(task: task)
+                        .padding(.top, 14)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    withAnimation { startEditing() }
-                    Haptic.impact(.light)
-                }
-                .accessibilityLabel(L.t("Edit \(task.task)", "\(task.task) 수정", "\(task.task)を編集"))
-                .accessibilityHint(L.t("Double tap to edit", "수정하려면 이중 탭하세요", "編集するにはダブルタップ"))
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                Haptic.impact(.light)
+                onEdit()
+            }
+            .accessibilityLabel(L.t("Edit \(task.task)", "\(task.task) 수정", "\(task.task)を編集"))
+            .accessibilityHint(L.t("Double tap to edit", "수정하려면 이중 탭하세요", "編集するにはダブルタップ"))
         }
         .padding(12)
         .background(
@@ -362,42 +283,13 @@ struct TaskRow: View {
                 .fill(DesignSystem.Colors.surfaceContainerLow)
         )
         .padding(.horizontal, 20)
-        .opacity(isDimmed ? 0.3 : 1.0)
         .onAppear {
-            localTaskName = task.task
-            localTime     = task.time ?? ""
             cachedCategoryIcon = CategoryIconResolver.resolveIcon(for: task.task, category: task.category)
         }
-        .onChange(of: editingTaskId) { oldValue, newValue in
-            if newValue == task.id {
-                localTaskName = task.task
-                localTime     = task.time ?? ""
-            } else {
-                isTitleFocused = false
-            }
+        // 수정 시트에서 이름을 바꾸면 아이콘도 다시 고릅니다.
+        .onChange(of: task.task) { _, newName in
+            cachedCategoryIcon = CategoryIconResolver.resolveIcon(for: newName, category: task.category)
         }
-        .task(id: editingTaskId) {
-            guard editingTaskId == task.id else { return }
-            try? await Task.sleep(nanoseconds: 100_000_000)
-            isTitleFocused = true
-        }
-    }
-
-    private func finishEditing() {
-        guard editingTaskId == task.id else { return }
-        task.task    = localTaskName
-        task.time    = localTime.isEmpty ? nil : localTime
-        task.urgency = localUrgency
-        taskManager.update(task: task)
-        cachedCategoryIcon = CategoryIconResolver.resolveIcon(for: localTaskName, category: task.category)
-        editingTaskId = nil
-        Haptic.impact(.light)
-    }
-
-    private func startEditing() {
-        localUrgency  = task.urgency
-        editingTaskId = task.id
-        Haptic.impact(.medium)
     }
 }
 
@@ -580,10 +472,14 @@ struct TimePickerModal: View {
 
 // MARK: - Swipe-to-Delete Modifier
 struct SwipeToDeleteModifier: ViewModifier {
+    /// true면 카드를 밀어 없애지 않고 제자리로 되돌린 뒤 onDelete를 부릅니다 (반복 일정: 건너뛰기/전체 삭제를 먼저 물음).
+    var confirmsFirst = false
     let onDelete: () -> Void
     @State private var offset: CGFloat = 0
     @State private var showDelete = false
     @State private var contentWidth: CGFloat = 0
+    /// 지연 삭제가 두 번 불리지 않도록 (빠른 연타 방지)
+    @State private var isDeleting = false
     private let threshold: CGFloat = -80
 
     func body(content: Content) -> some View {
@@ -593,6 +489,16 @@ struct SwipeToDeleteModifier: ViewModifier {
                 HStack {
                     Spacer()
                     Button(action: {
+                        if confirmsFirst {
+                            withAnimation(.spring(response: 0.3)) {
+                                offset = 0
+                                showDelete = false
+                            }
+                            onDelete()
+                            return
+                        }
+                        guard !isDeleting else { return }
+                        isDeleting = true
                         withAnimation(.spring(response: 0.3)) {
                             offset = -max(contentWidth, abs(threshold))
                         }
@@ -602,10 +508,11 @@ struct SwipeToDeleteModifier: ViewModifier {
                     }) {
                         Image(systemName: "trash.fill")
                             .font(.body)
-                            .foregroundColor(.white)
+                            .foregroundColor(DesignSystem.Colors.background)
                             .frame(width: 60, height: 50)
-                            .background(RoundedRectangle(cornerRadius: 12).fill(Color.red.opacity(0.8)))
+                            .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(DesignSystem.Colors.error))
                     }
+                    .accessibilityLabel(L.t("Delete task", "일정 삭제", "タスクを削除"))
                     .padding(.trailing, 32)
                 }
             }
@@ -642,8 +549,32 @@ struct SwipeToDeleteModifier: ViewModifier {
 }
 
 extension View {
-    func swipeToDelete(onDelete: @escaping () -> Void) -> some View {
-        modifier(SwipeToDeleteModifier(onDelete: onDelete))
+    func swipeToDelete(confirmsFirst: Bool = false, onDelete: @escaping () -> Void) -> some View {
+        modifier(SwipeToDeleteModifier(confirmsFirst: confirmsFirst, onDelete: onDelete))
+    }
+
+    /// 반복 일정·루틴을 지울 때: 이번만 건너뛰기 / 모든 회차 삭제 / 취소.
+    /// `task`가 nil이 아니면 뜨고, 고르거나 닫으면 nil로 돌아갑니다.
+    func repeatingDeleteDialog(
+        for task: Binding<AppTask?>,
+        onSkip: @escaping (AppTask) -> Void,
+        onDeleteAll: @escaping (AppTask) -> Void
+    ) -> some View {
+        confirmationDialog(
+            L.taskEdit.repeatingDeleteTitle,
+            isPresented: Binding(
+                get: { task.wrappedValue != nil },
+                set: { if !$0 { task.wrappedValue = nil } }
+            ),
+            titleVisibility: .visible,
+            presenting: task.wrappedValue
+        ) { target in
+            Button(L.taskEdit.skipThisOne) { onSkip(target) }
+            Button(L.taskEdit.deleteAll, role: .destructive) { onDeleteAll(target) }
+            Button(L.cancel, role: .cancel) {}
+        } message: { _ in
+            Text(L.taskEdit.repeatingDeleteMessage)
+        }
     }
 }
 
@@ -666,6 +597,8 @@ private extension Array {
 struct TaskCheckCircle: View {
     let isCompleted: Bool
     var size: CGFloat = 28
+    /// false면 아직 체크할 수 없는 회차 — 점선 테두리로 구분합니다.
+    var isEnabled = true
 
     var body: some View {
         ZStack {
@@ -675,11 +608,435 @@ struct TaskCheckCircle: View {
                 Image(systemName: "checkmark")
                     .font(.system(size: size * 0.45, weight: .bold))
                     .foregroundColor(DesignSystem.Colors.onTertiary)
-            } else {
+            } else if isEnabled {
                 Circle()
                     .strokeBorder(DesignSystem.Colors.outline, lineWidth: 2)
+            } else {
+                Circle()
+                    .strokeBorder(DesignSystem.Colors.outline, style: StrokeStyle(lineWidth: 2, dash: [3, 4]))
             }
         }
         .frame(width: size, height: size)
+    }
+}
+
+// MARK: - Task Edit Sheet
+/// 루틴·일정 카드를 누르면 열리는 수정 시트. 카드 안에서 바로 고치던 방식을 대신합니다.
+/// 위에서부터 이름 → 날짜·시간·반복·알림 카드 → 저장/삭제 순서로, 한 화면에 초점은 '저장' 하나입니다.
+struct TaskEditSheet: View {
+    let task: AppTask
+    /// 반복 일정에서 '이번만 건너뛰기'를 적용할 날 (플래너는 보고 있는 날, 루틴 탭은 오늘)
+    let viewedDate: Date
+
+    @EnvironmentObject private var taskManager: TaskManager
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ObservedObject private var langManager = LocalizationManager.shared
+
+    /// 열 때 한 번 정해 둡니다. 시트가 닫히는 동안 지워진 모델을 다시 읽지 않도록.
+    private let isAppointment: Bool
+
+    @State private var title: String
+    @State private var hasTime: Bool
+    @State private var time: Date
+    @State private var day: Date
+    @State private var recurrenceRule: String?
+    @State private var urgency: Urgency
+    /// 반복 일정 삭제 확인을 띄울 대상
+    @State private var deleteTarget: AppTask?
+    /// 시트가 완전히 닫힌 뒤 지웁니다. 열린 시트가 지워진 모델을 읽지 않게 하려는 것.
+    @State private var deletesOnDisappear = false
+    /// 알림 설정까지 한 번에 보이도록 크게 열고, 내려서 반만 볼 수도 있습니다.
+    @State private var detent: PresentationDetent = .large
+    @FocusState private var isTitleFocused: Bool
+
+    /// 반복 메뉴 항목 (nil = 반복 안 함)
+    private static let repeatOptions: [String?] = [nil, "weekly", "biweekly", "monthly", "yearly"]
+
+    init(task: AppTask, viewedDate: Date) {
+        self.task = task
+        self.viewedDate = viewedDate
+        isAppointment = task.category == "Appointment"
+
+        let calendar = Calendar.current
+        let clock = task.time.flatMap { StoredTaskFormat.hourMinute(from: $0) }
+        let storedTime = clock.flatMap {
+            calendar.date(bySettingHour: $0.hour, minute: $0.minute, second: 0, of: viewedDate)
+        }
+        _title = State(initialValue: task.task)
+        _hasTime = State(initialValue: storedTime != nil)
+        _time = State(initialValue: storedTime ?? Self.nextWholeHour(calendar: calendar))
+        _day = State(initialValue: calendar.startOfDay(for: task.date ?? viewedDate))
+        _recurrenceRule = State(initialValue: task.recurrenceRule)
+        _urgency = State(initialValue: task.urgency)
+    }
+
+    private var trimmedTitle: String {
+        title.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var canSave: Bool { !trimmedTitle.isEmpty }
+
+    private var softAnimation: Animation? {
+        reduceMotion ? nil : .timingCurve(0.4, 0, 0.2, 1, duration: 0.3)
+    }
+
+    var body: some View {
+        ScrollView(showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 28) {
+                // 머리말 + 이름
+                VStack(alignment: .leading, spacing: 12) {
+                    Text(isAppointment ? L.taskEdit.editAppointment : L.taskEdit.editRoutine)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundColor(DesignSystem.Colors.onSurfaceMeta)
+                        .accessibilityAddTraits(.isHeader)
+
+                    titleField
+                }
+
+                detailsCard
+            }
+            .padding(.horizontal, 24)
+            .padding(.top, 32)
+            .padding(.bottom, 16)
+        }
+        .scrollDismissesKeyboard(.interactively)
+        .safeAreaInset(edge: .bottom, spacing: 0) { footer }
+        .background(DesignSystem.Colors.background.ignoresSafeArea())
+        .presentationDetents([.medium, .large], selection: $detent)
+        .presentationDragIndicator(.visible)
+        .presentationBackground(DesignSystem.Colors.background)
+        .onChange(of: hasTime) { _, _ in Haptic.impact(.light) }
+        .onChange(of: recurrenceRule) { _, _ in Haptic.impact(.light) }
+        .repeatingDeleteDialog(
+            for: $deleteTarget,
+            onSkip: { target in
+                taskManager.skipOccurrence(of: target, on: viewedDate)
+                Haptic.impact(.medium)
+                dismiss()
+            },
+            onDeleteAll: { _ in deleteAfterDismiss() }
+        )
+        .onDisappear {
+            guard deletesOnDisappear else { return }
+            withAnimation(softAnimation) { taskManager.delete(task: task) }
+        }
+    }
+
+    // MARK: 이름
+    private var titleField: some View {
+        TextField(
+            "",
+            text: $title,
+            prompt: Text(L.taskEdit.namePlaceholder).foregroundColor(DesignSystem.Colors.onSurfaceMeta),
+            axis: .vertical
+        )
+        .font(.title2.weight(.semibold))
+        .foregroundColor(DesignSystem.Colors.onSurface)
+        .tint(DesignSystem.Colors.primary)
+        .lineLimit(1...4)
+        .focused($isTitleFocused)
+        .submitLabel(.done)
+        .padding(.bottom, 12)
+        // DESIGN.md 'Ghost Border': 입력칸은 아주 옅은 밑줄 하나만
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(DesignSystem.Colors.outline.opacity(0.2))
+                .frame(height: 1)
+        }
+        .accessibilityLabel(L.taskEdit.namePlaceholder)
+        .onChange(of: title) { _, newValue in
+            // 여러 줄 입력칸이라 Return이 줄바꿈이 됩니다. 줄바꿈 대신 입력을 마칩니다.
+            guard newValue.contains("\n") else { return }
+            title = newValue.replacingOccurrences(of: "\n", with: "")
+            isTitleFocused = false
+        }
+    }
+
+    // MARK: 날짜·시간·반복·알림 카드
+    private var detailsCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if isAppointment {
+                let dateLabel = recurrenceRule == nil ? L.taskEdit.date : L.taskEdit.startDate
+                TaskEditRow(icon: "calendar", label: dateLabel) {
+                    DatePicker(dateLabel, selection: $day, displayedComponents: .date)
+                        .labelsHidden()
+                        .datePickerStyle(.compact)
+                        .tint(DesignSystem.Colors.primary)
+                }
+            }
+
+            TaskEditRow(icon: "clock", label: L.taskEdit.time) {
+                HStack(spacing: 12) {
+                    if hasTime {
+                        DatePicker(L.taskEdit.time, selection: $time, displayedComponents: .hourAndMinute)
+                            .labelsHidden()
+                            .datePickerStyle(.compact)
+                            .tint(DesignSystem.Colors.primary)
+                            .transition(.opacity)
+                    } else {
+                        Text(L.taskEdit.noTime)
+                            .font(.body)
+                            .foregroundColor(DesignSystem.Colors.onSurfaceMeta)
+                            .transition(.opacity)
+                    }
+                    Toggle(L.taskEdit.setTime, isOn: $hasTime.animation(softAnimation))
+                        .labelsHidden()
+                        .tint(DesignSystem.Colors.primary)
+                        .accessibilityLabel(L.taskEdit.setTime)
+                }
+            }
+
+            if isAppointment {
+                TaskEditRow(icon: "repeat", label: L.taskEdit.repeatTitle) {
+                    repeatMenu
+                }
+            }
+
+            reminderSection
+                .padding(.top, 8)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(DesignSystem.Colors.surfaceContainerLow)
+        )
+    }
+
+    private var repeatMenu: some View {
+        Menu {
+            Picker(L.taskEdit.repeatTitle, selection: $recurrenceRule) {
+                ForEach(Self.repeatOptions, id: \.self) { rule in
+                    Text(repeatLabel(rule)).tag(rule)
+                }
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Text(repeatLabel(recurrenceRule))
+                    .font(.body)
+                    .foregroundColor(DesignSystem.Colors.onSurface)
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundColor(DesignSystem.Colors.onSurfaceMeta)
+                    .accessibilityHidden(true)
+            }
+            .padding(.horizontal, 12)
+            .frame(minHeight: 36)
+            // 옆 줄의 날짜·시간 선택 칸과 같은 톤의 옅은 바탕
+            .background(
+                Capsule().fill(DesignSystem.Colors.onSurfaceVariant.opacity(0.08))
+            )
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        .accessibilityLabel(L.taskEdit.repeatTitle)
+        .accessibilityValue(repeatLabel(recurrenceRule))
+    }
+
+    private func repeatLabel(_ rule: String?) -> String {
+        switch rule {
+        case "weekly":   return L.recurrence.weekly
+        case "biweekly": return L.taskEdit.repeatBiweekly
+        case "monthly":  return L.recurrence.monthly
+        case "yearly":   return L.recurrence.yearly
+        default:         return L.taskEdit.repeatNever
+        }
+    }
+
+    private var reminderSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                Image(systemName: "bell")
+                    .font(.body.weight(.medium))
+                    .foregroundColor(DesignSystem.Colors.primary)
+                    .frame(width: 24)
+                    .accessibilityHidden(true)
+                Text(L.taskEdit.reminder)
+                    .font(.body)
+                    .foregroundColor(DesignSystem.Colors.onSurface)
+                    .accessibilityAddTraits(.isHeader)
+            }
+
+            HStack(spacing: 10) {
+                urgencyChip(.strong)
+                urgencyChip(.weak)
+            }
+
+            Text(L.taskEdit.reminderHelp)
+                .font(.footnote)
+                .foregroundColor(DesignSystem.Colors.onSurfaceMeta)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.bottom, 4)
+    }
+
+    private func urgencyChip(_ value: Urgency) -> some View {
+        let isSelected = urgency == value
+        let label = value == .strong ? L.voice.urgencyStrong : L.voice.urgencyWeak
+        return Button {
+            guard urgency != value else { return }
+            withAnimation(softAnimation) { urgency = value }
+            Haptic.impact(.light)
+        } label: {
+            // 좁은 화면·큰 글자에서는 아이콘을 빼고 글자만 (줄바꿈 허용)
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 6) {
+                    Image(systemName: value == .strong ? "bolt.fill" : "bolt")
+                        .font(.footnote.weight(.semibold))
+                    Text(label)
+                        .lineLimit(1)
+                }
+                Text(label)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .font(.subheadline.weight(.semibold))
+            .foregroundColor(isSelected ? DesignSystem.Colors.onPrimary : DesignSystem.Colors.onSurfaceVariant)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .background(
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .fill(isSelected ? DesignSystem.Colors.primary : DesignSystem.Colors.background)
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+        }
+        .buttonStyle(PressScaleButtonStyle())
+        .accessibilityLabel(label)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+
+    // MARK: 저장·삭제
+    private var footer: some View {
+        VStack(spacing: 8) {
+            Button(action: save) {
+                Text(L.save)
+                    .font(.body.weight(.semibold))
+                    .foregroundColor(canSave ? DesignSystem.Colors.onPrimary : DesignSystem.Colors.onSurfaceMeta)
+                    .frame(maxWidth: .infinity, minHeight: 56)
+                    .background(
+                        Capsule().fill(canSave
+                                       ? AnyShapeStyle(DesignSystem.Gradients.primaryCTA)
+                                       : AnyShapeStyle(DesignSystem.Colors.surfaceContainerLow))
+                    )
+                    .contentShape(Capsule())
+            }
+            .buttonStyle(PressScaleButtonStyle())
+            .disabled(!canSave)
+
+            Button(action: requestDelete) {
+                Text(L.taskEdit.delete)
+                    .font(.body.weight(.semibold))
+                    .foregroundColor(DesignSystem.Colors.error)
+                    .padding(.horizontal, 24)
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(PressScaleButtonStyle())
+        }
+        .padding(.horizontal, 24)
+        .padding(.top, 12)
+        .padding(.bottom, 4)
+        .background(DesignSystem.Colors.background)
+    }
+
+    private func save() {
+        let trimmed = trimmedTitle
+        guard !trimmed.isEmpty else { return }   // 버튼 disabled로 먼저 막고, 한 번 더 방어
+
+        let newTime = storedTimeValue()
+        let newDate = storedDateValue()
+        let newRule = isAppointment ? recurrenceRule : task.recurrenceRule
+        let changed = trimmed != task.task
+            || newTime != task.time
+            || newDate != task.date
+            || newRule != task.recurrenceRule
+            || urgency != task.urgency
+        guard changed else { dismiss(); return }
+
+        // 바꾸기 전 상태로 되돌리기를 먼저 등록합니다.
+        taskManager.setUndoAction(.updated(previous: AppTaskSnapshot(task)), message: L.voice.undoUpdated(trimmed))
+        task.task = trimmed
+        task.time = newTime
+        task.date = newDate
+        task.recurrenceRule = newRule
+        task.urgency = urgency
+        taskManager.update(task: task)
+        Haptic.notification(.success)
+        dismiss()
+    }
+
+    /// 시간을 끄면 nil. 시·분이 그대로면 원래 문자열을 유지하고, 바뀌었을 때만 저장 형식으로 씁니다.
+    private func storedTimeValue() -> String? {
+        guard hasTime else { return nil }
+        let parts = Calendar.current.dateComponents([.hour, .minute], from: time)
+        if let original = task.time,
+           let clock = StoredTaskFormat.hourMinute(from: original),
+           clock.hour == parts.hour, clock.minute == parts.minute {
+            return original
+        }
+        return StoredTaskFormat.time.string(from: time)
+    }
+
+    /// 일정은 날짜가 꼭 있어야 합니다 (없으면 보고 있던 날). 루틴은 날짜를 건드리지 않습니다.
+    private func storedDateValue() -> Date? {
+        guard isAppointment else { return task.date }
+        if let original = task.date, Calendar.current.isDate(original, inSameDayAs: day) {
+            return original
+        }
+        return Calendar.current.startOfDay(for: day)
+    }
+
+    private func requestDelete() {
+        Haptic.impact(.medium)
+        if task.hasRepeatingSchedule {
+            deleteTarget = task
+        } else {
+            deleteAfterDismiss()
+        }
+    }
+
+    private func deleteAfterDismiss() {
+        deletesOnDisappear = true
+        dismiss()
+    }
+
+    /// 시간을 새로 켤 때의 기본값: 다음 정각
+    private static func nextWholeHour(calendar: Calendar) -> Date {
+        let now = Date()
+        let hourStart = calendar.dateInterval(of: .hour, for: now)?.start ?? now
+        return calendar.date(byAdding: .hour, value: 1, to: hourStart) ?? now
+    }
+}
+
+/// 수정 시트 카드의 한 줄: 아이콘 + 이름 + 오른쪽 조작. 큰 글자에서는 조작을 아래 줄로 내립니다.
+private struct TaskEditRow<Trailing: View>: View {
+    let icon: String
+    let label: String
+    @ViewBuilder let trailing: () -> Trailing
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    var body: some View {
+        let stacked = dynamicTypeSize.isAccessibilitySize
+        let layout = stacked
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 10))
+            : AnyLayout(HStackLayout(spacing: 12))
+        layout {
+            HStack(spacing: 12) {
+                Image(systemName: icon)
+                    .font(.body.weight(.medium))
+                    .foregroundColor(DesignSystem.Colors.primary)
+                    .frame(width: 24)
+                // 조작마다 같은 이름을 붙였으므로 VoiceOver에서는 한 번만 읽히게 숨깁니다.
+                Text(label)
+                    .font(.body)
+                    .foregroundColor(DesignSystem.Colors.onSurface)
+            }
+            .accessibilityHidden(true)
+            if !stacked { Spacer(minLength: 8) }
+            trailing()
+        }
+        .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
     }
 }

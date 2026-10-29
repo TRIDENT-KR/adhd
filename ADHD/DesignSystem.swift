@@ -88,6 +88,13 @@ struct DesignSystem {
                 ? UIColor(r: 0x00, g: 0x33, b: 0x2F)
                 : UIColor(r: 0xFF, g: 0xFF, b: 0xFF)
         })
+
+        /// 삭제처럼 되돌리기 어려운 행동의 글자·아이콘. 배경 위 4.5:1 이상입니다.
+        static let error = Color(UIColor { traits in
+            traits.userInterfaceStyle == .dark
+                ? UIColor(r: 0xFF, g: 0xB4, b: 0xAB)
+                : UIColor(r: 0xB3, g: 0x26, b: 0x1E)
+        })
     }
 
     struct Gradients {

@@ -208,3 +208,67 @@ struct AppTaskOccursOnTests {
         }
     }
 }
+
+// MARK: - AppTask.plannerJumpDate Tests
+/// 검색 결과에서 일정을 고르면 플래너가 여는 날: 반복 일정은 오늘 이후 첫 회차, 아니면 기준일.
+struct PlannerJumpDateTests {
+
+    private let cal: Calendar = {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.locale = Locale(identifier: "en_US_POSIX")
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        return calendar
+    }()
+
+    private func date(_ y: Int, _ m: Int, _ d: Int, _ hour: Int = 0) -> Date {
+        cal.date(from: DateComponents(year: y, month: m, day: d, hour: hour))!
+    }
+
+    @Test func oneTimeAppointmentOpensItsOwnDayEvenIfPast() {
+        let task = AppTask(task: "치과", date: date(2026, 7, 1, 15), category: "Appointment")
+        #expect(task.plannerJumpDate(from: date(2026, 7, 10), calendar: cal) == date(2026, 7, 1))
+    }
+
+    @Test func taskWithoutDateHasNoJumpDate() {
+        let task = AppTask(task: "물 마시기", category: "Routine")
+        #expect(task.plannerJumpDate(from: date(2026, 7, 10), calendar: cal) == nil)
+    }
+
+    @Test func weeklyOpensFirstOccurrenceAfterToday() {
+        // 7/1(수) 시작 매주 → 7/10(금) 기준 다음 회차는 7/15(수)
+        let task = AppTask(task: "회의", date: date(2026, 7, 1), category: "Appointment", recurrenceRule: "weekly")
+        #expect(task.plannerJumpDate(from: date(2026, 7, 10, 18), calendar: cal) == date(2026, 7, 15))
+    }
+
+    @Test func occurrenceTodayOpensToday() {
+        let task = AppTask(task: "회의", date: date(2026, 7, 3), category: "Appointment", recurrenceRule: "weekly")
+        #expect(task.plannerJumpDate(from: date(2026, 7, 10, 23), calendar: cal) == date(2026, 7, 10))
+    }
+
+    @Test func futureAnchorOpensAnchorDay() {
+        let task = AppTask(task: "월세", date: date(2026, 8, 1), category: "Appointment", recurrenceRule: "monthly")
+        #expect(task.plannerJumpDate(from: date(2026, 7, 10), calendar: cal) == date(2026, 8, 1))
+    }
+
+    @Test func monthlyOn31stOpensLastDayOfShortMonth() {
+        let task = AppTask(task: "정산", date: date(2026, 1, 31), category: "Appointment", recurrenceRule: "monthly")
+        #expect(task.plannerJumpDate(from: date(2026, 2, 10), calendar: cal) == date(2026, 2, 28))
+    }
+
+    @Test func fallsBackToAnchorWhenNothingInSearchWindow() {
+        let task = AppTask(task: "생일", date: date(2026, 1, 5), category: "Appointment", recurrenceRule: "yearly")
+        #expect(task.plannerJumpDate(from: date(2026, 2, 1), calendar: cal, searchDays: 30) == date(2026, 1, 5))
+    }
+
+    @Test func skippedOccurrenceIsPassedOver() {
+        // 건너뛰기 기록은 기기 시간대 기준이라 이 테스트는 현재 달력을 씁니다.
+        let current = Calendar.current
+        let anchor = current.startOfDay(for: current.date(from: DateComponents(year: 2026, month: 7, day: 1))!)
+        let task = AppTask(task: "회의", date: anchor, category: "Appointment", recurrenceRule: "weekly")
+        let now = current.date(byAdding: .day, value: 14, to: anchor)!
+        task.skippedDayKeys = [AppTask.dayKey(now)]
+
+        let expected = current.date(byAdding: .day, value: 21, to: anchor)!
+        #expect(task.plannerJumpDate(from: now, calendar: current) == expected)
+    }
+}

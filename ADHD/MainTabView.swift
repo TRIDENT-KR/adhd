@@ -20,6 +20,8 @@ struct MainTabView: View {
     @State private var guestImportCount = 0
     @State private var showGuestImportOffer = false
     @State private var guestImportResult: String?
+    /// 플래너를 아직 한 번도 열지 않았을 때 검색에서 고른 날짜. 플래너를 처음 만들 때 이 날로 엽니다.
+    @State private var pendingPlannerDate: Date?
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -42,7 +44,7 @@ struct MainTabView: View {
 
                 Group {
                     if loadedTabs.contains(.planner) {
-                        PlannerView(activeTab: $activeTab)
+                        PlannerView(activeTab: $activeTab, initialDate: pendingPlannerDate)
                     } else {
                         Color.clear
                     }
@@ -126,6 +128,12 @@ struct MainTabView: View {
                 withAnimation(.timingCurve(0.4, 0, 0.2, 1, duration: 0.3)) { activeTab = tab }
             }
         }
+        // 플래너가 이미 있으면 PlannerView가 직접 받습니다. 아직 없으면 그 날짜로 처음 만듭니다.
+        .onReceive(NotificationCenter.default.publisher(for: .plannerJumpToDate)) { notification in
+            guard let date = notification.object as? Date, !loadedTabs.contains(.planner) else { return }
+            pendingPlannerDate = date
+            loadedTabs.insert(.planner)
+        }
         // 6. 강한 알림 오버레이: 시트가 떠 있어도 보이도록 별도 창(AlarmOverlayWindowPresenter)에 띄웁니다.
         .onAppear { AlarmOverlayWindowPresenter.shared.start() }
         // 7. 이전 버전의 페이월 딥링크 호환
@@ -199,6 +207,8 @@ extension MainTabView {
 // MARK: - Widget Deep Link Notification
 extension Notification.Name {
     static let widgetDeepLink = Notification.Name("widgetDeepLink")
+    /// 플래너의 선택 날짜를 옮깁니다 (object: Date). 검색 결과에서 일정을 고를 때 씁니다.
+    static let plannerJumpToDate = Notification.Name("plannerJumpToDate")
     /// 이전 버전의 mora://paywall 링크 호환.
     static let openPaywall = Notification.Name("openPaywall")
 }
