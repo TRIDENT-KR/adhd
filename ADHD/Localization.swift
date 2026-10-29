@@ -322,6 +322,9 @@ struct VoiceStrings {
     var errorSpeechRestricted: String { t("Speech recognition is restricted on this device. You can type your task.", "이 기기에서 음성 인식이 제한되어 있어요. 글로 입력할 수 있습니다.", "この端末では音声認識が制限されています。文字で入力できます。") }
     var openSettings: String { t("Open Settings", "설정 열기", "設定を開く") }
     var tryAgain: String { t("Try Again", "다시 시도", "再試行") }
+    var errorTooLong: String { t("That's a bit long. Keep it under 1,000 characters.", "글이 조금 길어요. 1,000자 안으로 줄여 주세요.", "少し長すぎます。1,000文字以内にしてください。") }
+    var errorSignInAgain: String { t("Please sign in again.", "다시 로그인해 주세요.", "もう一度サインインしてください。") }
+    var clearDraft: String { t("Clear draft", "초안 지우기", "下書きを消す") }
     var confirmTitle: String { t("Review & Confirm", "확인 및 검토", "確認と検討") }
     var confirmUpdate: String { t("Edit", "수정", "編集") }
     

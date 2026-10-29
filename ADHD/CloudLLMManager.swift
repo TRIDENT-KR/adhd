@@ -66,6 +66,10 @@ enum CloudLLMError: Error, Equatable {
     case requestRejected
     case serverUnavailable
     case invalidResponse
+    /// 기기가 인터넷에 연결되지 않음
+    case offline
+    /// 초안이 서버 한도(1,000자)를 넘음
+    case inputTooLong
 }
 
 class CloudLLMManager: ObservableObject {
@@ -77,6 +81,17 @@ class CloudLLMManager: ObservableObject {
     static let maxAttempts = 3
     /// 요청 당 타임아웃 (초)
     private static let requestTimeout: TimeInterval = 15
+    /// 사용자가 기다리는 전체 시간 상한 (초). 재시도와 그 사이 대기를 모두 포함합니다.
+    static let totalDeadline: TimeInterval = 30
+    /// 남은 시간이 이보다 짧으면 새 시도를 시작하지 않습니다.
+    private static let minimumAttemptTime: TimeInterval = 3
+
+    /// 이번 시도에 쓸 타임아웃. 전체 상한을 넘기지 않도록 줄이고, 남은 시간이 너무 짧으면 nil입니다.
+    static func attemptTimeout(elapsed: TimeInterval) -> TimeInterval? {
+        let remaining = totalDeadline - elapsed
+        guard remaining >= minimumAttemptTime else { return nil }
+        return min(requestTimeout, remaining)
+    }
 
     func analyzeText(text: String) async throws -> [LLMFunctionCall] {
         guard let consentScope = AccountPreferences.activeScope,
@@ -86,7 +101,7 @@ class CloudLLMManager: ObservableObject {
         defer { Task { @MainActor in self.isProcessing = false } }
 
         let maxAttempts = Self.maxAttempts
-        let timeout = Self.requestTimeout
+        let startedAt = Date()
         // 한 번의 사용자 분석 탭에 하나만 만들고, 네트워크 재시도에는 같은 ID를 사용합니다.
         // 서버 원장이 이 ID로 중복 차감과 서로 다른 입력 재사용을 차단합니다.
         let logicalRequestID = UUID()
@@ -105,6 +120,8 @@ class CloudLLMManager: ObservableObject {
             try Task.checkCancellation()
             guard AccountPreferences.activeScope == consentScope,
                   AIDataConsent.isGranted() else { throw CloudLLMError.consentRequired }
+            // 재시도까지 합쳐 30초를 넘기지 않습니다(지하철 등에서 오래 붙잡지 않게).
+            guard let timeout = Self.attemptTimeout(elapsed: Date().timeIntervalSince(startedAt)) else { break }
 
             do {
                 let response = try await withThrowingTaskGroup(of: AnalyzeTaskResponse.self) { group in
@@ -149,10 +166,10 @@ class CloudLLMManager: ObservableObject {
                 try Task.checkCancellation()
                 guard AccountPreferences.activeScope == consentScope,
                       AIDataConsent.isGranted() else { throw CloudLLMError.consentRequired }
+                // 항목별 실행 가능 여부는 화면에서 걸러 냅니다. 서버가 검증·차감한 응답을 통째로 버리지 않습니다.
                 guard response.requestId == logicalRequestID,
                       response.quota.isValid,
-                      !response.calls.isEmpty,
-                      response.calls.allSatisfy(\.isExecutionPayloadValid) else {
+                      !response.calls.isEmpty else {
                     throw CloudLLMError.invalidResponse
                 }
                 await MainActor.run { self.latestQuota = response.quota }
@@ -171,6 +188,8 @@ class CloudLLMManager: ObservableObject {
                 // 마지막 시도가 아니면 지수 백오프 대기
                 if attempt < maxAttempts - 1 {
                     let seconds = min(4, Int(pow(2.0, Double(attempt))))
+                    // 대기 뒤 남은 시간이 없으면 기다리지 않고 바로 끝냅니다.
+                    guard Self.attemptTimeout(elapsed: Date().timeIntervalSince(startedAt) + Double(seconds)) != nil else { break }
                     let delay = UInt64(seconds) * 1_000_000_000
                     try await Task.sleep(nanoseconds: delay)
                 }
@@ -238,6 +257,7 @@ class CloudLLMManager: ObservableObject {
             return error == .unavailable ? .serverUnavailable : .adultEligibilityRequired
         }
         if let cloudError = error as? CloudLLMError { return cloudError }
+        if let urlError = error as? URLError, Self.isOfflineError(urlError.code) { return .offline }
         guard let functionsError = error as? FunctionsError else {
             return error is DecodingError ? .invalidResponse : .serverUnavailable
         }
@@ -256,6 +276,7 @@ class CloudLLMManager: ObservableObject {
     static func mappedHTTPError(status: Int, code: String?) -> CloudLLMError {
         if code == "adult_eligibility_required" { return .adultEligibilityRequired }
         if code == "quota_exhausted" { return .quotaExhausted }
+        if code == "input_too_long" { return .inputTooLong }
         if status == 429 { return .rateLimited }
         if status == 401 || status == 403 {
             return .authenticationRequired
@@ -264,6 +285,11 @@ class CloudLLMManager: ObservableObject {
             return .requestRejected
         }
         return .serverUnavailable
+    }
+
+    static func isOfflineError(_ code: URLError.Code) -> Bool {
+        [.notConnectedToInternet, .networkConnectionLost, .dataNotAllowed, .internationalRoamingOff]
+            .contains(code)
     }
 
     private func structuredErrorCode(from data: Data) -> String? {

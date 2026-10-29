@@ -319,7 +319,32 @@ nonisolated struct SubscriptionAccountCache {
     func clearAccount(_ userID: UUID) {
         clearEntitlement(for: userID)
         defaults.removeObject(forKey: Self.appAccountTokenKey(for: userID))
+        defaults.removeObject(forKey: Self.aiQuotaKey(for: userID))
     }
+
+    // MARK: AI 횟수 표시용 마지막 서버 스냅샷
+    /// 서버에 횟수만 묻는 API가 없어서, 다시 실행해도 마지막으로 받은 값을 보여 주려고 계정별로 기억합니다.
+    /// 표시용일 뿐이며 실제 차감·차단은 서버가 판단합니다.
+    static func aiQuotaKey(for userID: UUID) -> String {
+        "mora.subscription.\(namespace(for: userID)).ai-quota.v1"
+    }
+
+    func aiQuota(for userID: UUID) -> CachedAIQuota? {
+        guard let data = defaults.data(forKey: Self.aiQuotaKey(for: userID)) else { return nil }
+        return try? JSONDecoder().decode(CachedAIQuota.self, from: data)
+    }
+
+    func save(aiQuota: CachedAIQuota, for userID: UUID) {
+        guard let data = try? JSONEncoder().encode(aiQuota) else { return }
+        defaults.set(data, forKey: Self.aiQuotaKey(for: userID))
+    }
+}
+
+nonisolated struct CachedAIQuota: Codable, Equatable {
+    let used: Int
+    let remaining: Int?
+    let usageDate: String
+    let timeZone: String
 }
 
 nonisolated enum SubscriptionFailureClassifier {
@@ -369,6 +394,28 @@ nonisolated enum ServerQuotaAccessPolicy {
         }
         let today = String(format: "%04d-%02d-%02d", year, month, day)
         return usageDate != today || remaining > 0
+    }
+
+    /// 배지에 보일 남은 횟수. 마지막 서버 값이 오늘(서울 기준) 것이 아니면 자정에 다시 찬 한도로 봅니다.
+    static func displayedRemaining(
+        remaining: Int?,
+        usageDate: String?,
+        timeZone: String?,
+        limit: Int,
+        now: Date
+    ) -> Int {
+        guard let remaining, let usageDate, timeZone == "Asia/Seoul",
+              usageDate == serverDay(of: now) else { return limit }
+        return max(0, min(limit, remaining))
+    }
+
+    private static func serverDay(of date: Date) -> String? {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.locale = Locale(identifier: "en_US_POSIX")
+        calendar.timeZone = TimeZone(identifier: "Asia/Seoul")!
+        let parts = calendar.dateComponents([.year, .month, .day], from: date)
+        guard let year = parts.year, let month = parts.month, let day = parts.day else { return nil }
+        return String(format: "%04d-%02d-%02d", year, month, day)
     }
 }
 
@@ -562,7 +609,18 @@ final class SubscriptionManager: ObservableObject {
     }
 
     var remainingAIUsage: Int {
-        max(0, serverQuotaRemaining ?? Self.freeAILimit)
+        ServerQuotaAccessPolicy.displayedRemaining(
+            remaining: serverQuotaRemaining,
+            usageDate: serverQuotaUsageDate,
+            timeZone: serverQuotaTimeZone,
+            limit: Self.freeAILimit,
+            now: now()
+        )
+    }
+
+    /// 자정이 지나거나 앱으로 돌아왔을 때 배지를 다시 계산하게 합니다(남은 횟수는 현재 시각에 따라 달라짐).
+    func refreshQuotaDisplay() {
+        objectWillChange.send()
     }
 
     convenience init() {
@@ -605,6 +663,26 @@ final class SubscriptionManager: ObservableObject {
         serverQuotaRemaining = snapshot.remaining
         serverQuotaUsageDate = snapshot.usageDate
         serverQuotaTimeZone = snapshot.timeZone
+        if let activeUserID {
+            accountCache.save(
+                aiQuota: CachedAIQuota(
+                    used: snapshot.used,
+                    remaining: snapshot.remaining,
+                    usageDate: snapshot.usageDate,
+                    timeZone: snapshot.timeZone
+                ),
+                for: activeUserID
+            )
+        }
+    }
+
+    /// 다시 실행했을 때 마지막 서버 스냅샷으로 배지를 채웁니다. 날짜가 지났으면 표시 단계에서 한도로 돌아갑니다.
+    private func restoreCachedQuota(for userID: UUID) {
+        guard let cached = accountCache.aiQuota(for: userID) else { return }
+        dailyAIUsageCount = cached.used
+        serverQuotaRemaining = cached.remaining
+        serverQuotaUsageDate = cached.usageDate
+        serverQuotaTimeZone = cached.timeZone
     }
 
     // MARK: - Products
@@ -889,6 +967,7 @@ final class SubscriptionManager: ObservableObject {
         purchaseNotice = nil
         billingIssue = nil
         resetQuotaMirror()
+        restoreCachedQuota(for: userID)
         publishPremium(false, removeSharedFlag: true)
         applyCachedEntitlement(for: userID)
     }
