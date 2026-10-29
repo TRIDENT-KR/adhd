@@ -136,6 +136,22 @@ nonisolated struct ServerEntitlementSnapshot: Decodable, Equatable {
     }
 }
 
+/// App Store가 갱신 결제를 다시 시도하는 중인 상태 (설정 화면 안내용)
+nonisolated enum SubscriptionBillingIssue: Equatable {
+    /// 결제 실패, 유예 기간이라 Pro는 아직 켜져 있음
+    case gracePeriod
+    /// 결제 실패, 유예 기간이 지나 Pro가 멈춤 (결제 수단을 바꾸면 복구)
+    case paused
+
+    init?(status: SubscriptionEntitlementStatus) {
+        switch status {
+        case .grace: self = .gracePeriod
+        case .billingRetry: self = .paused
+        case .none, .active, .expired, .revoked, .refunded: return nil
+        }
+    }
+}
+
 nonisolated struct CachedSubscriptionEntitlement: Codable, Equatable {
     let status: SubscriptionEntitlementStatus
     let productID: String
@@ -514,6 +530,8 @@ final class SubscriptionManager: ObservableObject {
     @Published private(set) var purchaseNotice: String?
     @Published private(set) var isLoading = false
     @Published private(set) var productsLoadFailed = false
+    /// 결제가 밀려 App Store가 재시도 중이면 설정에 안내합니다. 말없이 무료로 바뀌지 않게 합니다.
+    @Published private(set) var billingIssue: SubscriptionBillingIssue?
 
     /// 서버 quota 응답의 표시용 mirror입니다. 로컬에서 증가·날짜 초기화하지 않습니다.
     @Published private(set) var dailyAIUsageCount = 0
@@ -869,6 +887,7 @@ final class SubscriptionManager: ObservableObject {
         operationScope.activate(userID)
         purchaseError = nil
         purchaseNotice = nil
+        billingIssue = nil
         resetQuotaMirror()
         publishPremium(false, removeSharedFlag: true)
         applyCachedEntitlement(for: userID)
@@ -881,6 +900,7 @@ final class SubscriptionManager: ObservableObject {
         operationScope.deactivate()
         purchaseError = nil
         purchaseNotice = nil
+        billingIssue = nil
         resetQuotaMirror()
         publishPremium(false, removeSharedFlag: true)
     }
@@ -957,6 +977,7 @@ final class SubscriptionManager: ObservableObject {
         for userID: UUID
     ) {
         guard activeUserID == userID else { return }
+        billingIssue = SubscriptionBillingIssue(status: entitlement.status)
         if let cached = SubscriptionAccessPolicy.cacheRecord(from: entitlement, at: now()) {
             accountCache.save(entitlement: cached, for: userID)
             accountCache.markServerConfirmed(for: userID, at: now())
@@ -991,6 +1012,7 @@ final class SubscriptionManager: ObservableObject {
             publishPremium(false)
             return
         }
+        billingIssue = SubscriptionBillingIssue(status: cached.status)
         publishPremium(true)
     }
 

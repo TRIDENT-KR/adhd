@@ -17,14 +17,15 @@ enum AlarmKitScheduleKind: Sendable {
     case fixed(Date)
 }
 
-// MARK: - Skip Today Plan
-/// 오늘 회차를 이미 완료한 매일·매주 태스크에서 오늘 아직 울리지 않은 알림만 빼는 예약 형태.
-/// iOS 반복 알림은 특정 회차만 건너뛸 수 없어서, 다음 날 일일 초기화 전까지 아래 형태로 바꿔 둡니다.
-enum SkipTodayPlan: Sendable {
-    /// 매일 루틴: 오늘을 뺀 요일(1=일 … 7=토)마다 매주 반복
+// MARK: - Skip Plan
+/// 건너뛸 회차(오늘 미리 완료·'이번만 건너뛰기')가 다가오거나 아직 시작 전인 매일·매주 반복의 예약 형태.
+/// iOS 반복 알림은 특정 회차만 빼거나 시작일을 정할 수 없어서, 평소 반복으로 돌아갈 수 있을 때까지
+/// 아래 형태로 바꿔 둡니다(일일 초기화·포그라운드 재무장이 다시 계산).
+enum SkipPlan: Sendable {
+    /// 매일 루틴: 남길 요일(1=일 … 7=토)마다 매주 반복
     case otherWeekdays([Int])
-    /// 매주 반복: 다음 주 같은 요일 1회
-    case nextWeek(Date)
+    /// 매주 반복: 다가오는 회차를 하나씩 직접 예약 (비어 있으면 예약하지 않음)
+    case upcoming([Date])
 }
 
 // MARK: - Alarm Spec
@@ -39,8 +40,8 @@ struct AlarmSpec: Sendable {
     let fireDate: Date          // remindBefore가 이미 반영된 기준 시각
     let urgency: Urgency
     let alarmKitSchedule: AlarmKitScheduleKind?
-    /// non-nil이면 오늘 회차를 건너뛰는 UN 예약을 씁니다.
-    let skipToday: SkipTodayPlan?
+    /// non-nil이면 건너뛸 회차를 뺀 예약을 씁니다.
+    let skipPlan: SkipPlan?
 }
 
 // MARK: - Mark Task Done Intent
@@ -118,12 +119,16 @@ final class SystemAlarmScheduler: Sendable {
     // MARK: - Schedule
 
     func schedule(_ spec: AlarmSpec) async {
-        guard let kind = spec.alarmKitSchedule else { return }
         let manager = AlarmKit.AlarmManager.shared
 
         // 울리는 중/스누즈 카운트다운 중인 알람은 건드리지 않음 (포그라운드 재무장으로부터 보호)
         if let existing = try? manager.alarms.first(where: { $0.id == spec.id }),
            existing.state != .scheduled {
+            return
+        }
+        // 다음 회차가 없으면(과거로 옮긴 일회성, 모두 건너뛴 회차) 예전 시각의 알람이 남지 않게 지웁니다.
+        guard let kind = spec.alarmKitSchedule else {
+            cancel(id: spec.id)
             return
         }
 
@@ -145,7 +150,10 @@ final class SystemAlarmScheduler: Sendable {
                 repeats: .weekly(weekdays)
             ))
         case .fixed(let date):
-            guard date > Date() else { return }
+            guard date > Date() else {
+                cancel(id: spec.id)
+                return
+            }
             schedule = .fixed(date)
         }
 

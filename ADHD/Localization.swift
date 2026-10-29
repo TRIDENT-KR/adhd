@@ -594,6 +594,18 @@ struct PaywallStrings {
     var premiumInactive: String { t("Free Plan", "무료 플랜", "無料プラン") }
     var upgradeToPro: String { t("Upgrade to Pro", "Pro로 업그레이드", "Proにアップグレード") }
     var manageSubscription: String { t("Manage Subscription", "구독 관리", "サブスクリプション管理") }
+    var billingIssueTitle: String { t("Your payment didn't go through", "결제가 되지 않았어요", "お支払いが完了していません") }
+    var billingIssueGrace: String {
+        t("Pro stays on for now. Update your payment method in the App Store to keep it.",
+          "지금은 Pro를 그대로 쓸 수 있어요. App Store에서 결제 수단을 바꾸면 계속 이어져요.",
+          "いまはProをそのまま使えます。App Storeでお支払い方法を更新すると引き続き使えます。")
+    }
+    var billingIssuePaused: String {
+        t("Pro is paused for now. Update your payment method in the App Store and it'll turn back on.",
+          "Pro가 잠시 멈췄어요. App Store에서 결제 수단을 바꾸면 다시 켜져요.",
+          "Proを一時停止しています。App Storeでお支払い方法を更新すると再開します。")
+    }
+    var updatePaymentMethod: String { t("Update Payment Method", "결제 수단 바꾸기", "お支払い方法を更新") }
 }
 
 struct AIPrivacyStrings {

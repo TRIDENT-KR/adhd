@@ -98,10 +98,10 @@ struct UrgencyClassificationTests {
     }
 }
 
-// MARK: - 오늘 미리 완료한 반복 태스크의 알림 건너뛰기
+// MARK: - 건너뛸 회차(오늘 미리 완료·이번만 건너뛰기)를 뺀 알림 예약
 
 @MainActor
-struct SkipTodayPlanTests {
+struct SkipPlanTests {
     private var calendar: Calendar {
         var cal = Calendar(identifier: .gregorian)
         cal.timeZone = TimeZone(identifier: "Asia/Seoul")!
@@ -113,43 +113,92 @@ struct SkipTodayPlanTests {
         calendar.date(from: DateComponents(year: 2026, month: 10, day: 28, hour: hour, minute: minute))!
     }
 
-    private func plan(rule: String?, anchor: Date?, fireDate: Date, hour: Int, now: Date, lead: Int = 0) -> SkipTodayPlan? {
-        NotificationManager.skipTodayPlan(
-            recurrenceRule: rule, anchor: anchor, fireDate: fireDate,
-            hour: hour, minute: 0, leadMinutes: lead, now: now, calendar: calendar
+    private func day(_ offset: Int, _ hour: Int = 0) -> Date {
+        calendar.date(byAdding: .day, value: offset, to: wednesday(hour))!
+    }
+
+    /// 지정한 날(수요일 기준 오프셋)들의 회차를 뺍니다.
+    private func plan(rule: String?, anchor: Date?, hour: Int, now: Date, lead: Int = 0, excluding offsets: Set<Int>) -> SkipPlan? {
+        let cal = calendar
+        let excludedDays = offsets.map { cal.startOfDay(for: day($0)) }
+        return NotificationManager.skipPlan(
+            recurrenceRule: rule, anchor: anchor,
+            hour: hour, minute: 0, leadMinutes: lead, now: now, calendar: cal,
+            isExcluded: { candidate in excludedDays.contains(cal.startOfDay(for: candidate)) }
         )
     }
 
     @Test func dailyRoutineCompletedBeforeTodaysAlarmSkipsOnlyToday() {
         // 20:30에 21:00 루틴 완료 → 수요일(4)만 빼고 매주 반복
-        guard case .otherWeekdays(let weekdays) = plan(rule: nil, anchor: nil, fireDate: wednesday(21), hour: 21, now: wednesday(20, 30)) else {
+        guard case .otherWeekdays(let weekdays) = plan(rule: nil, anchor: nil, hour: 21, now: wednesday(20, 30), excluding: [0]) else {
             Issue.record("expected otherWeekdays"); return
         }
         #expect(weekdays == [1, 2, 3, 5, 6, 7])
     }
 
     @Test func dailyRoutineCompletedAfterTodaysAlarmKeepsNormalRepeat() {
-        #expect(plan(rule: nil, anchor: nil, fireDate: wednesday(9), hour: 9, now: wednesday(10)) == nil)
+        #expect(plan(rule: nil, anchor: nil, hour: 9, now: wednesday(10), excluding: [0]) == nil)
     }
 
     @Test func leadTimeAlreadyPassedKeepsNormalRepeat() {
         // 21:00 루틴, 10분 전 알림(20:50)이 이미 지난 20:55에 완료
-        #expect(plan(rule: nil, anchor: nil, fireDate: wednesday(20, 50), hour: 21, now: wednesday(20, 55), lead: 10) == nil)
+        #expect(plan(rule: nil, anchor: nil, hour: 21, now: wednesday(20, 55), lead: 10, excluding: [0]) == nil)
     }
 
-    @Test func weeklyCompletedOnItsDaySchedulesNextWeekOnce() {
-        let anchor = calendar.date(byAdding: .day, value: -14, to: wednesday(0))!
-        guard case .nextWeek(let date) = plan(rule: "weekly", anchor: anchor, fireDate: wednesday(19), hour: 19, now: wednesday(8)) else {
-            Issue.record("expected nextWeek"); return
+    @Test func dailyRoutineSkippedTomorrowDropsThatWeekday() {
+        // 목요일(5) 회차만 '이번만 건너뛰기'
+        guard case .otherWeekdays(let weekdays) = plan(rule: nil, anchor: nil, hour: 9, now: wednesday(10), excluding: [1]) else {
+            Issue.record("expected otherWeekdays"); return
         }
-        #expect(date == calendar.date(byAdding: .day, value: 7, to: wednesday(19)))
+        #expect(weekdays == [1, 2, 3, 4, 6, 7])
     }
 
-    @Test func weeklyOnAnotherWeekdayOrNotStartedKeepsNormalRepeat() {
-        let thursdayFire = calendar.date(byAdding: .day, value: 1, to: wednesday(19))!
-        #expect(plan(rule: "weekly", anchor: thursdayFire, fireDate: thursdayFire, hour: 19, now: wednesday(8)) == nil)
-        let futureAnchor = calendar.date(byAdding: .day, value: 7, to: wednesday(0))!
-        #expect(plan(rule: "weekly", anchor: futureAnchor, fireDate: wednesday(19), hour: 19, now: wednesday(8)) == nil)
+    @Test func dailyRoutineSkippedNextMonthKeepsNormalRepeat() {
+        #expect(plan(rule: nil, anchor: nil, hour: 9, now: wednesday(10), excluding: [30]) == nil)
+    }
+
+    @Test func weeklyCompletedOnItsDaySchedulesFollowingWeeks() {
+        let anchor = day(-14)
+        guard case .upcoming(let dates) = plan(rule: "weekly", anchor: anchor, hour: 19, now: wednesday(8), excluding: [0]) else {
+            Issue.record("expected upcoming"); return
+        }
+        #expect(dates.first == day(7, 19))
+        #expect(dates.count == NotificationManager.upcomingSlotCount - 1)
+    }
+
+    @Test func weeklySkippedInTwoWeeksKeepsOtherWeeks() {
+        let anchor = day(-14)
+        guard case .upcoming(let dates) = plan(rule: "weekly", anchor: anchor, hour: 19, now: wednesday(8), excluding: [14]) else {
+            Issue.record("expected upcoming"); return
+        }
+        #expect(Array(dates.prefix(3)) == [day(0, 19), day(7, 19), day(21, 19)])
+    }
+
+    @Test func weeklyOnAnotherWeekdayKeepsNormalRepeat() {
+        // 목요일 매주 반복을 수요일에 완료해도 오늘은 회차가 아니므로 평소 반복
+        #expect(plan(rule: "weekly", anchor: day(-6), hour: 19, now: wednesday(8), excluding: [0]) == nil)
+    }
+
+    @Test func weeklyNotStartedWaitsForItsStartDate() {
+        // 다음 달 시작하는 매주 일정은 이번 주에 울리지 않고 시작일부터 직접 예약
+        let start = day(35)
+        guard case .upcoming(let dates) = plan(rule: "weekly", anchor: start, hour: 19, now: wednesday(8), excluding: []) else {
+            Issue.record("expected upcoming"); return
+        }
+        #expect(dates.first == day(35, 19))
+        #expect(dates.count == NotificationManager.upcomingSlotCount)
+    }
+
+    @Test func monthlySkipsToTheFollowingOccurrence() {
+        let cal = calendar
+        let anchor = day(-27)   // 매월 1일
+        let skipped = day(4)    // 11월 1일
+        let next = NotificationManager.nextIncludedFireDate(
+            after: wednesday(8), anchor: anchor, rule: "monthly",
+            hour: 9, minute: 0, leadMinutes: 0, calendar: cal,
+            isExcluded: { cal.isDate($0, inSameDayAs: skipped) }
+        )
+        #expect(next == cal.date(from: DateComponents(year: 2026, month: 12, day: 1, hour: 9)))
     }
 
     @Test func skipIdentifiersAreSeparateFromFollowUps() {

@@ -161,6 +161,27 @@ struct SettingsView: View {
                     }
                     .padding(.vertical, 2)
 
+                    // 결제가 밀린 동안 말없이 무료로 바뀌지 않게, 무엇을 하면 되는지 함께 알려 줍니다.
+                    if let billingIssue = subscriptionManager.billingIssue {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Label(L.paywall.billingIssueTitle, systemImage: "creditcard")
+                                .font(DesignSystem.Typography.bodyMd.weight(.semibold))
+                                .foregroundColor(DesignSystem.Colors.onSurface)
+                            Text(billingIssue == .gracePeriod
+                                 ? L.paywall.billingIssueGrace
+                                 : L.paywall.billingIssuePaused)
+                                .font(.footnote)
+                                .foregroundColor(DesignSystem.Colors.onSurfaceMeta)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .padding(.vertical, 4)
+                        .accessibilityElement(children: .combine)
+
+                        Link(destination: URL(string: "https://apps.apple.com/account/billing")!) {
+                            Label(L.paywall.updatePaymentMethod, systemImage: "arrow.up.right.square")
+                        }
+                    }
+
                     Link(destination: URL(string: "https://apps.apple.com/account/subscriptions")!) {
                         Label(L.paywall.manageSubscription, systemImage: "arrow.up.right.square")
                     }
@@ -529,6 +550,8 @@ struct SettingsView: View {
             // Update speech locale when language changes
             let voiceLocale = newVal.localeIdentifier
             UserDefaults.standard.set(voiceLocale, forKey: VoiceInputManager.speechLocaleKey)
+            // 이미 예약된 알림·위젯도 새 언어로 바꿉니다.
+            taskManager.refreshForLanguageChange()
             Haptic.impact(.light)
         }
         .sheet(isPresented: $showAIConsent, onDismiss: {

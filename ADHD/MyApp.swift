@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import Combine
 import UIKit
 import AuthenticationServices
 
@@ -260,8 +261,22 @@ struct MoraApp: App {
                     Task { @MainActor in
                         taskManager.writeWidgetSnapshot()
                         taskManager.cleanupOrphanedNotifications()
+                        taskManager.refillDroppedNotifications()
                     }
                 }
+            }
+            .onReceive(
+                NotificationCenter.default.publisher(for: .NSCalendarDayChanged)
+                    .receive(on: DispatchQueue.main)
+            ) { _ in
+                // 앱을 켜 둔 채 자정이 지나면 포그라운드 진입이 없으므로 같은 날짜 초기화를 여기서 돌립니다.
+                guard scenePhase == .active else { return }
+                taskManager.processPendingAlarmCompletions()
+                taskManager.syncWidgetToggles()
+                taskManager.checkAndResetDailyTasks()
+                taskManager.syncWidgetToggles()
+                taskManager.rescheduleTasksNeedingRearm()
+                taskManager.writeWidgetSnapshot()
             }
             .onReceive(NotificationCenter.default.publisher(for: .alarmTaskCompleted)) { _ in
                 taskManager.processPendingAlarmCompletions()

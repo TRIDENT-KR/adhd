@@ -187,6 +187,21 @@ final class AppTask {
     /// 알림이 반복되는 태스크(매일 루틴·반복 일정)인지. 오늘 완료해도 다음 회차 알림은 남겨야 합니다.
     var hasRepeatingSchedule: Bool { isRecurring || date == nil }
 
+    static let supportedRecurrenceRules: Set<String> = ["weekly", "biweekly", "monthly", "yearly"]
+
+    /// 종류를 바꾼 뒤에도 화면 표시와 알림 예약이 같은 규칙을 따르게 맞춥니다.
+    /// 일정은 날짜가 있어야 플래너에 보이고(없으면 매일 울리기만 함), 루틴은 반복 규칙 없이 매일 나타납니다.
+    func normalizeSchedule(defaultDate: Date = Date()) {
+        if let rule = recurrenceRule, !Self.supportedRecurrenceRules.contains(rule) {
+            recurrenceRule = nil
+        }
+        if category == "Appointment" {
+            if date == nil { date = defaultDate }
+        } else {
+            recurrenceRule = nil
+        }
+    }
+
     // MARK: - 정렬용 시간 키 (24시간 형식)
     /// "02:00 PM" → "14:00", "09:00 AM" → "09:00", nil → "99:99" (맨 뒤)
     var sortableTime: String {
