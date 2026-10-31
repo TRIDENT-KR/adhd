@@ -249,7 +249,8 @@ struct OnboardingView: View {
     }
 }
 
-/// 온보딩 1장의 마이크 원. 4초 숨쉬기 (모션 줄이기면 멈춤)
+/// 온보딩 1장의 마이크. 첫 화면에서 본 버튼을 앱에서 바로 알아보도록 음성 탭 마이크와 같은 모양·크기를 씁니다.
+/// (HomeVoiceInterfaceView의 micButton + 숨쉬는 원과 맞춤. 모션 줄이기면 멈춤)
 private struct OnboardingMicOrb: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var breathing = false
@@ -257,26 +258,20 @@ private struct OnboardingMicOrb: View {
     var body: some View {
         ZStack {
             Circle()
-                .fill(DesignSystem.Colors.primaryContainer.opacity(0.07))
-                .frame(width: 340, height: 340)
+                .fill(DesignSystem.Colors.primaryFixedDim.opacity(reduceMotion ? 0.3 : (breathing ? 0.4 : 0.15)))
+                .frame(width: 180, height: 180)
+                .scaleEffect(reduceMotion ? 1.0 : (breathing ? 1.08 : 0.92))
             Circle()
-                .fill(DesignSystem.Colors.primaryContainer.opacity(0.14))
-                .frame(width: 260, height: 260)
-            Circle()
-                .fill(RadialGradient(
-                    colors: [Color(hex: "#EDB096"), DesignSystem.Colors.primaryContainer, DesignSystem.Colors.primary],
-                    center: UnitPoint(x: 0.32, y: 0.28), startRadius: 0, endRadius: 150))
-                .frame(width: 176, height: 176)
-                .shadow(color: DesignSystem.Colors.primary.opacity(0.32), radius: 40, y: 18)
+                .fill(DesignSystem.Gradients.primaryCTA)
+                .frame(width: 120, height: 120)
             Image(systemName: "mic.fill")
-                .font(.system(size: 60))
+                .font(.system(size: 40, weight: .medium))
                 .foregroundColor(DesignSystem.Colors.onPrimary)
         }
-        .scaleEffect(breathing ? 1.04 : 1.0)
-        .frame(height: 300)
+        .frame(height: 220)
         .onAppear {
             guard !reduceMotion else { return }
-            withAnimation(.easeInOut(duration: 4).repeatForever(autoreverses: true)) {
+            withAnimation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true)) {
                 breathing = true
             }
         }
