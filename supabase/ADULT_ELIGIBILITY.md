@@ -1,5 +1,12 @@
 # Account adult eligibility
 
+> **2026-10-31:** The app no longer shows an age question, and `analyze-task`
+> no longer requires an `adult-v1` record. 18+ is set through the App Store age
+> rating and the Terms of Use. `analyze-task` still calls `get_adult_eligibility`
+> only because that RPC binds the account environment and honors the deletion
+> lock; it ignores `eligible`. Existing records stay until account deletion
+> purges them. The rest of this document describes the earlier behavior.
+
 The launch policy is `adult-v1`: an explicit self-attestation that the person is
 18 or older. This records an affirmative answer; it does not verify identity or
 date of birth. A local guest answer is separate from the authenticated account

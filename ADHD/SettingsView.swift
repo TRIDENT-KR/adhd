@@ -10,7 +10,6 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
 
     @ObservedObject var langManager = LocalizationManager.shared
-    @ObservedObject private var adultEligibility = AdultEligibilityManager.shared
 
     @State private var showLogoutConfirm = false
     @State private var showDeleteFlow = false
@@ -25,7 +24,6 @@ struct SettingsView: View {
     @State private var showGuestCopyConfirmation = false
     @State private var guestCopyAccountID: UUID?
     @State private var guestCopyMessage: String?
-    @State private var showAdultEligibility = false
 
     // Notifications
     @State private var routineReminders = true
@@ -64,13 +62,13 @@ struct SettingsView: View {
 
     var body: some View {
         NavigationView {
-            // 긴 설명은 각 화면(연령 확인·AI 동의·계정 삭제)으로 옮기고, 여기에는 한 줄짜리 항목만 둡니다.
+            // 긴 설명은 각 화면(AI 동의·계정 삭제)으로 옮기고, 여기에는 한 줄짜리 항목만 둡니다.
             // 기본 List의 회색 배경·구분선 대신 앱 배경과 카드 색을 씁니다 (DESIGN.md No-Line).
             List {
                 // ── 계정 ──
                 Section {
                     if signedInUserID == nil {
-                        // 기기 사용자(익명 계정 포함)는 로그인하지 않습니다. 기기 행과 연령 행만 둡니다.
+                        // 기기 사용자(익명 계정 포함)는 로그인하지 않습니다. 기기 행만 둡니다.
                         settingsRow(L.authRelease.guestTitle, icon: "iphone")
                         // Apple 세션이 만료된 기존 로그인 사용자만 계정 일정으로 돌아갈 길을 남깁니다.
                         if authManager.accessState == .lockedInvalidSession {
@@ -107,15 +105,6 @@ struct SettingsView: View {
                         }
                     }
 
-                    Button { showAdultEligibility = true } label: {
-                        settingsRow(L.settings.ageCheck, icon: "person.badge.shield.checkmark", value: L.settings.ageAdult, chevron: true)
-                    }
-                    .accessibilityHint(L.adultEligibility.reviewDeclaration)
-                    if let error = adultEligibility.lastError {
-                        Text(L.adultEligibility.error(error))
-                            .font(.footnote)
-                            .foregroundStyle(DesignSystem.Colors.error)
-                    }
                 } header: {
                     Text(L.settings.account)
                 }
@@ -425,9 +414,6 @@ struct SettingsView: View {
         .sheet(isPresented: $showLogin) {
             LoginView().environmentObject(authManager)
         }
-        .sheet(isPresented: $showAdultEligibility) {
-            if let scopeID = preferenceUserID { AdultEligibilityView(scopeID: scopeID) }
-        }
         .sheet(isPresented: $showPaywall) {
             NavigationView {
                 PaywallView()
@@ -599,7 +585,6 @@ private struct ThirdPartyNoticesView: View {
 }
 
 struct AccountDeletionFlowView: View {
-    var showsExactTaskCount = true
     @EnvironmentObject private var authManager: AuthManager
     @EnvironmentObject private var taskManager: TaskManager
     @EnvironmentObject private var subscriptionManager: SubscriptionManager
@@ -679,7 +664,7 @@ struct AccountDeletionFlowView: View {
 
                 Section {
                     Button(role: .destructive) {
-                        if showsExactTaskCount { previewTaskCount = taskManager.taskCount() }
+                        previewTaskCount = taskManager.taskCount()
                         showFinalConfirmation = true
                     } label: {
                         if isWorking {
@@ -720,12 +705,10 @@ struct AccountDeletionFlowView: View {
             } message: {
                 if isAnonymous {
                     Text(L.settings.anonymousDeletionPreview)
-                } else if showsExactTaskCount {
+                } else {
                     Text(L.settings.deletionFinalPreview(
                         account: authManager.userEmail ?? "Apple ID", taskCount: previewTaskCount
                     ))
-                } else {
-                    Text(L.adultEligibility.deletionWithoutCount)
                 }
             }
         }

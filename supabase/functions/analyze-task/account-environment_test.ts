@@ -4,7 +4,7 @@ import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
 
 type Handler = (request: Request) => Promise<Response>;
 
-Deno.test("adult eligibility gates the actual analysis handler before quota/replay/LLM", async (t) => {
+Deno.test("account environment binding runs before quota/replay/LLM, with no age gate", async (t) => {
   const originalFetch = globalThis.fetch;
   const serveDescriptor = Object.getOwnPropertyDescriptor(Deno, "serve")!;
   const envDescriptor = Object.getOwnPropertyDescriptor(Deno.env, "get")!;
@@ -33,7 +33,7 @@ Deno.test("adult eligibility gates the actual analysis handler before quota/repl
       writable: true,
       value: (key: string) =>
         ({
-          SUPABASE_URL: "https://adult-eligibility-test.invalid",
+          SUPABASE_URL: "https://account-environment-test.invalid",
           SUPABASE_ANON_KEY: "fake-public-key",
           SUPABASE_SERVICE_ROLE_KEY: "fake-service-key",
           GEMINI_API_KEY: "fake-model-key",
@@ -114,9 +114,6 @@ Deno.test("adult eligibility gates the actual analysis handler before quota/repl
             requestId: "67a02918-59d3-4dc0-80ba-45b6c3e834de",
             text: "Test task",
             language: "en",
-            // A caller-supplied claim must never substitute for the RPC.
-            eligible: true,
-            policyVersion: "adult-v1",
           }),
         }),
       );
@@ -134,83 +131,60 @@ Deno.test("adult eligibility gates the actual analysis handler before quota/repl
         "/rest/v1/rpc/get_adult_eligibility",
       ]);
     };
+    const analyzed = [
+      "/auth/v1/user",
+      "/rest/v1/rpc/get_adult_eligibility",
+      "/rest/v1/rpc/mora_reserve_ai_analysis_v2",
+      "/v1beta/models/gemini-3.5-flash-lite:generateContent",
+      "/rest/v1/rpc/mora_finalize_ai_analysis_v2",
+      "/rest/v1/rpc/mora_record_operational_event_v2",
+    ];
 
     await t.step(
-      "missing account attestation ignores caller claims and uses no quota or model",
+      "an account without an in-app age answer is analyzed normally",
       async () => {
-        await assertBlocked(403, "adult_eligibility_required");
+        const response = await invoke();
+        assertEquals(response.status, 200);
+        assertEquals((await response.json()).calls, calls);
+        assertEquals(requests, analyzed);
       },
     );
-    await t.step(
-      "a previously cached request is also blocked before replay",
-      async () => {
-        replay = true;
-        await assertBlocked(403, "adult_eligibility_required");
-        replay = false;
-      },
-    );
-    await t.step(
-      "old policy acceptance requires a new affirmative answer",
-      async () => {
-        eligibility = { eligible: true, policyVersion: "adult-v0" };
-        await assertBlocked(403, "adult_eligibility_required");
-      },
-    );
-    await t.step("malformed or absent RPC data fails closed", async () => {
-      for (
-        const malformed of [null, {}, [], {
-          eligible: "true",
-          policyVersion: "adult-v1",
-        }, { eligible: true }]
-      ) {
-        eligibility = malformed;
-        await assertBlocked(503, "adult_eligibility_unavailable");
+    await t.step("older and current age answers do not change the result", async () => {
+      for (const record of [
+        { eligible: true, policyVersion: "adult-v1" },
+        { eligible: true, policyVersion: "adult-v0" },
+      ]) {
+        eligibility = record;
+        const response = await invoke();
+        assertEquals(response.status, 200);
+        assertEquals(requests, analyzed);
       }
     });
-    await t.step("database errors fail closed", async () => {
+    await t.step("binding database errors fail closed", async () => {
       eligibility = { message: "test database failure" };
       eligibilityStatus = 500;
-      await assertBlocked(503, "adult_eligibility_unavailable");
+      await assertBlocked(503, "account_environment_unavailable");
       eligibilityStatus = 200;
     });
-    await t.step("network errors fail closed", async () => {
+    await t.step("binding network errors fail closed", async () => {
       eligibilityNetworkFailure = true;
-      await assertBlocked(503, "adult_eligibility_unavailable");
+      await assertBlocked(503, "account_environment_unavailable");
       eligibilityNetworkFailure = false;
     });
-    await t.step(
-      "eligible accounts preserve quota and model flow",
-      async () => {
-        eligibility = { eligible: true, policyVersion: "adult-v1" };
-        const response = await invoke();
-        assertEquals(response.status, 200);
-        assertEquals((await response.json()).calls, calls);
-        assertEquals(requests, [
-          "/auth/v1/user",
-          "/rest/v1/rpc/get_adult_eligibility",
-          "/rest/v1/rpc/mora_reserve_ai_analysis_v2",
-          "/v1beta/models/gemini-3.5-flash-lite:generateContent",
-          "/rest/v1/rpc/mora_finalize_ai_analysis_v2",
-          "/rest/v1/rpc/mora_record_operational_event_v2",
-        ]);
-      },
-    );
-    await t.step(
-      "eligible replay checks policy and does not call the model",
-      async () => {
-        replay = true;
-        const response = await invoke();
-        assertEquals(response.status, 200);
-        assertEquals((await response.json()).calls, calls);
-        assertEquals(requests, [
-          "/auth/v1/user",
-          "/rest/v1/rpc/get_adult_eligibility",
-          "/rest/v1/rpc/mora_reserve_ai_analysis_v2",
-          "/rest/v1/rpc/mora_record_operational_event_v2",
-        ]);
-      },
-    );
-    await t.step("failed authentication cannot read eligibility", async () => {
+    await t.step("a replay still binds the account first and skips the model", async () => {
+      replay = true;
+      const response = await invoke();
+      assertEquals(response.status, 200);
+      assertEquals((await response.json()).calls, calls);
+      assertEquals(requests, [
+        "/auth/v1/user",
+        "/rest/v1/rpc/get_adult_eligibility",
+        "/rest/v1/rpc/mora_reserve_ai_analysis_v2",
+        "/rest/v1/rpc/mora_record_operational_event_v2",
+      ]);
+      replay = false;
+    });
+    await t.step("failed authentication never reaches the binding", async () => {
       authenticated = false;
       const response = await invoke();
       assertEquals(response.status, 401);

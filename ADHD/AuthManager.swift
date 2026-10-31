@@ -88,16 +88,16 @@ enum AuthAccessState: Hashable {
 }
 
 /// 익명 계정을 만들어도 되는 때를 정합니다.
-/// 기기 범위의 18+ 확인이 있고 세션이 전혀 없는 기기 상태(.signedOut)에서만 만듭니다.
+/// 세션이 전혀 없는 기기 상태(.signedOut)에서만 만듭니다.
 /// Apple 세션이 만료된 상태(.lockedInvalidSession)는 다시 로그인할 길을 남기려고 그대로 둡니다.
 enum AnonymousAccountPolicy {
     static func shouldProvision(
         state: AuthAccessState,
-        deviceDeclarationAccepted: Bool,
+        isProvisioningEnabled: Bool,
         hasPendingDeletion: Bool,
         isBusy: Bool
     ) -> Bool {
-        guard state == .signedOut, deviceDeclarationAccepted, !hasPendingDeletion, !isBusy else { return false }
+        guard state == .signedOut, isProvisioningEnabled, !hasPendingDeletion, !isBusy else { return false }
         return true
     }
 }
@@ -360,8 +360,8 @@ class AuthManager: NSObject, ObservableObject {
     private var lastKnownSessionWasAnonymous = false
     private var anonymousSignInTask: Task<Bool, Never>?
     private let observesAuthentication: Bool
-    /// 기기 범위의 18+ 확인 여부. 익명 계정은 이 확인이 있을 때만 만듭니다.
-    private let deviceDeclarationAccepted: @MainActor () -> Bool
+    /// 익명 계정을 만들어도 되는지. 시연 모드에서만 끕니다(18세 이상은 앱 안 확인 대신 스토어 등급·약관으로 둡니다).
+    private let isProvisioningEnabled: @MainActor () -> Bool
 
     override convenience init() {
         self.init(
@@ -376,15 +376,12 @@ class AuthManager: NSObject, ObservableObject {
         deletionPollingStore: any AccountDeletionPersistence,
         deletionNoticeDefaults: UserDefaults,
         observesAuthentication: Bool,
-        deviceDeclarationAccepted: @escaping @MainActor () -> Bool = {
-            !MoraApp.presentationDemoMode
-                && AdultEligibilityManager.shared.allowsLocalUse(for: LocalGuestIdentity.storageID)
-        }
+        isProvisioningEnabled: @escaping @MainActor () -> Bool = { !MoraApp.presentationDemoMode }
     ) {
         self.deletionPollingStore = deletionPollingStore
         self.deletionNoticeDefaults = deletionNoticeDefaults
         self.observesAuthentication = observesAuthentication
-        self.deviceDeclarationAccepted = deviceDeclarationAccepted
+        self.isProvisioningEnabled = isProvisioningEnabled
         let isLocallyLocked = deletionNoticeDefaults.integer(forKey: Self.localSessionLockKey) != 0
         self.sessionTransition = AuthSessionTransitionGuard(isLocallyLocked: isLocallyLocked)
         let cachedSession = observesAuthentication && !isLocallyLocked ? supabase.auth.currentSession : nil
@@ -528,7 +525,7 @@ class AuthManager: NSObject, ObservableObject {
         guard observesAuthentication,
               AnonymousAccountPolicy.shouldProvision(
                 state: accessState,
-                deviceDeclarationAccepted: deviceDeclarationAccepted(),
+                isProvisioningEnabled: isProvisioningEnabled(),
                 hasPendingDeletion: deletionPollingStore.load() != nil,
                 isBusy: isSigningOut || isProcessing || sessionTransition.interactiveGeneration != nil
               ) else {

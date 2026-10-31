@@ -362,25 +362,6 @@ struct StoreKitSyncActionTests {
 
 // A suspended StoreKit/server operation must never follow a later account session.
 struct SubscriptionOperationScopeTests {
-    @Test func finishingRestrictedRestoreCannotCloseNewerOrNewlyEligibleAccount() throws {
-        var scope = SubscriptionOperationScope()
-        let first = UUID(), second = UUID()
-        scope.activate(first)
-        let original = try #require(scope.capture(sessionUserID: first, accessToken: "restore-first"))
-        let closedEligible = scope.finishRestrictedManagementOperation(original, sessionUserID: first, isLocallyEligible: true)
-        #expect(!closedEligible)
-        #expect(scope.accepts(original, sessionUserID: first))
-        scope.activate(second)
-        let closedNewerAccount = scope.finishRestrictedManagementOperation(original, sessionUserID: second, isLocallyEligible: false)
-        #expect(!closedNewerAccount)
-        #expect(scope.userID == second)
-        let current = try #require(scope.capture(sessionUserID: second, accessToken: "restore-second"))
-        let closedRestricted = scope.finishRestrictedManagementOperation(current, sessionUserID: second, isLocallyEligible: false)
-        #expect(closedRestricted)
-        #expect(scope.userID == nil)
-        #expect(!scope.accepts(current, sessionUserID: second))
-    }
-
     @Test func guestRejectsAStaleAuthenticatedSession() {
         var scope = SubscriptionOperationScope()
         let userID = UUID()
@@ -457,7 +438,6 @@ struct SubscriptionProductCatalogTests {
 struct SubscriptionErrorCopyTests {
     @Test func failuresBeforeTheStoreKitSheetSayPaymentDidNotStart() {
         #expect(SubscriptionErrorCopy.classify(URLError(.notConnectedToInternet), stage: .preparing) == .paymentNotStarted)
-        #expect(SubscriptionErrorCopy.classify(AdultEligibilityError.unavailable, stage: .preparing) == .paymentNotStarted)
         #expect(SubscriptionErrorCopy.classify(SubscriptionFlowError.productContractMismatch, stage: .preparing) == .paymentNotStarted)
     }
 
@@ -468,7 +448,6 @@ struct SubscriptionErrorCopyTests {
     }
 
     @Test func actionablePreparationErrorsKeepTheirOwnCopy() {
-        #expect(SubscriptionErrorCopy.classify(AdultEligibilityError.required, stage: .preparing) == .eligibility(.required))
         #expect(SubscriptionErrorCopy.classify(SubscriptionFlowError.appAccountTokenChanged, stage: .preparing) == .accountTokenChanged)
     }
 

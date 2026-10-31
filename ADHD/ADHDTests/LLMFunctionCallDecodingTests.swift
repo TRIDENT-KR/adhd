@@ -232,7 +232,6 @@ struct CloudLLMErrorMappingTests {
     }
 
     @Test func nonQuotaStatusesKeepTheirMapping() {
-        #expect(CloudLLMManager.mappedHTTPError(status: 403, code: "adult_eligibility_required") == .adultEligibilityRequired)
         #expect(CloudLLMManager.mappedHTTPError(status: 401, code: "unauthorized") == .authenticationRequired)
         #expect(CloudLLMManager.mappedHTTPError(status: 409, code: "request_conflict") == .requestRejected)
         #expect(CloudLLMManager.mappedHTTPError(status: 502, code: "gemini_request_failed") == .serverUnavailable)

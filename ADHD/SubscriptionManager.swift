@@ -509,17 +509,6 @@ nonisolated struct SubscriptionOperationScope {
             && sessionUserID == operation.userID
             && generation == operation.generation
     }
-
-    /// Closing a management-only restore must not close a newer account or a newly eligible session.
-    mutating func finishRestrictedManagementOperation(
-        _ operation: SubscriptionOperationContext,
-        sessionUserID: UUID?,
-        isLocallyEligible: Bool
-    ) -> Bool {
-        guard accepts(operation, sessionUserID: sessionUserID), !isLocallyEligible else { return false }
-        deactivate()
-        return true
-    }
 }
 
 @MainActor
@@ -622,7 +611,6 @@ nonisolated enum SubscriptionFlowStage: Equatable {
 }
 
 enum SubscriptionErrorCopy: Equatable {
-    case eligibility(AdultEligibilityError)
     case paymentNotStarted
     case registrationUnavailable
     case restoreRebindUnavailable
@@ -637,10 +625,6 @@ enum SubscriptionErrorCopy: Equatable {
     case restoreFailed
 
     static func classify(_ error: Error, stage: SubscriptionFlowStage) -> SubscriptionErrorCopy {
-        if let eligibilityError = error as? AdultEligibilityError {
-            // 성인 확인 서버가 응답하지 않은 것은 결제 전 일시 장애입니다.
-            return eligibilityError == .unavailable ? .paymentNotStarted : .eligibility(eligibilityError)
-        }
         // 계정이 아직 준비되지 않은 경우(SubscriptionFlowError.accountRequired)는 로그인 안내 없이
         // 아래 단계별 문구(결제 안 됨·복원 실패)로 보냅니다. 익명 계정이 붙으면 다시 누르면 됩니다.
         switch error {
@@ -698,7 +682,6 @@ enum SubscriptionErrorCopy: Equatable {
 
     var message: String {
         switch self {
-        case .eligibility(let error): return L.adultEligibility.error(error)
         case .paymentNotStarted: return L.paywall.paymentNotStarted
         case .registrationUnavailable: return L.paywall.registrationUnavailable
         case .restoreRebindUnavailable: return L.paywall.restoreRebindUnavailable
@@ -750,8 +733,6 @@ final class SubscriptionManager: ObservableObject {
     private let now: () -> Date
     private var operationScope = SubscriptionOperationScope()
     private var activeUserID: UUID? { operationScope.userID }
-    /// 활성 계정의 로컬 성인 확인 범위. 익명 계정은 기기 범위, Apple 계정은 자기 계정 범위입니다.
-    private var activeLocalScopeID: UUID?
     private var transactionListenerTask: Task<Void, Never>?
     private var authListenerTask: Task<Void, Never>?
 
@@ -894,9 +875,6 @@ final class SubscriptionManager: ObservableObject {
             operation = context
             let userID = context.userID
             let appAccountToken = try await fetchStableAppAccountToken(for: context)
-            try await AdultEligibilityManager.shared.requireServerEligibility(
-                userID: userID, accessToken: context.accessToken
-            )
             try ensureCurrentOperation(context)
             stage = .paying
             let result = try await product.purchase(options: [
@@ -942,34 +920,6 @@ final class SubscriptionManager: ObservableObject {
     }
 
     // MARK: - Explicit Restore
-    /// 제한 화면에서도 이미 구입한 권리를 복원합니다. 일반 앱/위젯 범위는 열지 않습니다.
-    @discardableResult
-    func restorePurchasesForAccountManagement(userID: UUID) async -> Bool {
-        guard !isLoading else { return false }
-        guard (try? currentAuthenticatedUserID()) == userID else {
-            reportError(SubscriptionFlowError.accountRequired, stage: .restoring, action: .restore)
-            return false
-        }
-        operationScope.activate(userID)
-        guard let operation = try? currentOperation() else {
-            reportError(SubscriptionFlowError.accountRequired, stage: .restoring, action: .restore)
-            return false
-        }
-        let restored = await restorePurchases()
-        // A newly eligible/current account may have entered the normal app while restore was pending.
-        let currentSessionUserID = try? currentAuthenticatedUserID()
-        let isLocallyEligible = AdultEligibilityManager.shared.allowsLocalUse(for: userID)
-        let shouldClose = operationScope.finishRestrictedManagementOperation(
-            operation,
-            sessionUserID: currentSessionUserID,
-            isLocallyEligible: isLocallyEligible
-        )
-        if shouldClose {
-            publishPremium(false, removeSharedFlag: true)
-        }
-        return restored
-    }
-
     @discardableResult
     func restorePurchases() async -> Bool {
         guard !isLoading else { return false }
@@ -1064,15 +1014,9 @@ final class SubscriptionManager: ObservableObject {
         }
     }
 
-    /// AuthManager가 검증한 로컬 범위만 구독 계정을 열 수 있습니다.
-    /// 익명 계정은 localScopeID로 기기 범위를 넘깁니다. 구독·캐시는 서버 계정(userID) 기준입니다.
-    func activateLocalAccountScope(_ userID: UUID, localScopeID: UUID? = nil) {
-        let scopeID = localScopeID ?? userID
-        guard AdultEligibilityManager.shared.allowsLocalUse(for: scopeID) else {
-            activateGuestScope()
-            return
-        }
-        activateAccount(userID, localScopeID: scopeID)
+    /// AuthManager가 확인한 서버 계정(익명 포함)으로 구독을 엽니다. 구독·캐시는 서버 계정(userID) 기준입니다.
+    func activateLocalAccountScope(_ userID: UUID) {
+        activateAccount(userID)
         applyCachedEntitlement(for: userID)
         Task { [weak self] in
             guard let self, self.activeUserID == userID else { return }
@@ -1117,13 +1061,12 @@ final class SubscriptionManager: ObservableObject {
         deactivateAccount(clearCache: true)
     }
 
-    private func activateAccount(_ userID: UUID, localScopeID: UUID) {
+    private func activateAccount(_ userID: UUID) {
         guard activeUserID != userID else { return }
         if let previousUserID = activeUserID {
             accountCache.clearAccount(previousUserID)
         }
         operationScope.activate(userID)
-        activeLocalScopeID = localScopeID
         purchaseError = nil
         purchaseNotice = nil
         billingIssue = nil
@@ -1138,7 +1081,6 @@ final class SubscriptionManager: ObservableObject {
             accountCache.clearAccount(activeUserID)
         }
         operationScope.deactivate()
-        activeLocalScopeID = nil
         purchaseError = nil
         purchaseNotice = nil
         billingIssue = nil
@@ -1282,7 +1224,7 @@ final class SubscriptionManager: ObservableObject {
         if let cached = SubscriptionAccessPolicy.cacheRecord(from: entitlement, at: now()) {
             accountCache.save(entitlement: cached, for: userID)
             accountCache.markServerConfirmed(for: userID, at: now())
-            publishPremium(allowsLocalUse(for: userID))
+            publishPremium(true)
         } else {
             accountCache.clearEntitlement(for: userID)
             publishPremium(false)
@@ -1291,8 +1233,7 @@ final class SubscriptionManager: ObservableObject {
 
     /// 서버 일시 장애 동안 마지막 서버 확인(24시간 이내)을 믿고 Pro를 유지합니다. 유지하지 못하면 false.
     private func keepCachedEntitlementDuringOutage(for userID: UUID) -> Bool {
-        guard allowsLocalUse(for: userID),
-              let cached = accountCache.entitlement(for: userID),
+        guard let cached = accountCache.entitlement(for: userID),
               SubscriptionAccessPolicy.allowsProDuringServerOutage(
                 cached,
                 confirmedAt: accountCache.serverConfirmedAt(for: userID),
@@ -1302,17 +1243,7 @@ final class SubscriptionManager: ObservableObject {
         return true
     }
 
-    /// 서버 계정의 로컬 성인 확인을 봅니다. 익명 계정은 기기 범위의 확인을 씁니다.
-    private func allowsLocalUse(for userID: UUID) -> Bool {
-        let scopeID = activeUserID == userID ? (activeLocalScopeID ?? userID) : userID
-        return AdultEligibilityManager.shared.allowsLocalUse(for: scopeID)
-    }
-
     private func applyCachedEntitlement(for userID: UUID) {
-        guard allowsLocalUse(for: userID) else {
-            publishPremium(false, removeSharedFlag: true)
-            return
-        }
         guard let cached = accountCache.entitlement(for: userID),
               SubscriptionAccessPolicy.allowsOfflinePro(cached, at: now()) else {
             accountCache.clearEntitlement(for: userID)
