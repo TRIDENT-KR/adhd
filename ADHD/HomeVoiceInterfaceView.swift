@@ -654,10 +654,9 @@ struct HomeVoiceInterfaceView: View {
             return
         }
 
-        // 일정·18+ 확인은 기기(또는 Apple 계정) 범위, AI 동의·횟수는 서버 계정(accountID)에 있습니다.
+        // 일정은 기기(또는 Apple 계정) 범위, AI 동의·횟수는 서버 계정(accountID)에 있습니다.
         guard taskManager.isReady, taskManager.modelContext != nil,
               let localUserID = authManager.accessState.localStorageUserID,
-              AdultEligibilityManager.shared.allowsLocalUse(for: localUserID),
               let scope = AccountPreferences.activeScope,
               scope == AccountPreferences.scope(for: localUserID),
               let generation = AccountPreferences.sessionGeneration() else {
@@ -727,13 +726,6 @@ struct HomeVoiceInterfaceView: View {
                     "This draft needs an online analysis. Your text is saved here; you can also add it manually.",
                     "이 문장은 온라인 분석이 필요해요. 초안은 그대로 있으니 직접 추가할 수도 있어요.",
                     "この下書きにはオンライン解析が必要です。文章は残っているので手動でも追加できます。"))
-            } catch CloudLLMError.adultEligibilityRequired {
-                await MainActor.run {
-                    guard activeAnalysisID == analysisID else { return }
-                    activeAnalysisID = nil
-                    analysisTask = nil
-                    triggerErrorFeedback(message: L.adultEligibility.serverRequired)
-                }
             } catch CloudLLMError.consentRequired {
                 await MainActor.run {
                     guard activeAnalysisID == analysisID else { return }
@@ -815,7 +807,6 @@ struct HomeVoiceInterfaceView: View {
         guard let localUserID = authManager.accessState.localStorageUserID else { return false }
         return context.isCurrentAccount && context.accountScope == AccountPreferences.scope(for: localUserID)
             && context.timeZone == .current && taskManager.isReady && taskManager.modelContext != nil
-            && AdultEligibilityManager.shared.allowsLocalUse(for: localUserID)
     }
 
     /// 모든 엔진이 같은 확인·실행 경계로 합류합니다. 로컬 성공에는 서버 quota가 없습니다.

@@ -6,6 +6,8 @@
 
 > **2026-10-13 갱신:** Claude 우선 → Gemini Flash-Lite 전환과 AI 동의 v2를 구현했다. 최신 배포 순서·검증·미완료 항목은 [출시 전 통합 보고서](MORA_PRELAUNCH_REPORT_20261013.md)를 따른다. 아래 9월 기록의 Gemini 단독 구조와 배포 순서는 현재 기준이 아니다.
 
+> **2026-10-31 갱신:** 앱 안의 18세 확인 화면과 서버의 AI 연령 gate를 없앴다. 18세 이상 조건은 App Store 연령 등급(18+)과 이용약관으로 유지한다. 아래 9/30 기록은 이력이다.
+>
 > **2026-09-30 구현 갱신:** 18세 이상 성인 대상·Gemini 유지. `adult-v1` 자기확인 UI, 계정별 서버 기록, AI·신규 구매 제한과 개인정보 신고 문안을 구현했다. 자기확인은 신원·실제 나이 검증이 아니다. 새 migration과 AI gate는 아직 운영에 배포하지 않았으며, 공개 정책 게시·ASC 입력·Apple 계정 작업·실기기 검증은 남는다.
 
 계정 작업의 담당·순서·정확한 값은 [계정 설정 인계 체크리스트](MORA_ACCOUNT_SETUP_CHECKLIST.md)를 먼저 본다. 이 문서는 입력 초안·검증 순서다. 현재 제출 승인이 아니다. 최신 상태는 [출시 준비 결과](MORA_RELEASE_READINESS.md)를 따른다. 담당자는 아래 결과를 확인한 뒤 ASC에 입력하며, 아직 없는 심사 계정이나 테스트 결과를 만들었다고 기재하지 않는다.
@@ -34,10 +36,10 @@
 
 ## 개인정보·연령·메타데이터
 
-- **제품 방향: 18세 이상 성인 대상, Gemini 유지.** 앱은 `adult-v1` 자기확인을 받으며 미성년 응답 뒤에는 일반 기능 사용을 제한한다. 생년월일·신분증을 수집하지 않는 자기신고이므로 실제 나이·신원 검증이나 공급자 조건 충족을 보장한다고 설명하지 않는다. 성인 표시만으로 검증 완료 처리하지 않고 Google 프로젝트의 유료 데이터 조건·판매 지역·요청 한도도 확인한다.
-- 서버는 계정 UUID·정책 버전·확인 시각만 기록한다. 거절 응답은 서버에 저장하지 않으며 탈퇴 데이터 purge 단계에서 승인 기록을 삭제한다. 앱의 게스트/계정별 로컬 응답과 기기 제한 상태는 별도로 관리하며, 로그아웃·계정 전환으로 미성년 응답이 승인으로 바뀌지 않는다.
+- **제품 방향 (2026-10-31 변경): 18세 이상 성인 대상은 유지하되, 앱 안의 연령 확인 화면은 없앤다.** 18세 이상 조건은 App Store 연령 등급(18+ override)과 이용약관으로 둔다. 앱은 연령을 묻지 않고, 서버도 AI 분석 전에 연령 기록을 요구하지 않는다(`analyze-task`는 계정 환경 연결·삭제 잠금만 먼저 확인). Gemini 약관(18세 미만 대상·이용 가능성이 높은 앱 금지)을 스토어 등급만으로 충족하는지는 법률 확인이 필요하다.
+- 이전 버전이 만든 서버 연령 기록(`mora_internal.adult_eligibility`)은 그대로 두며 계정 삭제 purge 때 함께 지워진다. 새 계정은 이 기록을 만들지 않는다.
 - [웹 정책 PR #1](https://github.com/TRIDENT-KR/waitwhat-site/pull/1)의 성인 대상·Gemini 처리·자기확인 설명을 검토해 게시한다. 초안 수정과 공개 반영은 다르다. 게시 후 support/privacy/terms 실제 접근과 앱 링크의 일치를 확인한다.
-- ASC App Privacy 응답은 계정 식별자·Apple relay 이메일(받는 경우), 구독 구매 정보, AI 사용자 입력·결과, 계정별 사용량·최소 운영/진단 기록과 성인 자기확인 기록의 실제 처리 방식에 맞춘다. 앱 manifest에는 `NSPrivacyCollectedDataTypeOtherDataTypes`를 **사용자 연결 있음 / 추적 없음 / 앱 기능 목적**으로 추가했다. ASC에도 Other Data Types와 자기확인 용도를 반영해야 하며 아직 입력하지 않았다. “데이터를 수집하지 않음” 또는 “음성은 무조건 기기 내에서만 처리”라고 일괄 표기하지 않는다.
+- ASC App Privacy 응답은 계정 식별자·Apple relay 이메일(받는 경우), 구독 구매 정보, AI 사용자 입력·결과, 계정별 사용량·최소 운영/진단 기록의 실제 처리 방식에 맞춘다. 새 버전은 연령 응답을 수집하지 않는다. 앱 manifest에는 `NSPrivacyCollectedDataTypeOtherDataTypes`를 **사용자 연결 있음 / 추적 없음 / 앱 기능 목적**으로 추가했다. ASC에도 Other Data Types와 자기확인 용도를 반영해야 하며 아직 입력하지 않았다. “데이터를 수집하지 않음” 또는 “음성은 무조건 기기 내에서만 처리”라고 일괄 표기하지 않는다.
 - 앱 설명·스크린샷에는 이미 구현된 일정/루틴/수동 입력/AI 분석/알림만 설명한다. 의료 진단·치료 효능, 알람 전달 보장, 클라우드 백업, 고정 할인율을 주장하지 않는다.
 - 현재 소스의 앱 버전은 1.0, build 5다. 기존 build 4 서명 archive는 개발 프로파일의 Time Sensitive 권한 누락으로, 자동 갱신은 Xcode 팀 계정 로그인 부재로 실패했다. 과거 build 3의 개발 서명 성공이나 build 4의 무서명 archive를 build 5 배포 증거로 사용하지 않는다. 이후 Xcode 팀 로그인, App ID의 Time Sensitive capability·개발 프로파일 갱신, Apple Distribution 인증서와 `trident-KR.ADHD`, `trident-KR.ADHD.ADHDWidget`의 App Store 프로파일을 준비해 다시 archive/export한다. 인증서 생성·약관 수락·업로드는 이번 작업에서 보류했다.
 
@@ -55,21 +57,21 @@
 
 ## 심사 메모 초안 (필수 QA 완료 후 사용)
 
-> Mora is an iPhone task and routine organizer for adults aged 18 and older. The app asks for an explicit adult self-attestation, not identity or age-document verification. An under-18 response restricts regular use while account deletion, Apple subscription management and support remain accessible. Mora does not require sign-in. On first launch the app creates an anonymous server identifier (Supabase anonymous sign-in) used only for the server-side AI usage limit, subscription ownership and the adult self-attestation record. Mora is not a medical diagnostic or treatment app. Tasks are stored locally on the device; cloud task backup is not offered in this version.
+> Mora is an iPhone task and routine organizer for adults aged 18 and older. The age requirement is set through the App Store age rating (18+) and the Terms of Use; the app does not show its own age question. Mora does not require sign-in. On first launch the app creates an anonymous server identifier (Supabase anonymous sign-in) used only for the server-side AI usage limit and subscription ownership. Mora is not a medical diagnostic or treatment app. Tasks are stored locally on the device; cloud task backup is not offered in this version.
 >
-> After the adult self-attestation, users can add and edit tasks right away without signing in. AI analysis is optional and needs no sign-in; the app uses an anonymous server identifier for the free allowance and purchases. Before the first analysis, the app explains sharing through Supabase with Anthropic Claude first and Google Gemini as a fallback, and requests separate consent (version 2). Voice transcription uses Apple's speech recognition. Users can review and edit the text before tapping Analyze and withdraw AI sharing consent in Settings. The free AI allowance is three successful analyses per day, resetting at midnight Asia/Seoul.
+> Users can add and edit tasks right away without signing in. AI analysis is optional and needs no sign-in; the app uses an anonymous server identifier for the free allowance and purchases. Before the first analysis, the app explains sharing through Supabase with Anthropic Claude first and Google Gemini as a fallback, and requests separate consent (version 2). Voice transcription uses Apple's speech recognition. Users can review and edit the text before tapping Analyze and withdraw AI sharing consent in Settings. The free AI allowance is three successful analyses per day, resetting at midnight Asia/Seoul.
 >
 > Subscription prices and periods are shown on the Pro screen. Purchases and Restore Purchases work without signing in. A subscription follows the Apple ID: after reinstalling the app or on another device with the same Apple ID, Pro is restored automatically. Pro removes the free daily AI quota; excessive consecutive requests can be temporarily limited. Restore Purchases is available on the Pro screen. Deleting the app does not cancel the App Store subscription; the app provides Apple's subscription management link.
 >
 > Full-screen alarms require compatible hardware, iOS support and permissions. The app and widget require iOS 26.2 or later. Please use an iPhone for review.
 >
-> No sign-in or demo account is required. On first launch, confirm that you are 18 or older to continue. Use any Sandbox Apple ID to test purchases.
+> No sign-in or demo account is required. Use any Sandbox Apple ID to test purchases. Accounts can be deleted in Settings → Delete Account.
 
 위 메모는 호환 앱·서버 gate 배포와 필수 QA를 완료한 뒤 사용한다. ASC의 심사 연락처에는 담당자의 실제 연락처를 입력한다. 심사자가 모든 기능에 접근할 수 있는 실제 경로·필요한 테스트 안내를 별도로 확인한다. DEBUG presentation demo는 Release에서 사용할 수 없고 심사 계정을 대신하지 않는다.
 
 ## 실기기 실행 순서
 
-1. 성인 자기확인의 미선택·수락·미성년 응답·재시작·게스트→계정·A→B 전환을 각각 확인한다. 미성년 응답은 별도 테스트 설치에서 검사하고 제한 화면의 계정 삭제·Apple 구독 관리·지원 접근을 확인한다. 서버 미확인·조회 실패에서는 AI·신규 구매가 시작되지 않아야 한다. 성인 게스트로 온보딩→수동 일정 저장→완료→재시작 보존→AI 로그인 안내/취소를 확인한다. 이후 두 기기에서 Apple 로그인·계정 자기확인, AI 공유 동의 거절 후 수동 저장, 동의 후 AI 일정 생성, 초안 편집·취소·오프라인/재연결을 확인한다.
+1. 새로 설치하면 연령 질문 없이 온보딩부터 시작하는지, 온보딩→수동 일정 저장→완료→재시작 보존을 확인한다. 로그인 없이 AI 공유 동의 거절 후 수동 저장, 동의 후 AI 일정 생성(무료 3회·4번째 결제 화면), 초안 편집·취소·오프라인/재연결을 확인한다. 설정 → 계정 삭제로 익명 계정의 서버 기록이 지워지고 기기 일정은 남는지 확인한다.
 음성 추가 확인: 녹음 후 침묵 상태에서 키보드 전환, 빈 결과 오류 뒤 재시도, Hold 모드 VoiceOver 이중 탭, 문장 끝 날짜·시간을 말한 직후 중지/백그라운드 전환을 확인한다. 자동 회귀만으로 실제 STT·접근성 동작을 통과 처리하지 않는다.
 
 2. Free/Pro 각각 약한 알림·전체 화면 알람·위젯을 foreground/background/앱 종료·잠금에서 확인한다. 실제 전달 시각과 알람 취소/반복 재예약을 기록한다.

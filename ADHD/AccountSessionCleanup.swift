@@ -10,7 +10,6 @@ enum AccountSessionCleanupReason: String {
     case invalidSession
     case deletionPending
     case deletionCompleted
-    case eligibilityRestricted
 }
 
 extension Notification.Name {

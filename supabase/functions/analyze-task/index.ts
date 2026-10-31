@@ -8,7 +8,7 @@ import {
 } from "./analysis-service.ts";
 
 import { createModelRouter, readBoundedJSON } from "./model-router.ts";
-import { requireAdultEligibility } from "./adult-eligibility.ts";
+import { bindAccountEnvironment } from "./account-environment.ts";
 
 const analyzeWithFallback = createModelRouter({
   anthropicKey: Deno.env.get("ANTHROPIC_API_KEY"),
@@ -107,9 +107,9 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Check the authenticated account before parsing text, consuming quota,
-    // replaying cached output, or sending any content to the model provider.
-    await requireAdultEligibility(() => supabase.rpc("get_adult_eligibility"));
+    // Bind the authenticated account's environment (and deletion lock) before
+    // parsing text, consuming quota, replaying cached output, or calling a model.
+    await bindAccountEnvironment(() => supabase.rpc("get_adult_eligibility"));
 
     const admin = createClient(supabaseUrl, serviceRoleKey, {
       auth: { persistSession: false, autoRefreshToken: false },

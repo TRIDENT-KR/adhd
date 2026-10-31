@@ -33,7 +33,6 @@ struct MoraApp: App {
     @StateObject private var authManager = AuthManager()
     @StateObject private var networkMonitor = NetworkMonitor.shared
     @StateObject private var subscriptionManager = SubscriptionManager()
-    @StateObject private var adultEligibility = AdultEligibilityManager.shared
     @AppStorage("appTheme") private var appTheme: String = "system"
     /// 언어 변경을 감지하여 environment(locale) 전파. .id()는 사용하지 않아 NavigationStack을 보존
     @AppStorage("appLanguage") private var appLanguage: String = AppLanguage.preferred().rawValue
@@ -89,7 +88,7 @@ struct MoraApp: App {
                     Text(authManager.completedDeletionWasAnonymous
                          ? L.authRelease.anonymousDeletionCompleteMessage : L.authRelease.deletionCompleteMessage)
                 }
-                .task(id: AdultGateContext(auth: authManager.accessState, revision: adultEligibility.revision)) {
+                .task(id: authManager.accessState) {
                     await synchronizeAccountStoreWithAuthState()
                 }
                 .task(id: networkMonitor.isConnected) {
@@ -140,9 +139,7 @@ struct MoraApp: App {
 
             case .authenticatedOnline(let userID),
                  .authenticatedOfflineLimited(let userID):
-                if !adultEligibility.allowsLocalUse(for: userID) {
-                    adultEligibilityContent(scopeID: userID)
-                } else if exposedScopeID == userID, accountStoreController.activeUserID == userID,
+                if exposedScopeID == userID, accountStoreController.activeUserID == userID,
                    let container = accountStoreController.container {
                     accountContent(container: container, userID: userID)
                 } else {
@@ -151,9 +148,7 @@ struct MoraApp: App {
 
             // 익명 계정도 같은 분기에 둡니다. 익명 세션이 붙어도 화면이 다시 만들어지지 않고 기기 일정이 그대로 보입니다.
             case .signedOut, .lockedInvalidSession, .anonymousOnline, .anonymousOfflineLimited:
-                if !adultEligibility.allowsLocalUse(for: LocalGuestIdentity.storageID) {
-                    adultEligibilityContent(scopeID: LocalGuestIdentity.storageID)
-                } else if exposedScopeID == LocalGuestIdentity.storageID,
+                if exposedScopeID == LocalGuestIdentity.storageID,
                           accountStoreController.activeUserID == LocalGuestIdentity.storageID,
                    let container = accountStoreController.container {
                     accountContent(container: container, userID: LocalGuestIdentity.storageID)
@@ -170,16 +165,6 @@ struct MoraApp: App {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(DesignSystem.Colors.background.ignoresSafeArea())
             .preferredColorScheme(colorScheme)
-    }
-
-    private func adultEligibilityContent(scopeID: UUID) -> some View {
-        AdultEligibilityView(scopeID: scopeID)
-            .id(scopeID)
-            .environmentObject(authManager)
-            .environmentObject(taskManager)
-            .environmentObject(subscriptionManager)
-            .preferredColorScheme(colorScheme)
-            .environment(\.locale, Locale(identifier: appLanguage))
     }
 
     @ViewBuilder
@@ -208,9 +193,8 @@ struct MoraApp: App {
             .modelContainer(container)
             .preferredColorScheme(colorScheme)
             .task {
-                guard isPresentationDemoMode || (authManager.accessState.localStorageUserID.map {
-                    adultEligibility.allowsLocalUse(for: $0)
-                } == true), !Task.isCancelled else { return }
+                guard isPresentationDemoMode || authManager.accessState.localStorageUserID != nil,
+                      !Task.isCancelled else { return }
                 taskManager.configure(context: container.mainContext)
                 if isPresentationDemoMode && !hasSeededPresentationDemo {
                     seedPresentationDemoData(in: container)
@@ -232,8 +216,7 @@ struct MoraApp: App {
                     do { try await Task.sleep(nanoseconds: 500_000_000) }
                     catch { return }
                     guard !Task.isCancelled,
-                          let scopeID = authManager.accessState.localStorageUserID,
-                          adultEligibility.allowsLocalUse(for: scopeID) else { return }
+                          authManager.accessState.localStorageUserID != nil else { return }
                     NotificationManager.shared.requestAuthorization()
                 }
             }
@@ -290,24 +273,9 @@ struct MoraApp: App {
         }
 
         let expectedState = authManager.accessState
-        adultEligibility.activate(
-            scopeID: expectedState.localStorageUserID,
-            accountID: expectedState.accountUserID,
-            isOnline: authManager.canUseServerFeatures
-        )
 
         if let userID = authManager.pendingLocalDeletionUserID {
             await removeCompletedAccountStore(for: userID)
-            return
-        }
-        if let scopeID = expectedState.localStorageUserID,
-           AdultEligibilityGatePolicy.requiresGate(auth: expectedState, status: adultEligibility.status(for: scopeID)) {
-            guard accountStoreController.saveBeforeSwitch() else { return }
-            await sessionCleanupCoordinator.lockLocalExposure(taskManager: taskManager, reason: .eligibilityRestricted)
-            guard !Task.isCancelled, authManager.accessState == expectedState,
-                  !adultEligibility.allowsLocalUse(for: scopeID) else { return }
-            accountStoreController.lock()
-            subscriptionManager.activateGuestScope()
             return
         }
         switch expectedState {
@@ -317,8 +285,7 @@ struct MoraApp: App {
         case .authenticatedOnline(let userID),
              .authenticatedOfflineLimited(let userID):
             await sessionCleanupCoordinator.waitForPendingCleanup()
-            guard !Task.isCancelled, authManager.accessState == expectedState,
-                  adultEligibility.allowsLocalUse(for: userID) else { return }
+            guard !Task.isCancelled, authManager.accessState == expectedState else { return }
             if let activeUserID = accountStoreController.activeUserID,
                activeUserID != userID {
                 guard accountStoreController.saveBeforeSwitch() else { return }
@@ -337,10 +304,9 @@ struct MoraApp: App {
             exposedScopeID = userID
 
         case .signedOut, .lockedInvalidSession, .anonymousOnline, .anonymousOfflineLimited:
-            // 익명 계정은 서버 기능에만 쓰고, 일정·알림 설정·18+ 확인·위젯은 기기 범위를 그대로 씁니다.
+            // 익명 계정은 서버 기능에만 쓰고, 일정·알림 설정·위젯은 기기 범위를 그대로 씁니다.
             await sessionCleanupCoordinator.waitForPendingCleanup()
-            guard !Task.isCancelled, authManager.accessState == expectedState,
-                  adultEligibility.allowsLocalUse(for: LocalGuestIdentity.storageID) else { return }
+            guard !Task.isCancelled, authManager.accessState == expectedState else { return }
             if accountStoreController.activeUserID != LocalGuestIdentity.storageID {
                 guard accountStoreController.saveBeforeSwitch() else { return }
                 await sessionCleanupCoordinator.lockLocalExposure(
@@ -354,14 +320,14 @@ struct MoraApp: App {
             AccountPreferences.activate(for: LocalGuestIdentity.storageID)
             WidgetAccountScope.activate(AccountPreferences.scope(for: LocalGuestIdentity.storageID))
             if expectedState.isAnonymous, let anonymousUserID = expectedState.accountUserID {
-                subscriptionManager.activateLocalAccountScope(anonymousUserID, localScopeID: LocalGuestIdentity.storageID)
+                subscriptionManager.activateLocalAccountScope(anonymousUserID)
             } else {
                 subscriptionManager.activateGuestScope()
             }
             accountStoreController.activate(for: LocalGuestIdentity.storageID)
             exposedScopeID = LocalGuestIdentity.storageID
             if expectedState == .signedOut {
-                // 세션이 없고 기기 18+ 확인이 있으면 보이지 않게 익명 계정을 붙입니다. 화면은 기다리지 않습니다.
+                // 세션이 없으면 보이지 않게 익명 계정을 붙입니다. 화면은 기다리지 않습니다.
                 Task { @MainActor in await authManager.provisionAnonymousAccountIfNeeded() }
             }
 
@@ -393,7 +359,6 @@ struct MoraApp: App {
         accountStoreController.deleteStoreAfterServerCompletion(for: userID)
         guard accountStoreController.failureCode == nil else { return }
         AccountPreferences.removeAll(for: userID)
-        adultEligibility.removeAccountRecord(for: userID)
         subscriptionManager.clearAccountCache(for: userID)
         do {
             try authManager.finishLocalAccountDeletion(for: userID)
@@ -424,11 +389,6 @@ struct MoraApp: App {
         tasks.forEach(context.insert)
         try? context.save()
     }
-}
-
-private struct AdultGateContext: Hashable {
-    let auth: AuthAccessState
-    let revision: Int
 }
 
 private struct AccountDeletionPendingView: View {

@@ -219,15 +219,15 @@ struct GuestAccountStorageTests {
         }
     }
 
-    @Test func anonymousAccountIsCreatedOnlyForADeclaredDeviceWithoutASession() {
-        func provisions(_ state: AuthAccessState, accepted: Bool = true, pending: Bool = false, busy: Bool = false) -> Bool {
+    @Test func anonymousAccountIsCreatedOnlyForADeviceWithoutASession() {
+        func provisions(_ state: AuthAccessState, enabled: Bool = true, pending: Bool = false, busy: Bool = false) -> Bool {
             AnonymousAccountPolicy.shouldProvision(
-                state: state, deviceDeclarationAccepted: accepted, hasPendingDeletion: pending, isBusy: busy
+                state: state, isProvisioningEnabled: enabled, hasPendingDeletion: pending, isBusy: busy
             )
         }
         let user = UUID()
         #expect(provisions(.signedOut))
-        #expect(!provisions(.signedOut, accepted: false))
+        #expect(!provisions(.signedOut, enabled: false))   // 시연 모드
         #expect(!provisions(.signedOut, pending: true))
         #expect(!provisions(.signedOut, busy: true))
         // Apple 세션이 만료된 사용자는 다시 로그인할 길을 남기려고 익명 계정으로 덮지 않습니다.

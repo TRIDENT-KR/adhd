@@ -56,7 +56,6 @@ private struct AnalyzeTaskErrorResponse: Decodable {
 }
 
 enum CloudLLMError: Error, Equatable {
-    case adultEligibilityRequired
     case consentRequired
     /// 무료 일일 한도를 다 쓴 경우에만 사용합니다. 이 오류만 결제 화면으로 안내합니다.
     case quotaExhausted
@@ -146,9 +145,6 @@ class CloudLLMManager: ObservableObject {
                               AIDataConsent.isGranted(for: accountID) else {
                             throw CloudLLMError.consentRequired
                         }
-                        try await AdultEligibilityManager.shared.requireServerEligibility(
-                            userID: session.user.id, accessToken: session.accessToken
-                        )
                         try Task.checkCancellation()
                         guard context.isCurrentAccount else { throw CancellationError() }
                         guard AccountPreferences.activeScope == localScope,
@@ -231,7 +227,6 @@ class CloudLLMManager: ObservableObject {
     }
 
     func shouldRetry(_ error: Error) -> Bool {
-        if error is AdultEligibilityError { return false }
         if let cloudError = error as? CloudLLMError {
             return cloudError == .serverUnavailable
         }
@@ -271,9 +266,6 @@ class CloudLLMManager: ObservableObject {
     }
 
     func mappedError(_ error: Error) -> CloudLLMError {
-        if let error = error as? AdultEligibilityError {
-            return error == .unavailable ? .serverUnavailable : .adultEligibilityRequired
-        }
         if let cloudError = error as? CloudLLMError { return cloudError }
         if let urlError = error as? URLError, Self.isOfflineError(urlError.code) { return .offline }
         guard let functionsError = error as? FunctionsError else {
@@ -292,7 +284,6 @@ class CloudLLMManager: ObservableObject {
     /// 결제 화면은 quota_exhausted일 때만 열고, 다른 429(rate_limited·request_replay_limit)는
     /// Pro 사용자에게도 생길 수 있으므로 잠시 뒤 다시 시도하라는 안내로 보냅니다.
     static func mappedHTTPError(status: Int, code: String?) -> CloudLLMError {
-        if code == "adult_eligibility_required" { return .adultEligibilityRequired }
         if code == "ai_consent_required" { return .consentRequired }
         if code == "quota_exhausted" { return .quotaExhausted }
         if code == "input_too_long" { return .inputTooLong }
