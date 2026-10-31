@@ -29,6 +29,7 @@
 		AD1000030000000000000001 /* AccountSessionCleanup.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD1000040000000000000001 /* AccountSessionCleanup.swift */; };
 		AD1000050000000000000001 /* AccountStoreLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD1000060000000000000001 /* AccountStoreLayoutTests.swift */; };
 		AE2000010000000000000001 /* SubscriptionEntitlementTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE2000020000000000000001 /* SubscriptionEntitlementTests.swift */; };
+		AF3000010000000000000001 /* TabPagerSyncTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF3000020000000000000001 /* TabPagerSyncTests.swift */; };
 		99526ADA2F7A3EB2000CD3EE /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 99526AD92F7A3EB2000CD3EE /* WidgetKit.framework */; };
 		99526ADC2F7A3EB2000CD3EE /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 99526ADB2F7A3EB2000CD3EE /* SwiftUI.framework */; };
 		99526AEB2F7A3EB4000CD3EE /* ADHDWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 99526AD82F7A3EB2000CD3EE /* ADHDWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -138,6 +139,7 @@
 		AD1000040000000000000001 /* AccountSessionCleanup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountSessionCleanup.swift; sourceTree = "<group>"; };
 		AD1000060000000000000001 /* AccountStoreLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountStoreLayoutTests.swift; sourceTree = "<group>"; };
 		AE2000020000000000000001 /* SubscriptionEntitlementTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionEntitlementTests.swift; sourceTree = "<group>"; };
+		AF3000020000000000000001 /* TabPagerSyncTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabPagerSyncTests.swift; sourceTree = "<group>"; };
 		CC000002000000000000AA01 /* AlarmManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlarmManager.swift; sourceTree = "<group>"; };
 		CC000004000000000000AA01 /* AlarmOverlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlarmOverlayView.swift; sourceTree = "<group>"; };
 		CC000006000000000000AA01 /* SmoothTaskReorderList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmoothTaskReorderList.swift; sourceTree = "<group>"; };
@@ -240,6 +242,7 @@
 				EF00000400000000000000A1 /* SaveAndRetryContractTests.swift */,
 				AD1000060000000000000001 /* AccountStoreLayoutTests.swift */,
 				AE2000020000000000000001 /* SubscriptionEntitlementTests.swift */,
+				AF3000020000000000000001 /* TabPagerSyncTests.swift */,
 			);
 			path = ADHDTests;
 			sourceTree = "<group>";
@@ -587,6 +590,7 @@
 				EF00000300000000000000A1 /* SaveAndRetryContractTests.swift in Sources */,
 				AD1000050000000000000001 /* AccountStoreLayoutTests.swift in Sources */,
 				AE2000010000000000000001 /* SubscriptionEntitlementTests.swift in Sources */,
+				AF3000010000000000000001 /* TabPagerSyncTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
