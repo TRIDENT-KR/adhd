@@ -75,6 +75,12 @@ struct DesignSystem {
                 ? UIColor(r: 0x2A, g: 0x26, b: 0x24)
                 : UIColor(r: 0xF1, g: 0xEE, b: 0xEB)
         })
+        /// 트레이 안에 놓이는 카드·칩, 시트 바탕 (DESIGN.md surface-container-lowest)
+        static let surfaceContainerLowest = Color(UIColor { traits in
+            traits.userInterfaceStyle == .dark
+                ? UIColor(r: 0x2A, g: 0x26, b: 0x24)
+                : UIColor(r: 0xFF, g: 0xFF, b: 0xFF)
+        })
 
         static let tertiary = Color(UIColor { traits in
             traits.userInterfaceStyle == .dark
@@ -312,6 +318,24 @@ struct PressScaleButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
+            .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
+            .animation(reduceMotion ? .none : .timingCurve(0.4, 0, 0.2, 1, duration: 0.3), value: configuration.isPressed)
+    }
+}
+
+/// 화면 폭을 채우는 차분한 버튼. 브랜드 색 대신 배경에 은은하게 묻는 바탕을 써서 시선을 빼앗지 않습니다.
+/// 알약 모양 대신 모서리 18pt 사각형입니다 (DESIGN.md 부록 참고).
+struct CalmButtonStyle: ButtonStyle {
+    var fill: Color = DesignSystem.Colors.onSurfaceVariant.opacity(0.08)
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.body.weight(.semibold))
+            .foregroundColor(DesignSystem.Colors.onSurface)
+            .frame(maxWidth: .infinity, minHeight: 56)
+            .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(fill))
+            .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
             .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
             .animation(reduceMotion ? .none : .timingCurve(0.4, 0, 0.2, 1, duration: 0.3), value: configuration.isPressed)
     }

@@ -520,11 +520,38 @@ struct OnboardingStrings {
         t("Page \(page) of \(total)", "전체 \(total)페이지 중 \(page)페이지", "全\(total)ページ中\(page)ページ")
     }
 
-    var page1Title: String { t("Just say it", "말하면 끝", "話すだけ") }
-    var page1Body: String { t("One mic for every routine, task, and plan.", "마이크 하나로 루틴, 할 일, 일정까지 전부.", "マイクひとつでルーティンも予定もすべて。") }
-    var page3Title: String { t("You're all set", "준비 끝", "準備完了") }
-    var page3Body: String { t("Start with your first word.", "첫 마디로 시작해보세요.", "最初のひと言から始めましょう。") }
-    var start: String { t("Start", "시작하기", "はじめる") }
+    var page1Title: String { t("Just say it.", "말하면 끝.", "話すだけ。") }
+    var page1Body: String { t("One mic for every routine,\ntask, and plan.", "루틴, 할 일, 일정까지\n마이크 하나로 전부.", "ルーティンも予定も\nマイクひとつで全部。") }
+    var page2Title: String { t("Say it\nlike this.", "이렇게\n말해보세요.", "たとえば、\nこんなふうに。") }
+
+    /// 2장 대화 예시: 사용자가 한 말과 Mora가 정리한 결과 (name은 굵게, detail은 이어서 보통 굵기)
+    struct Example: Hashable {
+        let said: String
+        let name: String
+        let detail: String
+    }
+
+    var examples: [Example] {
+        switch language {
+        case .en: return [
+            Example(said: "Meeting tomorrow at 3pm", name: "Meeting", detail: " · Tomorrow, 3:00 PM"),
+            Example(said: "Take my meds every day at 9am", name: "Take meds", detail: " · Daily, 9:00 AM"),
+            Example(said: "Delete workout", name: "Workout", detail: " deleted"),
+        ]
+        case .ko: return [
+            Example(said: "내일 오후 3시에 회의", name: "회의", detail: " · 내일 오후 3:00"),
+            Example(said: "매일 아침 9시에 약 먹기", name: "약 먹기", detail: " · 매일 오전 9:00"),
+            Example(said: "운동은 지워줘", name: "운동", detail: "을 지웠어요"),
+        ]
+        case .ja: return [
+            Example(said: "明日の15時に会議", name: "会議", detail: " · 明日 15:00"),
+            Example(said: "毎朝9時に薬を飲む", name: "薬を飲む", detail: " · 毎日 9:00"),
+            Example(said: "運動は消して", name: "運動", detail: "を削除しました"),
+        ]
+        }
+    }
+
+    var start: String { t("Get started", "시작하기", "はじめる") }
     var next: String { t("Next", "다음", "次へ") }
     var skip: String { t("Skip", "건너뛰기", "スキップ") }
 }
@@ -649,7 +676,14 @@ struct AIPrivacyStrings {
         "AIの利用は任意です。同意しなくてもタスクを手動で追加・編集できます。設定でいつでも同意を撤回でき、以後のAIリクエストは停止します。送信済みのデータは取り戻せません。データの取り扱いと保管はプライバシーポリシーをご確認ください。"
     ) }
     var allow: String { t("Allow AI data sharing", "AI 데이터 전송에 동의", "AIへの送信に同意する") }
-    var notNow: String { t("Not now", "나중에", "今はしない") }
+    var notNow: String { t("Not now", "나중에", "あとで") }
+    /// 동의 시트의 동의 버튼. 제목 없이 이 버튼 이름이 무엇에 동의하는지 말합니다.
+    var agree: String { t("Allow AI", "AI 사용 동의", "AIの利用に同意") }
+    var details: String { t("Details", "자세히 보기", "詳しく見る") }
+    /// 보낼 글이 없을 때(설정에서 열 때) 흐름 그림에 보여 줄 예시
+    var sampleDraft: String { t("Dentist at 3pm", "내일 오후 3시에 치과", "明日15時に歯医者") }
+    var flowAccessibility: String { t("Your text is sent to Claude", "적은 글을 Claude에 보내요", "入力した文章をClaudeに送ります") }
+    func quoted(_ text: String) -> String { t("“\(text)”", "“\(text)”", "「\(text)」") }
     var anthropicPolicy: String { t("Anthropic data policy", "Anthropic 데이터 정책", "Anthropicのデータポリシー") }
     var googlePolicy: String { t("Google Gemini data policy", "Google Gemini 데이터 정책", "Google Geminiのデータポリシー") }
 }
