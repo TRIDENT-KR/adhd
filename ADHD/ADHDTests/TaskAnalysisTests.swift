@@ -213,6 +213,37 @@ struct AnalysisExecutionBoundaryTests {
         #expect(!first.isCompleted && second.isCompleted)
     }
 
+    /// 지난 날 끝낸 일정은 후보에서 빠지지만, 남은 후보가 여럿이면 여전히 고르게 합니다.
+    @Test func finishedPastDuplicatesAreSkippedButRealDuplicatesStillAsk() throws {
+        let container = try ModelContainer(for: AppTask.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let manager = TaskManager()
+        let context = ModelContext(container)
+        manager.modelContext = context
+        let today = Calendar.current.startOfDay(for: Date())
+        let day = { (offset: Int) in Calendar.current.date(byAdding: .day, value: offset, to: today) }
+        let pastDone = AppTask(task: "회의", date: day(-3), category: "Appointment", isCompleted: true)
+        let tomorrow = AppTask(task: "회의", date: day(1), category: "Appointment")
+        context.insert(pastDone); context.insert(tomorrow); try context.save()
+        let call = LLMFunctionCall.markTaskComplete(.init(target_task_name: "회의"))
+
+        let single = try #require(manager.preparePendingCalls([PendingLLMCall(call: call)]).first)
+        #expect(single.executionIssue == nil)
+        #expect(single.targetSnapshots?.map(\.id) == [tomorrow.id])
+
+        let nextWeek = AppTask(task: "회의", date: day(7), category: "Appointment")
+        context.insert(nextWeek); try context.save()
+        let ambiguous = try #require(manager.preparePendingCalls([PendingLLMCall(call: call)]).first)
+        #expect(ambiguous.executionIssue == .ambiguousTarget)
+        #expect(Set(ambiguous.targetCandidates.map(\.id)) == [tomorrow.id, nextWeek.id])
+
+        // 남은 게 모두 지난 완료뿐이면 어느 쪽인지 알 수 없으니 묻습니다.
+        tomorrow.date = day(-1); tomorrow.isCompleted = true
+        nextWeek.date = day(-2); nextWeek.isCompleted = true
+        try context.save()
+        let allPast = try #require(manager.preparePendingCalls([PendingLLMCall(call: call)]).first)
+        #expect(allPast.executionIssue == .ambiguousTarget)
+    }
+
     @Test(arguments: ["25:00", "09:99 AM", "00:30 PM", "09:00 am", "09:00 AM\n"])
     func rejectsInvalidTimes(_ value: String) {
         let call = LLMFunctionCall.addSingleTask(.init(task_name: "회의", time: value, category: "Routine"))
