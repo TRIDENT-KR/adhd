@@ -93,10 +93,13 @@ class CloudLLMManager: ObservableObject {
         return min(requestTimeout, remaining)
     }
 
-    func analyzeText(text: String, context suppliedContext: TaskAnalysisContext? = nil) async throws -> [LLMFunctionCall] {
-        guard let consentScope = AccountPreferences.activeScope,
+    /// accountID는 서버 계정(익명 포함)입니다. AI 동의는 이 계정에, 로컬 범위는 기기 또는 Apple 계정 범위에 있습니다.
+    func analyzeText(
+        text: String, accountID: UUID, context suppliedContext: TaskAnalysisContext? = nil
+    ) async throws -> [LLMFunctionCall] {
+        guard let localScope = AccountPreferences.activeScope,
               let generation = AccountPreferences.sessionGeneration(),
-              AIDataConsent.isGranted() else { throw CloudLLMError.consentRequired }
+              AIDataConsent.isGranted(for: accountID) else { throw CloudLLMError.consentRequired }
 
         await MainActor.run { self.isProcessing = true; self.latestQuota = nil }
         defer { Task { @MainActor in self.isProcessing = false } }
@@ -109,7 +112,7 @@ class CloudLLMManager: ObservableObject {
         // 재시도 중 분이 바뀌거나 언어가 바뀌어도 같은 요청으로 인정받도록 payload를 한 번만 만듭니다.
         let currentLanguage = await MainActor.run { LocalizationManager.shared.currentLanguage.rawValue }
         let context = suppliedContext ?? TaskAnalysisContext(
-            language: currentLanguage, accountScope: consentScope, accountGeneration: generation
+            language: currentLanguage, accountScope: localScope, accountGeneration: generation
         )
         guard context.isCurrentAccount else { throw CancellationError() }
         let logicalRequestID = context.requestID
@@ -125,8 +128,8 @@ class CloudLLMManager: ObservableObject {
         for attempt in 0..<maxAttempts {
             try Task.checkCancellation()
             guard context.isCurrentAccount else { throw CancellationError() }
-            guard AccountPreferences.activeScope == consentScope,
-                  AIDataConsent.isGranted() else { throw CloudLLMError.consentRequired }
+            guard AccountPreferences.activeScope == localScope,
+                  AIDataConsent.isGranted(for: accountID) else { throw CloudLLMError.consentRequired }
             // 재시도까지 합쳐 30초를 넘기지 않습니다(지하철 등에서 오래 붙잡지 않게).
             guard let timeout = Self.attemptTimeout(elapsed: Date().timeIntervalSince(startedAt)) else { break }
 
@@ -137,9 +140,10 @@ class CloudLLMManager: ObservableObject {
                         let session = try await supabase.auth.session
                         try Task.checkCancellation()
                         guard context.isCurrentAccount else { throw CancellationError() }
-                        guard AccountPreferences.activeScope == consentScope,
-                              AccountPreferences.scope(for: session.user.id) == consentScope,
-                              AIDataConsent.isGranted(for: session.user.id) else {
+                        // 세션이 동의한 그 계정이고, 그사이 로컬 범위도 바뀌지 않았을 때만 보냅니다.
+                        guard AccountPreferences.activeScope == localScope,
+                              session.user.id == accountID,
+                              AIDataConsent.isGranted(for: accountID) else {
                             throw CloudLLMError.consentRequired
                         }
                         try await AdultEligibilityManager.shared.requireServerEligibility(
@@ -147,8 +151,8 @@ class CloudLLMManager: ObservableObject {
                         )
                         try Task.checkCancellation()
                         guard context.isCurrentAccount else { throw CancellationError() }
-                        guard AccountPreferences.activeScope == consentScope,
-                              AIDataConsent.isGranted(for: session.user.id) else {
+                        guard AccountPreferences.activeScope == localScope,
+                              AIDataConsent.isGranted(for: accountID) else {
                             throw CloudLLMError.consentRequired
                         }
                         let requestClient = SupabaseConfig.requestClient(accessToken: session.accessToken)
@@ -174,8 +178,8 @@ class CloudLLMManager: ObservableObject {
                 }
                 try Task.checkCancellation()
                 guard context.isCurrentAccount else { throw CancellationError() }
-                guard AccountPreferences.activeScope == consentScope,
-                      AIDataConsent.isGranted() else { throw CloudLLMError.consentRequired }
+                guard AccountPreferences.activeScope == localScope,
+                      AIDataConsent.isGranted(for: accountID) else { throw CloudLLMError.consentRequired }
                 // 모든 엔진의 동일한 응답 계약을 통과한 분석만 실행 단계에 전달합니다.
                 guard response.requestId == logicalRequestID,
                       response.quota.isValid,
@@ -313,8 +317,10 @@ class CloudLLMManager: ObservableObject {
 }
 
 struct AIDataConsentView: View {
+    /// 서버 계정 ID (익명 포함). 동의는 이 계정에 기록됩니다.
     let userID: UUID?
     var onAllowed: () -> Void = {}
+    @EnvironmentObject private var authManager: AuthManager
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -327,8 +333,9 @@ struct AIDataConsentView: View {
                     Link(L.aiPrivacy.anthropicPolicy, destination: URL(string: "https://www.anthropic.com/legal/privacy")!)
                     Link(L.aiPrivacy.googlePolicy, destination: URL(string: "https://ai.google.dev/gemini-api/terms")!)
                     Button(L.aiPrivacy.allow) {
-                        guard let userID,
-                              AccountPreferences.activeScope == AccountPreferences.scope(for: userID) else { return }
+                        // 시트가 열린 사이 계정이 바뀌었으면 기록하지 않습니다.
+                        guard let userID, AccountPreferences.activeScope != nil,
+                              authManager.accessState.accountUserID == userID else { return }
                         AIDataConsent.setGranted(true, for: userID)
                         dismiss()
                         onAllowed()

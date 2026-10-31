@@ -328,6 +328,7 @@ struct VoiceStrings {
     var tryAgain: String { t("Try Again", "다시 시도", "再試行") }
     var errorTooLong: String { t("That's a bit long. Keep it under 1,000 characters.", "글이 조금 길어요. 1,000자 안으로 줄여 주세요.", "少し長すぎます。1,000文字以内にしてください。") }
     var errorSignInAgain: String { t("Please sign in again.", "다시 로그인해 주세요.", "もう一度サインインしてください。") }
+    var aiUnavailable: String { t("AI isn't available right now. Please try again in a moment.", "지금은 AI를 쓸 수 없어요. 잠시 후 다시 해 주세요.", "今はAIを使えません。少ししてからもう一度お試しください。") }
     var clearDraft: String { t("Clear draft", "초안 지우기", "下書きを消す") }
     var confirmTitle: String { t("Review & Confirm", "확인 및 검토", "確認と検討") }
     var confirmUpdate: String { t("Edit", "수정", "編集") }
@@ -590,8 +591,6 @@ struct PaywallStrings {
     var featureWidgetsDesc: String { t("See your next task and routine progress from Home and Lock Screen task widgets with Pro.", "Pro 일정 위젯에서 다음 할 일과 루틴 진행 상황을 홈·잠금 화면으로 확인하세요.", "Proのタスクウィジェットで、次のタスクやルーティンの進捗をホーム・ロック画面から確認できます。") }
 
     var purchasePending: String { t("Your purchase is awaiting approval. Pro will activate after Apple and Mora confirm it.", "구매 승인을 기다리고 있어요. Apple과 Mora의 확인이 끝나면 Pro가 활성화됩니다.", "購入は承認待ちです。AppleとMoraの確認後にProが有効になります。") }
-    var accountRequired: String { t("Sign in with Apple to subscribe or restore purchases. You can keep using manual tasks without signing in.", "구독하거나 구매를 복원하려면 Apple로 로그인해 주세요. 수동 일정은 로그인 없이 계속 사용할 수 있어요.", "登録や購入の復元にはAppleでサインインしてください。手入力のタスクはサインインせずに利用できます。") }
-    var signIn: String { t("Sign in to subscribe", "로그인하고 구독하기", "サインインして登録") }
     var connectionRequired: String { t("Connect to the internet to subscribe or restore purchases.", "구독하거나 구매를 복원하려면 인터넷에 연결해 주세요.", "登録や購入の復元にはインターネット接続が必要です。") }
     var registrationUnavailable: String { t("Subscription verification is unavailable. No purchase was started. Please try again later.", "구독 확인을 사용할 수 없어 결제를 시작하지 않았어요. 잠시 후 다시 시도해 주세요.", "サブスクリプションを確認できないため、購入は開始していません。しばらくしてからお試しください。") }
     var restoreRebindUnavailable: String { t("This subscription cannot be restored to the current account. Please contact support.", "이 구독을 현재 계정으로 복원할 수 없어요. 고객 지원에 문의해 주세요.", "このアカウントにはサブスクリプションを復元できません。サポートにお問い合わせください。") }

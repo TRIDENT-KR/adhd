@@ -8,7 +8,8 @@ extension Strings {
         var settingsTitle: String { s.t("Settings", "설정", "設定") }
         var accountTitle: String { s.t("Mora account", "Mora 계정", "Moraアカウント") }
         var guestTitle: String { s.t("On this device · No account", "이 기기에서 사용 · 계정 없음", "このデバイスで使用 · アカウントなし") }
-        var signIn: String { s.t("Sign in for AI and Mora Pro", "AI와 Mora Pro를 사용하려면 로그인", "AIとMora Proを使うにはログイン") }
+        /// 세션이 만료된 기존 Apple 로그인 사용자만 보는 설정 행입니다.
+        var signIn: String { s.t("Sign in again", "다시 로그인하기", "もう一度ログイン") }
         var signingIn: String { s.t("Signing in", "로그인 중", "ログイン中") }
         var signInFailed: String { s.t("Sign-in failed. Check your connection and try again. You can continue using local schedules.", "로그인하지 못했어요. 연결 상태를 확인하고 다시 시도해 주세요. 기기에 저장된 일정은 계속 사용할 수 있어요.", "ログインできませんでした。接続を確認して再試行してください。デバイス内の予定は引き続き使えます。") }
         var continueLocally: String { s.t("Continue without signing in", "로그인 없이 계속", "ログインせずに続ける") }

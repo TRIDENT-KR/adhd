@@ -12,10 +12,8 @@ struct MainTabView: View {
     @State private var loadedTabs: Set<TabSelection> = [.voice]
     /// HomeVoiceInterfaceView에서 모달이 열려 있는지 여부
     @State private var isVoiceModalVisible = false
-    /// 이전 버전의 저장된 페이월 딥링크 호환, 그리고 페이월에서 로그인한 뒤 다시 열기.
+    /// 이전 버전의 저장된 페이월 딥링크 호환.
     @State private var showPaywall = false
-    /// 로그인 뒤 페이월을 먼저 다시 열었다면, 게스트 일정 가져오기 제안은 페이월이 닫힌 뒤에 합니다.
-    @State private var offersGuestImportAfterPaywall = false
     @State private var isPlayingPresentationDemo = false
     @EnvironmentObject private var accountStoreController: AccountStoreController
     /// 로그인 직후 기기(게스트) 일정 가져오기 제안
@@ -24,7 +22,7 @@ struct MainTabView: View {
     @State private var guestImportResult: String?
     /// 플래너를 아직 한 번도 열지 않았을 때 검색에서 고른 날짜. 플래너를 처음 만들 때 이 날로 엽니다.
     @State private var pendingPlannerDate: Date?
-    /// 처음 탭(게스트는 루틴)을 정했는지. 그 전에 온 위젯 링크는 처음 탭을 정한 직후에 열어, 기본 탭에 덮이지 않게 합니다.
+    /// 처음 탭을 정했는지. 그 전에 온 위젯 링크는 처음 탭을 정한 직후에 열어, 기본 탭에 덮이지 않게 합니다.
     @State private var didSetInitialTab = false
 
     var body: some View {
@@ -125,7 +123,7 @@ struct MainTabView: View {
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .widgetDeepLink)) { notification in
-            // 위젯 링크는 처음 탭을 정한 뒤에만 꺼냅니다. 그 전이면 아래 .task가 기본 탭 다음에 엽니다.
+            // 위젯 링크는 처음 탭을 정한 뒤에만 꺼냅니다. 그 전이면 아래 .task가 엽니다.
             let widgetTab = didSetInitialTab ? WidgetDeepLinkInbox.take() : nil
             if let tab = (notification.object as? TabSelection) ?? widgetTab {
                 if !loadedTabs.contains(tab) {
@@ -146,20 +144,12 @@ struct MainTabView: View {
         .onReceive(NotificationCenter.default.publisher(for: .openPaywall)) { _ in
             showPaywall = true
         }
-        .sheet(isPresented: $showPaywall, onDismiss: {
-            guard offersGuestImportAfterPaywall else { return }
-            offersGuestImportAfterPaywall = false
-            offerGuestImportIfNeeded()
-        }) {
+        .sheet(isPresented: $showPaywall) {
             NavigationView { PaywallView() }
         }
-        // 8. 로그인 직후: 페이월에서 로그인했다면 페이월부터 다시 열고,
-        //    아니면 계정이 비어 있고 기기에 게스트 일정이 있을 때 한 번 가져오기를 제안
-        .task(id: authManager.accessState.accountUserID) {
-            if await resumePaywallAfterSignInIfNeeded() {
-                offersGuestImportAfterPaywall = true
-                return
-            }
+        // 8. Apple로 로그인한 직후: 계정이 비어 있고 기기에 게스트 일정이 있을 때 한 번 가져오기를 제안
+        //    익명 계정은 기기 일정을 그대로 쓰므로 제안하지 않습니다.
+        .task(id: authManager.accessState.exposedUserID) {
             offerGuestImportIfNeeded()
         }
         .alert(L.authRelease.importGuestTitle, isPresented: $showGuestImportOffer) {
@@ -177,11 +167,7 @@ struct MainTabView: View {
             Text(guestImportResult ?? "")
         }
         .task {
-            if authManager.accessState.accountUserID == nil && !MoraApp.presentationDemoMode {
-                loadedTabs.insert(.routine)
-                activeTab = .routine
-            }
-            // 처음 탭을 정하기 전에 위젯을 눌러 들어왔다면(콜드 런치 등) 그 위젯의 탭을 엽니다. 위 기본 탭보다 우선합니다.
+            // 처음 탭을 정하기 전에 위젯을 눌러 들어왔다면(콜드 런치 등) 그 위젯의 탭을 엽니다.
             didSetInitialTab = true
             if let widgetTab = WidgetDeepLinkInbox.take() {
                 loadedTabs.insert(widgetTab)
@@ -200,26 +186,11 @@ struct MainTabView: View {
 }
 
 extension MainTabView {
-    /// 페이월의 '로그인하고 구독하기'로 로그인했다면, 계정 화면이 준비되고 구매할 수 있을 때 페이월을 다시 엽니다.
-    fileprivate func resumePaywallAfterSignInIfNeeded() async -> Bool {
-        guard PaywallResumeIntent.isPending else { return false }
-        // 계정 화면으로 막 바뀐 참이라 바로 시트를 올리면 뜨지 않을 수 있어 잠깐 기다립니다.
-        try? await Task.sleep(for: .milliseconds(400))
-        guard !Task.isCancelled else { return false }
-        let userID = authManager.accessState.accountUserID
-        guard PaywallResumeIntent.resolve(
-            accountUserID: userID,
-            mainViewUserID: accountStoreController.activeUserID,
-            isEligible: userID.map { AdultEligibilityManager.shared.allowsLocalUse(for: $0) } ?? false
-        ) else { return false }
-        showPaywall = true
-        return true
-    }
-
-    /// 로그인하면 게스트 일정의 알림이 멈추므로, 계정이 비어 있을 때 한 번만 가져오기를 묻습니다.
+    /// Apple로 로그인하면 게스트 일정의 알림이 멈추므로, 계정이 비어 있을 때 한 번만 가져오기를 묻습니다.
     /// 이미 일정이 있는 계정이거나 한 번 물어본 계정은 설정의 '기기 일정을 이 계정으로 복사'를 씁니다.
+    /// 익명 계정은 기기 저장소를 그대로 쓰므로(exposedUserID == nil) 묻지 않습니다.
     fileprivate func offerGuestImportIfNeeded() {
-        guard let userID = authManager.accessState.accountUserID,
+        guard let userID = authManager.accessState.exposedUserID,
               accountStoreController.activeUserID == userID,
               !AccountPreferences.bool(.guestImportOffered, default: false, for: userID),
               accountStoreController.activeTaskCount() == 0 else { return }
@@ -231,7 +202,7 @@ extension MainTabView {
     }
 
     fileprivate func importGuestTasks() {
-        guard let userID = authManager.accessState.accountUserID else { return }
+        guard let userID = authManager.accessState.exposedUserID else { return }
         do {
             let count = try accountStoreController.copyGuestTasks(to: userID)
             taskManager.reconcileNotificationsWithPreferences()

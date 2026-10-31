@@ -45,7 +45,6 @@ struct HomeVoiceInterfaceView: View {
     @Binding var isModalVisible: Bool
     @State private var showPaywall = false
     @State private var showAIConsent = false
-    @State private var showSignIn = false
 
     // Text input state
     @State private var showTextInput = false
@@ -60,301 +59,296 @@ struct HomeVoiceInterfaceView: View {
             DesignSystem.Colors.background
                 .ignoresSafeArea()
 
-            if authManager.accessState.accountUserID == nil && !MoraApp.presentationDemoMode {
-                guestVoiceContent
-            } else {
-                VStack {
-                    // Top Bar
-                    HStack {
-                        // 텍스트 입력 토글
-                        Button(action: {
-                            let shouldShowTextInput = !showTextInput
-                            if shouldShowTextInput {
-                                preserveSpeechDraftAndStopListening()
-                            }
-                            let anim: Animation? = reduceMotion ? .none : .spring(response: 0.3, dampingFraction: 0.8)
-                            withAnimation(anim) {
-                                showTextInput = shouldShowTextInput
-                                if showTextInput {
-                                    isTextInputFocused = !voiceManager.isProcessing
-                                }
-                            }
-                        }) {
-                            Image(systemName: showTextInput ? "mic.fill" : "keyboard")
-                                .font(.title3.weight(.medium))
-                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
-                                .frame(minWidth: 44, minHeight: 44)
-                                .contentShape(Rectangle())
+            VStack {
+                // Top Bar
+                HStack {
+                    // 텍스트 입력 토글
+                    Button(action: {
+                        let shouldShowTextInput = !showTextInput
+                        if shouldShowTextInput {
+                            preserveSpeechDraftAndStopListening()
                         }
-                        .accessibilityLabel(showTextInput
-                            ? L.t("Switch to voice input", "음성 입력으로 전환", "音声入力に切り替え")
-                            : L.t("Switch to text input", "키보드 입력으로 전환", "キーボード入力に切り替え"))
-
-                        // F2/D7: 음성 가이드 상시 진입점
-                        Button(action: { showVoiceGuide = true }) {
-                            Image(systemName: "questionmark.circle")
-                                .font(.title3.weight(.medium))
-                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
-                                .frame(minWidth: 44, minHeight: 44)
-                                .contentShape(Rectangle())
-                        }
-                        .accessibilityLabel(L.voice.guideTitle)
-
-                        Spacer()
-
-                        if !subscriptionManager.isPremium {
-                            Button(action: { showPaywall = true }) {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "sparkles")
-                                        .font(.system(size: 12, weight: .semibold))
-                                    Text("\(subscriptionManager.remainingAIUsage)/\(SubscriptionManager.freeAILimit)")
-                                        .font(.system(size: 13, weight: .bold, design: .rounded))
-                                }
-                                .foregroundColor(subscriptionManager.canUseAI ? DesignSystem.Colors.primary : DesignSystem.Colors.error)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 5)
-                                .background(
-                                    Capsule()
-                                        .fill((subscriptionManager.canUseAI
-                                               ? DesignSystem.Colors.primary
-                                               : DesignSystem.Colors.error).opacity(0.1))
-                                )
+                        let anim: Animation? = reduceMotion ? .none : .spring(response: 0.3, dampingFraction: 0.8)
+                        withAnimation(anim) {
+                            showTextInput = shouldShowTextInput
+                            if showTextInput {
+                                isTextInputFocused = !voiceManager.isProcessing
                             }
                         }
-
-                        Button(action: { showSettings = true }) {
-                            Image(systemName: "gearshape")
-                                .font(.title3.weight(.medium))
-                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
-                                .frame(minWidth: 44, minHeight: 44)
-                                .contentShape(Rectangle())
-                        }
-                        .accessibilityLabel(L.settings.title)
-                        .accessibilityHint(L.t("Double tap to open settings", "설정을 열려면 이중 탭하세요", "設定を開くにはダブルタップ"))
+                    }) {
+                        Image(systemName: showTextInput ? "mic.fill" : "keyboard")
+                            .font(.title3.weight(.medium))
+                            .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
+                            .frame(minWidth: 44, minHeight: 44)
+                            .contentShape(Rectangle())
                     }
-                    .padding(.horizontal, 24)
-                    .padding(.top, 16)
+                    .accessibilityLabel(showTextInput
+                        ? L.t("Switch to voice input", "음성 입력으로 전환", "音声入力に切り替え")
+                        : L.t("Switch to text input", "키보드 입력으로 전환", "キーボード入力に切り替え"))
 
-                    if showTextInput {
-                        // ── 텍스트 입력 모드 ──
-                        Spacer()
+                    // F2/D7: 음성 가이드 상시 진입점
+                    Button(action: { showVoiceGuide = true }) {
+                        Image(systemName: "questionmark.circle")
+                            .font(.title3.weight(.medium))
+                            .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
+                            .frame(minWidth: 44, minHeight: 44)
+                            .contentShape(Rectangle())
+                    }
+                    .accessibilityLabel(L.voice.guideTitle)
 
-                        VStack(spacing: 20) {
-                            Image(systemName: "keyboard")
-                                .font(.system(size: 40))
-                                .foregroundColor(DesignSystem.Colors.primary.opacity(0.4))
-                                .accessibilityHidden(true)
-
-                            HStack(alignment: .bottom, spacing: 12) {
-                                // 받아쓴 초안(150~250자)이 한눈에 보이도록 여러 줄로 늘어납니다.
-                                HStack(alignment: .top, spacing: 8) {
-                                    TextField(L.voice.textInputPlaceholder, text: $textInputValue, axis: .vertical)
-                                        .font(.body.weight(.medium))
-                                        .lineLimit(1...6)
-                                        .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
-                                        .focused($isTextInputFocused)
-                                        .disabled(voiceManager.isProcessing)
-                                        .submitLabel(.send)
-                                        .onChange(of: textInputValue) { _, newValue in
-                                            // 여러 줄 입력칸에서는 return이 줄바꿈이 되므로, return을 보내기로 바꿉니다.
-                                            guard newValue.contains("\n") else { return }
-                                            textInputValue = newValue.replacingOccurrences(of: "\n", with: " ")
-                                                .trimmingCharacters(in: .whitespaces)
-                                            if newValue.hasSuffix("\n") { sendTextInput() }
-                                        }
-
-                                    if !textInputValue.isEmpty && !voiceManager.isProcessing && activeAnalysisID == nil {
-                                        Button {
-                                            textInputValue = ""
-                                            Haptic.impact(.light)
-                                        } label: {
-                                            Image(systemName: "xmark.circle.fill")
-                                                .font(.body)
-                                                .foregroundColor(DesignSystem.Colors.onSurfaceMeta)
-                                                .frame(minWidth: 32, minHeight: 32)
-                                                .contentShape(Rectangle())
-                                        }
-                                        .accessibilityLabel(L.voice.clearDraft)
-                                    }
-                                }
-                                .padding(.leading, 16)
-                                .padding(.trailing, 8)
-                                .padding(.vertical, 10)
-                                .frame(minHeight: 50)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 14)
-                                        .fill(DesignSystem.Colors.surfaceContainerLow)
-                                )
-
-                                Button(action: { sendTextInput() }) {
-                                    Image(systemName: "arrow.up.circle.fill")
-                                        .font(.title.weight(.medium))
-                                        .foregroundColor(textInputValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                                            ? DesignSystem.Colors.onSurfaceVariant.opacity(0.4)
-                                            : DesignSystem.Colors.primary)
-                                        .frame(minWidth: 44, minHeight: 44)
-                                        .contentShape(Rectangle())
-                                }
-                                .disabled(
-                                    textInputValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                                        || activeAnalysisID != nil
-                                        || cloudLLM.isProcessing
-                                        || voiceManager.isProcessing
-                                )
-                                .accessibilityLabel(L.voice.analyzeDraft)
-                                .accessibilityHint(L.voice.analyzeDraftHint)
-                            }
-                            .padding(.horizontal, 24)
-
-                            // 서버 한도(1,000자)에 가까워질 때만 글자 수를 보여 줍니다.
-                            if Self.showsDraftLength(textInputValue) {
-                                Text("\(textInputValue.utf16.count)/\(Self.maxDraftLength)")
-                                    .font(.caption.monospacedDigit())
-                                    .foregroundColor(textInputValue.utf16.count > Self.maxDraftLength
-                                        ? DesignSystem.Colors.error
-                                        : DesignSystem.Colors.onSurfaceMeta)
-                                    .frame(maxWidth: .infinity, alignment: .trailing)
-                                    .padding(.horizontal, 32)
-                            }
-
-                            if activeAnalysisID != nil {
-                                analyzingStatus
-                            } else if voiceManager.isProcessing {
-                                Text(L.voice.preparingDraft)
-                                    .font(DesignSystem.Typography.bodyMd)
-                                    .foregroundColor(DesignSystem.Colors.onSurfaceMeta)
-                            }
-                        }
-
-                        Spacer()
-                        Spacer(minLength: 120)
-                    } else {
-                    // ── 음성 입력 모드 (기존) ──
                     Spacer()
 
-                    VStack(spacing: 32) {
-
-                        // ── Voice Pulse + Mic Button + Timer ──
-                        ZStack {
-                            let pulseScale = voiceManager.isListening
-                                ? 1.0 + (voiceManager.audioPower * 0.5)
-                                : (isBreathing ? 1.08 : 0.92)
-
-                            let pulseOpacity = voiceManager.isListening
-                                ? 0.6
-                                : (isBreathing ? 0.4 : 0.15)
-
-                            Circle()
-                                .fill(DesignSystem.Colors.primaryFixedDim.opacity(reduceMotion ? 0.3 : pulseOpacity))
-                                .frame(width: 180, height: 180)
-                                .scaleEffect(reduceMotion ? 1.0 : pulseScale)
-                                .animation(
-                                    reduceMotion ? .none : (voiceManager.isListening
-                                        ? .easeOut(duration: 0.1)
-                                        : .easeInOut(duration: 2.0).repeatForever(autoreverses: true)),
-                                    value: pulseScale
-                                )
-                                .accessibilityHidden(true)
-
-                            // ── 녹음 진행률 원형 프로그레스 ──
-                            if voiceManager.isListening {
-                                Circle()
-                                    .trim(from: 0, to: min(voiceManager.recordingDuration / VoiceInputManager.maxRecordingDuration, 1.0))
-                                    .stroke(
-                                        DesignSystem.Colors.primary.opacity(0.6),
-                                        style: StrokeStyle(lineWidth: 3, lineCap: .round)
-                                    )
-                                    .frame(width: 140, height: 140)
-                                    .rotationEffect(.degrees(-90))
-                                    .animation(reduceMotion ? .none : .linear(duration: 0.5), value: voiceManager.recordingDuration)
-                                    .accessibilityHidden(true)
+                    if !subscriptionManager.isPremium {
+                        Button(action: { showPaywall = true }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "sparkles")
+                                    .font(.system(size: 12, weight: .semibold))
+                                Text("\(subscriptionManager.remainingAIUsage)/\(SubscriptionManager.freeAILimit)")
+                                    .font(.system(size: 13, weight: .bold, design: .rounded))
                             }
-
-                            // Mic button with Hold-to-Talk or Tap gesture
-                            micButton
-                                .offset(x: shakeOffset)
-                                .accessibilityLabel(voiceManager.isListening ? L.voice.a11yStopRecording : L.voice.a11yStartRecording)
-                                .accessibilityHint(voiceManager.micMode == .holdToTalk ? L.voice.a11yHoldHint : L.voice.a11yTapHint)
+                            .foregroundColor(subscriptionManager.canUseAI ? DesignSystem.Colors.primary : DesignSystem.Colors.error)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(
+                                Capsule()
+                                    .fill((subscriptionManager.canUseAI
+                                           ? DesignSystem.Colors.primary
+                                           : DesignSystem.Colors.error).opacity(0.1))
+                            )
                         }
-                        .onAppear {
-                            isBreathing = true
-                            setupSpeechCallback()
-                            // SFSpeechRecognizer + AVAudioSession 사전 초기화 (첫 탭 렉 방지)
-                            if !MoraApp.presentationDemoMode {
-                                voiceManager.warmUp()
-                            }
-                            // D21: 온보딩 스킵자에게만 가이드 자동 1회 (완료자는 플래그가 이미 true)
-                            if !hasSeenVoiceOnboarding && !MoraApp.presentationDemoMode {
-                                showVoiceGuide = true
-                            }
-                        }
+                    }
 
+                    Button(action: { showSettings = true }) {
+                        Image(systemName: "gearshape")
+                            .font(.title3.weight(.medium))
+                            .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
+                            .frame(minWidth: 44, minHeight: 44)
+                            .contentShape(Rectangle())
+                    }
+                    .accessibilityLabel(L.settings.title)
+                    .accessibilityHint(L.t("Double tap to open settings", "설정을 열려면 이중 탭하세요", "設定を開くにはダブルタップ"))
+                }
+                .padding(.horizontal, 24)
+                .padding(.top, 16)
 
-                        // ── 녹음 타이머 + 침묵 카운트다운 ──
-                        if voiceManager.isListening {
-                            VStack(spacing: 6) {
-                                Text(formatDuration(voiceManager.recordingDuration))
-                                    .font(.callout.weight(.medium).monospaced())
-                                    .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.7))
+                if showTextInput {
+                    // ── 텍스트 입력 모드 ──
+                    Spacer()
 
-                                // 침묵 카운트다운 표시
-                                if voiceManager.silenceCountdown > 0 {
-                                    Text("\(L.voice.silenceCountdown) \(voiceManager.silenceCountdown)...")
-                                        .font(.caption.weight(.semibold))
-                                        .foregroundColor(DesignSystem.Colors.primary)
-                                        .transition(.scale.combined(with: .opacity))
+                    VStack(spacing: 20) {
+                        Image(systemName: "keyboard")
+                            .font(.system(size: 40))
+                            .foregroundColor(DesignSystem.Colors.primary.opacity(0.4))
+                            .accessibilityHidden(true)
+
+                        HStack(alignment: .bottom, spacing: 12) {
+                            // 받아쓴 초안(150~250자)이 한눈에 보이도록 여러 줄로 늘어납니다.
+                            HStack(alignment: .top, spacing: 8) {
+                                TextField(L.voice.textInputPlaceholder, text: $textInputValue, axis: .vertical)
+                                    .font(.body.weight(.medium))
+                                    .lineLimit(1...6)
+                                    .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
+                                    .focused($isTextInputFocused)
+                                    .disabled(voiceManager.isProcessing)
+                                    .submitLabel(.send)
+                                    .onChange(of: textInputValue) { _, newValue in
+                                        // 여러 줄 입력칸에서는 return이 줄바꿈이 되므로, return을 보내기로 바꿉니다.
+                                        guard newValue.contains("\n") else { return }
+                                        textInputValue = newValue.replacingOccurrences(of: "\n", with: " ")
+                                            .trimmingCharacters(in: .whitespaces)
+                                        if newValue.hasSuffix("\n") { sendTextInput() }
+                                    }
+
+                                if !textInputValue.isEmpty && !voiceManager.isProcessing && activeAnalysisID == nil {
+                                    Button {
+                                        textInputValue = ""
+                                        Haptic.impact(.light)
+                                    } label: {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .font(.body)
+                                            .foregroundColor(DesignSystem.Colors.onSurfaceMeta)
+                                            .frame(minWidth: 32, minHeight: 32)
+                                            .contentShape(Rectangle())
+                                    }
+                                    .accessibilityLabel(L.voice.clearDraft)
                                 }
                             }
-                            .transition(.opacity.combined(with: .scale(scale: 0.8)))
+                            .padding(.leading, 16)
+                            .padding(.trailing, 8)
+                            .padding(.vertical, 10)
+                            .frame(minHeight: 50)
+                            .background(
+                                RoundedRectangle(cornerRadius: 14)
+                                    .fill(DesignSystem.Colors.surfaceContainerLow)
+                            )
+
+                            Button(action: { sendTextInput() }) {
+                                Image(systemName: "arrow.up.circle.fill")
+                                    .font(.title.weight(.medium))
+                                    .foregroundColor(textInputValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                                        ? DesignSystem.Colors.onSurfaceVariant.opacity(0.4)
+                                        : DesignSystem.Colors.primary)
+                                    .frame(minWidth: 44, minHeight: 44)
+                                    .contentShape(Rectangle())
+                            }
+                            .disabled(
+                                textInputValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                                    || activeAnalysisID != nil
+                                    || cloudLLM.isProcessing
+                                    || voiceManager.isProcessing
+                            )
+                            .accessibilityLabel(L.voice.analyzeDraft)
+                            .accessibilityHint(L.voice.analyzeDraftHint)
+                        }
+                        .padding(.horizontal, 24)
+
+                        // 서버 한도(1,000자)에 가까워질 때만 글자 수를 보여 줍니다.
+                        if Self.showsDraftLength(textInputValue) {
+                            Text("\(textInputValue.utf16.count)/\(Self.maxDraftLength)")
+                                .font(.caption.monospacedDigit())
+                                .foregroundColor(textInputValue.utf16.count > Self.maxDraftLength
+                                    ? DesignSystem.Colors.error
+                                    : DesignSystem.Colors.onSurfaceMeta)
+                                .frame(maxWidth: .infinity, alignment: .trailing)
+                                .padding(.horizontal, 32)
                         }
 
-                        // ── 상태 텍스트 / 성공 체크 ──
-                        Group {
-                            if showConfirmation {
-                                // 확인 카드가 표시될 때는 비움
-                                EmptyView()
-                            } else if showSuccessCheck {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .font(.system(size: 48))
-                                    .foregroundColor(DesignSystem.Colors.tertiary)
-                                    .transition(reduceMotion ? .opacity : .scale.combined(with: .opacity))
-                                    .accessibilityLabel(L.t("Task saved successfully", "일정을 저장했어요", "タスクを保存しました"))
-                            } else if activeAnalysisID != nil {
-                                analyzingStatus
-                            } else if voiceManager.isProcessing {
-                                Text(L.voice.preparingDraft)
-                                    .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
-                            } else if voiceManager.isListening && !voiceManager.recognizedText.isEmpty {
-                                // 실시간 텍스트 + 블링킹 커서
-                                HStack(spacing: 0) {
-                                    Text(voiceManager.recognizedText)
-                                        .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
-                                    BlinkingCursor()
-                                }
-                            } else if !voiceManager.recognizedText.isEmpty {
-                                Text(voiceManager.recognizedText)
-                                    .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
-                            } else if voiceManager.isListening {
-                                Text(L.voiceListening)
-                                    .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
-                            } else {
-                                Text(voiceManager.showPermissionReadyHint ? L.voice.permissionReadyHint : L.voicePlaceholder)
-                                    .foregroundColor(DesignSystem.Colors.primary)
-                            }
+                        if activeAnalysisID != nil {
+                            analyzingStatus
+                        } else if voiceManager.isProcessing {
+                            Text(L.voice.preparingDraft)
+                                .font(DesignSystem.Typography.bodyMd)
+                                .foregroundColor(DesignSystem.Colors.onSurfaceMeta)
                         }
-                        .font(DesignSystem.Typography.titleSm)
-                        .tracking(-0.5)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 32)
-                        .animation(.easeInOut, value: voiceManager.isListening)
-                        .animation(.easeInOut, value: showSuccessCheck)
                     }
 
                     Spacer()
                     Spacer(minLength: 120)
-                    } // end if-else showTextInput
+                } else {
+                // ── 음성 입력 모드 (기존) ──
+                Spacer()
+
+                VStack(spacing: 32) {
+
+                    // ── Voice Pulse + Mic Button + Timer ──
+                    ZStack {
+                        let pulseScale = voiceManager.isListening
+                            ? 1.0 + (voiceManager.audioPower * 0.5)
+                            : (isBreathing ? 1.08 : 0.92)
+
+                        let pulseOpacity = voiceManager.isListening
+                            ? 0.6
+                            : (isBreathing ? 0.4 : 0.15)
+
+                        Circle()
+                            .fill(DesignSystem.Colors.primaryFixedDim.opacity(reduceMotion ? 0.3 : pulseOpacity))
+                            .frame(width: 180, height: 180)
+                            .scaleEffect(reduceMotion ? 1.0 : pulseScale)
+                            .animation(
+                                reduceMotion ? .none : (voiceManager.isListening
+                                    ? .easeOut(duration: 0.1)
+                                    : .easeInOut(duration: 2.0).repeatForever(autoreverses: true)),
+                                value: pulseScale
+                            )
+                            .accessibilityHidden(true)
+
+                        // ── 녹음 진행률 원형 프로그레스 ──
+                        if voiceManager.isListening {
+                            Circle()
+                                .trim(from: 0, to: min(voiceManager.recordingDuration / VoiceInputManager.maxRecordingDuration, 1.0))
+                                .stroke(
+                                    DesignSystem.Colors.primary.opacity(0.6),
+                                    style: StrokeStyle(lineWidth: 3, lineCap: .round)
+                                )
+                                .frame(width: 140, height: 140)
+                                .rotationEffect(.degrees(-90))
+                                .animation(reduceMotion ? .none : .linear(duration: 0.5), value: voiceManager.recordingDuration)
+                                .accessibilityHidden(true)
+                        }
+
+                        // Mic button with Hold-to-Talk or Tap gesture
+                        micButton
+                            .offset(x: shakeOffset)
+                            .accessibilityLabel(voiceManager.isListening ? L.voice.a11yStopRecording : L.voice.a11yStartRecording)
+                            .accessibilityHint(voiceManager.micMode == .holdToTalk ? L.voice.a11yHoldHint : L.voice.a11yTapHint)
+                    }
+                    .onAppear {
+                        isBreathing = true
+                        setupSpeechCallback()
+                        // SFSpeechRecognizer + AVAudioSession 사전 초기화 (첫 탭 렉 방지)
+                        if !MoraApp.presentationDemoMode {
+                            voiceManager.warmUp()
+                        }
+                        // D21: 온보딩 스킵자에게만 가이드 자동 1회 (완료자는 플래그가 이미 true)
+                        if !hasSeenVoiceOnboarding && !MoraApp.presentationDemoMode {
+                            showVoiceGuide = true
+                        }
+                    }
+
+
+                    // ── 녹음 타이머 + 침묵 카운트다운 ──
+                    if voiceManager.isListening {
+                        VStack(spacing: 6) {
+                            Text(formatDuration(voiceManager.recordingDuration))
+                                .font(.callout.weight(.medium).monospaced())
+                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.7))
+
+                            // 침묵 카운트다운 표시
+                            if voiceManager.silenceCountdown > 0 {
+                                Text("\(L.voice.silenceCountdown) \(voiceManager.silenceCountdown)...")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundColor(DesignSystem.Colors.primary)
+                                    .transition(.scale.combined(with: .opacity))
+                            }
+                        }
+                        .transition(.opacity.combined(with: .scale(scale: 0.8)))
+                    }
+
+                    // ── 상태 텍스트 / 성공 체크 ──
+                    Group {
+                        if showConfirmation {
+                            // 확인 카드가 표시될 때는 비움
+                            EmptyView()
+                        } else if showSuccessCheck {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.system(size: 48))
+                                .foregroundColor(DesignSystem.Colors.tertiary)
+                                .transition(reduceMotion ? .opacity : .scale.combined(with: .opacity))
+                                .accessibilityLabel(L.t("Task saved successfully", "일정을 저장했어요", "タスクを保存しました"))
+                        } else if activeAnalysisID != nil {
+                            analyzingStatus
+                        } else if voiceManager.isProcessing {
+                            Text(L.voice.preparingDraft)
+                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
+                        } else if voiceManager.isListening && !voiceManager.recognizedText.isEmpty {
+                            // 실시간 텍스트 + 블링킹 커서
+                            HStack(spacing: 0) {
+                                Text(voiceManager.recognizedText)
+                                    .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
+                                BlinkingCursor()
+                            }
+                        } else if !voiceManager.recognizedText.isEmpty {
+                            Text(voiceManager.recognizedText)
+                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
+                        } else if voiceManager.isListening {
+                            Text(L.voiceListening)
+                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
+                        } else {
+                            Text(voiceManager.showPermissionReadyHint ? L.voice.permissionReadyHint : L.voicePlaceholder)
+                                .foregroundColor(DesignSystem.Colors.primary)
+                        }
+                    }
+                    .font(DesignSystem.Typography.titleSm)
+                    .tracking(-0.5)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 32)
+                    .animation(.easeInOut, value: voiceManager.isListening)
+                    .animation(.easeInOut, value: showSuccessCheck)
                 }
 
+                Spacer()
+                Spacer(minLength: 120)
+                } // end if-else showTextInput
             }
 
             if showConfirmation {
@@ -464,12 +458,8 @@ struct HomeVoiceInterfaceView: View {
         .sheet(isPresented: $showAIConsent) {
             AIDataConsentView(userID: authManager.accessState.accountUserID)
         }
-        .sheet(isPresented: $showSignIn) {
-            LoginView()
-                .environmentObject(authManager)
-        }
         .onReceive(NotificationCenter.default.publisher(for: AIDataConsent.didChange)) { _ in
-            if !AIDataConsent.isGranted() { cancelActiveAnalysis() }
+            if !AIDataConsent.isGranted(for: authManager.accessState.accountUserID) { cancelActiveAnalysis() }
         }
         .sheet(isPresented: $showPaywall) {
             NavigationView {
@@ -557,7 +547,6 @@ struct HomeVoiceInterfaceView: View {
                 cancelPendingTasks()
             }
             loadConfirmBeforeSavePreference()
-            if authManager.accessState.accountUserID != nil { showSignIn = false }
         }
         .onChange(of: showPaywall) { _, isVisible in
             if isVisible {
@@ -586,61 +575,6 @@ struct HomeVoiceInterfaceView: View {
             showTextInput = false
             showErrorToast = false
             isTextInputFocused = false
-        }
-    }
-
-    private var guestVoiceContent: some View {
-        // 내용은 화면 한가운데에 두고, 설정 버튼만 오른쪽 위에 따로 띄웁니다.
-        // 큰 글씨에서 넘치면 스크롤되도록 ScrollView 안에서 최소 높이를 화면 높이로 맞춥니다.
-        GeometryReader { proxy in
-            ScrollView {
-                // 한 문장 + 버튼 하나만 둡니다 (DESIGN.md "Embrace the Void"). 직접 추가는 보조 링크로 뒤에 둡니다.
-                VStack(spacing: 24) {
-                    Image(systemName: "mic.fill")
-                        .font(.system(size: 40))
-                        .foregroundStyle(DesignSystem.Colors.primary)
-                        .accessibilityHidden(true)
-                    VStack(spacing: 8) {
-                        Text(L.t("Add tasks by voice", "말로 일정 추가하기", "声でタスクを追加"))
-                            .font(.title2.weight(.semibold))
-                            .foregroundStyle(DesignSystem.Colors.onSurface)
-                        Text(L.t("Sign in to use AI.", "AI는 로그인하면 쓸 수 있어요.", "AIはサインインすると使えます。"))
-                            .font(DesignSystem.Typography.bodyMd)
-                            .foregroundStyle(DesignSystem.Colors.onSurfaceMeta)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    Button { showSignIn = true } label: {
-                        Text(L.t("Sign in", "로그인", "サインイン"))
-                            .font(.body.weight(.semibold))
-                            .frame(minWidth: 160, minHeight: 52)
-                            .padding(.horizontal, 24)
-                            .foregroundStyle(DesignSystem.Colors.onPrimary)
-                            .background(DesignSystem.Gradients.primaryCTA, in: Capsule())
-                    }
-                    .buttonStyle(PressScaleButtonStyle())
-                    Button { activeTab = .routine } label: {
-                        Text(L.t("Add it myself", "직접 추가하기", "自分で追加する"))
-                            .frame(minHeight: 44)
-                    }
-                }
-                .multilineTextAlignment(.center)
-                .foregroundStyle(DesignSystem.Colors.onSurfaceVariant)
-                .padding(.horizontal, 28)
-                .padding(.vertical, 60)
-                .frame(maxWidth: .infinity, minHeight: proxy.size.height)
-            }
-            .scrollBounceBehavior(.basedOnSize)
-        }
-        .overlay(alignment: .topTrailing) {
-            Button { showSettings = true } label: {
-                Image(systemName: "gearshape")
-                    .font(.title3)
-                    .foregroundStyle(DesignSystem.Colors.onSurfaceVariant)
-                    .frame(minWidth: 44, minHeight: 44)
-            }
-            .accessibilityLabel(L.settings.title)
-            .padding(.trailing, 28)
-            .padding(.top, 16)
         }
     }
 
@@ -710,16 +644,22 @@ struct HomeVoiceInterfaceView: View {
             return
         }
 
-        guard let userID = authManager.accessState.exposedUserID else {
-            isTextInputFocused = false
-            showSignIn = true
+        // 로그인은 없습니다. 보이지 않는 익명 계정이 아직 없으면 한 번만 만들어 보고, 그래도 안 되면 초안을 둔 채 짧게 알립니다.
+        guard let accountID = authManager.accessState.accountUserID else {
+            guard networkMonitor.isConnected else {
+                networkMonitor.showOfflineBannerTemporarily()
+                return
+            }
+            prepareAccountThenAnalyze()
             return
         }
 
+        // 일정·18+ 확인은 기기(또는 Apple 계정) 범위, AI 동의·횟수는 서버 계정(accountID)에 있습니다.
         guard taskManager.isReady, taskManager.modelContext != nil,
-              AdultEligibilityManager.shared.allowsLocalUse(for: userID),
+              let localUserID = authManager.accessState.localStorageUserID,
+              AdultEligibilityManager.shared.allowsLocalUse(for: localUserID),
               let scope = AccountPreferences.activeScope,
-              scope == AccountPreferences.scope(for: userID),
+              scope == AccountPreferences.scope(for: localUserID),
               let generation = AccountPreferences.sessionGeneration() else {
             triggerErrorFeedback(message: L.voice.errorApi)
             return
@@ -743,11 +683,13 @@ struct HomeVoiceInterfaceView: View {
                     isCurrent: { activeAnalysisID == analysisID && canUseAnalysisContext(context) },
                     authorizeCloud: {
                         guard networkMonitor.isConnected else { throw TaskAnalysisError.offline }
-                        guard AIDataConsent.isGranted(for: userID) else { throw CloudLLMError.consentRequired }
+                        guard AIDataConsent.isGranted(for: accountID) else { throw CloudLLMError.consentRequired }
                         guard subscriptionManager.canUseAI else { throw CloudLLMError.quotaExhausted }
                     },
                     cloud: { input, capturedContext in
-                        let calls = try await cloudLLM.analyzeText(text: input, context: capturedContext)
+                        let calls = try await cloudLLM.analyzeText(
+                            text: input, accountID: accountID, context: capturedContext
+                        )
                         return TaskAnalysisResult(calls: calls, source: .cloud, quota: cloudLLM.latestQuota)
                     }
                 )
@@ -833,7 +775,9 @@ struct HomeVoiceInterfaceView: View {
                     guard activeAnalysisID == analysisID else { return }
                     activeAnalysisID = nil
                     analysisTask = nil
-                    triggerErrorFeedback(message: L.voice.errorSignInAgain)
+                    // 로그인 없이 쓰는 사용자에게는 로그인 안내 대신 잠시 뒤 다시 하라고만 알립니다.
+                    triggerErrorFeedback(message: authManager.accessState.isGuest
+                        ? L.voice.aiUnavailable : L.voice.errorSignInAgain)
                 }
             } catch {
                 print("ai_analysis_failed")
@@ -847,11 +791,31 @@ struct HomeVoiceInterfaceView: View {
         }
     }
 
+    /// 익명 계정을 한 번 만들어 본 뒤 같은 초안으로 다시 분석을 시작합니다. 기다리는 동안은 분석 중 표시를 씁니다.
+    private func prepareAccountThenAnalyze() {
+        isTextInputFocused = false
+        let attemptID = UUID()
+        activeAnalysisID = attemptID
+        analysisTask = Task {
+            let isReady = await authManager.provisionAnonymousAccountIfNeeded()
+            await MainActor.run {
+                guard activeAnalysisID == attemptID else { return }
+                activeAnalysisID = nil
+                analysisTask = nil
+                if isReady, authManager.accessState.accountUserID != nil {
+                    sendTextInput()
+                } else {
+                    triggerErrorFeedback(message: L.voice.aiUnavailable)
+                }
+            }
+        }
+    }
+
     private func canUseAnalysisContext(_ context: TaskAnalysisContext) -> Bool {
-        guard let userID = authManager.accessState.exposedUserID else { return false }
-        return context.isCurrentAccount && context.accountScope == AccountPreferences.scope(for: userID)
+        guard let localUserID = authManager.accessState.localStorageUserID else { return false }
+        return context.isCurrentAccount && context.accountScope == AccountPreferences.scope(for: localUserID)
             && context.timeZone == .current && taskManager.isReady && taskManager.modelContext != nil
-            && AdultEligibilityManager.shared.allowsLocalUse(for: userID)
+            && AdultEligibilityManager.shared.allowsLocalUse(for: localUserID)
     }
 
     /// 모든 엔진이 같은 확인·실행 경계로 합류합니다. 로컬 성공에는 서버 quota가 없습니다.
@@ -1209,8 +1173,9 @@ struct HomeVoiceInterfaceView: View {
         text.utf16.count > maxDraftLength * 4 / 5
     }
 
+    /// 기기 설정이므로 로컬 범위(익명 계정이면 기기 범위)에서 읽습니다.
     private func loadConfirmBeforeSavePreference() {
-        guard let userID = authManager.accessState.accountUserID else {
+        guard let userID = authManager.accessState.localStorageUserID else {
             confirmBeforeSave = true
             return
         }

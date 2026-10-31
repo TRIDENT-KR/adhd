@@ -148,7 +148,8 @@ struct MoraApp: App {
                     loadingView
                 }
 
-            case .signedOut, .lockedInvalidSession:
+            // 익명 계정도 같은 분기에 둡니다. 익명 세션이 붙어도 화면이 다시 만들어지지 않고 기기 일정이 그대로 보입니다.
+            case .signedOut, .lockedInvalidSession, .anonymousOnline, .anonymousOfflineLimited:
                 if !adultEligibility.allowsLocalUse(for: LocalGuestIdentity.storageID) {
                     adultEligibilityContent(scopeID: LocalGuestIdentity.storageID)
                 } else if exposedScopeID == LocalGuestIdentity.storageID,
@@ -237,6 +238,10 @@ struct MoraApp: App {
             }
             .onChange(of: scenePhase) { _, newPhase in
                 if newPhase == .active {
+                    // 익명 계정 만들기에 실패했던 기기 사용자는 앱으로 돌아올 때 다시 시도합니다.
+                    if !isPresentationDemoMode {
+                        Task { @MainActor in await authManager.provisionAnonymousAccountIfNeeded() }
+                    }
                     // 알림·알람에서 누른 '완료'는 그날의 완료이므로 날짜 초기화보다 먼저 반영합니다.
                     // 위젯 체크는 누른 날짜에 따라 초기화 앞(어제 체크)·뒤(오늘 체크)로 나눠 반영합니다.
                     taskManager.processPendingAlarmCompletions()
@@ -330,7 +335,8 @@ struct MoraApp: App {
             accountStoreController.activate(for: userID)
             exposedScopeID = userID
 
-        case .signedOut, .lockedInvalidSession:
+        case .signedOut, .lockedInvalidSession, .anonymousOnline, .anonymousOfflineLimited:
+            // 익명 계정은 서버 기능에만 쓰고, 일정·알림 설정·18+ 확인·위젯은 기기 범위를 그대로 씁니다.
             await sessionCleanupCoordinator.waitForPendingCleanup()
             guard !Task.isCancelled, authManager.accessState == expectedState,
                   adultEligibility.allowsLocalUse(for: LocalGuestIdentity.storageID) else { return }
@@ -338,7 +344,7 @@ struct MoraApp: App {
                 guard accountStoreController.saveBeforeSwitch() else { return }
                 await sessionCleanupCoordinator.lockLocalExposure(
                     taskManager: taskManager,
-                    reason: expectedState == .signedOut ? .signedOut : .invalidSession
+                    reason: expectedState == .lockedInvalidSession ? .invalidSession : .signedOut
                 )
                 guard !Task.isCancelled, authManager.accessState == expectedState else { return }
                 accountStoreController.lock()
@@ -346,9 +352,17 @@ struct MoraApp: App {
             guard !Task.isCancelled, authManager.accessState == expectedState else { return }
             AccountPreferences.activate(for: LocalGuestIdentity.storageID)
             WidgetAccountScope.activate(AccountPreferences.scope(for: LocalGuestIdentity.storageID))
-            subscriptionManager.activateGuestScope()
+            if expectedState.isAnonymous, let anonymousUserID = expectedState.accountUserID {
+                subscriptionManager.activateLocalAccountScope(anonymousUserID, localScopeID: LocalGuestIdentity.storageID)
+            } else {
+                subscriptionManager.activateGuestScope()
+            }
             accountStoreController.activate(for: LocalGuestIdentity.storageID)
             exposedScopeID = LocalGuestIdentity.storageID
+            if expectedState == .signedOut {
+                // 세션이 없고 기기 18+ 확인이 있으면 보이지 않게 익명 계정을 붙입니다. 화면은 기다리지 않습니다.
+                Task { @MainActor in await authManager.provisionAnonymousAccountIfNeeded() }
+            }
 
         case .deletionPending:
             guard accountStoreController.saveBeforeSwitch() else { return }

@@ -55,15 +55,15 @@
 
 ## 심사 메모 초안 (필수 QA 완료 후 사용)
 
-> Mora is an iPhone task and routine organizer for adults aged 18 and older. The app asks for an explicit adult self-attestation, not identity or age-document verification. An under-18 response restricts regular use while account deletion, Apple subscription management and support remain accessible. Sign in with Apple is used for account identity, subscription ownership, account adult eligibility and server-side AI usage limits. Mora is not a medical diagnostic or treatment app. Tasks are stored locally on the device; cloud task backup is not offered in this version.
+> Mora is an iPhone task and routine organizer for adults aged 18 and older. The app asks for an explicit adult self-attestation, not identity or age-document verification. An under-18 response restricts regular use while account deletion, Apple subscription management and support remain accessible. Mora does not require sign-in. On first launch the app creates an anonymous server identifier (Supabase anonymous sign-in) used only for the server-side AI usage limit, subscription ownership and the adult self-attestation record. Mora is not a medical diagnostic or treatment app. Tasks are stored locally on the device; cloud task backup is not offered in this version.
 >
-> After local adult self-attestation, users can add and edit tasks manually without an account. Guest schedules and signed-in account schedules are stored separately; users can explicitly copy guest schedules into an account in Settings. A guest answer does not grant account eligibility. AI analysis is optional and requires sign-in and current account adult eligibility. Before the first analysis, the app explains sharing through Supabase with Anthropic Claude first and Google Gemini as a fallback, and requests separate consent (version 2). Voice transcription uses Apple's speech recognition. Users can review and edit the text before tapping Analyze and withdraw AI sharing consent in Settings. The free AI allowance is three successful analyses per day, resetting at midnight Asia/Seoul.
+> After the adult self-attestation, users can add and edit tasks right away without signing in. AI analysis is optional and needs no sign-in; the app uses an anonymous server identifier for the free allowance and purchases. Before the first analysis, the app explains sharing through Supabase with Anthropic Claude first and Google Gemini as a fallback, and requests separate consent (version 2). Voice transcription uses Apple's speech recognition. Users can review and edit the text before tapping Analyze and withdraw AI sharing consent in Settings. The free AI allowance is three successful analyses per day, resetting at midnight Asia/Seoul.
 >
-> Subscription prices and periods are shown on the Pro screen. New purchases require current account adult eligibility. Pro removes the free daily AI quota; excessive consecutive requests can be temporarily limited. Restore Purchases is available on the Pro screen, and existing subscription synchronization is preserved. Account deletion uses Apple reauthentication and is accessible from Settings and the restricted-use management screen. Pending deletion and local cleanup resume after relaunch, and the app displays completion confirmation; deleting a Mora account does not cancel its App Store subscription. The app provides Apple's subscription management link.
+> Subscription prices and periods are shown on the Pro screen. Purchases and Restore Purchases work without signing in. A subscription follows the Apple ID: after reinstalling the app or on another device with the same Apple ID, Pro is restored automatically. Pro removes the free daily AI quota; excessive consecutive requests can be temporarily limited. Restore Purchases is available on the Pro screen. Deleting the app does not cancel the App Store subscription; the app provides Apple's subscription management link.
 >
 > Full-screen alarms require compatible hardware, iOS support and permissions. The app and widget require iOS 26.2 or later. Please use an iPhone for review.
 >
-> Sign in with Apple is the only sign-in method, so no separate demo account is required; any Apple ID can be used. On first launch, confirm that you are 18 or older to continue.
+> No sign-in or demo account is required. On first launch, confirm that you are 18 or older to continue. Use any Sandbox Apple ID to test purchases.
 
 위 메모는 호환 앱·서버 gate 배포와 필수 QA를 완료한 뒤 사용한다. ASC의 심사 연락처에는 담당자의 실제 연락처를 입력한다. 심사자가 모든 기능에 접근할 수 있는 실제 경로·필요한 테스트 안내를 별도로 확인한다. DEBUG presentation demo는 Release에서 사용할 수 없고 심사 계정을 대신하지 않는다.
 
@@ -73,7 +73,7 @@
 음성 추가 확인: 녹음 후 침묵 상태에서 키보드 전환, 빈 결과 오류 뒤 재시도, Hold 모드 VoiceOver 이중 탭, 문장 끝 날짜·시간을 말한 직후 중지/백그라운드 전환을 확인한다. 자동 회귀만으로 실제 STT·접근성 동작을 통과 처리하지 않는다.
 
 2. Free/Pro 각각 약한 알림·전체 화면 알람·위젯을 foreground/background/앱 종료·잠금에서 확인한다. 실제 전달 시각과 알람 취소/반복 재예약을 기록한다.
-3. Sandbox 월간 또는 연간 구매 → 앱 재시작 → 다른 기기 같은 Mora 계정 복원 → 다른 Mora 계정 귀속 거부/정책대로 복구를 확인한다. 취소/pending/만료/grace/환불·역순 알림도 검사한다.
+3. 로그인 없이 Sandbox 월간 또는 연간 구매 → 앱 재시작 → 앱 삭제 후 재설치 → Pro 자동 유지 → 같은 Apple ID의 다른 기기에서 Pro 유지 → 다른 Apple ID 기기에서는 무료를 확인한다(#76). 취소/pending/만료/grace/환불·역순 알림이 모든 기기에 반영되는지도 검사한다.
 4. 폐기 전용 계정에서 활성 구독 안내 → Apple 재인증 → 삭제 진행/실패 재개 → 완료 안내와 게스트 화면 복귀, 해당 계정 로컬/서버 삭제를 확인한다. 실제 사용자의 계정으로 시험하지 않는다.
 5. [QA 계획](MORA_RELEASE_QA_PLAN.md)의 나머지 case를 기록하고, MORA Eval의 검수된 LLM 평가를 인수한다. 같은 RC의 internal TestFlight 48시간 관찰을 완료한 뒤 제출한다. 두 기기/48시간은 팀 품질 기준이며 Apple의 일률적 필수 요건은 아니다.
 

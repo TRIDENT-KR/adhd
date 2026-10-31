@@ -84,7 +84,14 @@ Deno.test("deletion requires verified Apple proof before locking, but locks befo
         input instanceof Request ? input.url : input.toString(),
       );
       paths.push(url.pathname);
+      const anonymousUser = {
+        id: user,
+        is_anonymous: true,
+        app_metadata: { provider: "anonymous", providers: ["anonymous"] },
+        identities: [],
+      };
       if (url.pathname === "/auth/v1/user") {
+        if (mode === "anonymous") return json(anonymousUser);
         return json({
           id: user,
           app_metadata: { provider: "apple", providers: ["apple"] },
@@ -109,7 +116,9 @@ Deno.test("deletion requires verified Apple proof before locking, but locks befo
       if (url.pathname === "/auth/revoke") {
         return json({}, mode === "revoke_failure" ? 503 : 200);
       }
-      if (url.pathname === `/auth/v1/admin/users/${user}`) return json({});
+      if (url.pathname === `/auth/v1/admin/users/${user}`) {
+        return json(mode === "anonymous" ? anonymousUser : {});
+      }
       const rpc = url.pathname.replace("/rest/v1/rpc/", "");
       if (rpc === "mora_get_account_deletion_status") return json(job);
       if (rpc === "mora_begin_account_deletion") {
@@ -141,7 +150,12 @@ Deno.test("deletion requires verified Apple proof before locking, but locks befo
       return json(job);
     };
     await import("./index.ts");
-    async function invoke() {
+    async function invoke(
+      body: Record<string, unknown> = {
+        requestId: id,
+        appleAuthorizationCode: "test-code",
+      },
+    ) {
       paths = [];
       const token = `${encoded({ alg: "test" })}.${
         encoded({ iat: Math.floor(Date.now() / 1000) })
@@ -153,10 +167,7 @@ Deno.test("deletion requires verified Apple proof before locking, but locks befo
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({
-            requestId: id,
-            appleAuthorizationCode: "test-code",
-          }),
+          body: JSON.stringify(body),
         }),
       );
     }
@@ -250,6 +261,39 @@ Deno.test("deletion requires verified Apple proof before locking, but locks befo
         assertEquals((await invoke()).status, 200);
         assertEquals(paths.includes("/auth/token"), false);
         assertEquals(paths.includes("/auth/revoke"), false);
+      },
+    );
+    await t.step(
+      "verified anonymous account deletes without Apple proof or revoke",
+      async () => {
+        mode = "anonymous";
+        job = null;
+        assertEquals((await invoke({ requestId: id })).status, 200);
+        assertEquals(paths.includes("/auth/token"), false);
+        assertEquals(paths.includes("/auth/revoke"), false);
+        assertEquals(
+          (job as Record<string, unknown> | null)?.status,
+          "completed",
+        );
+      },
+    );
+    await t.step(
+      "Apple account cannot skip Apple proof with the anonymous shape",
+      async () => {
+        mode = "success";
+        job = null;
+        assertEquals((await invoke({ requestId: id })).status, 400);
+        assertEquals(job, null);
+        assertEquals(paths.includes("/auth/token"), false);
+      },
+    );
+    await t.step(
+      "anonymous account cannot send an Apple code",
+      async () => {
+        mode = "anonymous";
+        job = null;
+        assertEquals((await invoke()).status, 403);
+        assertEquals(job, null);
       },
     );
   } finally {

@@ -148,6 +148,76 @@ Deno.test("DB의 소유권 거부는 409, 알 수 없는 DB 오류는 503", asyn
   assertEquals(failed.body.error.code, "subscription_backend_unavailable");
 });
 
+Deno.test("claim: 검증된 거래를 claim 모드로 DB에 전달하고 응답 형태는 register와 같다", async () => {
+  const calls: Call[] = [];
+  const d = deps({
+    applyTransaction: (userId, action, facts) => {
+      calls.push({ userId, action, facts });
+      return Promise.resolve("claimed");
+    },
+  });
+  const result = await call(
+    request({ action: "claim", signedTransaction: "valid.jws" }),
+    d,
+  );
+  assertEquals(result, { status: 200, body: { result: "claimed" } });
+  assertEquals(calls.length, 1);
+  assertEquals(calls[0].userId, USER);
+  assertEquals(calls[0].action, "claim");
+  // 토큰은 다른(이전) 계정 것이어도 그대로 전달한다. 비교 여부는 DB가 mode로 정한다.
+  assertEquals(
+    calls[0].facts.appAccountToken,
+    "6f9619ff-8b86-d011-b42d-00c04fc964ff",
+  );
+});
+
+Deno.test("claim도 Apple 서명·번들·환경 검증에 실패하면 DB를 부르지 않는다", async () => {
+  const calls: Call[] = [];
+  const forged = await call(
+    request({ action: "claim", signedTransaction: "forged.jws" }),
+    deps({}, calls),
+  );
+  assertEquals(forged.status, 422);
+  assertEquals(forged.body.error.code, "transaction_signature_invalid");
+
+  for (
+    const [over, code] of [
+      [{ bundleId: "com.example.other" }, "bundle_mismatch"],
+      [{ environment: "Xcode" }, "unsupported_environment"],
+      [{ inAppOwnershipType: "FAMILY_SHARED" }, "family_sharing_not_supported"],
+    ] as const
+  ) {
+    const rejected = await call(
+      request({ action: "claim", signedTransaction: "valid.jws" }),
+      deps({
+        verifyTransaction: () => Promise.resolve(sampleTransaction(over)),
+      }, calls),
+    );
+    assertEquals(rejected.status, 422);
+    assertEquals(rejected.body.error.code, code);
+  }
+  assertEquals(calls.length, 0);
+});
+
+Deno.test("claim_not_active는 409, 다른 claim 거부 코드도 그대로 매핑한다", async () => {
+  for (
+    const [code, status] of [
+      ["claim_not_active", 409],
+      ["apple_environment_not_allowed", 403],
+      ["account_deletion_pending", 409],
+    ] as const
+  ) {
+    const result = await call(
+      request({ action: "claim", signedTransaction: "valid.jws" }),
+      deps({
+        applyTransaction: () => Promise.reject(new DatabaseRejected(code)),
+      }),
+    );
+    assertEquals(result.status, status);
+    assertEquals(result.body.error.code, code);
+  }
+});
+
 Deno.test("통합: 실제 서명 검증기 + 테스트 체인으로 서명한 거래", async () => {
   const chain = await appleLikeChain();
   const now = new Date();
@@ -217,4 +287,62 @@ Deno.test("서명은 맞아도 signedDate 없는 거래는 DB에 전달하지 �
   assertEquals(result.status, 422);
   assertEquals(result.body.error.code, "invalid_signed_date");
   assertEquals(calls.length, 0);
+});
+
+Deno.test("통합: claim도 실제 서명 검증기(신뢰 루트·번들)를 통과해야 DB에 닿는다", async () => {
+  const chain = await appleLikeChain();
+  const untrusted = await appleLikeChain();
+  const now = new Date();
+  const payload = sampleTransaction({
+    purchaseDate: now.getTime() - 60_000,
+    expiresDate: now.getTime() + 86_400_000,
+    signedDate: now.getTime(),
+    // 이전 설치(다른 계정)의 토큰이 붙은 거래.
+    appAccountToken: "0f0e0d0c-0b0a-4908-8706-050403020100",
+  });
+  const calls: Call[] = [];
+  const d = deps({
+    verifyTransaction: (value) =>
+      verifyAppleJws(value, {
+        pinnedRootsDer: [chain.rootDer],
+        expectedBundleId: "trident-KR.ADHD",
+      }),
+    now: () => now,
+  }, calls);
+
+  const ok = await call(
+    request({
+      action: "claim",
+      signedTransaction: await signJws(payload, chain),
+    }),
+    d,
+  );
+  assertEquals(ok.status, 200);
+  assertEquals(calls[0].action, "claim");
+  assertEquals(
+    calls[0].facts.appAccountToken,
+    "0f0e0d0c-0b0a-4908-8706-050403020100",
+  );
+
+  const otherRoot = await call(
+    request({
+      action: "claim",
+      signedTransaction: await signJws(payload, untrusted),
+    }),
+    d,
+  );
+  const otherApp = await call(
+    request({
+      action: "claim",
+      signedTransaction: await signJws(
+        { ...payload, bundleId: "com.example.other" },
+        chain,
+      ),
+    }),
+    d,
+  );
+  assertEquals(otherRoot.status, 422);
+  assertEquals(otherApp.status, 422);
+  assertEquals(otherApp.body.error.code, "transaction_signature_invalid");
+  assertEquals(calls.length, 1);
 });
