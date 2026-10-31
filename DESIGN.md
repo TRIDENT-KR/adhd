@@ -98,3 +98,4 @@ A central, circular element for voice interaction. Use `primary-fixed-dim` with 
 | display-lg | 3.5rem | `Font.title.semibold` (≈28pt) |
 | 주간 뷰 | — | 오늘 고정 + 선택일 ±7일 스크롤 (월간 시트는 점프용 예외 — D11) |
 | Shadow=Glow | onSurfaceVariant 5%/40px/y10 | 확인 카드: primary 15%/40px/y15 + onSurfaceVariant 5%/10px/y5 이중 글로우 |
+| 화면 하단 큰 버튼 (온보딩·동의 시트) | Primary: Rounded `full` + 테라코타 그라데이션 | `CalmButtonStyle` — 모서리 18pt 사각형, 브랜드 색 없이 onSurfaceVariant 8% 바탕(시트 안은 surfaceContainerLow), onSurface 글자. 알약 모양은 쓰지 않음 (2026-11-01) |

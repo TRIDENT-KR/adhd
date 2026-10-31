@@ -310,38 +310,150 @@ class CloudLLMManager: ObservableObject {
 struct AIDataConsentView: View {
     /// 서버 계정 ID (익명 포함). 동의는 이 계정에 기록됩니다.
     let userID: UUID?
+    /// 동의하면 보내질 글. 설정에서 열 때처럼 없으면 예시 문장을 보여 줍니다.
+    var draft: String? = nil
     var onAllowed: () -> Void = {}
     @EnvironmentObject private var authManager: AuthManager
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var showsDetails = false
+    @State private var contentHeight: CGFloat = 380
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    Text(L.aiPrivacy.explanation)
-                    Text(L.aiPrivacy.choice)
-                    Link(L.settings.privacyPolicy, destination: URL(string: "https://trident-kr.github.io/waitwhat-site/privacy/")!)
-                    Link(L.aiPrivacy.anthropicPolicy, destination: URL(string: "https://www.anthropic.com/legal/privacy")!)
-                    Link(L.aiPrivacy.googlePolicy, destination: URL(string: "https://ai.google.dev/gemini-api/terms")!)
-                    Button(L.aiPrivacy.allow) {
-                        // 시트가 열린 사이 계정이 바뀌었으면 기록하지 않습니다.
-                        guard let userID, AccountPreferences.activeScope != nil,
-                              authManager.accessState.accountUserID == userID else { return }
-                        AIDataConsent.setGranted(true, for: userID)
-                        dismiss()
-                        onAllowed()
+        // 제목 없이 "내 글 → Claude" 그림과 동의 버튼만 둡니다. 전송 범위·대체 제공자·철회 방법은 자세히 보기 안에 있습니다.
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 26, weight: .semibold))
+                    .foregroundColor(DesignSystem.Colors.onPrimary)
+                    .frame(width: 54, height: 54)
+                    .background(RoundedRectangle(cornerRadius: 17, style: .continuous).fill(DesignSystem.Gradients.primaryCTA))
+                    .shadow(color: DesignSystem.Colors.primary.opacity(0.28), radius: 14, y: 6)
+                    .accessibilityLabel(L.aiPrivacy.title)
+                    .accessibilityAddTraits(.isHeader)
+
+                flow
+                    .padding(.top, 22)
+
+                Button(action: toggleDetails) {
+                    HStack(spacing: 4) {
+                        Text(L.aiPrivacy.details)
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.bold))
+                            .rotationEffect(.degrees(showsDetails ? 90 : 0))
+                            .accessibilityHidden(true)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(userID == nil)
-                    Button(L.aiPrivacy.notNow) { dismiss() }
-                        .frame(minHeight: 44)
+                    .font(.subheadline.weight(.bold))
+                    .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
                 }
-                .padding(24)
+                .buttonStyle(NoEffectButtonStyle())
+                .padding(.top, 6)
+
+                if showsDetails {
+                    details
+                        .padding(.top, 4)
+                        .padding(.bottom, 8)
+                }
+
+                Button(action: allow) {
+                    Text(L.aiPrivacy.agree)
+                }
+                .buttonStyle(CalmButtonStyle(fill: DesignSystem.Colors.surfaceContainerLow))
+                .disabled(userID == nil)
+                .padding(.top, 12)
+
+                Button(action: { dismiss() }) {
+                    Text(L.aiPrivacy.notNow)
+                        .font(.callout.weight(.semibold))
+                        .foregroundColor(DesignSystem.Colors.onSurfaceMeta)
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(NoEffectButtonStyle())
+                .padding(.top, 6)
             }
-            .background(DesignSystem.Colors.background)
-            .navigationTitle(L.aiPrivacy.title)
-            .navigationBarTitleDisplayMode(.inline)
+            .padding(.horizontal, 24)
+            .padding(.top, 30)
+            .padding(.bottom, 8)
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
         }
+        .scrollBounceBehavior(.basedOnSize)
+        .presentationDetents(showsDetails ? [.large] : [.height(contentHeight)])
+        .presentationDragIndicator(.visible)
+        .presentationBackground(DesignSystem.Colors.surfaceContainerLowest)
         .tint(DesignSystem.Colors.primary)
+    }
+
+    /// 보낼 글이 Claude로 간다는 것을 그림 한 줄로 보여 줍니다.
+    private var flow: some View {
+        HStack(spacing: 10) {
+            Text(L.aiPrivacy.quoted(draftPreview))
+                .font(.subheadline.weight(.semibold))
+                .foregroundColor(DesignSystem.Colors.onSurface)
+                .lineLimit(1)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(DesignSystem.Colors.surfaceContainerLowest))
+            Image(systemName: "arrow.right")
+                .font(.subheadline.weight(.semibold))
+                .foregroundColor(DesignSystem.Colors.onSurfaceMeta)
+            HStack(spacing: 6) {
+                Image(systemName: "sparkle")
+                    .foregroundColor(DesignSystem.Colors.primary)
+                Text("Claude")
+                    .fontWeight(.bold)
+            }
+            .font(.subheadline)
+            .foregroundColor(DesignSystem.Colors.onSurface)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(DesignSystem.Colors.surfaceContainerLowest))
+            .fixedSize()
+        }
+        .padding(16)
+        .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(DesignSystem.Colors.surfaceContainerLow))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(L.aiPrivacy.flowAccessibility)
+    }
+
+    private var details: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text(L.aiPrivacy.explanation)
+            Text(L.aiPrivacy.choice)
+            Group {
+                Link(L.settings.privacyPolicy, destination: URL(string: "https://trident-kr.github.io/waitwhat-site/privacy/")!)
+                Link(L.aiPrivacy.anthropicPolicy, destination: URL(string: "https://www.anthropic.com/legal/privacy")!)
+                Link(L.aiPrivacy.googlePolicy, destination: URL(string: "https://ai.google.dev/gemini-api/terms")!)
+            }
+            .fontWeight(.semibold)
+            .foregroundColor(DesignSystem.Colors.primary)
+        }
+        .font(.subheadline)
+        .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var draftPreview: String {
+        let text = (draft ?? "").split(whereSeparator: \.isNewline).joined(separator: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return text.isEmpty ? L.aiPrivacy.sampleDraft : text
+    }
+
+    private func toggleDetails() {
+        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.25)) {
+            showsDetails.toggle()
+        }
+    }
+
+    private func allow() {
+        // 시트가 열린 사이 계정이 바뀌었으면 기록하지 않습니다.
+        guard let userID, AccountPreferences.activeScope != nil,
+              authManager.accessState.accountUserID == userID else { return }
+        AIDataConsent.setGranted(true, for: userID)
+        dismiss()
+        onAllowed()
     }
 }

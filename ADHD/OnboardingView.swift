@@ -2,7 +2,8 @@ import SwiftUI
 import SwiftData
 
 // MARK: - Onboarding View
-/// F1/D18: 로그인 직후 1회 표시되는 경량 온보딩 3장 (스킵 가능).
+/// F1/D18: 처음 실행 때 1회 표시되는 경량 온보딩 2장 (스킵 가능).
+/// 1장은 한 줄 가치 제안, 2장은 말하는 예시이고 2장의 시작하기가 끝입니다.
 /// D21: 완료 시 hasSeenVoiceOnboarding도 true → Home 가이드 자동 표시 생략.
 ///      스킵 시에만 첫 Home 진입 때 가이드가 자동 1회 표시된다.
 /// D22: 기존 사용자(태스크 보유)는 렌더 전에 자동 통과.
@@ -12,174 +13,219 @@ struct OnboardingView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ObservedObject private var langManager = LocalizationManager.shared
-    @State private var page = 0    // 0...2
+    @State private var page = 0    // 0...1
+    @ScaledMetric(relativeTo: .largeTitle) private var heroSize: CGFloat = 52
+    @ScaledMetric(relativeTo: .largeTitle) private var page2TitleSize: CGFloat = 42
+
+    private let pageCount = 2
 
     var body: some View {
         ZStack {
-            DesignSystem.Colors.background.ignoresSafeArea()
+            background
 
             VStack(spacing: 0) {
-                // 상단 Skip 바 — 3장은 CTA가 종착이므로 1·2장에서만 노출
-                HStack {
-                    Spacer()
-                    if page < 2 {
-                        Button(action: skip) {
-                            Text(L.onboarding.skip)
-                                .font(DesignSystem.Typography.labelSm)
-                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.6))
-                                .frame(minWidth: 44, minHeight: 44)
-                                .contentShape(Rectangle())
-                        }
-                        .buttonStyle(NoEffectButtonStyle())
-                        .accessibilityLabel(L.onboarding.skip)
-                    }
-                }
-                .padding(.horizontal, 24)
-                .frame(height: 52)
+                topBar
 
                 TabView(selection: $page) {
                     scrollable(pageOne).tag(0)
                     scrollable(pageTwo).tag(1)
-                    scrollable(pageThree).tag(2)
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
 
-                // 커스텀 페이지 도트 — 기본 UIPageControl의 중성 회색 회피 (디자인 금기 #1)
-                HStack(spacing: 8) {
-                    ForEach(0..<3, id: \.self) { index in
-                        Circle()
-                            .fill(index == page
-                                  ? DesignSystem.Colors.primary
-                                  : DesignSystem.Colors.onSurfaceVariant.opacity(0.2))
-                            .frame(width: index == page ? 8 : 6,
-                                   height: index == page ? 8 : 6)
-                    }
-                }
-                .padding(.bottom, 20)
-                .accessibilityHidden(true)
-
-                // 하단 컨트롤: 1·2장 Next(텍스트 버튼) / 3장 Start CTA
+                // 하단 버튼: 브랜드 색 대신 배경에 묻는 차분한 버튼 (1장 다음 / 2장 시작하기)
                 Group {
-                    if page < 2 {
+                    if page < pageCount - 1 {
                         Button(action: {
                             withAnimation(reduceMotion ? .none : .easeInOut(duration: 0.3)) {
                                 page += 1
                             }
                         }) {
-                            Text(L.onboarding.next)
-                                .font(DesignSystem.Typography.titleSm)
-                                .foregroundColor(DesignSystem.Colors.primary)
-                                .frame(minWidth: 44, minHeight: 44)
-                                .contentShape(Rectangle())
+                            HStack(spacing: 8) {
+                                Text(L.onboarding.next)
+                                Image(systemName: "arrow.right")
+                                    .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
+                                    .accessibilityHidden(true)
+                            }
                         }
-                        .buttonStyle(NoEffectButtonStyle())
                         .accessibilityLabel(L.onboarding.next)
                     } else {
                         Button(action: complete) {
                             Text(L.onboarding.start)
-                                .frame(maxWidth: .infinity)
                         }
-                        .buttonStyle(SatisfyingButtonStyle(color: DesignSystem.Colors.primary))
-                        .padding(.horizontal, 32)
                         .accessibilityLabel(L.onboarding.start)
                     }
                 }
-                .padding(.bottom, 40)
+                .buttonStyle(CalmButtonStyle())
+                .padding(.horizontal, 24)
+                .padding(.bottom, 16)
             }
         }
         .onAppear { skipIfExistingUser() }
     }
 
-    // MARK: - Pages
+    // MARK: - Chrome
 
-    /// 1장: 가치 제안
-    private var pageOne: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "mic.circle.fill")
-                .font(.system(size: 64))
-                .foregroundColor(DesignSystem.Colors.primary)
-                .accessibilityHidden(true)
-            Text(L.onboarding.page1Title)
-                .font(DesignSystem.Typography.displayLg)
-                .foregroundColor(DesignSystem.Colors.primary)
-                .tracking(-0.5)
-            Text(L.onboarding.page1Body)
-                .font(DesignSystem.Typography.bodyMd)
-                .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
-                .multilineTextAlignment(.center)
+    /// 따뜻한 종이 바탕에 오른쪽 아래 테라코타, 왼쪽 아래 청록 빛을 아주 옅게 깝니다.
+    private var background: some View {
+        ZStack {
+            DesignSystem.Colors.background
+            RadialGradient(colors: [DesignSystem.Colors.primaryContainer.opacity(0.26), .clear],
+                           center: UnitPoint(x: 0.88, y: 0.78), startRadius: 0, endRadius: 520)
+            RadialGradient(colors: [DesignSystem.Colors.tertiary.opacity(0.07), .clear],
+                           center: .bottomLeading, startRadius: 0, endRadius: 380)
         }
-        .padding(.horizontal, 32)
-        .accessibilityElement(children: .combine)
-        .accessibilityHint(L.onboarding.pageHint(1, total: 3))
+        .ignoresSafeArea()
+        .accessibilityHidden(true)
     }
 
-    /// 2장: 예시 명령어 (VoiceGuideSheet의 행 스타일 재사용 — D21 중복 해소의 근거)
-    private var pageTwo: some View {
-        VStack(spacing: 20) {
-            Text(L.voice.guideTitle)
-                .font(.title2.weight(.semibold))
-                .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
+    /// 왼쪽 위 진행 막대, 오른쪽 위 건너뛰기 (마지막 장은 시작하기가 끝이므로 숨깁니다)
+    private var topBar: some View {
+        HStack {
+            HStack(spacing: 6) {
+                ForEach(0..<pageCount, id: \.self) { index in
+                    Capsule()
+                        .fill(index == page
+                              ? DesignSystem.Colors.onSurface
+                              : DesignSystem.Colors.onSurface.opacity(0.12))
+                        .frame(width: index == page ? 28 : 14, height: 5)
+                }
+            }
+            .animation(reduceMotion ? nil : .easeInOut(duration: 0.25), value: page)
+            .accessibilityHidden(true)
 
-            VStack(spacing: 16) {
-                exampleRow(icon: "plus.circle.fill", text: L.voice.exampleAdd, color: DesignSystem.Colors.tertiary)
-                exampleRow(icon: "calendar.circle.fill", text: L.voice.exampleAppointment, color: DesignSystem.Colors.primary)
-                exampleRow(icon: "minus.circle.fill", text: L.voice.exampleDelete, color: DesignSystem.Colors.error)
+            Spacer()
+
+            if page < pageCount - 1 {
+                Button(action: skip) {
+                    Text(L.onboarding.skip)
+                        .font(.callout.weight(.semibold))
+                        .foregroundColor(DesignSystem.Colors.onSurfaceMeta)
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(NoEffectButtonStyle())
+                .accessibilityLabel(L.onboarding.skip)
             }
         }
-        .padding(.horizontal, 24)
-        .accessibilityElement(children: .combine)
-        .accessibilityHint(L.onboarding.pageHint(2, total: 3))
+        .padding(.leading, 28)
+        .padding(.trailing, 20)
+        .frame(height: 52)
     }
 
-    /// 3장: 시작 CTA로 이어지는 마무리
-    private var pageThree: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "checkmark.seal.fill")
-                .font(.system(size: 56))
-                .foregroundColor(DesignSystem.Colors.tertiary)
-                .accessibilityHidden(true)
-            Text(L.onboarding.page3Title)
-                .font(DesignSystem.Typography.displayLg)
-                .foregroundColor(DesignSystem.Colors.primary)
-                .tracking(-0.5)
-            Text(L.onboarding.page3Body)
-                .font(DesignSystem.Typography.bodyMd)
+    // MARK: - Pages
+
+    /// 1장: 한 줄 가치 제안. 큰 제목 하나가 시선이 머무는 곳입니다.
+    private var pageOne: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(L.onboarding.page1Title)
+                .font(.system(size: heroSize, weight: .heavy))
+                .tracking(-heroSize * 0.04)
+                .foregroundColor(DesignSystem.Colors.onSurface)
+                .lineLimit(1)
+                .minimumScaleFactor(0.5)
+                .accessibilityAddTraits(.isHeader)
+            Text(L.onboarding.page1Body)
+                .font(.title3)
                 .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
-                .multilineTextAlignment(.center)
+                .lineSpacing(4)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 16)
+
+            Spacer(minLength: 40)
+            OnboardingMicOrb()
+                .frame(maxWidth: .infinity)
+            Spacer(minLength: 40)
         }
-        .padding(.horizontal, 32)
+        .padding(.horizontal, 28)
+        .padding(.top, 36)
         .accessibilityElement(children: .combine)
-        .accessibilityHint(L.onboarding.pageHint(3, total: 3))
+        .accessibilityHint(L.onboarding.pageHint(1, total: pageCount))
     }
 
-    /// 큰 글씨에서도 내용이 잘리지 않게 페이지마다 스크롤되게 하고, 평소에는 세로 가운데에 둡니다.
+    /// 2장: 이렇게 말하면 이렇게 정리된다는 대화 예시
+    private var pageTwo: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(L.onboarding.page2Title)
+                .font(.system(size: page2TitleSize, weight: .heavy))
+                .tracking(-page2TitleSize * 0.035)
+                .foregroundColor(DesignSystem.Colors.onSurface)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 4)
+                .accessibilityAddTraits(.isHeader)
+
+            VStack(spacing: 8) {
+                ForEach(L.onboarding.examples, id: \.self) { example in
+                    exampleExchange(example)
+                }
+            }
+            .padding(.top, 40)
+
+            Spacer(minLength: 24)
+        }
+        .padding(.horizontal, 24)
+        .padding(.top, 36)
+        .accessibilityElement(children: .combine)
+        .accessibilityHint(L.onboarding.pageHint(2, total: pageCount))
+    }
+
+    /// 큰 글씨에서도 내용이 잘리지 않게 페이지마다 스크롤되게 하고, 평소에는 한 화면에 맞춥니다.
     private func scrollable<Content: View>(_ content: Content) -> some View {
         GeometryReader { proxy in
             ScrollView {
                 content
-                    .frame(maxWidth: .infinity, minHeight: proxy.size.height)
+                    .frame(maxWidth: .infinity, minHeight: proxy.size.height, alignment: .top)
             }
             .scrollBounceBehavior(.basedOnSize)
         }
     }
 
-    private func exampleRow(icon: String, text: String, color: Color) -> some View {
-        HStack(spacing: 16) {
-            Image(systemName: icon)
-                .font(.title3)
-                .foregroundColor(color)
-                .frame(width: 36)
-            Text(text)
-                .font(.body.weight(.medium))
-                .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
-            Spacer()
+    /// 오른쪽에 내가 한 말, 왼쪽에 Mora가 정리한 결과
+    private func exampleExchange(_ example: OnboardingStrings.Example) -> some View {
+        VStack(spacing: 8) {
+            Text(example.said)
+                .font(.body.weight(.semibold))
+                .foregroundColor(DesignSystem.Colors.onSurface)
+                .padding(.horizontal, 18)
+                .padding(.vertical, 13)
+                .background(
+                    UnevenRoundedRectangle(topLeadingRadius: 20, bottomLeadingRadius: 20,
+                                           bottomTrailingRadius: 6, topTrailingRadius: 20, style: .continuous)
+                        .fill(DesignSystem.Colors.onSurfaceVariant.opacity(0.08))
+                )
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                .padding(.leading, 48)
+
+            HStack(spacing: 10) {
+                Image(systemName: "checkmark")
+                    .font(.footnote.weight(.bold))
+                    .foregroundColor(DesignSystem.Colors.tertiary)
+                    .frame(width: 26, height: 26)
+                    .background(Circle().fill(DesignSystem.Colors.tertiary.opacity(0.12)))
+                Text(resultText(example))
+                    .font(.subheadline)
+            }
+            .padding(.leading, 12)
+            .padding(.trailing, 16)
+            .padding(.vertical, 11)
+            .background(
+                UnevenRoundedRectangle(topLeadingRadius: 18, bottomLeadingRadius: 6,
+                                       bottomTrailingRadius: 18, topTrailingRadius: 18, style: .continuous)
+                    .fill(DesignSystem.Colors.surfaceContainerLowest)
+                    .shadow(color: DesignSystem.Colors.onSurfaceVariant.opacity(0.07), radius: 15, y: 10)
+            )
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.trailing, 48)
+            .padding(.bottom, 12)
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 16)
-        .background(
-            RoundedRectangle(cornerRadius: 14)
-                .fill(DesignSystem.Colors.surfaceContainerLow)
-        )
+    }
+
+    private func resultText(_ example: OnboardingStrings.Example) -> AttributedString {
+        var name = AttributedString(example.name)
+        name.font = .subheadline.weight(.bold)
+        name.foregroundColor = DesignSystem.Colors.onSurface
+        var detail = AttributedString(example.detail)
+        detail.foregroundColor = DesignSystem.Colors.onSurfaceVariant
+        return name + detail
     }
 
     // MARK: - Actions
@@ -200,5 +246,35 @@ struct OnboardingView: View {
         if count > 0 {
             hasCompletedOnboarding = true
         }
+    }
+}
+
+/// 온보딩 1장의 마이크. 첫 화면에서 본 버튼을 앱에서 바로 알아보도록 음성 탭 마이크와 같은 모양·크기를 씁니다.
+/// (HomeVoiceInterfaceView의 micButton + 숨쉬는 원과 맞춤. 모션 줄이기면 멈춤)
+private struct OnboardingMicOrb: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var breathing = false
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(DesignSystem.Colors.primaryFixedDim.opacity(reduceMotion ? 0.3 : (breathing ? 0.4 : 0.15)))
+                .frame(width: 180, height: 180)
+                .scaleEffect(reduceMotion ? 1.0 : (breathing ? 1.08 : 0.92))
+            Circle()
+                .fill(DesignSystem.Gradients.primaryCTA)
+                .frame(width: 120, height: 120)
+            Image(systemName: "mic.fill")
+                .font(.system(size: 40, weight: .medium))
+                .foregroundColor(DesignSystem.Colors.onPrimary)
+        }
+        .frame(height: 220)
+        .onAppear {
+            guard !reduceMotion else { return }
+            withAnimation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true)) {
+                breathing = true
+            }
+        }
+        .accessibilityHidden(true)
     }
 }
