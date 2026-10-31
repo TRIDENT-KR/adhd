@@ -45,6 +45,8 @@ struct HomeVoiceInterfaceView: View {
     @Binding var isModalVisible: Bool
     @State private var showPaywall = false
     @State private var showAIConsent = false
+    /// 동의 시트에서 동의하고 닫히면 보내려던 글을 바로 이어서 정리합니다.
+    @State private var resumeAnalysisAfterConsent = false
 
     // Text input state
     @State private var showTextInput = false
@@ -455,8 +457,14 @@ struct HomeVoiceInterfaceView: View {
                 .environmentObject(taskManager)
                 .environmentObject(subscriptionManager)
         }
-        .sheet(isPresented: $showAIConsent) {
-            AIDataConsentView(userID: authManager.accessState.accountUserID)
+        .sheet(isPresented: $showAIConsent, onDismiss: {
+            guard resumeAnalysisAfterConsent else { return }
+            resumeAnalysisAfterConsent = false
+            showTextInput = true
+            sendTextInput()
+        }) {
+            AIDataConsentView(userID: authManager.accessState.accountUserID, draft: textInputValue,
+                              onAllowed: { resumeAnalysisAfterConsent = true })
         }
         .onReceive(NotificationCenter.default.publisher(for: AIDataConsent.didChange)) { _ in
             if !AIDataConsent.isGranted(for: authManager.accessState.accountUserID) { cancelActiveAnalysis() }
@@ -572,6 +580,7 @@ struct HomeVoiceInterfaceView: View {
             editingTask = nil
             showConfirmation = false
             showAIConsent = false
+            resumeAnalysisAfterConsent = false
             showTextInput = false
             showErrorToast = false
             isTextInputFocused = false
