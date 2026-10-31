@@ -295,15 +295,21 @@ extension TaskManager {
         return targets.map(AppTaskSnapshot.init)
     }
 
-    private func uniqueMatch(name: String, in tasks: [AppTask]) throws -> [AppTask] {
+    private func uniqueMatch(name: String, in tasks: [AppTask], now: Date = Date()) throws -> [AppTask] {
         let query = name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         let exact = tasks.filter { $0.task.lowercased() == query }
         let matches = !exact.isEmpty ? exact : (query.count >= 2
             ? tasks.filter { $0.task.lowercased().contains(query) } : [])
-        guard matches.count <= 1 else {
-            throw TargetResolutionError.ambiguous(matches.map(AppTaskSnapshot.init))
+        // 지난 날짜에 이미 끝낸 일회성 일정은 고를 일이 거의 없으므로, 다른 후보가 있으면 묻지 않고 뺍니다.
+        let startOfToday = Calendar.current.startOfDay(for: now)
+        let current = matches.filter { task in
+            !(task.isCompleted && !task.isRecurring && (task.date.map { $0 < startOfToday } ?? false))
         }
-        return matches
+        let candidates = current.isEmpty ? matches : current
+        guard candidates.count <= 1 else {
+            throw TargetResolutionError.ambiguous(candidates.map(AppTaskSnapshot.init))
+        }
+        return candidates
     }
 
     /// "오늘 일정 다 지워줘"처럼 날짜를 정한 일괄 삭제는 그날 하루짜리 일정만 대상으로 합니다.
