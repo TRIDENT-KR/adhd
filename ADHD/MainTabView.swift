@@ -1,7 +1,9 @@
 import SwiftUI
 
 struct MainTabView: View {
+    /// 탭 바와 각 화면이 보는 선택. 페이지형 TabView는 pager.pagerTab에 묶여 이 값을 따라갑니다.
     @State var activeTab: TabSelection = .voice
+    @State private var pager = TabPagerSync(tab: .voice)
     @EnvironmentObject private var networkMonitor: NetworkMonitor
     @EnvironmentObject private var taskManager: TaskManager
     @EnvironmentObject private var authManager: AuthManager
@@ -31,7 +33,7 @@ struct MainTabView: View {
             DesignSystem.Colors.background.ignoresSafeArea()
 
             // 2. 현재 탭 뷰 (스와이프 가능하도록 TabView 사용)
-            TabView(selection: $activeTab) {
+            TabView(selection: pagerSelection) {
                 Group {
                     if loadedTabs.contains(.routine) {
                         RoutineView(activeTab: $activeTab)
@@ -39,9 +41,11 @@ struct MainTabView: View {
                         Color.clear
                     }
                 }
+                .onPagerSettle(in: Self.pagerSpace) { pageDidSettle(.routine) }
                 .tag(TabSelection.routine)
 
                 HomeVoiceInterfaceView(activeTab: $activeTab, isModalVisible: $isVoiceModalVisible)
+                    .onPagerSettle(in: Self.pagerSpace) { pageDidSettle(.voice) }
                     .tag(TabSelection.voice)
 
                 Group {
@@ -51,15 +55,18 @@ struct MainTabView: View {
                         Color.clear
                     }
                 }
+                .onPagerSettle(in: Self.pagerSpace) { pageDidSettle(.planner) }
                 .tag(TabSelection.planner)
             }
             .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
+            .coordinateSpace(.named(Self.pagerSpace))
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .padding(.bottom, 80)
             .onChange(of: activeTab) { _, newTab in
                 if !loadedTabs.contains(newTab) {
                     loadedTabs.insert(newTab)
                 }
+                showActiveTabPage()
             }
             .accessibilityElement(children: .contain)
 
@@ -172,6 +179,8 @@ struct MainTabView: View {
             if let widgetTab = WidgetDeepLinkInbox.take() {
                 loadedTabs.insert(widgetTab)
                 activeTab = widgetTab
+                // 처음 화면이므로 넘기는 애니메이션 없이 바로 엽니다.
+                showActiveTabPage(animated: false)
             }
             guard MoraApp.presentationDemoMode, !isPlayingPresentationDemo else { return }
             isPlayingPresentationDemo = true
@@ -210,6 +219,135 @@ extension MainTabView {
             guestImportResult = L.authRelease.copiedGuestTasks(count)
         } catch {
             guestImportResult = L.authRelease.copyGuestFailed
+        }
+    }
+}
+
+// MARK: - Tab Pager
+extension MainTabView {
+    fileprivate static let pagerSpace = "MainTabPager"
+    /// DESIGN.md 전환 곡선(300ms, 0.4/0/0.2/1). 탄성 애니메이션은 목표 페이지를 지나쳤다 돌아와 쓰지 않습니다.
+    fileprivate static let pageAnimation = Animation.timingCurve(0.4, 0, 0.2, 1, duration: 0.3)
+    /// 넘기던 페이지가 멈췄다는 신호가 이 시간 안에 오지 않으면 기다림을 풉니다.
+    /// 플래너를 처음 열 때는 화면을 만드느라 0.5초 가까이 걸려서 넉넉히 잡습니다.
+    fileprivate static let pageMoveTimeout: TimeInterval = 1.5
+
+    /// TabView가 읽고 쓰는 선택. 사용자가 스와이프해서 바꾼 값만 탭 바(activeTab)에 반영합니다.
+    fileprivate var pagerSelection: Binding<TabSelection> {
+        Binding(
+            get: { pager.pagerTab },
+            set: { tab in
+                if let swiped = pager.pagerDidSelect(tab), swiped != activeTab {
+                    activeTab = swiped
+                }
+            }
+        )
+    }
+
+    /// TabView를 activeTab 페이지로 넘깁니다. 이미 넘기는 중이면 그 페이지가 멈춘 뒤에 넘어갑니다.
+    fileprivate func showActiveTabPage(animated: Bool = true) {
+        guard let tab = pager.pageToShow(for: activeTab) else { return }
+        let animated = animated && !reduceMotion
+        withAnimation(animated ? Self.pageAnimation : nil) {
+            pager.beginMove(to: tab, animated: animated)
+        }
+        guard animated else { return }
+        let move = pager.moveID
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.pageMoveTimeout) {
+            guard pager.isMoving(move) else { return }
+            pager.cancelMove()
+            showActiveTabPage()
+        }
+    }
+
+    fileprivate func pageDidSettle(_ tab: TabSelection) {
+        switch pager.pageDidSettle(tab, activeTab: activeTab) {
+        case .showActiveTab?:
+            // 멈춘 직후의 같은 업데이트에서 선택을 바꾸면 TabView가 놓칠 수 있어 한 박자 뒤에 넘깁니다.
+            DispatchQueue.main.async { showActiveTabPage() }
+        case .selectTab(let visible)?:
+            activeTab = visible
+        case nil:
+            break
+        }
+    }
+}
+
+/// 탭 바 선택(activeTab)과 페이지형 TabView가 보여 주는 화면을 맞춥니다.
+///
+/// 페이지가 넘어가는 도중에 TabView 선택을 다시 바꾸면, TabView가 새 선택을 놓치고 화면 절반을 지나는 순간
+/// 이전 탭을 다시 써 넣어 탭 바와 화면이 어긋납니다(Voice에서 Planner를 누르고 바로 Voice).
+/// 그래서 앱이 페이지를 넘기는 동안에는 TabView 선택을 건드리지 않고, 그 페이지가 멈춘 뒤
+/// 그사이 마지막으로 고른 탭으로 한 번 더 넘깁니다.
+struct TabPagerSync {
+    /// TabView에 묶인 선택
+    private(set) var pagerTab: TabSelection
+    /// 앱이 넘기고 있는 페이지. 이 페이지가 화면에 멈출 때까지 TabView 선택을 바꾸지 않습니다.
+    private(set) var movingTo: TabSelection?
+    /// 넘기기마다 늘어나는 번호. 늦게 도착한 시간 초과가 새 넘기기를 끊지 않게 합니다.
+    private(set) var moveID = 0
+
+    enum Follow: Equatable {
+        /// 넘기는 동안 다른 탭을 골랐으니 TabView를 activeTab 페이지로 다시 넘깁니다.
+        case showActiveTab
+        /// 앱이 넘기지 않았는데 다른 페이지에 멈췄으니 탭 바를 보이는 화면에 맞춥니다.
+        case selectTab(TabSelection)
+    }
+
+    init(tab: TabSelection) {
+        pagerTab = tab
+    }
+
+    /// activeTab을 보여 주려고 지금 넘길 페이지. 이미 그 페이지이거나 다른 페이지로 넘기는 중이면 nil.
+    func pageToShow(for activeTab: TabSelection) -> TabSelection? {
+        guard movingTo == nil, pagerTab != activeTab else { return nil }
+        return activeTab
+    }
+
+    /// TabView 선택을 tab으로 바꿉니다. 애니메이션으로 넘기면 그 페이지가 멈출 때까지 기다립니다.
+    mutating func beginMove(to tab: TabSelection, animated: Bool) {
+        pagerTab = tab
+        movingTo = animated ? tab : nil
+        moveID += 1
+    }
+
+    func isMoving(_ move: Int) -> Bool {
+        movingTo != nil && moveID == move
+    }
+
+    /// 멈췄다는 신호가 오지 않을 때 기다림을 풀어, 다음 선택이 영영 막히지 않게 합니다.
+    mutating func cancelMove() {
+        movingTo = nil
+    }
+
+    /// TabView가 선택을 써 넣었습니다. 사용자가 스와이프한 것이면 탭 바에 반영할 탭을 돌려줍니다.
+    /// 앱이 넘기는 중에 써 넣는 값(화면 절반을 지날 때, 두 칸 넘길 때 가운데 페이지)은 반영하지 않습니다.
+    mutating func pagerDidSelect(_ tab: TabSelection) -> TabSelection? {
+        pagerTab = tab
+        return movingTo == nil ? tab : nil
+    }
+
+    /// 페이지 tab이 화면에 꼭 맞게 멈췄습니다.
+    mutating func pageDidSettle(_ tab: TabSelection, activeTab: TabSelection) -> Follow? {
+        let finishedMove = movingTo != nil
+        if let target = movingTo {
+            // 두 칸을 넘길 때 가운데 페이지가 잠깐 화면에 맞는 순간은 무시합니다.
+            guard tab == target else { return nil }
+            movingTo = nil
+        }
+        pagerTab = tab
+        guard tab != activeTab else { return nil }
+        return finishedMove ? .showActiveTab : .selectTab(tab)
+    }
+}
+
+private extension View {
+    /// 페이지형 TabView 안의 페이지가 화면에 꼭 맞게 멈추면 알려 줍니다.
+    func onPagerSettle(in space: String, perform action: @escaping () -> Void) -> some View {
+        onGeometryChange(for: Bool.self) { proxy in
+            abs(proxy.frame(in: .named(space)).minX) < 1
+        } action: { isSettled in
+            if isSettled { action() }
         }
     }
 }

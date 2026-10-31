@@ -6,8 +6,8 @@ struct CustomBottomBar: View {
     @ObservedObject var langManager = LocalizationManager.shared
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    /// 탭 전환. 페이지형 TabView에 탄성(spring) 애니메이션을 주면 목표 페이지를 지나쳤다가 되돌아오며
-    /// 탭 바와 화면이 어긋난 채 멈출 수 있어서, 넘침 없는 곡선(DESIGN.md: 300ms, 0.4/0/0.2/1)을 씁니다.
+    /// 탭 전환. 넘침 없는 곡선(DESIGN.md: 300ms, 0.4/0/0.2/1)을 씁니다.
+    /// 화면(페이지)을 넘기는 애니메이션과 연달아 누를 때의 순서는 MainTabView(TabPagerSync)가 맞춥니다.
     private func select(_ tab: TabSelection) {
         guard activeTab != tab else { return }
         if reduceMotion {
