@@ -1,7 +1,7 @@
 # Mora 스토어 입력 초안
 
 
-2026-09-30 · 앱 1.0 (5) 기준. **18세 이상 이용 조건을 적용한 성인 대상 서비스다. 공개 정책·Apple 설정·Google 유료 프로젝트·실기기 QA를 완료한 뒤 제출한다.** 아래는 복사 가능한 문구이며 ASC에 저장하거나 공개하지 않았다. 의료·치료 효과, 알람 전달 보장, 백업·동기화, 고정 할인율은 주장하지 않는다.
+2026-10-13 · 앱 1.0 (5) 및 Claude 우선 경로 초안 기준. 운영 반영 상태는 [통합 보고서](MORA_PRELAUNCH_REPORT_20261013.md)를 따른다. **18세 이상 이용 조건을 적용한 성인 대상 서비스다. 공개 정책·Apple 설정·Google 유료 프로젝트·실기기 QA를 완료한 뒤 제출한다.** 아래는 복사 가능한 문구이며 ASC에 저장하거나 공개하지 않았다. 의료·치료 효과, 알람 전달 보장, 백업·동기화, 고정 할인율은 주장하지 않는다.
 
 
 ## 공통 입력
@@ -34,7 +34,7 @@ Mora는 18세 이상을 위한 일정·루틴 앱이에요.
 
 일정과 루틴은 계정 없이 직접 추가하고 관리할 수 있어요. 기본 알림으로 다음 할 일을 확인하고, 완료한 항목을 하나씩 체크해 보세요. 일정은 기기에 저장되며 현재 버전에는 클라우드 백업과 기기 간 일정 동기화가 없어요.
 
-AI 분석은 로그인 없이, 별도의 데이터 전송 동의 후 사용할 수 있어요. 입력한 글 또는 수정한 음성 초안을 Supabase를 통해 Google Gemini에 전송해 분석해요. 무료로 한국 표준시 기준 하루 3회 분석할 수 있어요.
+AI 분석은 로그인 없이, 별도의 데이터 전송 동의 후 사용할 수 있어요. 입력한 글 또는 수정한 음성 초안을 Supabase를 통해 먼저 Anthropic Claude로 전송해요. Claude를 사용할 수 없거나 올바른 결과를 받지 못하면 Google Gemini로 분석해요. 무료로 한국 표준시 기준 하루 3회 분석할 수 있어요.
 
 Mora Pro는 일일 무료 분석 횟수 제한 해제, Pro 알람과 위젯 기능을 제공하는 자동 갱신 구독이에요. 과도한 연속 요청은 일시 제한될 수 있어요. 월간·연간 가격과 기간은 구매 화면에서 확인할 수 있으며 Apple 계정에서 관리·취소하고 앱에서 구매를 복원할 수 있어요. 같은 Apple ID라면 앱을 다시 설치하거나 다른 기기에서도 Pro가 이어져요. 앱이나 Mora 계정 삭제는 구독을 해지하지 않아요.
 
@@ -59,7 +59,7 @@ Capture a task when it comes to mind. Type it or create a voice draft, review th
 
 Add tasks and routines manually without an account. Use basic reminders and check off completed items. Schedules are stored on your device; this version does not offer cloud task backup or synchronization between devices.
 
-AI analysis needs no sign-in, only separate data-sharing consent. Your text or edited speech draft is sent through Supabase to Google Gemini for analysis. The free plan includes three analyses per Korea Standard Time day.
+AI analysis needs no sign-in, only separate data-sharing consent. Your text or edited speech draft is sent through Supabase to Anthropic Claude first, and to Google Gemini if Claude is unavailable or cannot return a valid result. The free plan includes three analyses per Korea Standard Time day.
 
 Mora Pro is an auto-renewing subscription with AI analysis beyond the free daily quota, Pro alarms and widgets. Excessive consecutive requests may be temporarily limited. Choose a monthly or annual plan; the purchase screen shows your current price and subscription period. Manage or cancel subscriptions in your Apple account and restore purchases in the app. With the same Apple ID, Pro carries over when you reinstall or use another device. Deleting the app or Mora account does not cancel a subscription.
 
@@ -84,7 +84,7 @@ Moraは18歳以上の方のためのタスク・ルーティンアプリです�
 
 タスクとルーティンは、アカウントなしで直接追加・管理できます。基本の通知を使い、完了した項目をチェックしましょう。予定は端末内に保存されます。現在のバージョンには予定のクラウドバックアップや端末間の同期はありません。
 
-AI分析にサインインは不要で、データ共有への個別の同意だけが必要です。入力した文章または編集した音声の下書きは、Supabaseを通じてGoogle Geminiへ送信されます。無料プランでは韓国標準時で1日3回分析できます。
+AI分析にサインインは不要で、データ共有への個別の同意だけが必要です。入力した文章または編集した音声の下書きは、Supabaseを通じてまずAnthropic Claudeへ送信されます。Claudeが利用できない場合や有効な結果を得られない場合は、Google Geminiで解析します。無料プランでは韓国標準時で1日3回分析できます。
 
 Mora Proは、無料の1日あたりの分析回数制限を解除し、Proアラームとウィジェットを利用できる自動更新サブスクリプションです。過度の連続リクエストは一時的に制限される場合があります。月間または年間プランを選択でき、現在の価格と期間は購入画面に表示されます。Appleアカウントで管理・解約し、アプリから購入を復元できます。同じApple IDなら、再インストールや別の端末でもProが引き継がれます。アプリやMoraアカウントを削除してもサブスクリプションは解約されません。
 

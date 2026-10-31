@@ -38,10 +38,39 @@ function dependencies(overrides: Partial<AnalysisDependencies> = {}) {
   return { value, calls };
 }
 
+Deno.test("old or missing provider consent cannot reserve, replay, or transmit", async () => {
+  for (const version of [undefined, "1", "3"]) {
+    const mock = dependencies();
+    try {
+      await executeAnalysis({
+        aiConsentVersion: version,
+        requestId,
+        text: "테스트",
+      }, mock.value);
+      throw new Error("expected consent error");
+    } catch (error) {
+      assert(
+        error instanceof AnalysisServiceError &&
+          error.code === "ai_consent_required",
+        "consent gate missing",
+      );
+    }
+    assert(
+      Object.values(mock.calls).every((count) => count === 0),
+      "no work is allowed without consent",
+    );
+  }
+});
+
 Deno.test("successful validated analyses finalize exactly once", async () => {
   const mock = dependencies();
   const result = await executeAnalysis(
-    { requestId, text: "내일 약 먹는 시간 언제로 할까", language: "ko" },
+    {
+      aiConsentVersion: "2",
+      requestId,
+      text: "내일 약 먹는 시간 언제로 할까",
+      language: "ko",
+    },
     mock.value,
   );
   assert(result.requestId === requestId, "request ID was not preserved");
@@ -61,7 +90,10 @@ Deno.test("invalid model output fails reservation and is not finalized", async (
       }]),
   });
   try {
-    await executeAnalysis({ requestId, text: "테스트" }, mock.value);
+    await executeAnalysis(
+      { aiConsentVersion: "2", requestId, text: "테스트" },
+      mock.value,
+    );
     throw new Error("expected invalid response error");
   } catch (error) {
     assert(error instanceof AnalysisServiceError, "expected service error");
@@ -71,13 +103,44 @@ Deno.test("invalid model output fails reservation and is not finalized", async (
   assert(mock.calls.fail === 1, "invalid response must release reservation");
 });
 
+Deno.test("mixed feedback and mutation cannot consume a successful quota", async () => {
+  const mock = dependencies({
+    analyze: () =>
+      Promise.resolve([
+        ...validCall,
+        {
+          function_name: "mark_task_complete",
+          parameters: { target_task_name: "회의" },
+        },
+      ]),
+  });
+  try {
+    await executeAnalysis(
+      { aiConsentVersion: "2", requestId, text: "회의" },
+      mock.value,
+    );
+    throw new Error("expected invalid response");
+  } catch (error) {
+    assert(
+      error instanceof AnalysisServiceError &&
+        error.code === "invalid_model_response",
+      "expected validation failure",
+    );
+  }
+  assert(mock.calls.finalize === 0, "mixed output must not consume quota");
+  assert(mock.calls.fail === 1, "reservation must be released");
+});
+
 Deno.test("quota denial does not call Gemini or mutate a reservation", async () => {
   const mock = dependencies({
     reserve: () =>
       Promise.resolve({ allowed: false, reason: "quota_exhausted" }),
   });
   try {
-    await executeAnalysis({ requestId, text: "테스트" }, mock.value);
+    await executeAnalysis(
+      { aiConsentVersion: "2", requestId, text: "테스트" },
+      mock.value,
+    );
     throw new Error("expected quota error");
   } catch (error) {
     assert(error instanceof AnalysisServiceError, "expected service error");
@@ -99,6 +162,7 @@ Deno.test("logical request ID is bound to the complete input hash", async () => 
   });
   await executeAnalysis(
     {
+      aiConsentVersion: "2",
       requestId,
       text: "내일 회의",
       currentTime: "2026-08-04 09:00",
@@ -120,7 +184,7 @@ Deno.test("committed replay returns cached calls without Gemini or finalize", as
       }),
   });
   const result = await executeAnalysis(
-    { requestId, text: "같은 요청" },
+    { aiConsentVersion: "2", requestId, text: "같은 요청" },
     mock.value,
   );
   assert(result.calls.length === 1, "cached calls missing");
@@ -134,7 +198,11 @@ Deno.test("an active reservation returns 409 without duplicate Gemini work", asy
     reserve: () => Promise.resolve({ allowed: false, reason: "in_progress" }),
   });
   try {
-    await executeAnalysis({ requestId, text: "진행 중 요청" }, mock.value);
+    await executeAnalysis({
+      aiConsentVersion: "2",
+      requestId,
+      text: "진행 중 요청",
+    }, mock.value);
     throw new Error("expected in-progress response");
   } catch (error) {
     assert(error instanceof AnalysisServiceError, "expected service error");

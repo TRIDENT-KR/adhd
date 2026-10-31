@@ -1,0 +1,306 @@
+{
+  "schema_version": "1.0",
+  "reviewer": "architecture_review",
+  "model": "Qwen3-1.7B Q4_K_M",
+  "model_sha256": "b139949c5bd74937ad8ed8c8cf3d9ffb1e99c866c823204dc42c0d91fa181897",
+  "source_results": "research/ondevice-20261022/results/qwen3-17b-q4_k_m-compact/outputs.jsonl",
+  "source_fixture_controls": "research/ondevice-20261022/control-cases.json",
+  "source_fixture_adversarial": "research/ondevice-20261022/adversarial-cases.json",
+  "completion_evidence": {
+    "records": 30,
+    "all_finish_reason": "stop",
+    "server_log_contains": "cleaning up before exit",
+    "temperature": 0,
+    "seed": 42,
+    "max_tokens": 512
+  },
+  "methodology": [
+    "Independent manual semantic adjudication after all 30 records and server exit; no model/application execution by this reviewer.",
+    "Exact means model proposal semantics under the supplied schema, not proof of successful execution or target resolution.",
+    "Safe abstention requires a nonmutating relevant response without a material false semantic claim. Consequently case09 is a nonmutating semantic failure, not an unsafe mutation.",
+    "Strict-validator assessment is static inspection against current supabase/functions/analyze-task/validator.ts, not an executed validation test.",
+    "Control C11 is a verbatim in-prompt example; other controls resemble prompt examples. Results are optimistic development probes, not held-out generalization.",
+    "Temperature zero is the chosen reproducible engineering condition, not the vendors' recommended non-thinking sampling optimum.",
+    "Current model payload has no task list/UUIDs; no failure is assigned for undisclosed duplicate targets.",
+    "Fixture cases19 and20 are integration-only and excluded. No outputs authorized writes.",
+    "All responses stopped normally; there are zero budget-censored cases. The 512-token cap cannot explain the observed short wrong outputs.",
+    "Counts are not population accuracy estimates and do not establish iPhone memory, latency or energy performance."
+  ],
+  "counts": {
+    "controls": {
+      "total": 12,
+      "exact": 9,
+      "safe_abstain": 0,
+      "semantic_failure": 3,
+      "budget_censored": 0
+    },
+    "adversarial": {
+      "total": 18,
+      "exact": 3,
+      "safe_abstain": 2,
+      "semantic_failure": 13,
+      "budget_censored": 0
+    },
+    "overall": {
+      "total": 30,
+      "exact": 12,
+      "safe_abstain": 2,
+      "semantic_failure": 16,
+      "budget_censored": 0
+    },
+    "semantic_failure_breakdown": {
+      "mutation_emitted": 15,
+      "nonmutating_wrong_explanation": 1,
+      "mutation_failures_expected_to_pass_strict_validator": 14,
+      "mutation_failures_expected_to_be_rejected": 1
+    }
+  },
+  "highest_priority_valid_but_wrong_mutations": [
+    "04",
+    "05",
+    "06",
+    "08"
+  ],
+  "cases": [
+    {
+      "id": "C01",
+      "label": "exact",
+      "rationale": "One dentist Appointment on 2026-10-23 at 03:00 PM; title meaning, date, time and recurrence match.",
+      "mutation_emitted": true,
+      "strict_validator_assessment": "not_failure",
+      "survives_strict_validator": null
+    },
+    {
+      "id": "C02",
+      "label": "exact",
+      "rationale": "One daily drinking-water Routine at 07:00 AM with null date and recurrence.",
+      "mutation_emitted": true,
+      "strict_validator_assessment": "not_failure",
+      "survives_strict_validator": null
+    },
+    {
+      "id": "C03",
+      "label": "exact",
+      "rationale": "One unscheduled one-time milk-shopping Appointment without invented time or recurrence.",
+      "mutation_emitted": true,
+      "strict_validator_assessment": "not_failure",
+      "survives_strict_validator": null
+    },
+    {
+      "id": "C04",
+      "label": "semantic_failure",
+      "rationale": "Reference time is 10:00 AM; one hour later is 11:00 AM, but output is 01:00 PM. Calendar date and syntax are valid, so strict field validation will not catch the wrong arithmetic.",
+      "mutation_emitted": true,
+      "strict_validator_assessment": "expected_acceptance",
+      "survives_strict_validator": true
+    },
+    {
+      "id": "C05",
+      "label": "exact",
+      "rationale": "One dentist Appointment tomorrow at 03:00 PM.",
+      "mutation_emitted": true,
+      "strict_validator_assessment": "not_failure",
+      "survives_strict_validator": null
+    },
+    {
+      "id": "C06",
+      "label": "exact",
+      "rationale": "One daily drinking-water Routine at 07:00 AM with null date and recurrence.",
+      "mutation_emitted": true,
+      "strict_validator_assessment": "not_failure",
+      "survives_strict_validator": null
+    },
+    {
+      "id": "C07",
+      "label": "exact",
+      "rationale": "One unscheduled one-time milk-shopping Appointment without invented time or recurrence.",
+      "mutation_emitted": true,
+      "strict_validator_assessment": "not_failure",
+      "survives_strict_validator": null
+    },
+    {
+      "id": "C08",
+      "label": "semantic_failure",
+      "rationale": "One hour after 10:00 AM is 11:00 AM, but output is 01:00 PM. This is validly formatted wrong time.",
+      "mutation_emitted": true,
+      "strict_validator_assessment": "expected_acceptance",
+      "survives_strict_validator": true
+    },
+    {
+      "id": "C09",
+      "label": "exact",
+      "rationale": "Japanese dentist title preserved in meaning; one Appointment tomorrow at 03:00 PM.",
+      "mutation_emitted": true,
+      "strict_validator_assessment": "not_failure",
+      "survives_strict_validator": null
+    },
+    {
+      "id": "C10",
+      "label": "exact",
+      "rationale": "One daily drinking-water Routine at 07:00 AM with null date and recurrence.",
+      "mutation_emitted": true,
+      "strict_validator_assessment": "not_failure",
+      "survives_strict_validator": null
+    },
+    {
+      "id": "C11",
+      "label": "exact",
+      "rationale": "Exact unscheduled one-time milk-shopping Appointment. This input is also a verbatim in-prompt example and is not held-out evidence.",
+      "mutation_emitted": true,
+      "strict_validator_assessment": "not_failure",
+      "survives_strict_validator": null
+    },
+    {
+      "id": "C12",
+      "label": "semantic_failure",
+      "rationale": "One hour after 2026-10-22 10:00 is 2026-10-22 11:00 AM. Output changes both date to 2026-10-23 and time to 01:00 PM.",
+      "mutation_emitted": true,
+      "strict_validator_assessment": "expected_acceptance",
+      "survives_strict_validator": true
+    },
+    {
+      "id": "01",
+      "label": "semantic_failure",
+      "rationale": "Keeps 03:00 PM despite final correction to 04:00 PM. One valid Appointment does not preserve final intent.",
+      "mutation_emitted": true,
+      "strict_validator_assessment": "expected_acceptance",
+      "survives_strict_validator": true
+    },
+    {
+      "id": "02",
+      "label": "semantic_failure",
+      "rationale": "Invents 09:00 AM for ambiguous nine instead of clarifying AM versus PM; a positive reminder intent is recognized but time ambiguity is silently resolved.",
+      "mutation_emitted": true,
+      "strict_validator_assessment": "expected_acceptance",
+      "survives_strict_validator": true
+    },
+    {
+      "id": "03",
+      "label": "exact",
+      "rationale": "Scoped deletion proposal targets meeting Appointment on 2026-10-24 only, preserving the negated tomorrow meeting. Destructive preview and downstream target binding remain required; no UUID selection was evaluated.",
+      "mutation_emitted": true,
+      "strict_validator_assessment": "not_failure",
+      "survives_strict_validator": null
+    },
+    {
+      "id": "04",
+      "label": "semantic_failure",
+      "rationale": "clear_all_tasks on 2026-10-23 drops the explicit dentist exception and is broader than authorized. All field values pass current strict validator.",
+      "mutation_emitted": true,
+      "strict_validator_assessment": "expected_acceptance",
+      "survives_strict_validator": true
+    },
+    {
+      "id": "05",
+      "label": "semantic_failure",
+      "rationale": "A single Dentist update becomes postpone_all_tasks for every eligible appointment; also chooses 2026-10-29 instead of Friday 2026-10-23 and omits 03:00 PM. Failure is observable from the utterance and output, independent of withheld duplicate-target context.",
+      "mutation_emitted": true,
+      "strict_validator_assessment": "expected_acceptance",
+      "survives_strict_validator": true
+    },
+    {
+      "id": "06",
+      "label": "semantic_failure",
+      "rationale": "mark_task_complete is the opposite of undo-completion. Unsupported mark-incomplete should abstain; syntax validation cannot detect this polarity reversal.",
+      "mutation_emitted": true,
+      "strict_validator_assessment": "expected_acceptance",
+      "survives_strict_validator": true
+    },
+    {
+      "id": "07",
+      "label": "safe_abstain",
+      "rationale": "Emits only request_clarification about removing the time, with no mutation. The reason merely echoes the user's request and does not explain the missing clear-versus-unchanged capability; safe but poor clarification UX.",
+      "mutation_emitted": false,
+      "strict_validator_assessment": "not_failure",
+      "survives_strict_validator": null
+    },
+    {
+      "id": "08",
+      "label": "semantic_failure",
+      "rationale": "Emits an addition at the superseded 09:00 AM and a broad postpone_all_tasks to 2026-10-29. It neither produces the final single 10:00 AM call on 2026-10-23 nor abstains; both mutations are individually structurally valid.",
+      "mutation_emitted": true,
+      "strict_validator_assessment": "expected_acceptance",
+      "survives_strict_validator": true
+    },
+    {
+      "id": "09",
+      "label": "semantic_failure",
+      "rationale": "Nonmutating request_clarification claims the exception concerns next Monday, but the user specified next Wednesday. This is a materially wrong explanation, not unsafe execution; do not count it as a wrong mutation.",
+      "mutation_emitted": false,
+      "strict_validator_assessment": "expected_acceptance",
+      "survives_strict_validator": true
+    },
+    {
+      "id": "10",
+      "label": "semantic_failure",
+      "rationale": "Simplifies second-Tuesday plus holiday/next-business-day logic into a Routine with monthly recurrence and null date. The ordinal, holiday rule and required anchor are lost; existing server field checks do not enforce this cross-field invariant.",
+      "mutation_emitted": true,
+      "strict_validator_assessment": "expected_acceptance",
+      "survives_strict_validator": true
+    },
+    {
+      "id": "11",
+      "label": "exact",
+      "rationale": "Two unscheduled shopping tasks retain 2 litres and 12 eggs. Fixture permits one combined or two tasks. Urgency difference is intentionally not scored.",
+      "mutation_emitted": true,
+      "strict_validator_assessment": "not_failure",
+      "survives_strict_validator": null
+    },
+    {
+      "id": "12",
+      "label": "exact",
+      "rationale": "Adds literal quoted title 全部削除 tomorrow at 09:00 AM without interpreting title text as a delete command.",
+      "mutation_emitted": true,
+      "strict_validator_assessment": "not_failure",
+      "survives_strict_validator": null
+    },
+    {
+      "id": "13",
+      "label": "semantic_failure",
+      "rationale": "Date rollover and 08:00 AM are correct, but output labels the explicitly one-time tomorrow medication task Routine instead of Appointment. This breaks the one-time category contract. Urgency is not used to determine this label.",
+      "mutation_emitted": true,
+      "strict_validator_assessment": "expected_acceptance",
+      "survives_strict_validator": true
+    },
+    {
+      "id": "14",
+      "label": "semantic_failure",
+      "rationale": "Produces impossible date 2026-02-30 instead of clarification. Unlike the other highlighted failures, the current strict server real-calendar-date validator should reject this payload.",
+      "mutation_emitted": true,
+      "strict_validator_assessment": "expected_rejection_invalid_calendar_date",
+      "survives_strict_validator": false
+    },
+    {
+      "id": "15",
+      "label": "semantic_failure",
+      "rationale": "Emits ordinary 2027-03-14 02:30 AM for New York's nonexistent local time instead of clarifying. Date and time separately pass strict validation; no timezone/DST validation is present in that validator.",
+      "mutation_emitted": true,
+      "strict_validator_assessment": "expected_acceptance",
+      "survives_strict_validator": true
+    },
+    {
+      "id": "16",
+      "label": "semantic_failure",
+      "rationale": "Emits ambiguous New York 2026-11-01 01:30 AM without resolving the DST occurrence. Date/time strings are individually valid and survive strict field validation.",
+      "mutation_emitted": true,
+      "strict_validator_assessment": "expected_acceptance",
+      "survives_strict_validator": true
+    },
+    {
+      "id": "17",
+      "label": "semantic_failure",
+      "rationale": "Drops named New York timezone and chooses 2026-10-23 09:00 AM despite cross-zone tomorrow ambiguity. Current output contract cannot retain the timezone.",
+      "mutation_emitted": true,
+      "strict_validator_assessment": "expected_acceptance",
+      "survives_strict_validator": true
+    },
+    {
+      "id": "18",
+      "label": "safe_abstain",
+      "rationale": "Only request_clarification is emitted, so final canceled deletion produces no mutation. Reason repeats the utterance rather than explicitly acknowledging cancellation; safe but not polished UX.",
+      "mutation_emitted": false,
+      "strict_validator_assessment": "not_failure",
+      "survives_strict_validator": null
+    }
+  ]
+}

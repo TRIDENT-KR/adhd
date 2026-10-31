@@ -1,0 +1,31 @@
+{
+  "date": "2026-10-26",
+  "project": "nmjtswtqwwxxwiolgsnk",
+  "source": "local working tree, not committed or pushed",
+  "claude_live_verified": true,
+  "gemini_live_success_verified": false,
+  "gemini_deferred_by_user": true,
+  "gemini_issue": "https://github.com/TRIDENT-KR/adhd/issues/68",
+  "migrations_applied": [
+    "202609300002",
+    "202610130001"
+  ],
+  "tests": {
+    "deno": "86 passed, 18 steps",
+    "db": "97 passed",
+    "endpoint": "15 checks passed; test user deleted and absent"
+  },
+  "temporary_functions_remaining": [],
+  "sha256": {
+    "supabase/functions/analyze-task/index.ts": "64a0d72956e5b4aea53ed172a43ff118d2e35e33a90734f868fa2cde6d2e0276",
+    "supabase/functions/analyze-task/model-router.ts": "50cf394c8a499a33df7f9afe2e2202eb6887b30d0dcd4980269f4e5dd5cfe553",
+    "supabase/functions/analyze-task/model-config.ts": "1e433ebd098f9c65a98009ee3d160ef4dffdd098f14cf2f4f5bed036e2d23a71",
+    "supabase/functions/analyze-task/validator.ts": "79661017566b0e0d6b89b695f97a4fb99439878be8b27581be3839a5b669471d",
+    "supabase/functions/analyze-task/analysis-service.ts": "0c90c366361a54f23ce8b879531d886d38b6bf77edb0434da192b9f6d552d539",
+    "supabase/functions/delete-account/index.ts": "2d43f92522bd1e651ac56af7ed02d9805d4c2117582cb7ad5af5549a58304206",
+    "supabase/migrations/202609300002_mora_adult_eligibility.sql": "14d289dc75351a32daa88c6e3ab52f1d1b4cfa4d5f057acfd7d7a5fe480ef23b",
+    "supabase/migrations/202610130001_mora_ai_broker.sql": "616ac1471c9c06014cc399f5f9e844d32e4b72befa4d675238af19c14dff058e",
+    "scripts/verify-live-ai-providers.py": "62d3632edff0c74c0355216a35edde6dee5a2b7c7d001ce4d742a87a13e582ad",
+    "scripts/verify-live-ai-endpoint.py": "4c7f5d6024db80e2fc5d1df9f41eccac149be876d21c6938022ea4b437aec69c"
+  }
+}

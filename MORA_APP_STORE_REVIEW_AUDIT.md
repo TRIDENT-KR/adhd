@@ -1,5 +1,7 @@
 # Mora App Store 재감사 및 수정 결과
 
+> **2026-10-13 갱신:** Claude 우선 → Gemini Flash-Lite 전환과 AI 동의 v2를 구현했다. 최신 배포 순서·검증·미완료 항목은 [출시 전 통합 보고서](MORA_PRELAUNCH_REPORT_20261013.md)를 따른다. 아래 9월 기록의 Gemini 단독 구조와 배포 순서는 현재 기준이 아니다.
+
 > **2026-09-30 구현 갱신:** 18세 이상 성인 대상·Gemini 유지. `adult-v1` 자기확인·계정별 RPC·AI 서버 gate·신규 구매 제한을 구현했다. 자기확인은 신원·실제 나이 검증이 아니다. 공개 정책·ASC 반영, 새 migration/AI gate 배포와 실제 기기 검증은 아직 완료되지 않았다.
 
 2026-09-30 · 현재 소스 1.0 (5), 기존 감사 RC 1.0 (4) · **확인된 코드 결함과 성인 자기확인을 구현했다. 심사 제출은 Apple 계정 작업·Google 프로젝트 조건·공개 정책 게시·호환 앱/서버 배포·실기기 검증이 남아 있어 BLOCKED다.** Apple 계정 내부 설정·계약·서명·업로드는 이번 작업에서 보류했다. 수정 전 상세 근거는 Git `5472051`의 이 문서와 `outputs/release-readiness/20260929-final-implementation/audit-before.md`에 보존했다. 심사 통과를 보장하거나 미실행 항목을 PASS로 처리하지 않는다.
@@ -82,4 +84,4 @@ Pro 알람·위젯은 기존 제품 정책대로 유지했다. 기본 알림은 
 
 [앱 PR #65](https://github.com/TRIDENT-KR/adhd/pull/65) · [웹 PR #1](https://github.com/TRIDENT-KR/waitwhat-site/pull/1). main 자동 병합은 저장소 CLAUDE.md의 명시적 금지에 따라 하지 않는다.
 
-기존 공급자 조건 검토 근거에는 [Google Cloud 서비스 조건](https://cloud.google.com/terms/service-terms)도 포함된다. 출시 제공자는 Gemini로 유지하며 다른 제공자 전환은 현재 계획이 아니다.
+기존 공급자 조건 검토 근거에는 [Google Cloud 서비스 조건](https://cloud.google.com/terms/service-terms)도 포함된다. 2026-10-13부터 Claude 우선·Gemini 대체로 구현을 변경했다. 이 변경에 따른 공개 정책·계정 설정은 통합 보고서의 미완료 항목이다.

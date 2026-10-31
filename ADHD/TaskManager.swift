@@ -133,7 +133,6 @@ class TaskManager: ObservableObject {
     }
 
     // MARK: - Daily / Weekly Reset Logic
-    private let lastResetKey = "lastResetDate"
 
     /// ISO 8601 기준 캘린더 (주 시작: 월요일). 타임존은 기기 로컬 자동 적용.
     private var isoCalendar: Calendar {
@@ -163,6 +162,8 @@ class TaskManager: ObservableObject {
     /// now/defaults 파라미터는 단위 테스트 주입용 (기존 무인자 호출은 그대로 유효)
     /// 저장소가 계정마다 따로이므로 기준일도 계정별로 둡니다. 게스트는 기존 전역 키를 씁니다.
     /// 계정 키가 아직 없으면(업데이트 직후) 기존 전역 값을 한 번 이어받습니다.
+    private let lastResetKey = "lastResetDate"
+
     private func lastResetRecord(defaults: UserDefaults) -> (key: String, date: Date?) {
         let resetKey = AccountPreferences.scopedKey(AccountPreferences.lastResetDateBase, defaults: defaults)
             ?? lastResetKey
@@ -186,6 +187,7 @@ class TaskManager: ObservableObject {
         do {
             let allTasks = try context.fetch(FetchDescriptor<AppTask>())
             let routineTasks = allTasks.filter { $0.category == "Routine" || $0.isRecurring }
+            let previousStates = routineTasks.map { ($0, $0.isCompleted, $0.weeklyCompletions) }
 
             // 1) 어제(lastReset) 요일에 완료 여부 기록
             if let lastReset {
@@ -212,8 +214,16 @@ class TaskManager: ObservableObject {
             }
             let resetCount = resetTasks.count
 
+            guard safeSave() else {
+                // Preserve yesterday's completion for the next retry without
+                // rolling back unrelated edits in this context.
+                for (task, completed, weekly) in previousStates {
+                    task.isCompleted = completed
+                    task.weeklyCompletions = weekly
+                }
+                return
+            }
             defaults.set(now, forKey: resetKey)
-            safeSave()
 
             // 4) 어제 완료하면서 '오늘만 건너뛰기'로 바꿔 둔 알림을 원래 반복 예약으로 되돌림
             for task in resetTasks {

@@ -1,12 +1,18 @@
 # MORA App Store 제출 인계서
 
+> 2026-10-29 명칭 정리: 평가 도구의 공식 이름은 [MORA Eval — MORA AI 평가 하네스](tools/mora-eval/README.md)입니다. 이전 작업자 이름을 도구 이름으로 사용하지 않습니다. 기존 로컬 앱·서버·연구 변경도 2026-10-29 통합 대상에 포함했습니다. 아래 미커밋·인수 상태는 작성 당시 이력이며, 현재 구현·검증 상태는 새 하네스 문서를 따릅니다.
+
+> **2026-10-26 운영 갱신:** 성인 확인·AI 원장 migration, `analyze-task` v24 및 `delete-account` v5를 배포했다. Claude 우선 실제 분석은 3개 언어로 성공했다. Gemini 대체 성공은 HTTP 402로 [#68](https://github.com/TRIDENT-KR/adhd/issues/68)에 보류했다. 아래 과거 미배포 기록보다 [서버 배포 보고서](MORA_SERVER_DEPLOYMENT_20261026.md)가 우선한다. 앱 배포·Apple 계정 작업·실기기 검증 완료를 뜻하지 않는다.
+
+> **2026-10-13 갱신:** Claude 우선 → Gemini Flash-Lite 전환과 AI 동의 v2를 구현했다. 최신 배포 순서·검증·미완료 항목은 [출시 전 통합 보고서](MORA_PRELAUNCH_REPORT_20261013.md)를 따른다. 아래 9월 기록의 Gemini 단독 구조와 배포 순서는 현재 기준이 아니다.
+
 > **2026-09-30 구현 갱신:** 18세 이상 성인 대상·Gemini 유지. `adult-v1` 자기확인 UI, 계정별 서버 기록, AI·신규 구매 제한과 개인정보 신고 문안을 구현했다. 자기확인은 신원·실제 나이 검증이 아니다. 새 migration과 AI gate는 아직 운영에 배포하지 않았으며, 공개 정책 게시·ASC 입력·Apple 계정 작업·실기기 검증은 남는다.
 
 계정 작업의 담당·순서·정확한 값은 [계정 설정 인계 체크리스트](MORA_ACCOUNT_SETUP_CHECKLIST.md)를 먼저 본다. 이 문서는 입력 초안·검증 순서다. 현재 제출 승인이 아니다. 최신 상태는 [출시 준비 결과](MORA_RELEASE_READINESS.md)를 따른다. 담당자는 아래 결과를 확인한 뒤 ASC에 입력하며, 아직 없는 심사 계정이나 테스트 결과를 만들었다고 기재하지 않는다.
 
 **이전 검증:** 2026-09-29 [재감사 조치](MORA_APP_STORE_REVIEW_AUDIT.md)의 삭제 복구·구독 순서·위젯 안내·게스트 경로·OSS 등을 구현했고 구독 서버를 v2로 배포했다. 당시 Swift111/Deno60/DB68 회귀를 통과했다. 이를 이번 성인 확인 구현의 새 검사로 세지 않는다. **이번 서버 회귀는 Deno61개(성인 확인 9개 하위 검사 포함), 격리DB86개가 통과했다.** 실제 Apple 구매·복원·삭제, 서명·업로드 및 실기기 완료 증명은 아니다. ASC는 실제 값을 확인하지 못했고 [3언어 스토어 문안](MORA_STORE_METADATA.md)은 입력 초안이다.
 
-사용자용 짧은 실행표는 [출시 준비 결과의 남은 일](MORA_RELEASE_READINESS.md#남은-일을-쉽게-정리하면)을 따른다. 출시 모델은 Gemini 3.5 Flash-Lite다. AI 제공자 교체는 현재 작업 범위가 아니다.
+사용자용 짧은 실행표는 [출시 준비 결과의 남은 일](MORA_RELEASE_READINESS.md#남은-일을-쉽게-정리하면)을 따른다. 현재 AI 구성은 Claude 우선, Gemini 3.5 Flash-Lite 대체이며 운영 서버 배포는 2026-10-26 완료했다. Gemini 대체 성공은 결제 문제 해결 후 검증한다.
 
 ## Apple 계정 작업 — 이번 작업에서는 보류
 
@@ -24,7 +30,7 @@
 2. 명시적인 계정별 18세 이상 자기확인 화면을 포함한 호환 앱을 제공하고 RPC 연결·계정 전환을 확인한다. 게스트의 기기 내 응답이 로그인 계정의 서버 승인으로 복사되지 않는다.
 3. 이후 `analyze-task`의 서버 gate를 배포한다. 미확인·구버전 기록은 한도 예약·캐시 재생·Gemini 호출 전에 403 `adult_eligibility_required`, 조회 실패는 503으로 차단한다. **확인 UI 없는 기존 앱보다 gate를 먼저 배포하면 AI 사용이 막힌다.**
 
-새 migration과 gate는 모두 아직 미배포다. 상세 계약·보관·회귀는 [서버 성인 확인 문서](supabase/ADULT_ELIGIBILITY.md)를 따른다. 서버의 기존 구독 동기화·복원·권한 조회·계정 삭제는 자기확인이 없어도 유지한다. 앱의 제한 화면에서는 Apple 구독 관리·탈퇴·지원에 접근할 수 있고 신규 구매는 앱에서 확인 후 진행한다.
+새 migration과 gate는 2026-10-26 운영 배포했다. 상세 계약·보관·회귀는 [서버 성인 확인 문서](supabase/ADULT_ELIGIBILITY.md)를 따른다. 서버의 기존 구독 동기화·복원·권한 조회·계정 삭제는 자기확인이 없어도 유지한다. 앱의 제한 화면에서는 Apple 구독 관리·탈퇴·지원에 접근할 수 있고 신규 구매는 앱에서 확인 후 진행한다.
 
 ## 개인정보·연령·메타데이터
 
@@ -51,7 +57,7 @@
 
 > Mora is an iPhone task and routine organizer for adults aged 18 and older. The app asks for an explicit adult self-attestation, not identity or age-document verification. An under-18 response restricts regular use while account deletion, Apple subscription management and support remain accessible. Mora does not require sign-in. On first launch the app creates an anonymous server identifier (Supabase anonymous sign-in) used only for the server-side AI usage limit, subscription ownership and the adult self-attestation record. Mora is not a medical diagnostic or treatment app. Tasks are stored locally on the device; cloud task backup is not offered in this version.
 >
-> After the adult self-attestation, users can add and edit tasks right away without signing in. AI analysis is optional and needs no sign-in. Before the first analysis, the app explains sharing with Supabase and Google Gemini and requests separate consent. Voice transcription uses Apple's speech recognition. Users can review and edit the text before tapping Analyze and withdraw AI sharing consent in Settings. The free AI allowance is three successful analyses per day, resetting at midnight Asia/Seoul.
+> After the adult self-attestation, users can add and edit tasks right away without signing in. AI analysis is optional and needs no sign-in; the app uses an anonymous server identifier for the free allowance and purchases. Before the first analysis, the app explains sharing through Supabase with Anthropic Claude first and Google Gemini as a fallback, and requests separate consent (version 2). Voice transcription uses Apple's speech recognition. Users can review and edit the text before tapping Analyze and withdraw AI sharing consent in Settings. The free AI allowance is three successful analyses per day, resetting at midnight Asia/Seoul.
 >
 > Subscription prices and periods are shown on the Pro screen. Purchases and Restore Purchases work without signing in. A subscription follows the Apple ID: after reinstalling the app or on another device with the same Apple ID, Pro is restored automatically. Pro removes the free daily AI quota; excessive consecutive requests can be temporarily limited. Restore Purchases is available on the Pro screen. Deleting the app does not cancel the App Store subscription; the app provides Apple's subscription management link.
 >
@@ -69,12 +75,12 @@
 2. Free/Pro 각각 약한 알림·전체 화면 알람·위젯을 foreground/background/앱 종료·잠금에서 확인한다. 실제 전달 시각과 알람 취소/반복 재예약을 기록한다.
 3. 로그인 없이 Sandbox 월간 또는 연간 구매 → 앱 재시작 → 앱 삭제 후 재설치 → Pro 자동 유지 → 같은 Apple ID의 다른 기기에서 Pro 유지 → 다른 Apple ID 기기에서는 무료를 확인한다(#76). 취소/pending/만료/grace/환불·역순 알림이 모든 기기에 반영되는지도 검사한다.
 4. 폐기 전용 계정에서 활성 구독 안내 → Apple 재인증 → 삭제 진행/실패 재개 → 완료 안내와 게스트 화면 복귀, 해당 계정 로컬/서버 삭제를 확인한다. 실제 사용자의 계정으로 시험하지 않는다.
-5. [QA 계획](MORA_RELEASE_QA_PLAN.md)의 나머지 case를 기록하고, Luna의 검수된 LLM 평가를 인수한다. 같은 RC의 internal TestFlight 48시간 관찰을 완료한 뒤 제출한다. 두 기기/48시간은 팀 품질 기준이며 Apple의 일률적 필수 요건은 아니다.
+5. [QA 계획](MORA_RELEASE_QA_PLAN.md)의 나머지 case를 기록하고, MORA Eval의 검수된 LLM 평가를 인수한다. 같은 RC의 internal TestFlight 48시간 관찰을 완료한 뒤 제출한다. 두 기기/48시간은 팀 품질 기준이며 Apple의 일률적 필수 요건은 아니다.
 
 ## Git 인수
 
 - 앱 통합 PR을 먼저 검토·merge한다. PR #57을 별도로 통째로 merge하면 main의 정책/서버 변경과 충돌하므로 인수 스냅샷으로 남긴다.
-- 원래 checkout의 Luna 하네스는 미커밋 상태를 보존했다. 통합 브랜치와 합칠 때 prompt 추출 전후 동일성 및 운영 모델/서버 계약을 다시 검증한다.
+- 최초 하네스 PR에서는 원래 checkout의 미커밋 변경을 보존했다. 후속 통합에서 로컬 변경을 함께 커밋하고 공유 prompt의 동일성 및 강화된 서버 계약을 다시 검증했다.
 - main 자동 merge는 저장소 CLAUDE.md의 명시적 제한으로 수행하지 않았다. 앱 통합 PR은 [#65](https://github.com/TRIDENT-KR/adhd/pull/65)이며 검토 후 `gh pr merge 65 --repo TRIDENT-KR/adhd --squash --delete-branch`로 인수할 수 있다. 웹 PR은 성인 대상·자기확인·Gemini·실제 보관 정책 문안을 검토한 뒤 병합·게시한다. 앱 코드 병합만으로 서버 gate나 공개 정책이 배포된 것으로 처리하지 않는다.
 
 최종9/30 앱 검증: Swift121개(실패/건너뜀0), 앱/위젯1.0(5) 무서명 Release archive, 컴파일 경고0. 성인 게이트·거절 재실행·관리 접근은 단일 시뮬레이터 표본 통과. 실제 Apple 구매/탈퇴와 서명은 별도다. 최신 증거는 `outputs/release-readiness/20260930-adult-release/`.

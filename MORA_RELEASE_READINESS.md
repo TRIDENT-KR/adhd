@@ -1,8 +1,10 @@
 # Mora 출시 준비 결과 — 2026-09-30
 
+> 2026-10-29 명칭 정리: 평가 도구의 공식 이름은 [MORA Eval — MORA AI 평가 하네스](tools/mora-eval/README.md)입니다. 이전 작업자 이름을 도구 이름으로 사용하지 않습니다. 아래 미커밋·인수 상태는 작성 당시 이력이며, 현재 구현·검증 상태는 새 하네스 문서를 따릅니다.
+
 **확인된 출시 전 코드 결함과 성인 전용 이용 확인을 구현했다. 아직 App Store 제출 완료 상태는 아니다.** 9/29 서버 수정은 운영 반영됐지만 이번 adult-v1 변경은 미배포다. 남은 조건은 코드 인수·순차 배포, Apple/Google 계정 설정, 공개 정책 게시, 서명과 실제 기기 QA다. 심사 통과를 보장하거나 실행하지 않은 검사를 통과로 기록하지 않는다.
 
-앱 [PR #65](https://github.com/TRIDENT-KR/adhd/pull/65) · 웹 [PR #1](https://github.com/TRIDENT-KR/waitwhat-site/pull/1). 작업은 관리 worktree에서 했으며 원래 checkout의 Luna 하네스·prompt 미커밋 변경을 보존했다. 팀원 PR #57의 필요한 Gemini/페이월 동작은 통합됐고 해당 구 브랜치를 통째로 병합할 필요는 없다.
+앱 [PR #65](https://github.com/TRIDENT-KR/adhd/pull/65) · 웹 [PR #1](https://github.com/TRIDENT-KR/waitwhat-site/pull/1). 작업은 관리 worktree에서 했으며 당시 원래 checkout의 평가 도구 초안·prompt 미커밋 변경을 보존했다. 팀원 PR #57의 필요한 Gemini/페이월 동작은 통합됐고 해당 구 브랜치를 통째로 병합할 필요는 없다.
 
 **9/30 코드 구현 결과:** [출시 잔여 점검](MORA_RELEASE_REMAINING_20260930.md)을 우선한다. 아래 새 검증표 외 기존 배포·실제 HTTP·UI 증거는9/29 이력이다. Apple 계정 작업은 사용자 요청으로 보류했다.
 
@@ -27,7 +29,7 @@
 | 검사 | 결과 | 증거와 한계 |
 |---|---|---|
 | Swift 9/30 | **121 passed / 0 failed / 0 skipped**, 20 suites | 성인 확인9개·관리복원 범위1개 추가, 기존 인증·삭제·저장 회귀 포함. 최종 테스트 빌드 경고0 |
-| Deno 9/30 | **61 passed (9 steps) / 0 failed** | 성인 확인 실제 handler 차단 포함. Luna eval/레거시 유료 러너 제외 |
+| Deno 9/30 | **61 passed (9 steps) / 0 failed** | 성인 확인 실제 handler 차단 포함. MORA Eval eval/레거시 유료 러너 제외 |
 | PostgreSQL 9/30 | **86 passed / 0 failed** | 임시DB 전체 migration·연령 RPC 권한/삭제·기존 원장/환불/소유권/보관 회귀. 운영 fixture 없음 |
 | 배포 소스 | **4개 함수 PASS** | 실제 다운로드한 모든 상대 import 소스 SHA-256·ACTIVE·gateway 설정 일치 |
 | 실제 HTTP 차단 | **4개 경로 PASS** | analyze/delete/storekit 무인증401, 알림 위조 서명400. 실제 Apple 거래 성공의 증거 아님 |
@@ -40,7 +42,7 @@
 
 **9/29 UI에서 직접 확인:** 온보딩 스킵, 알림 권한 거절 후 기본 사용, 게스트 수동 일정 저장·완료, 종료/재시작 후 일정·완료 상태 보존, 게스트 AI 안내와 로그인 취소, 무료/게스트의 Apple 구독 관리 링크, 일본어 설정·라이선스 본문, 빈 플래너에서 로그인 없는 수동 추가. 새 일정은 합성 QA 문장만 사용했다. 실제 Apple 로그인·구매·복원·음성 전사·알람 전달을 PASS로 기록하지 않았다.
 
-이전 실제 Gemini smoke에서는 지정 임시 staging Auth 계정의 합성 입력3회 성공, 동일 요청 replay 무차감, 네 번째 무료 요청429를 확인했다. 이번에는 모델/분석 서버를 바꾸지 않았고 추가 유료 호출은 하지 않았다. 이 결과는 LLM 의미 정확도나 p95 성능 점수가 아니며 Luna 평가와 별개다.
+이전 실제 Gemini smoke에서는 지정 임시 staging Auth 계정의 합성 입력3회 성공, 동일 요청 replay 무차감, 네 번째 무료 요청429를 확인했다. 이번에는 모델/분석 서버를 바꾸지 않았고 추가 유료 호출은 하지 않았다. 이 결과는 LLM 의미 정확도나 p95 성능 점수가 아니며 MORA Eval 평가와 별개다.
 
 ## 운영 반영
 

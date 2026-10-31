@@ -70,7 +70,10 @@ Deno.serve(async (request: Request) => {
   let requestId: string | null = null;
   try {
     const body = await readStrictJSON(request);
-    requestId = typeof body.requestId === "string" ? body.requestId : null;
+    requestId = typeof body.requestId === "string" &&
+        /^[0-9a-f-]{36}$/i.test(body.requestId)
+      ? body.requestId
+      : null;
     const service = serviceClient();
 
     if (isStatusRequest(body)) {
@@ -112,6 +115,23 @@ Deno.serve(async (request: Request) => {
       requiredEnv("DELETION_STATUS_SECRET"),
     );
     const tokenHash = await sha256Hex(statusToken);
+    const existing = await rpc<DeletionJob | null>(
+      service,
+      "mora_get_account_deletion_status",
+      { p_request_id: begin.requestId, p_status_token_hash: tokenHash },
+    );
+    // A fresh Supabase JWT is not proof of interactive Apple authentication.
+    // Validate the Apple code/subject before creating a durable account lock.
+    // Already-revoked jobs can resume without exchanging a one-time code again.
+    // A verified anonymous account sends no code; advanceDeletion re-checks it with Auth.
+    const appleTokens = existing?.appleRevokedAt ||
+        authenticated.appleSubject === null ||
+        begin.appleAuthorizationCode === null
+      ? undefined
+      : await exchangeAndValidateAppleTokens(
+        begin.appleAuthorizationCode,
+        authenticated.appleSubject,
+      );
     const begun = await rpc<DeletionJob>(
       service,
       "mora_begin_account_deletion",
@@ -130,13 +150,7 @@ Deno.serve(async (request: Request) => {
         service,
         begin.requestId,
         tokenHash,
-        authenticated.appleSubject === null ||
-          begin.appleAuthorizationCode === null
-          ? undefined
-          : {
-            authorizationCode: begin.appleAuthorizationCode,
-            expectedAppleSubject: authenticated.appleSubject,
-          },
+        appleTokens,
       );
       return responseForJob(advanced, statusToken);
     } catch (error) {
@@ -161,6 +175,9 @@ Deno.serve(async (request: Request) => {
     }
   } catch (error) {
     if (error instanceof DeletionFailure) {
+      if (error.requiresAppleReauth) {
+        return jsonError(409, "apple_reauth_required", requestId);
+      }
       return jsonError(error.status, error.code, requestId);
     }
     console.error("account_deletion_unexpected_failure", { requestId });
@@ -172,9 +189,7 @@ async function advanceDeletion(
   service: SupabaseClient,
   requestId: string,
   tokenHash: string,
-  apple:
-    | { authorizationCode: string; expectedAppleSubject: string }
-    | undefined,
+  apple: AppleTokenResponse | undefined,
 ): Promise<DeletionJob> {
   let job = await rpc<DeletionJob | null>(
     service,
@@ -194,10 +209,7 @@ async function advanceDeletion(
   try {
     if (!job.appleRevokedAt) {
       if (apple) {
-        await exchangeValidateAndRevokeAppleTokens(
-          apple.authorizationCode,
-          apple.expectedAppleSubject,
-        );
+        await revokeValidatedAppleTokens(apple);
       } else if (!(await isAnonymousAuthUser(service, jobUserId))) {
         await markRetry(
           service,
@@ -325,14 +337,16 @@ async function authenticateRecentSession(
   return { user: data.user, appleSubject };
 }
 
-async function exchangeValidateAndRevokeAppleTokens(
+async function exchangeAndValidateAppleTokens(
   authorizationCode: string,
   expectedAppleSubject: string,
-): Promise<void> {
+): Promise<AppleTokenResponse> {
   const clientId = requiredEnv("APPLE_CLIENT_ID");
   const clientSecret = requiredEnv("APPLE_CLIENT_SECRET");
   const tokenResponse = await fetch("https://appleid.apple.com/auth/token", {
     method: "POST",
+    redirect: "error",
+    signal: AbortSignal.timeout(10_000),
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
       client_id: clientId,
@@ -346,7 +360,12 @@ async function exchangeValidateAndRevokeAppleTokens(
   }
 
   const tokens = await tokenResponse.json() as Partial<AppleTokenResponse>;
-  if (!tokens.access_token || !tokens.id_token) {
+  if (
+    typeof tokens.access_token !== "string" || !tokens.access_token ||
+    typeof tokens.id_token !== "string" || !tokens.id_token ||
+    (tokens.refresh_token !== undefined &&
+      typeof tokens.refresh_token !== "string")
+  ) {
     throw new DeletionFailure("apple_token_response_invalid", 409, false, true);
   }
   const subject = await verifyAppleIdentityToken(tokens.id_token, clientId);
@@ -354,6 +373,14 @@ async function exchangeValidateAndRevokeAppleTokens(
     throw new DeletionFailure("apple_identity_mismatch", 409, false, true);
   }
 
+  return tokens as AppleTokenResponse;
+}
+
+async function revokeValidatedAppleTokens(
+  tokens: AppleTokenResponse,
+): Promise<void> {
+  const clientId = requiredEnv("APPLE_CLIENT_ID");
+  const clientSecret = requiredEnv("APPLE_CLIENT_SECRET");
   await revokeAppleToken(
     tokens.access_token,
     "access_token",
@@ -378,6 +405,8 @@ async function revokeAppleToken(
 ): Promise<void> {
   const response = await fetch("https://appleid.apple.com/auth/revoke", {
     method: "POST",
+    redirect: "error",
+    signal: AbortSignal.timeout(10_000),
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
       client_id: clientId,
@@ -461,7 +490,10 @@ async function appleKeys(): Promise<AppleJWK[]> {
   if (appleKeyCache && appleKeyCache.expiresAt > Date.now()) {
     return appleKeyCache.keys;
   }
-  const response = await fetch("https://appleid.apple.com/auth/keys");
+  const response = await fetch("https://appleid.apple.com/auth/keys", {
+    redirect: "error",
+    signal: AbortSignal.timeout(10_000),
+  });
   if (!response.ok) {
     throw new DeletionFailure(
       "apple_signing_key_unavailable",

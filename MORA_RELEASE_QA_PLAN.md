@@ -1,5 +1,7 @@
 # MORA 출시 전 최종 QA 실행 계획
 
+> 2026-10-29 명칭 정리: 평가 도구의 공식 이름은 [MORA Eval — MORA AI 평가 하네스](tools/mora-eval/README.md)입니다. 이전 작업자 이름을 도구 이름으로 사용하지 않습니다. 아래 미커밋·인수 상태는 작성 당시 이력이며, 현재 구현·검증 상태는 새 하네스 문서를 따릅니다.
+
 > **2026-09-30 결정 변경:** 성인 전용 출시·Gemini 유지. 이전 전 연령/AI 교체 계획은 폐기한다. 최신 미완료 항목은 [출시 잔여 점검](MORA_RELEASE_REMAINING_20260930.md)을 따른다. 성인 자기 확인 앱·서버·웹 코드는 구현했다. 운영 배포·공개 게시·스토어 설정은 별도다.
 
 상태 갱신: **2026-09-30 성인 전용 코드 구현 완료. 전체 출시는 외부 조건으로 BLOCKED.** 최신 앱1.0(5), 운영 서버는 기존 backend86117cd이며 새 연령 gate는 미배포. [준비 결과](MORA_RELEASE_READINESS.md)와 [재감사 조치표](MORA_APP_STORE_REVIEW_AUDIT.md)를 우선한다.
@@ -8,7 +10,7 @@
 - 9/30 Swift121/Deno61(9steps)/격리DB86·무서명 Release1.0(5) 통과, 컴파일 경고0. 9/29 전체 함수 다운로드 소스 일치. analyze-task v22 / delete-account v3 / storekit-sync v2 / app-store-notifications v2, migration4개.
 - 단일 시뮬레이터에서 실제 게스트 수동 추가·완료·재시작 보존·로그인 취소·관리 링크·일본어 설정/라이선스·빈 플래너 수동 진입 확인.
 - Apple secret/계약/상품/서명/실제 거래·기기, Google 유료 데이터·지역 조건, 공개 정책·ASC·TestFlight는 미완료. 두 기기/48시간은 팀 기준이지 Apple 일률적 필수 규정이 아니다.
-- 원래 checkout의 Luna 하네스·prompt 작업은 보존. 모델 의미평가와 앱 QA를 분리한다. 본문 §7~8의 구 결과는 이력이다.
+- 당시 원래 checkout의 평가 도구 초안·prompt 작업은 보존. 모델 의미평가와 앱 QA를 분리한다. 본문 §7~8의 구 결과는 이력이다.
 
 | Gate | 현재 상태 | 남은 범위 |
 |---|---|---|
@@ -26,7 +28,7 @@
 
 ## 1. 역할과 범위
 
-- Luna: 재사용 가능한 LLM 평가 하네스 구현. 해당 파일·프롬프트를 이 QA 작업에서 동시에 수정하지 않는다.
+- 평가 담당: MORA Eval로 모델 품질을 측정한다. 앱 QA와 데이터·프롬프트 편집 범위를 조율한다.
 - Codex: 통합 출시 QA, 환경 확인, 자동 테스트, 결함 기록, 원인 조사, 수정 후 영향 범위 재검증.
 - 사용자: 물리 기기에서 필요한 권한·Apple 인증·Sandbox 결제 및 알람 관찰. 사람이 필요한 단계에서 짧은 절차만 전달한다.
 - 현재 운영 모델: `gemini-3.5-flash-lite`. 성인 전용으로 유지한다. 하네스 점수는 AI 품질 근거이며 전체 앱 출시 승인을 대체하지 않는다.
@@ -46,7 +48,7 @@
 
 ## 3. RC와 증거 관리
 
-RC마다 Git SHA, dirty diff 여부, 앱 버전/build, Xcode, OS·기기, 배포 함수/DB 버전, 모델·프롬프트 hash, 실행 날짜를 고정한다. Luna 변경이 합쳐지면 새 RC로 취급한다. 자동 테스트 결과와 실기기 결과가 다른 SHA면 별도 기록한다.
+RC마다 Git SHA, dirty diff 여부, 앱 버전/build, Xcode, OS·기기, 배포 함수/DB 버전, 모델·프롬프트 hash, 실행 날짜를 고정한다. MORA Eval 변경이 합쳐지면 새 RC로 취급한다. 자동 테스트 결과와 실기기 결과가 다른 SHA면 별도 기록한다.
 
 산출물은 `outputs/release-qa/<rc-id>/`에 보관한다:
 
@@ -62,7 +64,7 @@ RC마다 Git SHA, dirty diff 여부, 앱 버전/build, Xcode, OS·기기, 배포
 
 ### Gate 0 — 출시 경로가 실제 연결되어 있는지
 
-1. 로컬 변경과 Luna 작업 범위 확인. 동시에 변경되는 checkout에서 파괴적 Git 명령을 실행하지 않는다.
+1. 로컬 변경과 MORA Eval 작업 범위 확인. 동시에 변경되는 checkout에서 파괴적 Git 명령을 실행하지 않는다.
 2. 앱 Bundle ID, App Group, 최소 iOS(현재 26.2), signing, widget extension, scheme·Release 설정 확인.
 3. 연결된 Supabase 환경의 migration/RPC/function 버전을 읽기 전용으로 대조. 키는 값 대신 존재와 연결 성공 여부만 기록.
 4. Gemini 목표 모델 호출 가능 여부, quota·rate limit·오류 로그 경로 확인. live 호출 예산은 하네스 실행과 일관되게 통제.
@@ -81,7 +83,7 @@ RC마다 Git SHA, dirty diff 여부, 앱 버전/build, Xcode, OS·기기, 배포
 - Debug 및 Release 앱·위젯 빌드, signed archive validation. 무서명 generic 빌드는 보조 증거다.
 - 사용자 자원 제한에 따라 build/Swift jobs 1, 낮은 우선순위, 병렬 테스트·index store 비활성으로 실행하고 simulator는 한 대만 켠다. 무거운 작업을 겹치지 않는다. 환경 오류와 제품 결함을 구분한다.
 - 보안 DB 검증은 격리된 임시 DB에서 migration 재적용, 권한, quota 경합, 삭제 상태 머신, cleanup을 검증한다. 운영 DB에 fixture를 주입하지 않는다.
-- Luna 하네스의 offline 테스트 및 smoke 통합 결과를 인수한다. 기존 테스트와 새 결과를 혼동하지 않는다.
+- MORA Eval 하네스의 offline 테스트 및 smoke 통합 결과를 인수한다. 기존 테스트와 새 결과를 혼동하지 않는다.
 
 완료 조건: 필수 테스트 실패 0, Release 앱·위젯 archive 검증 성공. 경고는 영향과 수용 이유를 기록한다.
 
@@ -171,16 +173,16 @@ App Store 제출 준비는 별도 체크: 실제 build의 권한 설명·개인�
 
 ## 6. 다음 실행 기준
 
-통합 PR 검토·merge → 미완료 Apple/Google/ASC 설정·정책 게시 → 지정 계정·실기기 E2E → 별도 Luna LLM 평가 → 동일 RC TestFlight 48시간 → App Store 제출 순서다. 서버는 초기 통합 backend `9423851` 이후 `86117cd`의 StoreKit 보완과 네 번째 migration까지 배포했다. main은 merge 전 구 모델을 포함하므로 그대로 재배포하지 않는다.
+통합 PR 검토·merge → 미완료 Apple/Google/ASC 설정·정책 게시 → 지정 계정·실기기 E2E → 별도 MORA Eval LLM 평가 → 동일 RC TestFlight 48시간 → App Store 제출 순서다. 서버는 초기 통합 backend `9423851` 이후 `86117cd`의 StoreKit 보완과 네 번째 migration까지 배포했다. main은 merge 전 구 모델을 포함하므로 그대로 재배포하지 않는다.
 
 ## 7. 2026-09-29 야간 자율 QA 실행안
 
 ### N0 — 격리와 대상 고정
 
-준비된 QA checkout: `/Users/gimgihong/.codex/worktrees/mora-night-qa/adhd`. SHA `49add4d065f40cb1a0be186987e9ff89cdb45c05`, 이번 확인 시 미커밋 변경 없음. 이 경로를 재사용하며 기존 Luna checkout에는 pull하지 않는다.
+준비된 QA checkout: `/Users/gimgihong/.codex/worktrees/mora-night-qa/adhd`. SHA `49add4d065f40cb1a0be186987e9ff89cdb45c05`, 이번 확인 시 미커밋 변경 없음. 이 경로를 재사용하며 당시 평가 작업 checkout에는 pull하지 않는다.
 
 1. GitHub main과 PR #57 상태를 실행 직전에 재조회한다. 새 커밋이 있으면 변경 범위를 읽고 새 RC로 기록한다. 현재 계획 기준은 49add4d다.
-2. 이 작업에 연결된 기존 worktree를 확인하고 적절한 checkout을 재사용한다. 없으면 명시적 main SHA로 QA 전용 worktree를 만든다. 현재 미커밋 Luna 작업은 stash/reset/checkout으로 이동하지 않는다.
+2. 이 작업에 연결된 기존 worktree를 확인하고 적절한 checkout을 재사용한다. 없으면 명시적 main SHA로 QA 전용 worktree를 만든다. 당시 미커밋 평가 도구 작업은 stash/reset/checkout으로 이동하지 않는다.
 3. 새 증거 폴더 `outputs/release-qa/<date>-<sha>/`에 manifest, 명령/종료 코드, 로그, xcresult, case-results.csv, defects.md, release-decision.md를 보관한다. 과거 결과는 덮지 않는다.
 4. 앱/서버 각각 SHA·함수 버전·hash·모델 설정 유무를 기록한다. secret 값, 계정 토큰, 사용자 데이터는 출력하지 않는다.
 5. Moing의 checkout·프로세스·시뮬레이터·Docker·공용 CoreSimulator 서비스를 건드리지 않는다. 사용자의 추가 지시에 따라 켜진 simulator는 MORA 전용 1개로 제한한다. 8GB Mac에서 무거운 작업은 하나씩, xcodebuild jobs=1, Swift compiler -j1/배치 비활성화, index store 비활성화, nice=19로 실행한다. 다른 빌드를 겹쳐 실행하지 않는다.
@@ -220,7 +222,7 @@ App Store 제출 준비는 별도 체크: 실제 build의 권한 설명·개인�
 
 ### N5 — LLM 평가와 분리
 
-- Luna 하네스는 현재 미커밋 별도 산출물이므로 main 결과와 별도 candidate manifest/hash로 취급한다. main에 없는 eval 파일을 복사하고 main 검증이라고 기록하지 않는다.
+- 당시 미커밋 평가 도구 초안은 main 결과와 별도 candidate manifest/hash로 취급했다. 현재 MORA Eval 구현과 구분한다. main에 없는 eval 파일을 복사하고 main 검증이라고 기록하지 않는다.
 - 밤에는 offline 데이터/채점/예산/보고서 검사와 평가 실행안 준비까지만 가능하다. 검수 상태를 확인하되 agent 검토를 human 승인으로 바꾸지 않는다.
 - Jev/다른 LLM의 실제 API 호출, Gemini smoke/release는 승인 예산과 검수 데이터가 있어야 시작한다. 기존 $18.48 제안은 승인으로 간주하지 않는다. nightly 앱 QA를 이 승인 대기로 멈추지 않는다.
 

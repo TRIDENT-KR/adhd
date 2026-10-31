@@ -1,0 +1,345 @@
+{
+  "model_sha256": "57d1997790d1744fba5b40a7317df71ea5e2acee28c47e78f0cce39c0703f8cf",
+  "argv": [
+    "/tmp/mora-ondevice-20261022/bin/llama-server",
+    "-m",
+    "/tmp/mora-ondevice-20261022/models/qwen35-08b-q4_0.gguf",
+    "--host",
+    "127.0.0.1",
+    "--port",
+    "65040",
+    "-c",
+    "8192",
+    "-np",
+    "1",
+    "-t",
+    "4",
+    "-ngl",
+    "99",
+    "--offline",
+    "--no-webui",
+    "--no-agent",
+    "--reasoning",
+    "off",
+    "--chat-template-kwargs",
+    "{\"enable_thinking\":false}"
+  ],
+  "startup_s_mac_only": 4.4235000839980785,
+  "prompt_mode": "compact",
+  "temperature": 0,
+  "seed": 42,
+  "max_tokens": 512,
+  "schema": {
+    "type": "array",
+    "minItems": 1,
+    "maxItems": 8,
+    "items": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "function_name": {
+              "const": "add_single_task"
+            },
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "task_name": {
+                  "type": "string"
+                },
+                "time": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "date": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "category": {
+                  "enum": [
+                    "Routine",
+                    "Appointment"
+                  ]
+                },
+                "recurrence": {
+                  "enum": [
+                    null,
+                    "weekly",
+                    "biweekly",
+                    "monthly",
+                    "yearly"
+                  ]
+                },
+                "urgency": {
+                  "enum": [
+                    null,
+                    "strong",
+                    "weak"
+                  ]
+                }
+              },
+              "required": [
+                "task_name",
+                "time",
+                "date",
+                "category",
+                "recurrence",
+                "urgency"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "function_name",
+            "parameters"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "function_name": {
+              "const": "update_task"
+            },
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "target_task_name": {
+                  "type": "string"
+                },
+                "new_time": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "new_date": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "new_task_name": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "new_category": {
+                  "enum": [
+                    null,
+                    "Routine",
+                    "Appointment"
+                  ]
+                },
+                "new_recurrence": {
+                  "enum": [
+                    null,
+                    "weekly",
+                    "biweekly",
+                    "monthly",
+                    "yearly"
+                  ]
+                }
+              },
+              "required": [
+                "target_task_name",
+                "new_time",
+                "new_date",
+                "new_task_name",
+                "new_category",
+                "new_recurrence"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "function_name",
+            "parameters"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "function_name": {
+              "const": "delete_specific_task"
+            },
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "target_task_name": {
+                  "type": "string"
+                },
+                "target_category": {
+                  "enum": [
+                    "Routine",
+                    "Appointment",
+                    "all"
+                  ]
+                },
+                "target_date": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "target_task_name",
+                "target_category",
+                "target_date"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "function_name",
+            "parameters"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "function_name": {
+              "const": "clear_all_tasks"
+            },
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "target_category": {
+                  "enum": [
+                    "Routine",
+                    "Appointment",
+                    "all"
+                  ]
+                },
+                "target_date": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "target_category",
+                "target_date"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "function_name",
+            "parameters"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "function_name": {
+              "const": "postpone_all_tasks"
+            },
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "from_date": {
+                  "type": "string"
+                },
+                "to_date": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "from_date",
+                "to_date"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "function_name",
+            "parameters"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "function_name": {
+              "const": "mark_task_complete"
+            },
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "target_task_name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "target_task_name"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "function_name",
+            "parameters"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "function_name": {
+              "const": "request_clarification"
+            },
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "reason": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "reason"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "function_name",
+            "parameters"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "function_name": {
+              "const": "handle_off_topic_chat"
+            },
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "message"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "function_name",
+            "parameters"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    }
+  },
+  "case_count": 12,
+  "warning": "Synthetic Mac semantic probe; not iPhone latency/RAM evidence. No writes executed."
+}
