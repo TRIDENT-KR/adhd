@@ -350,18 +350,21 @@ struct SettingsView: View {
                 }
                 .settingsSectionStyle()
 
-                // ── 계정 나가기 (가장 아래, 위험한 동작은 끝에) ── Apple 계정만
-                if signedInUserID != nil {
+                // ── 계정 나가기 (가장 아래, 위험한 동작은 끝에) ── 로그아웃은 Apple 계정만, 삭제는 익명 계정도
+                if signedInUserID != nil || authManager.accessState.isAnonymous {
                     Section {
-                        Button { showLogoutConfirm = true } label: {
-                            settingsRow(L.settings.logOut, icon: "rectangle.portrait.and.arrow.right")
+                        if signedInUserID != nil {
+                            Button { showLogoutConfirm = true } label: {
+                                settingsRow(L.settings.logOut, icon: "rectangle.portrait.and.arrow.right")
+                            }
+                            .accessibilityHint(L.authRelease.logOutHint)
                         }
-                        .accessibilityHint(L.authRelease.logOutHint)
 
                         Button { showDeleteFlow = true } label: {
                             settingsRow(L.settings.deleteAccount, icon: "person.crop.circle.badge.xmark", tint: DesignSystem.Colors.error)
                         }
-                        .accessibilityHint(L.authRelease.deleteAccountHint)
+                        .accessibilityHint(authManager.accessState.isAnonymous
+                            ? L.authRelease.deleteAnonymousAccountHint : L.authRelease.deleteAccountHint)
                     }
                     .settingsSectionStyle()
                 }
@@ -609,11 +612,15 @@ struct AccountDeletionFlowView: View {
     @State private var previewTaskCount = 0
     @State private var errorMessage: String?
 
+    /// 로그인 없이 쓰는 익명 계정: Apple 재인증 없이 서버 기록만 지우고, 이 기기 일정은 남깁니다.
+    private var isAnonymous: Bool { authManager.accessState.isAnonymous }
+
     var body: some View {
         NavigationStack {
             Form {
                 Section {
-                    Label(L.settings.deletionPermanentLoss, systemImage: "exclamationmark.triangle.fill")
+                    Label(isAnonymous ? L.settings.anonymousDeletionScope : L.settings.deletionPermanentLoss,
+                          systemImage: "exclamationmark.triangle.fill")
                         .foregroundStyle(.red)
                     Text(L.settings.deletionNoExport)
                 }
@@ -632,7 +639,7 @@ struct AccountDeletionFlowView: View {
                             if !accepted { appleAuthorizationCode = nil }
                         }
 
-                    if acknowledged {
+                    if acknowledged && !isAnonymous {
                         SignInWithAppleButton(.continue) { request in
                             authManager.prepareAppleAccountDeletionRequest(request)
                         } onCompletion: { result in
@@ -660,7 +667,7 @@ struct AccountDeletionFlowView: View {
                             .foregroundStyle(.green)
                     }
                 } header: {
-                    Text(L.settings.deletionReauthenticate)
+                    if !isAnonymous { Text(L.settings.deletionReauthenticate) }
                 }
 
                 if let errorMessage {
@@ -681,7 +688,7 @@ struct AccountDeletionFlowView: View {
                             Text(L.settings.deletionFinalButton)
                         }
                     }
-                    .disabled(!acknowledged || appleAuthorizationCode == nil || isWorking)
+                    .disabled(!acknowledged || (!isAnonymous && appleAuthorizationCode == nil) || isWorking)
                 }
             }
             .navigationTitle(L.settings.deleteAccount)
@@ -694,7 +701,8 @@ struct AccountDeletionFlowView: View {
             .alert(L.settings.deletionFinalTitle, isPresented: $showFinalConfirmation) {
                 Button(L.settings.cancel, role: .cancel) {}
                 Button(L.settings.delete, role: .destructive) {
-                    guard acknowledged, let code = appleAuthorizationCode else { return }
+                    let code = isAnonymous ? nil : appleAuthorizationCode
+                    guard acknowledged, isAnonymous || code != nil else { return }
                     appleAuthorizationCode = nil
                     Task { @MainActor in
                         isWorking = true
@@ -710,7 +718,9 @@ struct AccountDeletionFlowView: View {
                     }
                 }
             } message: {
-                if showsExactTaskCount {
+                if isAnonymous {
+                    Text(L.settings.anonymousDeletionPreview)
+                } else if showsExactTaskCount {
                     Text(L.settings.deletionFinalPreview(
                         account: authManager.userEmail ?? "Apple ID", taskCount: previewTaskCount
                     ))

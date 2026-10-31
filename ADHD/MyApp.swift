@@ -86,7 +86,8 @@ struct MoraApp: App {
                 )) {
                     Button(L.settings.done) { authManager.dismissDeletionCompletion() }
                 } message: {
-                    Text(L.authRelease.deletionCompleteMessage)
+                    Text(authManager.completedDeletionWasAnonymous
+                         ? L.authRelease.anonymousDeletionCompleteMessage : L.authRelease.deletionCompleteMessage)
                 }
                 .task(id: AdultGateContext(auth: authManager.accessState, revision: adultEligibility.revision)) {
                     await synchronizeAccountStoreWithAuthState()
@@ -435,6 +436,9 @@ private struct AccountDeletionPendingView: View {
     @State private var isWorking = false
     @State private var message: String?
 
+    /// 익명 계정 삭제는 Apple 재인증이 없으니, 요청이 끊겼으면 code 없이 다시 보냅니다.
+    private var isAnonymous: Bool { authManager.pendingDeletionIsAnonymous }
+
     private var needsAppleReauthentication: Bool {
         authManager.accountDeletionNeedsAppleReauthentication
             || authManager.accountDeletionStatus == .requesting
@@ -450,7 +454,7 @@ private struct AccountDeletionPendingView: View {
             VStack(spacing: 10) {
                 Text(L.settings.deletionPendingTitle)
                     .font(DesignSystem.Typography.titleSm)
-                Text(L.settings.deletionPendingMessage)
+                Text(isAnonymous ? L.authRelease.anonymousDeletionPendingMessage : L.settings.deletionPendingMessage)
                     .font(DesignSystem.Typography.bodyMd)
                     .multilineTextAlignment(.center)
                     .foregroundColor(DesignSystem.Colors.onSurfaceVariant.opacity(0.75))
@@ -468,6 +472,28 @@ private struct AccountDeletionPendingView: View {
 
             if authManager.accountDeletionStatus == .completed {
                 ProgressView(L.authRelease.deletionFinishing)
+            } else if authManager.isSendingDeletionRequest {
+                // 첫 요청이 아직 가는 중입니다. 이때 다시 시도·재인증을 보여 주면 같은 요청을 두 번 보내게 됩니다.
+                ProgressView()
+            } else if needsAppleReauthentication && isAnonymous {
+                Button {
+                    Task { @MainActor in
+                        isWorking = true
+                        defer { isWorking = false }
+                        do {
+                            try await authManager.deleteAccount(appleAuthorizationCode: nil)
+                            message = nil
+                        } catch let error as AccountDeletionClientError {
+                            message = error.localizedDescription
+                        } catch {
+                            message = L.settings.deletionStatusPending
+                        }
+                    }
+                } label: {
+                    if isWorking { ProgressView() } else { Text(L.authRelease.retryDeletion) }
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(isWorking)
             } else if needsAppleReauthentication {
                 SignInWithAppleButton(.continue) { request in
                     authManager.prepareAppleAccountDeletionRequest(request)

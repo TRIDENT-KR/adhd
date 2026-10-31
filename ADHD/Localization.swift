@@ -290,6 +290,17 @@ struct SettingsStrings {
             "対象: \(account)\n範囲: Moraアカウントとローカルタスク\(taskCount)件、全種類・全日付\n操作: 完全削除"
         )
     }
+    // 로그인 없이 쓰는 익명 계정: 서버 기록만 지우고, 기기에만 있는 일정은 남깁니다.
+    var anonymousDeletionScope: String { t(
+        "This permanently deletes Mora's server record for this device: AI usage, subscription links and your age confirmation. Your routines and appointments stay on this device.",
+        "이 기기의 Mora 서버 기록(AI 사용 기록, 구독 연결, 연령 확인 기록)을 영구 삭제해요. 루틴과 일정은 이 기기에 그대로 남아요.",
+        "この端末のMoraサーバー記録（AIの利用記録、サブスクリプションの紐付け、年齢確認の記録）を完全に削除します。ルーティンと予定はこの端末に残ります。"
+    ) }
+    var anonymousDeletionPreview: String { t(
+        "Target: this device's Mora server record\nScope: AI usage, subscription links, age confirmation\nAction: permanent deletion (routines and appointments stay on this device)",
+        "대상: 이 기기의 Mora 서버 기록\n범위: AI 사용 기록, 구독 연결, 연령 확인 기록\n작업: 영구 삭제 (루틴과 일정은 이 기기에 남아요)",
+        "対象: この端末のMoraサーバー記録\n範囲: AIの利用記録、サブスクリプションの紐付け、年齢確認の記録\n操作: 完全削除（ルーティンと予定はこの端末に残ります）"
+    ) }
     func clearCompletedPreview(_ count: Int) -> String {
         t(
             "Deletes \(count) finished one-time appointment(s). Routines and repeating appointments stay. You can undo right after.",

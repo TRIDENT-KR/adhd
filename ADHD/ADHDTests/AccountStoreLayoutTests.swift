@@ -397,6 +397,68 @@ struct AccountDeletionRecoveryTests {
         #expect(!afterCleanup.showsDeletionCompletion)
     }
 
+    /// 서버 계약과 같아야 합니다: Apple 계정은 code가 꼭 있고, 익명 계정은 code를 보내지 않습니다.
+    @Test func deletionCodeMatchesAccountKindLikeTheServer() {
+        #expect(AuthManager.deletionCodeMatchesAccountKind(isAnonymous: true, appleAuthorizationCode: nil))
+        #expect(!AuthManager.deletionCodeMatchesAccountKind(isAnonymous: true, appleAuthorizationCode: "code"))
+        #expect(AuthManager.deletionCodeMatchesAccountKind(isAnonymous: false, appleAuthorizationCode: "code"))
+        #expect(!AuthManager.deletionCodeMatchesAccountKind(isAnonymous: false, appleAuthorizationCode: nil))
+        #expect(!AuthManager.deletionCodeMatchesAccountKind(isAnonymous: false, appleAuthorizationCode: ""))
+    }
+
+    @Test func pendingDeletionFromEarlierVersionIsTreatedAsAppleAccount() throws {
+        let user = UUID(), request = UUID()
+        let legacy = Data("""
+        {"userID":"\(user)","requestID":"\(request)","status":"retry_wait","needsAppleReauthentication":true}
+        """.utf8)
+        let decoded = try JSONDecoder().decode(PendingAccountDeletion.self, from: legacy)
+        #expect(decoded.isAnonymous == nil)
+
+        let journal = Journal()
+        journal.data = legacy
+        let name = "deletion-legacy-\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: name))
+        defer { defaults.removePersistentDomain(forName: name) }
+        let manager = AuthManager(deletionPollingStore: journal, deletionNoticeDefaults: defaults, observesAuthentication: false)
+        #expect(!manager.pendingDeletionIsAnonymous)
+    }
+
+    @Test func anonymousDeletionKeepsItsOwnCompletionNoticeAcrossRelaunch() async throws {
+        let journal = Journal()
+        let anonymousUser = UUID()
+        try journal.save(PendingAccountDeletion(
+            userID: anonymousUser, requestID: UUID(), jobID: nil, status: .running,
+            statusToken: String(repeating: "d", count: 43), needsAppleReauthentication: false,
+            isAnonymous: true
+        ))
+        let name = "deletion-anonymous-\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: name))
+        defer { defaults.removePersistentDomain(forName: name) }
+        let manager = AuthManager(deletionPollingStore: journal, deletionNoticeDefaults: defaults, observesAuthentication: false)
+        #expect(manager.pendingDeletionIsAnonymous)
+
+        manager.confirmAccountDeletionCompleted(for: anonymousUser)
+        #expect(journal.load()?.isAnonymous == true)   // 완료 표시도 익명 여부를 잃지 않습니다
+        try manager.finishLocalAccountDeletion(for: anonymousUser)
+        #expect(manager.accessState == .signedOut)
+        #expect(manager.showsDeletionCompletion && manager.completedDeletionWasAnonymous)
+
+        let relaunched = AuthManager(deletionPollingStore: journal, deletionNoticeDefaults: defaults, observesAuthentication: false)
+        #expect(relaunched.showsDeletionCompletion && relaunched.completedDeletionWasAnonymous)
+        relaunched.dismissDeletionCompletion()
+        #expect(!relaunched.completedDeletionWasAnonymous)
+
+        // 다음 Apple 계정 삭제 안내는 다시 기본 문구입니다.
+        let apple = UUID()
+        try journal.save(PendingAccountDeletion(
+            userID: apple, requestID: UUID(), jobID: nil, status: .running,
+            statusToken: String(repeating: "e", count: 43), needsAppleReauthentication: false
+        ))
+        relaunched.confirmAccountDeletionCompleted(for: apple)
+        try relaunched.finishLocalAccountDeletion(for: apple)
+        #expect(relaunched.showsDeletionCompletion && !relaunched.completedDeletionWasAnonymous)
+    }
+
     @Test func failedDurableCompletionWriteDoesNotDiscardThePendingRequest() throws {
         let journal = Journal()
         let user = UUID(), request = UUID()

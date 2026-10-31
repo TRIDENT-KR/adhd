@@ -220,6 +220,8 @@ struct PendingAccountDeletion: Codable {
     var status: AccountDeletionProgressStatus
     var statusToken: String?
     var needsAppleReauthentication: Bool
+    /// 로그인 없이 쓰던 익명 계정의 삭제인지. 이전 버전이 남긴 기록에는 없고, 그때는 Apple 계정입니다.
+    var isAnonymous: Bool? = nil
 
     var shouldPoll: Bool {
         statusToken != nil && !needsAppleReauthentication && status != .completed
@@ -311,11 +313,20 @@ class AuthManager: NSObject, ObservableObject {
     @Published private(set) var accountDeletionErrorCode: String?
     @Published private(set) var signInFailed = false
     @Published private(set) var showsDeletionCompletion = false
+    /// 방금 끝난 삭제가 익명 계정이었는지. 완료 안내 문구를 고를 때 씁니다.
+    @Published private(set) var completedDeletionWasAnonymous = false
+    /// 삭제 요청을 서버에 보내는 중인지. 그동안 대기 화면은 다시 시도 버튼 대신 진행 표시를 보여 줍니다.
+    @Published private(set) var isSendingDeletionRequest = false
 
     /// 서버 완료 표식을 로컬 파일·설정 삭제가 끝날 때까지 Keychain에 보존합니다.
     var pendingLocalDeletionUserID: UUID? {
         guard let pending = deletionPollingStore.load(), pending.status == .completed else { return nil }
         return pending.userID
+    }
+
+    /// 진행 중인 삭제가 익명 계정이면 Apple 재인증 대신 code 없이 다시 보냅니다.
+    var pendingDeletionIsAnonymous: Bool {
+        deletionPollingStore.load()?.isAnonymous == true
     }
 
     /// Settings에서 사용할 이메일 (Auth 모듈 import 없이 접근)
@@ -342,6 +353,7 @@ class AuthManager: NSObject, ObservableObject {
     private let deletionPollingStore: any AccountDeletionPersistence
     private let deletionNoticeDefaults: UserDefaults
     private static let localSessionLockKey = "mora.local-session-lock.v1"
+    private static let anonymousDeletionNoticeKey = "mora.account-deletion-completion-anonymous.v1"
     private var sessionTransition: AuthSessionTransitionGuard
     private var isSigningOut = false
     /// 마지막으로 받아들인 세션이 익명이었는지. 익명 세션이 무효가 되면 '세션 만료' 대신 기기 상태로 돌아갑니다.
@@ -381,6 +393,7 @@ class AuthManager: NSObject, ObservableObject {
         lastKnownSessionWasAnonymous = cachedSession?.user.isAnonymous ?? false
         super.init()
         showsDeletionCompletion = deletionNoticeDefaults.bool(forKey: "mora.account-deletion-completion-notice.v1")
+        completedDeletionWasAnonymous = deletionNoticeDefaults.bool(forKey: Self.anonymousDeletionNoticeKey)
         guard observesAuthentication else { return }
 
         authStateObservationTask = Task { [weak self] in
@@ -632,24 +645,48 @@ class AuthManager: NSObject, ObservableObject {
     }
 
     /// 최종 확인 뒤 요청 ID를 먼저 안전 저장하고, 서버 완료가 확인될 때까지 로컬 데이터를 잠급니다.
+    /// Apple 계정은 재인증으로 받은 1회용 code를 보내고, 익명 계정은 code 없이 보냅니다(서버가 Auth로 익명임을 다시 확인).
     @MainActor
-    func deleteAccount(appleAuthorizationCode: String) async throws {
+    func deleteAccount(appleAuthorizationCode: String?) async throws {
+        let stored = deletionPollingStore.load()
         let userID: UUID
+        let isAnonymous: Bool
         switch accessState {
-        case .authenticatedOnline(let authenticatedUserID),
-             .deletionPending(let authenticatedUserID):
+        case .authenticatedOnline(let authenticatedUserID):
             userID = authenticatedUserID
+            isAnonymous = false
+        case .anonymousOnline(let anonymousUserID):
+            userID = anonymousUserID
+            isAnonymous = true
+        case .deletionPending(let pendingUserID):
+            userID = pendingUserID
+            isAnonymous = stored?.userID == pendingUserID && stored?.isAnonymous == true
         case .booting, .authenticatedOfflineLimited, .signedOut, .lockedInvalidSession,
-             .anonymousOnline, .anonymousOfflineLimited:
+             .anonymousOfflineLimited:
             throw AccountDeletionClientError.onlineSessionRequired
         }
-        guard let session,
-              session.user.id == userID,
-              !appleAuthorizationCode.isEmpty else {
+        guard Self.deletionCodeMatchesAccountKind(isAnonymous: isAnonymous, appleAuthorizationCode: appleAuthorizationCode),
+              let currentSession = session,
+              currentSession.user.id == userID else {
             throw AccountDeletionClientError.onlineSessionRequired
         }
 
-        var pending = deletionPollingStore.load()
+        // 서버는 5분 안에 받은 토큰만 받습니다. Apple 계정은 방금 재인증했고, 익명 계정은 여기서 새로 받습니다.
+        let requestSession: Session
+        if isAnonymous {
+            do {
+                requestSession = try await supabase.auth.refreshSession()
+            } catch {
+                throw AccountDeletionClientError.onlineSessionRequired
+            }
+            guard requestSession.user.id == userID, requestSession.user.isAnonymous else {
+                throw AccountDeletionClientError.onlineSessionRequired
+            }
+        } else {
+            requestSession = currentSession
+        }
+
+        var pending = stored
         if pending?.userID != userID {
             pending = PendingAccountDeletion(
                 userID: userID,
@@ -657,19 +694,22 @@ class AuthManager: NSObject, ObservableObject {
                 jobID: nil,
                 status: .requesting,
                 statusToken: nil,
-                needsAppleReauthentication: false
+                needsAppleReauthentication: false,
+                isAnonymous: isAnonymous
             )
         }
         guard let pending else { throw AccountDeletionClientError.statusUnavailable }
         try deletionPollingStore.save(pending)
         exposePendingDeletion(pending)
 
-        let headers = ["Authorization": "Bearer \(session.accessToken)"]
-        let body = [
-            "requestId": pending.requestID.uuidString.lowercased(),
-            "appleAuthorizationCode": appleAuthorizationCode,
-        ]
+        let headers = ["Authorization": "Bearer \(requestSession.accessToken)"]
+        var body = ["requestId": pending.requestID.uuidString.lowercased()]
+        if let appleAuthorizationCode {
+            body["appleAuthorizationCode"] = appleAuthorizationCode
+        }
         let options = FunctionInvokeOptions(headers: headers, body: body)
+        isSendingDeletionRequest = true
+        defer { isSendingDeletionRequest = false }
 
         do {
             let response: AccountDeletionEnvelope = try await supabase.functions.invoke(
@@ -693,6 +733,12 @@ class AuthManager: NSObject, ObservableObject {
             print("account_deletion_request_failed")
             throw error
         }
+    }
+
+    /// 서버 계약과 같습니다: Apple 계정은 비어 있지 않은 code가 꼭 있어야 하고, 익명 계정은 code를 보내면 안 됩니다.
+    nonisolated static func deletionCodeMatchesAccountKind(isAnonymous: Bool, appleAuthorizationCode: String?) -> Bool {
+        guard let appleAuthorizationCode else { return isAnonymous }
+        return !isAnonymous && !appleAuthorizationCode.isEmpty
     }
 
     /// 앱 재실행 후에도 Keychain의 request ID/status token으로만 저빈도 상태 조회를 재개합니다.
@@ -765,9 +811,12 @@ class AuthManager: NSObject, ObservableObject {
     @MainActor
     func finishLocalAccountDeletion(for userID: UUID) throws {
         guard pendingLocalDeletionUserID == userID else { return }
+        let wasAnonymous = pendingDeletionIsAnonymous
         // A completion notice also survives termination between cleanup and the next launch.
         deletionNoticeDefaults.set(true, forKey: "mora.account-deletion-completion-notice.v1")
+        deletionNoticeDefaults.set(wasAnonymous, forKey: Self.anonymousDeletionNoticeKey)
         try deletionPollingStore.clear()
+        completedDeletionWasAnonymous = wasAnonymous
         showsDeletionCompletion = true
         accountDeletionStatus = .completed
         accountDeletionRequestID = nil
@@ -783,7 +832,9 @@ class AuthManager: NSObject, ObservableObject {
     @MainActor
     func dismissDeletionCompletion() {
         deletionNoticeDefaults.removeObject(forKey: "mora.account-deletion-completion-notice.v1")
+        deletionNoticeDefaults.removeObject(forKey: Self.anonymousDeletionNoticeKey)
         showsDeletionCompletion = false
+        completedDeletionWasAnonymous = false
     }
 
     @MainActor
