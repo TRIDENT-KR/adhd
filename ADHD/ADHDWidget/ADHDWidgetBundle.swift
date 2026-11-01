@@ -21,6 +21,9 @@ struct ADHDWidgetBundle: WidgetBundle {
         NextTaskLockWidget()
         TaskCountInlineWidget()
 
+        // Control (잠금 화면 아래 버튼·제어 센터·동작 버튼)
+        SpeakControl()
+
         // AlarmKit Live Activity (강한 알람 스누즈 카운트다운)
         AlarmLiveActivity()
     }

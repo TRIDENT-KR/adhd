@@ -22,6 +22,13 @@
         "ko" : { "stringUnit" : { "state" : "translated", "value" : "다음 할 일" } }
       }
     },
+    "Open Mora ready to speak." : {
+      "comment" : "Control gallery description: Speak control",
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "Moraを開いてすぐ話せます。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "Mora를 열고 바로 말해요." } }
+      }
+    },
     "Routine Progress" : {
       "comment" : "Widget gallery name: lock screen ring",
       "localizations" : {
@@ -48,6 +55,13 @@
       "localizations" : {
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "次のタスクを見て、すぐにチェックできます。" } },
         "ko" : { "stringUnit" : { "state" : "translated", "value" : "다음 할 일을 보고 바로 체크해요." } }
+      }
+    },
+    "Speak" : {
+      "comment" : "Control name and button label: opens Mora on the voice tab",
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "話す" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "말하기" } }
       }
     },
     "Tasks Left" : {
