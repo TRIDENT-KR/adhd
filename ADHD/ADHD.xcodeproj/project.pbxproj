@@ -829,8 +829,8 @@
 				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Mora;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Mora uses the microphone to create an editable speech draft when you tap the microphone. You can type instead.";
-				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Mora uses Apple speech recognition to transcribe your voice into an editable task draft. Audio may be processed by Apple. You can type instead.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Mora listens when you tap the microphone and turns what you say into tasks. You can type instead.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Mora uses Apple speech recognition to turn your voice into text for your tasks. Audio may be processed by Apple. You can type instead.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -866,8 +866,8 @@
 				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Mora;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Mora uses the microphone to create an editable speech draft when you tap the microphone. You can type instead.";
-				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Mora uses Apple speech recognition to transcribe your voice into an editable task draft. Audio may be processed by Apple. You can type instead.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Mora listens when you tap the microphone and turns what you say into tasks. You can type instead.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Mora uses Apple speech recognition to turn your voice into text for your tasks. Audio may be processed by Apple. You can type instead.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
