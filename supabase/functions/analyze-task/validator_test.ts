@@ -128,3 +128,35 @@ Deno.test("invalid calendar dates and unexpected parameters are rejected", () =>
     }])
   );
 });
+
+Deno.test("add_single_task accepts an optional short alert_line", () => {
+  const base = {
+    task_name: "약 먹기",
+    time: "09:00 PM",
+    date: null,
+    category: "Routine",
+    recurrence: null,
+    urgency: "strong",
+  };
+  for (const alert_line of ["약 먹을 시간이에요", null]) {
+    const calls = validateAnalysisCalls([{
+      function_name: "add_single_task",
+      parameters: { ...base, alert_line },
+    }]);
+    assert(calls.length === 1, "alert_line should be accepted");
+  }
+  for (const alert_line of ["", "가".repeat(81), "줄\n바꿈", 3]) {
+    assertThrowsValidation(() =>
+      validateAnalysisCalls([{
+        function_name: "add_single_task",
+        parameters: { ...base, alert_line },
+      }])
+    );
+  }
+  assertThrowsValidation(() =>
+    validateAnalysisCalls([{
+      function_name: "mark_task_complete",
+      parameters: { target_task_name: "약 먹기", alert_line: "약 먹을 시간이에요" },
+    }])
+  );
+});

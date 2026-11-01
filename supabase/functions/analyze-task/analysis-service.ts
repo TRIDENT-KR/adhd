@@ -1,3 +1,4 @@
+import { alertTones } from "./prompt.ts";
 import {
   type AnalysisCall,
   AnalysisValidationError,
@@ -12,6 +13,7 @@ export interface AnalysisInput {
   text: string;
   currentTime?: string;
   language?: string;
+  alertTone?: string;
 }
 
 export interface QuotaReservation {
@@ -50,6 +52,7 @@ const requestIdPattern =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const currentTimePattern = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/;
 const languages = new Set(["en", "ko", "ja"]);
+const alertToneSet = new Set<string>(alertTones);
 
 function validateInput(input: AnalysisInput): void {
   if (input.aiConsentVersion !== AI_CONSENT_VERSION) {
@@ -73,6 +76,25 @@ function validateInput(input: AnalysisInput): void {
   if (input.language !== undefined && !languages.has(input.language)) {
     throw new AnalysisServiceError("invalid_language", 400);
   }
+  if (input.alertTone !== undefined && !alertToneSet.has(input.alertTone)) {
+    throw new AnalysisServiceError("invalid_alert_tone", 400);
+  }
+}
+
+/** Older app builds reject unknown keys, so only tone-aware requests keep alert_line. */
+export function stripAlertLines(raw: unknown): unknown {
+  if (!Array.isArray(raw)) return raw;
+  return raw.map((item) => {
+    if (
+      typeof item !== "object" || item === null || Array.isArray(item) ||
+      typeof item.parameters !== "object" || item.parameters === null ||
+      !("alert_line" in item.parameters)
+    ) {
+      return item;
+    }
+    const { alert_line: _dropped, ...parameters } = item.parameters;
+    return { ...item, parameters };
+  });
 }
 
 async function inputHash(input: AnalysisInput): Promise<string> {
@@ -81,6 +103,8 @@ async function inputHash(input: AnalysisInput): Promise<string> {
     text: input.text,
     currentTime: input.currentTime ?? null,
     language: input.language ?? "en",
+    // Requests from older builds hash exactly as before.
+    ...(input.alertTone !== undefined ? { alertTone: input.alertTone } : {}),
   });
   const digest = await crypto.subtle.digest(
     "SHA-256",
@@ -140,7 +164,9 @@ export async function executeAnalysis(
 
   try {
     const raw = await dependencies.analyze(input);
-    const calls = validateAnalysisCalls(raw);
+    const calls = validateAnalysisCalls(
+      input.alertTone === undefined ? stripAlertLines(raw) : raw,
+    );
     const quota = await dependencies.finalize(input.requestId, calls);
     return { requestId: input.requestId, calls, quota };
   } catch (error) {

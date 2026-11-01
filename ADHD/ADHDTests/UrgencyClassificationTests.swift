@@ -207,3 +207,83 @@ struct SkipPlanTests {
         #expect(Set(skipIDs).isDisjoint(with: NotificationManager.followUpIdentifiers(for: "ABC")))
     }
 }
+
+// MARK: - Alert Tone Tests
+/// 잠금 화면 한 줄 알림: 말투별 문장, AI 문장 우선순위, 욕 섞기(매운맛 전용, 기본 꺼짐)
+@MainActor
+struct AlertToneTests {
+    private let ko = AlertCopyStrings(language: .ko)
+
+    @Test func everyToneNamesTheTaskOnOneLine() {
+        for tone in AlertTone.allCases {
+            for stage in [AlertStage.first, .followUp1, .followUp2, .snooze] {
+                let line = ko.line(stage, tone: tone, swearing: false, task: "약 먹기")
+                #expect(line.contains("약 먹기"))
+                #expect(!line.contains("\n"))
+            }
+        }
+        #expect(ko.line(.first, tone: .gentle, swearing: false, task: "약 먹기") == "약 먹기 시간이에요")
+    }
+
+    @Test func swearingOnlyChangesSpicy() {
+        let calm = ko.line(.first, tone: .gentle, swearing: true, task: "약 먹기")
+        #expect(calm == ko.line(.first, tone: .gentle, swearing: false, task: "약 먹기"))
+        let spicy = ko.line(.first, tone: .spicy, swearing: false, task: "약 먹기")
+        let swearing = ko.line(.first, tone: .spicy, swearing: true, task: "약 먹기")
+        #expect(spicy != swearing)
+    }
+
+    @Test func aiLineIsUsedOnlyForTheFirstAlert() {
+        let first = NotificationManager.alertLine(.first, tone: .gentle, swearing: false,
+                                                  aiLine: "약 먹을 시간이에요", task: "약 먹기", copy: ko)
+        #expect(first == "약 먹을 시간이에요")
+        let follow = NotificationManager.alertLine(.followUp1, tone: .gentle, swearing: false,
+                                                   aiLine: "약 먹을 시간이에요", task: "약 먹기", copy: ko)
+        #expect(follow == ko.line(.followUp1, tone: .gentle, swearing: false, task: "약 먹기"))
+        // 욕 섞기를 켜면 AI 문장 대신 정해 둔 문장을 씁니다.
+        let swearing = NotificationManager.alertLine(.first, tone: .spicy, swearing: true,
+                                                     aiLine: "약 먹어. 지금.", task: "약 먹기", copy: ko)
+        #expect(swearing == ko.line(.first, tone: .spicy, swearing: true, task: "약 먹기"))
+    }
+
+    @Test func toneStorageFallsBackToGentle() {
+        for tone in AlertTone.allCases {
+            #expect(AlertTone(storageIndex: tone.storageIndex) == tone)
+        }
+        #expect(AlertTone(storageIndex: 99) == .gentle)
+        #expect(AlertTone(storageIndex: -1) == .gentle)
+    }
+
+    @Test func storedAILineMustMatchToneNameAndLanguage() throws {
+        let defaults = try #require(UserDefaults(suiteName: "AlertToneTests-\(UUID().uuidString)"))
+        AccountPreferences.activate(for: UUID(), defaults: defaults)
+        let id = UUID()
+        TaskAlertLines.save("약 먹을 시간이에요", tone: .gentle, language: .ko,
+                            taskID: id, taskName: "약 먹기", defaults: defaults)
+        #expect(TaskAlertLines.line(taskID: id, taskName: "약 먹기", tone: .gentle,
+                                    language: .ko, defaults: defaults) == "약 먹을 시간이에요")
+        #expect(TaskAlertLines.line(taskID: id, taskName: "약 먹기", tone: .spicy,
+                                    language: .ko, defaults: defaults) == nil)
+        #expect(TaskAlertLines.line(taskID: id, taskName: "영양제 먹기", tone: .gentle,
+                                    language: .ko, defaults: defaults) == nil)
+        #expect(TaskAlertLines.line(taskID: id, taskName: "약 먹기", tone: .gentle,
+                                    language: .en, defaults: defaults) == nil)
+    }
+
+    @Test func analyzePayloadCarriesTheTone() {
+        let payload = CloudLLMManager.makeAnalyzePayload(
+            requestID: UUID(), text: "매일 밤 9시 약", now: Date(), language: "ko", alertTone: .spicy
+        )
+        #expect(payload["alertTone"] == "spicy")
+    }
+
+    @Test func decodesAlertLineAndDropsItWhenRenamed() throws {
+        var call = try JSONDecoder().decode(LLMFunctionCall.self, from: Data(#"{"function_name":"add_single_task","parameters":{"task_name":"약 먹기","time":"09:00 PM","date":null,"category":"Routine","recurrence":null,"urgency":"strong","alert_line":"약 먹을 시간이에요"}}"#.utf8))
+        guard case .addSingleTask(let params) = call else { Issue.record("wrong case"); return }
+        #expect(params.alert_line == "약 먹을 시간이에요")
+        #expect(call.isExecutionPayloadValid)
+        call.updateFields(taskName: "영양제 먹기", time: "09:00 PM", date: nil, category: "Routine")
+        guard case .addSingleTask(let renamed) = call else { Issue.record("wrong case"); return }
+        #expect(renamed.alert_line == nil)
+    }
+}

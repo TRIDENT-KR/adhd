@@ -217,3 +217,81 @@ Deno.test("an active reservation returns 409 without duplicate Gemini work", asy
     "active reservation must not call Gemini twice",
   );
 });
+
+const addWithLine = [{
+  function_name: "add_single_task",
+  parameters: {
+    task_name: "약 먹기",
+    time: "09:00 PM",
+    date: null,
+    category: "Routine",
+    recurrence: null,
+    urgency: "strong",
+    alert_line: "약 먹을 시간이에요",
+  },
+}];
+
+Deno.test("alert_line reaches only requests that sent a tone", async () => {
+  const withTone = dependencies({ analyze: () => Promise.resolve(addWithLine) });
+  const toned = await executeAnalysis({
+    aiConsentVersion: "2",
+    requestId,
+    text: "매일 밤 9시 약 먹기",
+    alertTone: "gentle",
+  }, withTone.value);
+  assert(
+    toned.calls[0].parameters.alert_line === "약 먹을 시간이에요",
+    "tone-aware requests keep the line",
+  );
+
+  const legacy = dependencies({ analyze: () => Promise.resolve(addWithLine) });
+  const plain = await executeAnalysis({
+    aiConsentVersion: "2",
+    requestId,
+    text: "매일 밤 9시 약 먹기",
+  }, legacy.value);
+  assert(
+    !("alert_line" in plain.calls[0].parameters),
+    "older builds must never see alert_line",
+  );
+});
+
+Deno.test("unknown tones are rejected before any work", async () => {
+  const mock = dependencies();
+  try {
+    await executeAnalysis({
+      aiConsentVersion: "2",
+      requestId,
+      text: "테스트",
+      alertTone: "rude",
+    }, mock.value);
+    throw new Error("expected tone error");
+  } catch (error) {
+    assert(
+      error instanceof AnalysisServiceError && error.code === "invalid_alert_tone",
+      "tone gate missing",
+    );
+  }
+  assert(Object.values(mock.calls).every((count) => count === 0), "no work on bad tone");
+});
+
+Deno.test("requests without a tone hash exactly as before", async () => {
+  const hashes: string[] = [];
+  const capture = (requestHash: string) => {
+    hashes.push(requestHash);
+    return Promise.resolve({ allowed: true, quota: { remaining: 2 } });
+  };
+  const base = { aiConsentVersion: "2", requestId, text: "테스트" };
+  await executeAnalysis(base, dependencies({ reserve: (_id, hash) => capture(hash) }).value);
+  await executeAnalysis({ ...base, alertTone: "spicy" }, dependencies({ reserve: (_id, hash) => capture(hash) }).value);
+  const legacy = JSON.stringify({
+    aiConsentVersion: "2",
+    text: "테스트",
+    currentTime: null,
+    language: "en",
+  });
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(legacy));
+  const expected = Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
+  assert(hashes[0] === expected, "legacy hash changed");
+  assert(hashes[1] !== expected, "tone must be part of the request hash");
+});

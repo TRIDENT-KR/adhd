@@ -12,6 +12,52 @@ enum AccountPreferenceKey: String {
     case lastDailyResetDate = "lastResetDate"
     /// 로그인 직후 '기기 일정 가져오기'를 이미 물어봤는지 (계정마다 한 번)
     case guestImportOffered
+    /// 알림 말투(AlertTone.storageIndex). 없으면 다정하게.
+    case alertTone
+    /// 매운맛에 욕 섞기. 기본 꺼짐.
+    case alertSwearing
+}
+
+// MARK: - AI가 쓴 알림 문장
+/// AI가 할 일을 정리하며 함께 써 준 첫 알림 문장을 계정별로 보관합니다.
+/// 할 일 이름·말투·앱 언어가 그 뒤에 바뀌면 문장이 맞지 않으므로, 그때는 정해 둔 문장을 씁니다.
+enum TaskAlertLines {
+    static let base = "alertLines"
+
+    private struct Entry: Codable {
+        let line: String
+        let tone: String
+        let task: String
+        let language: String
+    }
+
+    static func save(
+        _ line: String, tone: AlertTone, language: AppLanguage, taskID: UUID, taskName: String,
+        defaults: UserDefaults = .standard
+    ) {
+        guard let key = AccountPreferences.scopedKey(base, defaults: defaults) else { return }
+        var entries = load(key, defaults)
+        entries[taskID.uuidString] = Entry(
+            line: line, tone: tone.rawValue, task: taskName, language: language.rawValue
+        )
+        defaults.set(try? JSONEncoder().encode(entries), forKey: key)
+    }
+
+    static func line(
+        taskID: UUID, taskName: String, tone: AlertTone, language: AppLanguage,
+        defaults: UserDefaults = .standard
+    ) -> String? {
+        guard let key = AccountPreferences.scopedKey(base, defaults: defaults),
+              let entry = load(key, defaults)[taskID.uuidString],
+              entry.tone == tone.rawValue, entry.task == taskName,
+              entry.language == language.rawValue else { return nil }
+        return entry.line
+    }
+
+    private static func load(_ key: String, _ defaults: UserDefaults) -> [String: Entry] {
+        guard let data = defaults.data(forKey: key) else { return [:] }
+        return (try? JSONDecoder().decode([String: Entry].self, from: data)) ?? [:]
+    }
 }
 
 /// 계정별 설정을 raw Mora UUID가 노출되지 않는 UserDefaults namespace에 저장합니다.
@@ -88,12 +134,15 @@ enum AccountPreferences {
             .aiDataConsentVersion,
             .lastDailyResetDate,
             .guestImportOffered,
+            .alertTone,
+            .alertSwearing,
         ] {
             defaults.removeObject(
                 forKey: "mora.account.\(accountScope).\(key.rawValue).v1"
             )
         }
         defaults.removeObject(forKey: "mora.account.\(accountScope).\(lastResetDateBase).v1")
+        defaults.removeObject(forKey: "mora.account.\(accountScope).\(TaskAlertLines.base).v1")
     }
 
     /// 계정별 일일 초기화 기준일 키의 바탕 이름입니다(TaskManager가 사용).
@@ -233,6 +282,42 @@ final class NotificationManager {
     var soundEnabled: Bool {
         AccountPreferences.hasActiveAccount
             && !AccountPreferences.bool(.notificationSoundDisabled, default: false)
+    }
+
+    var alertTone: AlertTone {
+        AlertTone(storageIndex: AccountPreferences.integer(.alertTone, default: 0))
+    }
+    var alertSwearing: Bool {
+        AccountPreferences.bool(.alertSwearing, default: false)
+    }
+
+    /// 잠금 화면에 보일 한 줄입니다. 첫 알림은 AI가 써 준 문장이 지금 말투·이름과 맞으면 그 문장을 씁니다.
+    func alertLine(_ stage: AlertStage, taskID: UUID, taskName: String) -> String {
+        let tone = alertTone
+        return Self.alertLine(
+            stage,
+            tone: tone,
+            swearing: alertSwearing,
+            aiLine: TaskAlertLines.line(
+                taskID: taskID, taskName: taskName, tone: tone,
+                language: LocalizationManager.shared.currentLanguage
+            ),
+            task: taskName,
+            copy: L.alertCopy
+        )
+    }
+
+    /// 욕 섞기를 켜면 AI 문장 대신 늘 정해 둔 문장을 씁니다(AI는 욕을 쓰지 않으므로).
+    static func alertLine(
+        _ stage: AlertStage,
+        tone: AlertTone,
+        swearing: Bool,
+        aiLine: String?,
+        task: String,
+        copy: AlertCopyStrings
+    ) -> String {
+        if stage == .first, !(tone == .spicy && swearing), let aiLine { return aiLine }
+        return copy.line(stage, tone: tone, swearing: swearing, task: task)
     }
 
     /// D13/D14: Pro 여부 — SubscriptionManager가 App Group에 기록한 플래그
@@ -514,10 +599,9 @@ final class NotificationManager {
         // 반복 알림은 기준시각이 과거여도 다음 발생에 매칭되므로 통과 (일회성만 미래 요구)
         guard spec.skipPlan != nil || repeats || spec.fireDate > Date() else { return }
 
+        // 잠금 화면에는 한 줄만: "약 먹을 시간이에요". 할 일 이름이 문장 안에 들어갑니다.
         let content = UNMutableNotificationContent()
-        let isRoutine = spec.category == "Routine"
-        content.title = isRoutine ? L.settings.routineNotifTitle : L.settings.appointmentNotifTitle
-        content.body  = "「\(spec.title)」"
+        content.title = spec.alertLine
         content.userInfo = [
             "taskId":   spec.id.uuidString,
             "taskName": spec.title,
@@ -526,12 +610,10 @@ final class NotificationManager {
 
         if spec.urgency == .strong {
             // 알람 의미론: 사운드 설정과 무관하게 링톤 + 집중 모드 관통(time-sensitive)
-            content.subtitle = L.alarm.notifSubtitleStrong
             content.interruptionLevel = .timeSensitive
             content.sound = .defaultRingtone
             content.categoryIdentifier = Self.strongCategoryID
         } else {
-            content.subtitle = L.alarm.notifSubtitleWeak
             content.interruptionLevel = .active
             content.sound = soundEnabled ? .default : nil
             content.categoryIdentifier = Self.weakCategoryID
@@ -559,11 +641,13 @@ final class NotificationManager {
         // 일회성 strong → +5/+10분 재알림 체인 (한 번 놓쳐도 끝나지 않게)
         // 반복 태스크에는 매일 반복되는 잔소리가 되므로 걸지 않음
         if spec.urgency == .strong && spec.recurrenceRule == nil && !repeats {
-            for follow in Self.followUpOffsets {
+            for (order, follow) in Self.followUpOffsets.enumerated() {
                 let followDate = spec.fireDate.addingTimeInterval(follow.seconds)
                 guard followDate > Date() else { continue }
                 guard let followContent = content.mutableCopy() as? UNMutableNotificationContent else { continue }
-                followContent.subtitle = L.alarm.notifSubtitleFollowUp
+                followContent.title = alertLine(
+                    order == 0 ? .followUp1 : .followUp2, taskID: spec.id, taskName: spec.title
+                )
                 let trigger = UNCalendarNotificationTrigger(
                     dateMatching: Calendar.current.dateComponents(
                         [.year, .month, .day, .hour, .minute], from: followDate),
@@ -619,7 +703,12 @@ final class NotificationManager {
     func scheduleSnooze(from request: UNNotificationRequest) {
         guard let content = request.content.mutableCopy() as? UNMutableNotificationContent,
               let taskId = content.userInfo["taskId"] as? String else { return }
-        content.subtitle = L.alarm.notifSubtitleFollowUp
+        if let id = UUID(uuidString: taskId), let name = content.userInfo["taskName"] as? String {
+            content.title = alertLine(.snooze, taskID: id, taskName: name)
+        }
+        // 이전 버전에서 예약된 알림의 부제·본문은 지웁니다.
+        content.subtitle = ""
+        content.body = ""
 
         let snoozeID = "\(taskId)-snooze"
         center.removePendingNotificationRequests(withIdentifiers: [snoozeID])
@@ -634,9 +723,7 @@ final class NotificationManager {
     /// 앱 안 알람 화면의 '5분 뒤 다시': 같은 할 일을 5분 뒤 강한 알림으로 한 번 더 알려줍니다.
     func scheduleSnooze(taskID: UUID, taskName: String) {
         let content = UNMutableNotificationContent()
-        content.title = L.alarm.countdownTitle
-        content.subtitle = L.alarm.notifSubtitleFollowUp
-        content.body = "「\(taskName)」"
+        content.title = alertLine(.snooze, taskID: taskID, taskName: taskName)
         content.userInfo = [
             "taskId": taskID.uuidString,
             "taskName": taskName,
@@ -717,6 +804,7 @@ final class NotificationManager {
         AlarmSpec(
             id: task.id,
             title: task.task,
+            alertLine: alertLine(.first, taskID: task.id, taskName: task.task),
             category: task.category,
             recurrenceRule: task.recurrenceRule,
             hasDate: task.date != nil,

@@ -1,5 +1,40 @@
-/** Shared by the deployed function and MORA Eval. Keep behavior changes separate. */
+/** Reminder tones the app can send. Only new app builds send one. */
+export const alertTones = ["gentle", "buddy", "nudge", "spicy"] as const;
+export type AlertTone = typeof alertTones[number];
+
+const alertToneGuide: Record<AlertTone, string> = {
+  gentle:
+    'warm and calm. ko "약 먹을 시간이에요" / en "Time to take your meds" / ja "お薬の時間です"',
+  buddy:
+    'a casual friend, informal speech (Korean 반말). ko "약 먹자!" / en "Meds time!" / ja "薬飲もう！"',
+  nudge:
+    'a soft, inviting question. ko "약 먹어볼까요?" / en "Shall we take your meds?" / ja "お薬、飲んでみませんか？"',
+  spicy:
+    'blunt, bossy and teasing, but never insulting, profane, or threatening. ko "약 먹어. 지금." / en "Take your meds. Now." / ja "薬飲め。今すぐ。"',
+};
+
+/**
+ * Shared by the deployed function and MORA Eval. Keep behavior changes separate.
+ * Without alertTone the prompt is byte-for-byte the one MORA Eval pins.
+ */
 export function buildAnalysisPrompt(
+  localTimeStr: string,
+  userLanguage: string,
+  alertTone?: AlertTone,
+): string {
+  const base = buildBasePrompt(localTimeStr, userLanguage);
+  if (!alertTone) return base;
+  return `${base}
+
+### ALERT LINE
+The user picked the reminder tone "${alertTone}". For EVERY "add_single_task" call, add one more parameter "alert_line": one short lock-screen reminder line for that task, written ENTIRELY in "${userLanguage}".
+- Say the action naturally, as a person would (e.g. "약 먹을 시간이에요", not "약 먹기 시간입니다").
+- Keep it short: at most 20 characters in Korean or Japanese, at most 40 in English. One sentence. No emoji, no quotes, no time or date.
+- Tone "${alertTone}": ${alertToneGuide[alertTone]}
+- Do NOT add "alert_line" to any other function.`;
+}
+
+function buildBasePrompt(
   localTimeStr: string,
   userLanguage: string,
 ): string {
