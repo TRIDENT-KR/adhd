@@ -12,6 +12,11 @@ final class MoraAppDelegate: NSObject, UIApplicationDelegate {
         willFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
         NotificationManager.shared.configureNotificationHandling()
+        // '말하기' 컨트롤이 앱을 열면 위젯 링크와 같은 길로 음성 탭을 엽니다(콜드 런치는 메인 화면이 뜰 때 열림).
+        SpeakIntentRoute.openVoice = {
+            WidgetDeepLinkInbox.store(.voice)
+            NotificationCenter.default.post(name: .widgetDeepLink, object: nil)
+        }
         return true
     }
 }
