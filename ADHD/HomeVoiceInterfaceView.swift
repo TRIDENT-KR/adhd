@@ -47,6 +47,8 @@ struct HomeVoiceInterfaceView: View {
     @State private var showAIConsent = false
     /// 동의 시트에서 동의하고 닫히면 보내려던 글을 바로 이어서 정리합니다.
     @State private var resumeAnalysisAfterConsent = false
+    /// AI가 되물은 뒤 다시 말하면, 새 말을 원래 초안 뒤에 붙여 보냅니다("오후" 같은 짧은 답만으로는 뜻이 없으므로).
+    @State private var appendNextSpeech = false
 
     // Text input state
     @State private var showTextInput = false
@@ -332,6 +334,20 @@ struct HomeVoiceInterfaceView: View {
                         } else if !voiceManager.recognizedText.isEmpty {
                             Text(voiceManager.recognizedText)
                                 .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
+                        } else if !voiceManager.isListening,
+                                  !textInputValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            // 분석이 실패했거나 AI가 되물었을 때 남은 초안. 누르면 입력창에서 고칩니다.
+                            Button(action: editPendingDraft) {
+                                VStack(spacing: 6) {
+                                    Text(L.aiPrivacy.quoted(textInputValue))
+                                        .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
+                                        .lineLimit(2)
+                                    Text(L.voice.editDraft)
+                                        .font(.subheadline.weight(.semibold))
+                                        .foregroundColor(DesignSystem.Colors.primary)
+                                }
+                            }
+                            .buttonStyle(NoEffectButtonStyle())
                         } else if voiceManager.isListening {
                             Text(L.voiceListening)
                                 .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
@@ -414,7 +430,6 @@ struct HomeVoiceInterfaceView: View {
                                 case .record:
                                     handleMicTap()
                                 case .analyzeDraft:
-                                    showTextInput = true
                                     sendTextInput()
                                 case .none:
                                     break
@@ -460,7 +475,6 @@ struct HomeVoiceInterfaceView: View {
         .sheet(isPresented: $showAIConsent, onDismiss: {
             guard resumeAnalysisAfterConsent else { return }
             resumeAnalysisAfterConsent = false
-            showTextInput = true
             sendTextInput()
         }) {
             AIDataConsentView(userID: authManager.accessState.accountUserID, draft: textInputValue,
@@ -581,6 +595,7 @@ struct HomeVoiceInterfaceView: View {
             showConfirmation = false
             showAIConsent = false
             resumeAnalysisAfterConsent = false
+            appendNextSpeech = false
             showTextInput = false
             showErrorToast = false
             isTextInputFocused = false
@@ -842,6 +857,7 @@ struct HomeVoiceInterfaceView: View {
         guard !actionCalls.isEmpty else {
             let questions = parsedTasks.filter(\.isClarification).compactMap(\.feedbackMessage)
             if !questions.isEmpty {
+                appendNextSpeech = true
                 showInfoMessage(questions.joined(separator: "\n"))
             } else if let offTopic = parsedTasks.first(where: \.isOffTopic) {
                 pendingSubmittedDraft = nil
@@ -894,15 +910,7 @@ struct HomeVoiceInterfaceView: View {
     private func handleMicTap() {
         guard activeAnalysisID == nil, !cloudLLM.isProcessing,
               !voiceManager.isProcessing else { return }
-        // STT는 초안 작성 단계입니다. 서버 연결과 quota는 명시적 분석 시점에 확인합니다.
-        if !voiceManager.isListening,
-           !textInputValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            showTextInput = true
-            isTextInputFocused = true
-            triggerErrorFeedback(message: L.voice.existingDraftProtected)
-            return
-        }
-
+        // 남아 있는 초안이 있어도 막지 않습니다. 새로 말하면 초안을 바꾸고(되물은 뒤면 이어 붙이고) 바로 분석합니다.
         showTextInput = false
         isTextInputFocused = false
         Haptic.impact(.medium)
@@ -1198,16 +1206,33 @@ struct HomeVoiceInterfaceView: View {
         guard voiceManager.onSpeechFinalized == nil else { return }
         voiceManager.onSpeechFinalized = { [weak voiceManager] text in
             guard let voiceManager else { return }
-            publishSpeechDraft(text, using: voiceManager)
+            publishSpeechDraft(text, using: voiceManager, analyzeNow: true)
         }
     }
 
+    /// 말이 끝나면(analyzeNow) 키보드 없이 바로 분석합니다. 확인은 저장 전 확인 카드가 맡습니다.
+    /// 녹음 중 키보드 버튼을 눌렀을 때만 초안을 입력창에 옮겨 고칠 수 있게 합니다.
     @MainActor
-    private func publishSpeechDraft(_ text: String, using manager: VoiceInputManager) {
+    private func publishSpeechDraft(_ text: String, using manager: VoiceInputManager, analyzeNow: Bool = false) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
             manager.isProcessing = false
             manager.lastError = .emptyTranscription
+            return
+        }
+
+        let canAnalyzeNow = analyzeNow && !showTextInput
+            && scenePhase == .active
+            && activeTab == .voice
+            && !showSettings
+            && !showPaywall
+            && !showVoiceGuide
+        if canAnalyzeNow {
+            let previous = textInputValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            textInputValue = appendNextSpeech && !previous.isEmpty ? previous + " " + trimmed : trimmed
+            appendNextSpeech = false
+            // 이 콜백 동안 VoiceInputManager는 아직 처리 중이라 분석이 막히므로, 처리가 끝난 다음 차례에 보냅니다.
+            DispatchQueue.main.async { sendTextInput() }
             return
         }
 
@@ -1220,6 +1245,16 @@ struct HomeVoiceInterfaceView: View {
             && !showSettings
             && !showPaywall
             && !showVoiceGuide
+    }
+
+    @MainActor
+    private func editPendingDraft() {
+        appendNextSpeech = false
+        let anim: Animation? = reduceMotion ? .none : .spring(response: 0.3, dampingFraction: 0.8)
+        withAnimation(anim) {
+            showTextInput = true
+            isTextInputFocused = true
+        }
     }
 
     @MainActor

@@ -416,13 +416,7 @@ struct VoiceStrings {
             "この下書きを分析するにはダブルタップします"
         )
     }
-    var existingDraftProtected: String {
-        t(
-            "Finish or clear the current draft before recording again.",
-            "현재 초안을 완료하거나 지운 뒤 다시 녹음해주세요.",
-            "現在の下書きを完了または削除してから、もう一度録音してください。"
-        )
-    }
+    var editDraft: String { t("Edit", "고치기", "直す") }
 
     var confirmRemoveItem: String { t("Remove", "제거", "削除") }
 
@@ -431,9 +425,9 @@ struct VoiceStrings {
     var a11yTapHint: String { t("Tap to start or stop voice input", "탭하여 음성 입력을 시작하거나 중지합니다", "タップして音声入力を開始または停止") }
     var a11yHoldHint: String {
         t(
-            "Hold to record and release for a draft. With VoiceOver, double tap to start or stop.",
-            "길게 눌러 녹음하고 떼면 초안이 만들어집니다. VoiceOver에서는 이중 탭하여 시작하거나 중지합니다.",
-            "長押しで録音し、離すと下書きになります。VoiceOverではダブルタップで開始・停止します。"
+            "Hold to record and release to analyze. With VoiceOver, double tap to start or stop.",
+            "길게 눌러 녹음하고 떼면 바로 분석해요. VoiceOver에서는 이중 탭하여 시작하거나 중지합니다.",
+            "長押しで録音し、離すとすぐ解析します。VoiceOverではダブルタップで開始・停止します。"
         )
     }
     var a11yTabBar: String { t("Tab navigation", "탭 내비게이션", "タブナビゲーション") }
@@ -663,9 +657,9 @@ struct AIPrivacyStrings {
     }
     var title: String { t("AI data sharing", "AI 데이터 전송", "AIへのデータ送信") }
     var explanation: String { t(
-        "When you tap Analyze, your typed text or edited speech transcript, current date/time and app language are sent through Supabase to Anthropic Claude first, and to Google Gemini if Claude is unavailable or cannot return a valid result to interpret your request. Your full task list and raw audio are not sent to either AI provider. Voice transcription uses Apple's speech recognition and may be processed by Apple. Review the draft before sending; avoid including sensitive information.",
-        "분석을 누르면 입력한 글 또는 수정한 음성 초안, 현재 날짜·시간과 앱 언어가 Supabase 서버를 거쳐 먼저 Anthropic Claude로 전달됩니다. Claude를 사용할 수 없거나 올바른 결과를 받지 못하면 Google Gemini로 전달해 요청을 해석합니다. 전체 일정 목록과 원본 음성은 두 AI 제공자 모두에게 보내지 않습니다. 음성 전사는 Apple 음성 인식을 사용하며 Apple에서 처리될 수 있습니다. 전송 전에 초안을 확인하고 민감한 정보는 포함하지 마세요.",
-        "解析を押すと、入力した文章または編集した音声の下書き、現在の日時とアプリの言語がSupabase経由でまずAnthropic Claudeに送信します。Claudeが利用できない場合や有効な結果を得られない場合は、Google Geminiに送信して解析します。タスク一覧全体や音声そのものはどちらのAI提供者にも送信しません。音声の文字起こしにはAppleの音声認識を使用し、Appleで処理される場合があります。送信前に下書きを確認し、機密情報は含めないでください。"
+        "When you finish speaking or tap Send, your speech transcript or typed text, current date/time and app language are sent through Supabase to Anthropic Claude first, and to Google Gemini if Claude is unavailable or cannot return a valid result to interpret your request. Your full task list and raw audio are not sent to either AI provider. Voice transcription uses Apple's speech recognition and may be processed by Apple. Speech is sent as soon as you finish speaking, so avoid including sensitive information.",
+        "말을 마치거나 보내기를 누르면 음성 인식 문장 또는 입력한 글, 현재 날짜·시간과 앱 언어가 Supabase 서버를 거쳐 먼저 Anthropic Claude로 전달됩니다. Claude를 사용할 수 없거나 올바른 결과를 받지 못하면 Google Gemini로 전달해 요청을 해석합니다. 전체 일정 목록과 원본 음성은 두 AI 제공자 모두에게 보내지 않습니다. 음성 전사는 Apple 음성 인식을 사용하며 Apple에서 처리될 수 있습니다. 음성은 말을 마치면 바로 전송되니 민감한 정보는 포함하지 마세요.",
+        "話し終えるか送信を押すと、音声を文字にした文章または入力した文章、現在の日時とアプリの言語がSupabase経由でまずAnthropic Claudeに送信します。Claudeが利用できない場合や有効な結果を得られない場合は、Google Geminiに送信して解析します。タスク一覧全体や音声そのものはどちらのAI提供者にも送信しません。音声の文字起こしにはAppleの音声認識を使用し、Appleで処理される場合があります。音声は話し終えるとすぐ送信されるため、機密情報は含めないでください。"
     ) }
     var choice: String { t(
         "AI is optional. You can add and edit tasks manually without sharing them with either AI provider. You can withdraw permission in Settings. Withdrawal stops future AI requests; it does not recall data already sent. See the privacy policies for data handling and retention.",

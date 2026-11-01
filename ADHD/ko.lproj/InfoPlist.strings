@@ -1,3 +1,3 @@
-"NSMicrophoneUsageDescription" = "마이크를 누르면 음성을 편집 가능한 초안으로 만듭니다. 글로 입력할 수도 있습니다.";
-"NSSpeechRecognitionUsageDescription" = "Apple 음성 인식으로 말을 편집 가능한 일정 초안으로 만듭니다. 음성이 Apple에서 처리될 수 있으며, 글로 입력할 수도 있습니다.";
+"NSMicrophoneUsageDescription" = "마이크를 누르면 말한 내용을 듣고 일정으로 정리해요. 글로 입력할 수도 있어요.";
+"NSSpeechRecognitionUsageDescription" = "Apple 음성 인식으로 말한 내용을 글자로 바꿔 일정으로 정리해요. 음성이 Apple에서 처리될 수 있고, 글로 입력할 수도 있어요.";
 "NSAlarmKitUsageDescription" = "'꼭 알림'으로 정한 할 일을 놓치지 않게 알람처럼 울려 드려요. 알람 전달은 기기 권한과 설정에 따라 달라져요.";
