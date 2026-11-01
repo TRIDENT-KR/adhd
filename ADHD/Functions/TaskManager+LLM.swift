@@ -491,6 +491,16 @@ extension TaskManager {
             task.normalizeSchedule()
             placeNewTask(task, in: context)
             context.insert(task)
+            // 알림 예약 전에 AI가 쓴 알림 문장을 남겨 둡니다(없으면 정해 둔 문장).
+            if let line = params.alert_line {
+                TaskAlertLines.save(
+                    line,
+                    tone: NotificationManager.shared.alertTone,
+                    language: LocalizationManager.shared.currentLanguage,
+                    taskID: task.id,
+                    taskName: task.task
+                )
+            }
             return AppliedLLMCall(
                 affectedCount: 1,
                 needsSave: true,

@@ -125,7 +125,11 @@ function validateAdd(parameters: Record<string, unknown>, index: number): void {
     "recurrence",
     "urgency",
   ];
-  assertExactKeys(parameters, keys, keys, index);
+  // alert_line is only present when the app sent a reminder tone.
+  assertExactKeys(parameters, [...keys, "alert_line"], keys, index);
+  if ("alert_line" in parameters && parameters.alert_line !== null) {
+    assertNonEmptyString(parameters.alert_line, "alert_line", index, 80);
+  }
   assertNonEmptyString(parameters.task_name, "task_name", index);
   assertNullableTime(parameters.time, "time", index);
   assertNullableDate(parameters.date, "date", index);

@@ -120,6 +120,7 @@ class CloudLLMManager: ObservableObject {
             text: text,
             now: context.now,
             language: context.language,
+            alertTone: NotificationManager.shared.alertTone,
             timeZone: context.timeZone
         )
 
@@ -211,7 +212,8 @@ class CloudLLMManager: ObservableObject {
     }
 
     /// 논리 요청 하나에 대응하는 analyze-task 입력. 재시도 동안 절대 다시 만들지 않습니다.
-    static func makeAnalyzePayload(requestID: UUID, text: String, now: Date, language: String, timeZone: TimeZone = .current) -> [String: String] {
+    /// alertTone을 보내면 서버가 추가 명령마다 그 말투의 알림 문장(alert_line)을 함께 돌려줍니다.
+    static func makeAnalyzePayload(requestID: UUID, text: String, now: Date, language: String, alertTone: AlertTone = .gentle, timeZone: TimeZone = .current) -> [String: String] {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd HH:mm"
         formatter.calendar = Calendar(identifier: .gregorian)
@@ -222,7 +224,8 @@ class CloudLLMManager: ObservableObject {
             "requestId": requestID.uuidString.lowercased(),
             "text": text,
             "currentTime": formatter.string(from: now),
-            "language": language
+            "language": language,
+            "alertTone": alertTone.rawValue
         ]
     }
 

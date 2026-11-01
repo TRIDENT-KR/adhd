@@ -151,6 +151,7 @@ struct Strings {
 
     // Alarm / Notification
     var alarm: AlarmStrings { AlarmStrings(language: language) }
+    var alertCopy: AlertCopyStrings { AlertCopyStrings(language: language) }
 
     // Task Edit Sheet
     var taskEdit: TaskEditStrings { TaskEditStrings(language: language) }
@@ -188,11 +189,6 @@ struct AlarmStrings {
         case .ja: return ja
         }
     }
-
-    // 알림 콘텐츠
-    var notifSubtitleStrong: String { t("Time for this one", "할 시간이 됐어요", "そろそろ時間です") }
-    var notifSubtitleWeak: String { t("One small step today", "오늘의 한 걸음", "今日の一歩") }
-    var notifSubtitleFollowUp: String { t("Still on your list. No rush.", "아직 남아 있어요. 천천히 해도 괜찮아요.", "まだ残っています。ゆっくりで大丈夫です。") }
 
     // 알림 액션
     var completeAction: String { t("Done", "완료", "完了") }
@@ -241,14 +237,15 @@ struct SettingsStrings {
     var appointmentReminders: String { t("Appointment Reminders", "일정 알림", "予定通知") }
     var remindBefore: String { t("Remind Before", "사전 알림", "事前通知") }
     var sound: String { t("Sound", "사운드", "サウンド") }
+    var alertTone: String { t("Reminder Tone", "알림 말투", "通知の口調") }
+    var alertSwearing: String { t("Allow Swearing", "욕 섞기", "口を悪くする") }
+    var alertSwearingNote: String { t("It shows on your Lock Screen too.", "잠금 화면에도 그대로 보여요.", "ロック画面にもそのまま表示されます。") }
     var appearance: String { t("Appearance", "외관", "外観") }
     var theme: String { t("Theme", "테마", "テーマ") }
     var haptic: String { t("Haptic Feedback", "햅틱 피드백", "触覚フィードバック") }
     var dataManagement: String { t("Data Management", "데이터 관리", "データ管理") }
     var clearCompleted: String { t("Clear Completed Tasks", "완료된 태스크 삭제", "完了タスクを削除") }
     var clearAll: String { t("Clear All Data", "전체 데이터 삭제", "全データ削除") }
-    var routineNotifTitle: String { t("🔔 Routine Reminder", "🔔 루틴 알림", "🔔 ルーティン通知") }
-    var appointmentNotifTitle: String { t("Appointment Reminder", "일정 알림", "予定通知") }
     var about: String { t("About", "앱 정보", "アプリ情報") }
     var general: String { t("General", "일반", "一般") }
     var voiceInput: String { t("Voice Input", "음성 입력", "音声入力") }
@@ -735,5 +732,137 @@ struct TaskEditStrings {
         t("You can check this off on the day",
           "그날이 되면 완료로 표시할 수 있어요",
           "当日になったら完了にできます")
+    }
+}
+
+// MARK: - Alert Tone
+/// 알림 말투. 설정의 '알림 말투'에서 고르고, AI가 알림 문장을 쓸 때도 이 말투로 씁니다.
+/// rawValue는 서버(analyze-task)에 그대로 보내므로 바꾸지 않습니다.
+enum AlertTone: String, CaseIterable, Sendable {
+    case gentle, buddy, nudge, spicy
+
+    /// 설정에 저장하는 순서 값입니다(AccountPreferences는 정수로 저장).
+    var storageIndex: Int { Self.allCases.firstIndex(of: self) ?? 0 }
+
+    init(storageIndex: Int) {
+        self = Self.allCases.indices.contains(storageIndex) ? Self.allCases[storageIndex] : .gentle
+    }
+}
+
+/// 알림이 울리는 차례입니다. 처음, 안 했을 때 5분·10분 뒤, '5분 뒤 다시'를 누른 뒤.
+enum AlertStage: Sendable {
+    case first, followUp1, followUp2, snooze
+}
+
+/// 잠금 화면에 보이는 한 줄짜리 알림 문장입니다.
+/// AI가 써 준 문장이 없을 때(빠른 추가, 간단한 문장, 말투를 바꾼 뒤) 할 일 이름을 넣어 이 문장을 씁니다.
+struct AlertCopyStrings {
+    let language: AppLanguage
+
+    func line(_ stage: AlertStage, tone: AlertTone, swearing: Bool, task: String) -> String {
+        if tone == .spicy && swearing { return swear(stage, task) }
+        switch language {
+        case .en: return en(stage, tone, task)
+        case .ko: return ko(stage, tone, task)
+        case .ja: return ja(stage, tone, task)
+        }
+    }
+
+    func toneName(_ tone: AlertTone) -> String {
+        switch (tone, language) {
+        case (.gentle, .en): return "Gentle"
+        case (.gentle, .ko): return "다정하게"
+        case (.gentle, .ja): return "やさしく"
+        case (.buddy, .en): return "Buddy"
+        case (.buddy, .ko): return "친구처럼"
+        case (.buddy, .ja): return "友だち風"
+        case (.nudge, .en): return "Nudge"
+        case (.nudge, .ko): return "살살"
+        case (.nudge, .ja): return "そっと"
+        case (.spicy, .en): return "Spicy"
+        case (.spicy, .ko): return "매운맛"
+        case (.spicy, .ja): return "激辛"
+        }
+    }
+
+    private func ko(_ stage: AlertStage, _ tone: AlertTone, _ t: String) -> String {
+        switch (tone, stage) {
+        case (.gentle, .first): return "\(t) 시간이에요"
+        case (.gentle, .followUp1): return "\(t), 아직이에요? 천천히 해도 돼요"
+        case (.gentle, .followUp2): return "\(t), 지금 해도 늦지 않아요"
+        case (.gentle, .snooze): return "\(t), 다시 알려드려요"
+        case (.buddy, .first): return "\(t) 시간이야!"
+        case (.buddy, .followUp1): return "\(t) 아직이지? 얼른 하고 와"
+        case (.buddy, .followUp2): return "\(t)! 이번엔 진짜야"
+        case (.buddy, .snooze): return "\(t), 나 또 왔어!"
+        case (.nudge, .first): return "\(t), 지금 시작해볼까요?"
+        case (.nudge, .followUp1): return "\(t), 딱 1분만 해볼까요?"
+        case (.nudge, .followUp2): return "\(t), 지금 해두면 편해요"
+        case (.nudge, .snooze): return "\(t), 이제 해볼까요?"
+        case (.spicy, .first): return "\(t). 지금."
+        case (.spicy, .followUp1): return "\(t) 아직도 안 했냐?"
+        case (.spicy, .followUp2): return "마지막 경고. \(t)."
+        case (.spicy, .snooze): return "\(t). 또 미루지 마."
+        }
+    }
+
+    private func en(_ stage: AlertStage, _ tone: AlertTone, _ t: String) -> String {
+        switch (tone, stage) {
+        case (.gentle, .first): return "Time for \(t)"
+        case (.gentle, .followUp1): return "\(t): still there? No rush."
+        case (.gentle, .followUp2): return "\(t): now's still a good time"
+        case (.gentle, .snooze): return "\(t), here again"
+        case (.buddy, .first): return "\(t) time!"
+        case (.buddy, .followUp1): return "\(t) yet? Go do it."
+        case (.buddy, .followUp2): return "\(t)! For real this time."
+        case (.buddy, .snooze): return "Me again! \(t)"
+        case (.nudge, .first): return "\(t)? Let's give it a go."
+        case (.nudge, .followUp1): return "\(t), just one minute?"
+        case (.nudge, .followUp2): return "\(t) now, easier later"
+        case (.nudge, .snooze): return "\(t), ready now?"
+        case (.spicy, .first): return "\(t). Now."
+        case (.spicy, .followUp1): return "\(t). Still waiting."
+        case (.spicy, .followUp2): return "Final warning: \(t)."
+        case (.spicy, .snooze): return "\(t). Stop stalling."
+        }
+    }
+
+    private func ja(_ stage: AlertStage, _ tone: AlertTone, _ t: String) -> String {
+        switch (tone, stage) {
+        case (.gentle, .first): return "\(t)の時間です"
+        case (.gentle, .followUp1): return "\(t)、まだですか？ゆっくりで大丈夫"
+        case (.gentle, .followUp2): return "\(t)、今からでも間に合います"
+        case (.gentle, .snooze): return "\(t)、もう一度お知らせします"
+        case (.buddy, .first): return "\(t)の時間だよ！"
+        case (.buddy, .followUp1): return "\(t)まだ？早くやっちゃお"
+        case (.buddy, .followUp2): return "\(t)！今度こそね"
+        case (.buddy, .snooze): return "\(t)、また来たよ！"
+        case (.nudge, .first): return "\(t)、始めてみませんか？"
+        case (.nudge, .followUp1): return "\(t)、1分だけやってみる？"
+        case (.nudge, .followUp2): return "\(t)、今やると後が楽です"
+        case (.nudge, .snooze): return "\(t)、そろそろどうですか？"
+        case (.spicy, .first): return "\(t)。今すぐ。"
+        case (.spicy, .followUp1): return "\(t)、まだやってないの？"
+        case (.spicy, .followUp2): return "最終警告。\(t)。"
+        case (.spicy, .snooze): return "\(t)。先延ばし禁止。"
+        }
+    }
+
+    /// 매운맛 + 욕 섞기(기본 꺼짐). AI에게 맡기지 않고 늘 이 문장을 씁니다.
+    private func swear(_ stage: AlertStage, _ t: String) -> String {
+        switch (language, stage) {
+        case (.ko, .first): return "\(t). 당장 해, 이 새끼야"
+        case (.ko, .followUp1): return "야, \(t) 아직도 안 했냐? 씨발"
+        case (.ko, .followUp2): return "\(t). 제발 좀 해라, 이 개새끼야"
+        case (.ko, .snooze): return "\(t). 또 미루냐, 이 새끼가"
+        case (.en, .first): return "\(t). Now, dammit."
+        case (.en, .followUp1): return "\(t). What the hell are you waiting for?"
+        case (.en, .followUp2): return "Last fucking warning: \(t)."
+        case (.en, .snooze): return "\(t). Quit stalling, dumbass."
+        case (.ja, .first): return "\(t)。さっさとやれ、このバカ"
+        case (.ja, .followUp1): return "\(t)まだかよ、クソが"
+        case (.ja, .followUp2): return "\(t)。いい加減にしろ、このアホ"
+        case (.ja, .snooze): return "\(t)。また逃げる気か、ボケ"
+        }
     }
 }

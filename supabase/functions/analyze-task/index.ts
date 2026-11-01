@@ -1,4 +1,4 @@
-import { buildAnalysisPrompt } from "./prompt.ts";
+import { alertTones, buildAnalysisPrompt } from "./prompt.ts";
 import { createClient } from "@supabase/supabase-js";
 import {
   type AnalysisInput,
@@ -142,6 +142,9 @@ Deno.serve(async (req: Request) => {
       language: typeof rawBody.language === "string"
         ? rawBody.language
         : undefined,
+      alertTone: typeof rawBody.alertTone === "string"
+        ? rawBody.alertTone
+        : undefined,
     };
     logicalRequestId = /^[0-9a-f-]{36}$/i.test(input.requestId)
       ? input.requestId
@@ -150,7 +153,9 @@ Deno.serve(async (req: Request) => {
     const localTimeStr = input.currentTime ?? promptTimeInSeoul();
     const userLanguage = input.language ?? "en";
 
-    const finalPrompt = buildAnalysisPrompt(localTimeStr, userLanguage);
+    // validateInput (in executeAnalysis) rejects unknown tones before the model runs.
+    const alertTone = alertTones.find((tone) => tone === input.alertTone);
+    const finalPrompt = buildAnalysisPrompt(localTimeStr, userLanguage, alertTone);
 
     const recordEvent = async (
       eventName: "analysis_succeeded" | "analysis_failed" | "quota_denied",

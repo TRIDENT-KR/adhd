@@ -30,6 +30,8 @@ struct SettingsView: View {
     @State private var appointmentReminders = true
     @State private var remindBefore = 0
     @State private var notificationSound = true
+    @State private var alertToneIndex = 0
+    @State private var alertSwearing = false
     @State private var loadedPreferenceAccountID: UUID?
     @State private var notificationsDenied = false
     @Environment(\.scenePhase) private var scenePhase
@@ -220,6 +222,39 @@ struct SettingsView: View {
                     .onChange(of: notificationSound) { _, val in
                         if persist(!val, for: .notificationSoundDisabled) {
                             taskManager.reconcileNotificationsWithPreferences()
+                        }
+                    }
+
+                    Picker(selection: $alertToneIndex) {
+                        ForEach(AlertTone.allCases, id: \.self) { tone in
+                            Text(L.alertCopy.toneName(tone)).tag(tone.storageIndex)
+                        }
+                    } label: {
+                        settingsRow(L.settings.alertTone, icon: "text.bubble")
+                    }
+                    .onChange(of: alertToneIndex) { _, val in
+                        if persist(val, for: .alertTone) {
+                            taskManager.reconcileNotificationsWithPreferences()
+                        }
+                    }
+
+                    // 욕 섞기는 매운맛을 골랐을 때만 보입니다(기본 꺼짐).
+                    if AlertTone(storageIndex: alertToneIndex) == .spicy {
+                        Toggle(isOn: $alertSwearing) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                settingsRow(L.settings.alertSwearing, icon: "flame")
+                                if alertSwearing {
+                                    Text(L.settings.alertSwearingNote)
+                                        .font(.footnote)
+                                        .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
+                                        .padding(.leading, 36)
+                                }
+                            }
+                        }
+                        .onChange(of: alertSwearing) { _, val in
+                            if persist(val, for: .alertSwearing) {
+                                taskManager.reconcileNotificationsWithPreferences()
+                            }
                         }
                     }
                 } header: {
@@ -494,6 +529,8 @@ struct SettingsView: View {
             appointmentReminders = false
             remindBefore = 0
             notificationSound = false
+            alertToneIndex = 0
+            alertSwearing = false
             confirmBeforeSave = true
             return
         }
@@ -523,6 +560,8 @@ struct SettingsView: View {
             default: true,
             for: userID
         )
+        alertToneIndex = AccountPreferences.integer(.alertTone, default: 0, for: userID)
+        alertSwearing = AccountPreferences.bool(.alertSwearing, default: false, for: userID)
         loadedPreferenceAccountID = userID
     }
 

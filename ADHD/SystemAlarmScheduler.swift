@@ -34,6 +34,8 @@ enum SkipPlan: Sendable {
 struct AlarmSpec: Sendable {
     let id: UUID
     let title: String
+    /// 잠금 화면·알람에 보일 한 줄 (말투·AI 문장 반영)
+    let alertLine: String
     let category: String        // "Routine" | "Appointment"
     let recurrenceRule: String?
     let hasDate: Bool
@@ -190,7 +192,7 @@ final class SystemAlarmScheduler: Sendable {
         )
         let presentation = AlarmPresentation(
             alert: .init(
-                title: Self.resource(spec.title),
+                title: Self.resource(spec.alertLine),
                 secondaryButton: snoozeButton,
                 secondaryButtonBehavior: .countdown
             ),

@@ -212,7 +212,11 @@ extension PendingLLMCall {
             // 폼의 기본값(날짜 없는 플래너 일정의 오늘 등)도 그대로 저장해야 하므로
             // 편집 시작 값이 아니라 실제 명령 값과 비교합니다.
             let original = params
-            if nameChanged { params.task_name = trimmedName }
+            if nameChanged {
+                params.task_name = trimmedName
+                // 이름을 바꾸면 AI 알림 문장이 맞지 않으니 정해 둔 문장을 쓰게 합니다.
+                params.alert_line = nil
+            }
             params.category = edited.category
             params.date = editedDate
             if timeChanged { params.time = edited.time }
@@ -318,6 +322,8 @@ struct AddSingleTaskParams: Codable {
     var recurrence: String?
     /// LLM이 판단한 알림 강도: "strong" | "weak" | nil (하이브리드 분류 1단계)
     var urgency: String?
+    /// AI가 고른 말투로 써 준 첫 알림 문장. 앱이 말투를 보낸 요청에만 옵니다.
+    var alert_line: String?
 }
 
 struct UpdateTaskParams: Codable {
@@ -384,7 +390,7 @@ enum LLMFunctionCall: Decodable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let functionName = try container.decode(String.self, forKey: .function_name)
         let allowed: [String: Set<String>] = [
-            "add_single_task": ["task_name", "time", "date", "category", "recurrence", "urgency"],
+            "add_single_task": ["task_name", "time", "date", "category", "recurrence", "urgency", "alert_line"],
             "update_task": ["target_task_name", "new_task_name", "new_time", "new_date", "new_category", "new_recurrence"],
             "delete_specific_task": ["target_task_name", "target_category", "target_date"],
             "clear_all_tasks": ["target_category", "target_date"],
@@ -464,6 +470,7 @@ enum LLMFunctionCall: Decodable {
     /// 수정·삭제·완료 명령은 바뀐 항목만 반영해야 하므로 PendingLLMCall.applyEdit을 사용합니다.
     mutating func updateFields(taskName: String, time: String?, date: String?, category: String) {
         guard case .addSingleTask(var p) = self else { return }
+        if p.task_name != taskName { p.alert_line = nil }
         p.task_name = taskName
         p.time = time
         // 루틴은 날짜 정보가 있으면 안 됨 (매일 반복이 기본이므로)
@@ -550,6 +557,7 @@ enum LLMFunctionCall: Decodable {
                 && Self.isValidTime(params.time)
                 && Self.isValidRecurrence(params.recurrence)
                 && (params.urgency == nil || ["strong", "weak"].contains(params.urgency!))
+                && (params.alert_line == nil || (Self.isValidText(params.alert_line!) && params.alert_line!.count <= 80))
         case .updateTask(let params):
             return Self.isValidText(params.target_task_name)
                 && (params.new_task_name == nil || Self.isValidText(params.new_task_name!))
