@@ -673,7 +673,7 @@ struct AIPrivacyStrings {
     var details: String { t("Details", "자세히 보기", "詳しく見る") }
     /// 보낼 글이 없을 때(설정에서 열 때) 흐름 그림에 보여 줄 예시
     var sampleDraft: String { t("Dentist at 3pm", "내일 오후 3시에 치과", "明日15時に歯医者") }
-    var flowAccessibility: String { t("Your text is sent to Claude", "적은 글을 Claude에 보내요", "入力した文章をClaudeに送ります") }
+    var flowAccessibility: String { t("Your text is sent to Claude, or to Gemini if Claude is unavailable", "적은 글을 Claude에 보내요. Claude가 안 되면 Gemini에 보내요", "入力した文章をClaudeに送ります。Claudeが使えない場合はGeminiに送ります") }
     func quoted(_ text: String) -> String { t("“\(text)”", "“\(text)”", "「\(text)」") }
     var anthropicPolicy: String { t("Anthropic data policy", "Anthropic 데이터 정책", "Anthropicのデータポリシー") }
     var googlePolicy: String { t("Google Gemini data policy", "Google Gemini 데이터 정책", "Google Geminiのデータポリシー") }

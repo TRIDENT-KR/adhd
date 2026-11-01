@@ -323,7 +323,8 @@ struct AIDataConsentView: View {
     @State private var contentHeight: CGFloat = 380
 
     var body: some View {
-        // 제목 없이 "내 글 → Claude" 그림과 동의 버튼만 둡니다. 전송 범위·대체 제공자·철회 방법은 자세히 보기 안에 있습니다.
+        // 제목 없이 "내 글 → Claude(아래 줄 Gemini)" 그림과 동의 버튼만 둡니다. 전송 범위·철회 방법은 자세히 보기 안에 있습니다.
+        // 심사 5.1.2(i): 글을 받는 외부 AI(Claude, 대체 제공자 Gemini)는 펼치지 않아도 보여야 합니다.
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 Image(systemName: "sparkles")
@@ -389,7 +390,7 @@ struct AIDataConsentView: View {
         .tint(DesignSystem.Colors.primary)
     }
 
-    /// 보낼 글이 Claude로 간다는 것을 그림 한 줄로 보여 줍니다.
+    /// 보낼 글이 Claude(안 되면 Gemini)로 간다는 것을 그림 한 줄로 보여 줍니다.
     private var flow: some View {
         HStack(spacing: 10) {
             Text(L.aiPrivacy.quoted(draftPreview))
@@ -406,8 +407,14 @@ struct AIDataConsentView: View {
             HStack(spacing: 6) {
                 Image(systemName: "sparkle")
                     .foregroundColor(DesignSystem.Colors.primary)
-                Text("Claude")
-                    .fontWeight(.bold)
+                // 대체 제공자 Gemini는 아래 줄에 작게 둡니다(먼저 받는 쪽은 Claude).
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(verbatim: "Claude")
+                        .fontWeight(.bold)
+                    Text(verbatim: "Gemini")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
+                }
             }
             .font(.subheadline)
             .foregroundColor(DesignSystem.Colors.onSurface)
