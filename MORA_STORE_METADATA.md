@@ -15,7 +15,7 @@
 | 고객 지원 | trident1398@gmail.com |
 | 심사 연락처 | 담당자의 실제 성명·전화·이메일을 소유자가 입력 |
 | 저작권 | 실제 권리자·법인명을 소유자가 확인하여 입력. 저장소 조직명이 법적 권리자라고 추정하지 않음 |
-| 연령·국가 | 설문은 사실대로 답한 뒤 **Override to Higher Age Rating → 18+** 필수(약관이 18세 이상, [Apple 기준](https://developer.apple.com/help/app-store-connect/manage-app-information/set-an-app-age-rating)). 판매 지역은 [계정 설정 체크리스트](MORA_ACCOUNT_SETUP_CHECKLIST.md#1-먼저-정할-것--김기홍이연재-합의-필요)의 결정을 따른다. 앱 자기신고는 신분증 인증이 아님 |
+| 연령·국가 | 설문은 사실대로 답한 뒤(알림 말투의 '욕 섞기' 옵션 때문에 **비속어·저속한 유머** 항목은 '없음'이 아님) **Override to Higher Age Rating → 18+** 필수(약관이 18세 이상, [Apple 기준](https://developer.apple.com/help/app-store-connect/manage-app-information/set-an-app-age-rating)). 판매 지역은 [계정 설정 체크리스트](MORA_ACCOUNT_SETUP_CHECKLIST.md#1-먼저-정할-것--김기홍이연재-합의-필요)의 결정을 따른다. 앱 자기신고는 신분증 인증이 아님 |
 | 플랫폼 | iPhone, iOS 26.2 이상. 스크린샷·기능 설명은 검증한 실제 화면 기준 |
 
 ## 한국어
@@ -95,4 +95,4 @@ Mora Proは、無料の1日あたりの分析回数制限を解除し、Proア�
 
 ## スクリーンショット / 스크린샷 제작 기준
 
-검증한 Release 후보의 실제 화면으로, ① 게스트 일정/루틴 ② 수동 추가 ③ 음성 초안 확인 ④ AI 분석 결과 ⑤ Pro 화면 순서를 권장한다. Pro 화면에는 구독이 필요하다는 것을 정확히 표시한다(로그인은 필요 없음). 개인 일정·이메일·Apple 계정은 노출하지 않는다. StoreKit 테스트 설정이나 DEBUG demo를 실제 구매·동기화 완료의 증거로 쓰지 않는다. 요구되는 기기별 이미지 크기는 ASC 업로드 화면에서 확인한다.
+검증한 Release 후보의 실제 화면으로, ① 게스트 일정/루틴 ② 수동 추가 ③ 말하기(음성 탭) ④ AI 분석 결과(확인 카드) ⑤ Pro 화면 순서를 권장한다. 스크린샷·미리보기는 4+ 기준(2.3.8)이므로 매운맛·욕 섞기 알림 문구는 보이지 않게 한다. Pro 화면에는 구독이 필요하다는 것을 정확히 표시한다(로그인은 필요 없음). 개인 일정·이메일·Apple 계정은 노출하지 않는다. StoreKit 테스트 설정이나 DEBUG demo를 실제 구매·동기화 완료의 증거로 쓰지 않는다. 요구되는 기기별 이미지 크기는 ASC 업로드 화면에서 확인한다.
