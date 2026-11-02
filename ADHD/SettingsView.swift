@@ -10,6 +10,7 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
 
     @ObservedObject var langManager = LocalizationManager.shared
+    @ObservedObject private var deviceCalendar = DeviceCalendar.shared
 
     @State private var showLogoutConfirm = false
     @State private var showDeleteFlow = false
@@ -259,6 +260,19 @@ struct SettingsView: View {
                     }
                 } header: {
                     Text(L.settings.notifications)
+                }
+                .settingsSectionStyle()
+
+                // ── iPhone 캘린더 ──
+                Section {
+                    Toggle(isOn: calendarBinding(.showEvents)) {
+                        settingsRow(L.settings.calendarShowEvents, icon: "calendar")
+                    }
+                    Toggle(isOn: calendarBinding(.exportAppointments)) {
+                        settingsRow(L.settings.calendarExport, icon: "calendar.badge.plus")
+                    }
+                } header: {
+                    Text(L.settings.calendarSection)
                 }
                 .settingsSectionStyle()
 
@@ -519,6 +533,22 @@ struct SettingsView: View {
             }
         }
         .contentShape(Rectangle())
+    }
+
+    /// 캘린더 토글. 켤 때 권한을 묻고, 이미 거절해 두었다면 iPhone 설정을 바로 엽니다.
+    private func calendarBinding(_ feature: DeviceCalendar.Feature) -> Binding<Bool> {
+        Binding(
+            get: { feature == .showEvents ? deviceCalendar.showsEvents : deviceCalendar.exportsAppointments },
+            set: { enabled in
+                Task {
+                    if await deviceCalendar.set(feature, enabled: enabled) {
+                        if feature == .exportAppointments, enabled { taskManager.syncDeviceCalendar() }
+                    } else if deviceCalendar.needsSettingsForAccess {
+                        deviceCalendar.openSettingsToAllowAccess(for: feature)
+                    }
+                }
+            }
+        )
     }
 
     private func loadAccountPreferences() {

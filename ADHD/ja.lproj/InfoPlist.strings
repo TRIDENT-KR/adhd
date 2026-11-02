@@ -1,3 +1,4 @@
 "NSMicrophoneUsageDescription" = "マイクを押すと話した内容を聞き取り、予定に整理します。文字でも入力できます。";
 "NSSpeechRecognitionUsageDescription" = "Appleの音声認識で話した内容を文字にして、予定に整理します。音声がAppleで処理される場合があります。文字でも入力できます。";
 "NSAlarmKitUsageDescription" = "「しっかり通知」にしたタスクを見逃さないよう、アラームでお知らせします。通知は端末の許可と設定によって異なります。";
+"NSCalendarsFullAccessUsageDescription" = "iPhoneのカレンダーの予定をプランナーに表示し、Moraの予定をカレンダーに追加できます。カレンダーの内容はこの端末の外に送信しません。";

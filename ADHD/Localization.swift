@@ -240,6 +240,9 @@ struct SettingsStrings {
     var alertTone: String { t("Reminder Tone", "알림 말투", "通知の口調") }
     var alertSwearing: String { t("Allow Swearing", "욕 섞기", "口を悪くする") }
     var alertSwearingNote: String { t("It shows on your Lock Screen too.", "잠금 화면에도 그대로 보여요.", "ロック画面にもそのまま表示されます。") }
+    var calendarSection: String { t("iPhone Calendar", "iPhone 캘린더", "iPhoneのカレンダー") }
+    var calendarShowEvents: String { t("Show in Planner", "플래너에 함께 보기", "プランナーに表示") }
+    var calendarExport: String { t("Add Mora Plans", "Mora 일정 넣기", "Moraの予定を追加") }
     var appearance: String { t("Appearance", "외관", "外観") }
     var theme: String { t("Theme", "테마", "テーマ") }
     var haptic: String { t("Haptic Feedback", "햅틱 피드백", "触覚フィードバック") }
