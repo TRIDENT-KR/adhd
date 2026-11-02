@@ -634,14 +634,14 @@ struct HomeVoiceInterfaceView: View {
                         }
                         .onEnded { _ in
                             if voiceManager.isListening {
-                                voiceManager.stopListening()
+                                voiceManager.stopListening(reason: "holdReleased")
                             }
                         }
                 )
                 // 손가락이 밀려 페이지 넘김이 제스처를 가져가면 onEnded가 오지 않으므로, 눌림이 풀리면 멈춥니다.
                 .onChange(of: isHoldingMic) { _, holding in
                     if !holding && voiceManager.isListening {
-                        voiceManager.stopListening()
+                        voiceManager.stopListening(reason: "holdLost")
                     }
                 }
                 .accessibilityAddTraits(.isButton)
@@ -1261,7 +1261,7 @@ struct HomeVoiceInterfaceView: View {
     private func preserveSpeechDraftAndStopListening() {
         let currentText = voiceManager.recognizedText
         if voiceManager.isListening {
-            voiceManager.stopListening()
+            voiceManager.stopListening(reason: "keyboardToggle")
         } else if voiceManager.isProcessing {
             return
         } else if !currentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
