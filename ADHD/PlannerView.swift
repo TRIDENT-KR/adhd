@@ -12,6 +12,7 @@ struct PlannerView: View {
     @EnvironmentObject private var taskManager: TaskManager
     @EnvironmentObject private var authManager: AuthManager
     @ObservedObject var langManager = LocalizationManager.shared
+    @ObservedObject private var deviceCalendar = DeviceCalendar.shared
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
@@ -26,6 +27,9 @@ struct PlannerView: View {
     @State private var showQuickAdd = false
     @State private var isCalendarPresented: Bool = false
     @State private var showSearch: Bool = false
+    /// 선택한 날의 아이폰 캘린더 일정과, 날짜 바에 점을 찍을 날들
+    @State private var deviceEvents: [DeviceCalendar.Event] = []
+    @State private var deviceEventDays: Set<Date> = []
 
     private let calendar = Calendar.current
 
@@ -56,9 +60,20 @@ struct PlannerView: View {
             }
     }
 
-    /// 특정 날짜에 이벤트가 있는지 확인 (배지 표시용)
+    /// 특정 날짜에 이벤트가 있는지 확인 (배지 표시용, 아이폰 캘린더 일정 포함)
     private func hasEvents(on date: Date) -> Bool {
         appointments.contains { $0.occursOn(date) }
+            || deviceEventDays.contains(calendar.startOfDay(for: date))
+    }
+
+    /// 선택한 날과 날짜 바(선택일 ±7일, 오늘)의 아이폰 캘린더 일정을 다시 읽습니다.
+    private func reloadDeviceEvents() {
+        let today = calendar.startOfDay(for: Date())
+        let selected = calendar.startOfDay(for: selectedDate)
+        deviceEvents = deviceCalendar.events(on: selected)
+        guard let from = calendar.date(byAdding: .day, value: -7, to: min(today, selected)),
+              let to = calendar.date(byAdding: .day, value: 8, to: max(today, selected)) else { return }
+        deviceEventDays = deviceCalendar.eventDays(from: from, to: to)
     }
 
     var body: some View {
@@ -101,7 +116,7 @@ struct PlannerView: View {
                     }
 
                     // 타임라인
-                    if filteredAppointments.isEmpty {
+                    if filteredAppointments.isEmpty && deviceEvents.isEmpty {
                         GeometryReader { geo in
                             VStack(spacing: 20) {
                                 Image(systemName: authManager.accessState.isGuest ? "plus.circle" : "mic.fill")
@@ -124,24 +139,31 @@ struct PlannerView: View {
                             .accessibilityAddTraits(.isButton)
                         }
                         .frame(minHeight: ((UIApplication.shared.connectedScenes.first as? UIWindowScene)?.screen.bounds.height ?? 800) * 0.4)
-                    } else if isReordering {
+                    } else if isReordering && !filteredAppointments.isEmpty {
                         // 정렬 모드: 부드러운 드래그 리오더
                         SmoothTaskReorderList(tasks: filteredAppointments, taskManager: taskManager)
                     } else {
-                        LazyVStack(spacing: 12) {
-                            ForEach(filteredAppointments) { task in
-                                let isRepeating = task.hasRepeatingSchedule
-                                EventCard(task: task, displayedDate: selectedDate, onEdit: { editingTask = task })
-                                    .swipeToDelete(confirmsFirst: isRepeating) {
-                                        // 반복 일정은 시리즈 전체를 조용히 지우지 않고 먼저 묻습니다.
-                                        if isRepeating {
-                                            repeatingDeleteTarget = task
-                                        } else {
-                                            withAnimation { taskManager.delete(task: task) }
-                                            Haptic.impact(.medium)
+                        if !filteredAppointments.isEmpty {
+                            LazyVStack(spacing: 12) {
+                                ForEach(filteredAppointments) { task in
+                                    let isRepeating = task.hasRepeatingSchedule
+                                    EventCard(task: task, displayedDate: selectedDate, onEdit: { editingTask = task })
+                                        .swipeToDelete(confirmsFirst: isRepeating) {
+                                            // 반복 일정은 시리즈 전체를 조용히 지우지 않고 먼저 묻습니다.
+                                            if isRepeating {
+                                                repeatingDeleteTarget = task
+                                            } else {
+                                                withAnimation { taskManager.delete(task: task) }
+                                                Haptic.impact(.medium)
+                                            }
                                         }
-                                    }
+                                }
                             }
+                        }
+
+                        // 아이폰 캘린더 일정은 모라 일정 아래에 한 단계 낮춰 둡니다.
+                        if !deviceEvents.isEmpty {
+                            DeviceEventList(events: deviceEvents, day: selectedDate)
                         }
                     }
 
@@ -210,6 +232,9 @@ struct PlannerView: View {
                 Haptic.impact(.medium)
             }
         )
+        .task(id: DeviceEventsQuery(day: selectedDate, revision: deviceCalendar.revision)) {
+            reloadDeviceEvents()
+        }
         // 검색 결과에서 일정을 고르면 그 날로 이동합니다 (어느 탭에서 검색했든).
         .onReceive(NotificationCenter.default.publisher(for: .plannerJumpToDate)) { notification in
             guard let date = notification.object as? Date else { return }
@@ -397,6 +422,77 @@ extension PlannerView {
         withAnimation(anim) {
             isReordering.toggle()
         }
+    }
+}
+
+/// 아이폰 캘린더 일정을 다시 읽을 때를 정하는 값 (선택한 날, 캘린더 변경)
+private struct DeviceEventsQuery: Hashable {
+    let day: Date
+    let revision: Int
+}
+
+// MARK: - Device Event List
+/// 플래너 아래쪽의 아이폰 캘린더 일정. 모라 일정이 화면의 중심이라 글자를 한 단계 낮추고, 체크는 두지 않습니다.
+struct DeviceEventList: View {
+    let events: [DeviceCalendar.Event]
+    /// 보고 있는 날 (전날부터 이어지는 일정의 시간 표시용)
+    let day: Date
+
+    @ObservedObject private var langManager = LocalizationManager.shared
+    @ScaledMetric(relativeTo: .subheadline) private var timeColumnWidth: CGFloat = 72
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(L.settings.calendarSection)
+                .font(.subheadline.weight(.semibold))
+                .foregroundColor(DesignSystem.Colors.onSurfaceMeta)
+                .accessibilityAddTraits(.isHeader)
+                .padding(.horizontal, 4)
+
+            VStack(alignment: .leading, spacing: 14) {
+                ForEach(events) { event in
+                    HStack(alignment: .firstTextBaseline, spacing: 10) {
+                        Image(systemName: "circle.fill")
+                            .font(.system(size: 8))
+                            .foregroundStyle(event.color)
+                            .accessibilityHidden(true)
+                        Text(timeLabel(for: event))
+                            .font(.subheadline)
+                            .foregroundColor(DesignSystem.Colors.onSurfaceMeta)
+                            .frame(minWidth: timeColumnWidth, alignment: .leading)
+                        Text(event.title)
+                            .font(.subheadline.weight(.medium))
+                            .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
+                            .lineLimit(2)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .accessibilityElement(children: .combine)
+                }
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .fill(DesignSystem.Colors.surfaceContainerLow)
+            )
+        }
+        .padding(.horizontal, 20)
+    }
+
+    /// "하루 종일", "오후 3:00", 전날부터 이어지면 "~ 오전 1:00"
+    private func timeLabel(for event: DeviceCalendar.Event) -> String {
+        let calendar = Calendar.current
+        let dayStart = calendar.startOfDay(for: day)
+        let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart) ?? dayStart
+        if event.isAllDay || (event.start <= dayStart && event.end >= dayEnd) {
+            return L.t("All day", "하루 종일", "終日")
+        }
+        let style = Date.FormatStyle(date: .omitted, time: .shortened)
+            .locale(Locale(identifier: langManager.currentLanguage.localeIdentifier))
+        if event.start < dayStart {
+            return "~ " + event.end.formatted(style)
+        }
+        return event.start.formatted(style)
     }
 }
 

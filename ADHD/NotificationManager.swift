@@ -16,6 +16,10 @@ enum AccountPreferenceKey: String {
     case alertTone
     /// 매운맛에 욕 섞기. 기본 꺼짐.
     case alertSwearing
+    /// 플래너에 아이폰 캘린더 일정을 함께 보여 줄지. 기본 꺼짐.
+    case calendarShowsEvents
+    /// 모라 일정을 아이폰 캘린더에 넣어 둘지. 기본 꺼짐.
+    case calendarExportsAppointments
 }
 
 // MARK: - AI가 쓴 알림 문장
@@ -136,6 +140,8 @@ enum AccountPreferences {
             .guestImportOffered,
             .alertTone,
             .alertSwearing,
+            .calendarShowsEvents,
+            .calendarExportsAppointments,
         ] {
             defaults.removeObject(
                 forKey: "mora.account.\(accountScope).\(key.rawValue).v1"

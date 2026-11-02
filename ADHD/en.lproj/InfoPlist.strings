@@ -1,3 +1,4 @@
 "NSMicrophoneUsageDescription" = "Mora listens when you tap the microphone and turns what you say into tasks. You can type instead.";
 "NSSpeechRecognitionUsageDescription" = "Mora uses Apple speech recognition to turn your voice into text for your tasks. Audio may be processed by Apple. You can type instead.";
 "NSAlarmKitUsageDescription" = "Mora rings like an alarm for tasks set as Firm reminders, so they are hard to miss. Delivery depends on your device permissions and settings.";
+"NSCalendarsFullAccessUsageDescription" = "Mora shows your iPhone calendar events in the Planner and can add your Mora plans to your calendar. Your calendar stays on this iPhone.";

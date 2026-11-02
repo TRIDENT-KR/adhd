@@ -44,6 +44,7 @@
 		CC000001000000000000AA01 /* AlarmManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000002000000000000AA01 /* AlarmManager.swift */; };
 		CC000003000000000000AA01 /* AlarmOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000004000000000000AA01 /* AlarmOverlayView.swift */; };
 		CC000005000000000000AA01 /* SmoothTaskReorderList.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000006000000000000AA01 /* SmoothTaskReorderList.swift */; };
+		CC000005000000000000CA01 /* DeviceCalendar.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000006000000000000CA01 /* DeviceCalendar.swift */; };
 		DD000001000000000000001A /* SubscriptionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD000002000000000000001A /* SubscriptionManager.swift */; };
 		DD000003000000000000001A /* PaywallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD000004000000000000001A /* PaywallView.swift */; };
 		F3A1C1992F7E615B00FC011B /* StoreKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F3A1C1982F7E615B00FC011B /* StoreKit.framework */; };
@@ -146,6 +147,7 @@
 		CC000002000000000000AA01 /* AlarmManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlarmManager.swift; sourceTree = "<group>"; };
 		CC000004000000000000AA01 /* AlarmOverlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlarmOverlayView.swift; sourceTree = "<group>"; };
 		CC000006000000000000AA01 /* SmoothTaskReorderList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmoothTaskReorderList.swift; sourceTree = "<group>"; };
+		CC000006000000000000CA01 /* DeviceCalendar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceCalendar.swift; sourceTree = "<group>"; };
 		DD000002000000000000001A /* SubscriptionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionManager.swift; sourceTree = "<group>"; };
 		DD000004000000000000001A /* PaywallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallView.swift; sourceTree = "<group>"; };
 		DD000006000000000000001A /* StoreKitConfig.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = StoreKitConfig.storekit; sourceTree = "<group>"; };
@@ -295,6 +297,7 @@
 				AA0000020000000000000001 /* QuickAddSheet.swift */,
 				AB0000020000000000000001 /* OnboardingView.swift */,
 				CC000006000000000000AA01 /* SmoothTaskReorderList.swift */,
+				CC000006000000000000CA01 /* DeviceCalendar.swift */,
 				DD000002000000000000001A /* SubscriptionManager.swift */,
 				DD000004000000000000001A /* PaywallView.swift */,
 				DD000006000000000000001A /* StoreKitConfig.storekit */,
@@ -577,6 +580,7 @@
 				5A0E0C0100000000000000A1 /* OpenSpeakIntent.swift in Sources */,
 				CC000003000000000000AA01 /* AlarmOverlayView.swift in Sources */,
 				CC000005000000000000AA01 /* SmoothTaskReorderList.swift in Sources */,
+				CC000005000000000000CA01 /* DeviceCalendar.swift in Sources */,
 				DD000001000000000000001A /* SubscriptionManager.swift in Sources */,
 				DD000003000000000000001A /* PaywallView.swift in Sources */,
 			);
@@ -830,6 +834,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = Mora;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Mora listens when you tap the microphone and turns what you say into tasks. You can type instead.";
+				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Mora shows your iPhone calendar events in the Planner and can add your Mora plans to your calendar. Your calendar stays on this iPhone.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Mora uses Apple speech recognition to turn your voice into text for your tasks. Audio may be processed by Apple. You can type instead.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -867,6 +872,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = Mora;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Mora listens when you tap the microphone and turns what you say into tasks. You can type instead.";
+				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Mora shows your iPhone calendar events in the Planner and can add your Mora plans to your calendar. Your calendar stays on this iPhone.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Mora uses Apple speech recognition to turn your voice into text for your tasks. Audio may be processed by Apple. You can type instead.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;

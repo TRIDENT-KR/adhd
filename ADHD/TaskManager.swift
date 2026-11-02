@@ -830,9 +830,18 @@ class TaskManager: ObservableObject {
             )
             WidgetDataStore.write(payload)
             WidgetCenter.shared.reloadAllTimelines()
+            // 아이폰 캘린더 내보내기를 켰다면 같은 시점에 캘린더도 맞춥니다.
+            DeviceCalendar.shared.syncExport(allTasks)
         } catch {
             print("widget_snapshot_failed")
         }
+    }
+
+    /// 모라 일정을 아이폰 캘린더에 맞춥니다 (설정에서 내보내기를 켠 직후 등).
+    func syncDeviceCalendar() {
+        guard let context = modelContext,
+              let tasks = try? context.fetch(FetchDescriptor<AppTask>()) else { return }
+        DeviceCalendar.shared.syncExport(tasks)
     }
 
     /// 위젯에 미리 담는 날 수. 며칠씩 앱을 열지 않아도 위젯이 그날 목록을 보여 줍니다.
