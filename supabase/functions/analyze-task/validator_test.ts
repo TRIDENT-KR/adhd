@@ -160,3 +160,26 @@ Deno.test("add_single_task accepts an optional short alert_line", () => {
     }])
   );
 });
+
+Deno.test("recurring adds support an inclusive end date and retain old payloads", () => {
+  const parameters = { task_name: "수업", time: null, date: "2026-11-03", category: "Appointment", recurrence: "weekly", urgency: "weak" };
+  for (const end of [undefined, null, "2026-12-20"]) {
+    const p = end === undefined ? parameters : { ...parameters, recurrence_end_date: end };
+    assert(validateAnalysisCalls([{ function_name: "add_single_task", parameters: p }]).length === 1, "valid series");
+  }
+  for (const end of ["2026-02-30", "2026-11-02", "none", 42]) {
+    assertThrowsValidation(() => validateAnalysisCalls([{ function_name: "add_single_task", parameters: { ...parameters, recurrence_end_date: end } }]));
+  }
+  assertThrowsValidation(() => validateAnalysisCalls([{ function_name: "add_single_task", parameters: { ...parameters, recurrence: null, recurrence_end_date: "2026-12-20" } }]));
+});
+
+Deno.test("existing series can update only its end date or explicitly remove it", () => {
+  const parameters = { target_task_name: "과외", new_time: null, new_date: null, new_task_name: null, new_category: null, new_recurrence: null };
+  for (const end of ["2026-11-30", "none"]) {
+    const calls = validateAnalysisCalls([{ function_name: "update_task", parameters: { ...parameters, new_recurrence_end_date: end } }]);
+    assert(calls[0].parameters.new_recurrence_end_date === end, "end-only update must survive validation");
+  }
+  for (const end of [null, "2026-11-31", "", false]) {
+    assertThrowsValidation(() => validateAnalysisCalls([{ function_name: "update_task", parameters: { ...parameters, new_recurrence_end_date: end } }]));
+  }
+});

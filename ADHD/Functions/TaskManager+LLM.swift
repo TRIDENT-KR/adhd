@@ -486,6 +486,7 @@ extension TaskManager {
                     ?? (params.category == "Routine" ? nil : Date()),
                 category: params.category,
                 recurrenceRule: params.recurrence,
+                recurrenceEndDate: date(from: params.recurrence_end_date),
                 urgency: pending.urgency
             )
             task.normalizeSchedule()
@@ -525,7 +526,17 @@ extension TaskManager {
             if task.category == "Routine" { task.date = nil }
             // 루틴→일정으로 바꾸면 날짜가 없어 어디에도 안 보이면서 매일 울리던 문제를 막습니다.
             task.normalizeSchedule()
+            if let end = params.new_recurrence_end_date {
+                guard task.hasRepeatingSchedule else { throw ApplyError.invalidDate }
+                task.recurrenceEndDate = end == "none" ? nil : date(from: end)
+            }
+            if let end = task.recurrenceEndDate, let start = task.date,
+               task.hasRepeatingSchedule,
+               Calendar.current.startOfDay(for: end) < Calendar.current.startOfDay(for: start) {
+                throw ApplyError.invalidDate
+            }
             let changed = !previous.matches(task)
+
             return AppliedLLMCall(
                 affectedCount: changed ? 1 : 0,
                 needsSave: changed,

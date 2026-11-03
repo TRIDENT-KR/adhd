@@ -540,3 +540,42 @@ struct FeedbackOnlyExecutionTests {
         #expect(routine.date == nil)
     }
 }
+
+@MainActor
+struct RecurrenceEndExecutionTests {
+    @Test func voiceEndUpdateKeepsSeriesAndUndoRestoresIt() throws {
+        let container = try ModelContainer(for: AppTask.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let manager = TaskManager()
+        manager.modelContext = ModelContext(container)
+        let start = StoredTaskFormat.date.date(from: "2026-11-05")!
+        let task = AppTask(task: "과외", date: start, category: "Appointment", recurrenceRule: "weekly")
+        manager.modelContext!.insert(task)
+        try manager.modelContext!.save()
+        let call = LLMFunctionCall.updateTask(UpdateTaskParams(target_task_name: "과외", new_recurrence_end_date: "2026-11-30"))
+        let pending = manager.preparePendingCalls([PendingLLMCall(call: call)])
+        #expect(!manager.executeDetailed(pendingCalls: pending).allSucceeded)
+        #expect(task.recurrenceEndDate == nil)
+        let result = manager.executeDetailed(pendingCalls: pending, explicitlyConfirmed: true)
+        #expect(result.allSucceeded)
+        #expect(task.date == start)
+        #expect(task.recurrenceRule == "weekly")
+        #expect(task.recurrenceEndDate == StoredTaskFormat.date.date(from: "2026-11-30"))
+        #expect(try manager.modelContext!.fetchCount(FetchDescriptor<AppTask>()) == 1)
+        manager.undo()
+        #expect(task.recurrenceEndDate == nil)
+    }
+
+    @Test func voiceCreatesBoundedSeriesAndCanRemoveItsLimit() throws {
+        let container = try ModelContainer(for: AppTask.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let manager = TaskManager()
+        manager.modelContext = ModelContext(container)
+        let add = LLMFunctionCall.addSingleTask(AddSingleTaskParams(task_name: "수업", date: "2026-11-03", category: "Appointment", recurrence: "weekly", recurrence_end_date: "2026-12-20"))
+        #expect(manager.executeDetailed(pendingCalls: [PendingLLMCall(call: add)], explicitlyConfirmed: true).allSucceeded)
+        let task = try #require(manager.modelContext!.fetch(FetchDescriptor<AppTask>()).first)
+        #expect(task.recurrenceEndDate == StoredTaskFormat.date.date(from: "2026-12-20"))
+        let remove = LLMFunctionCall.updateTask(UpdateTaskParams(target_task_name: "수업", new_recurrence_end_date: "none"))
+        #expect(manager.executeDetailed(pendingCalls: manager.preparePendingCalls([PendingLLMCall(call: remove)]), explicitlyConfirmed: true).allSucceeded)
+        #expect(task.recurrenceEndDate == nil)
+        #expect(task.recurrenceRule == "weekly")
+    }
+}

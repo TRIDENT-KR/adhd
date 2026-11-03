@@ -146,12 +146,210 @@ nonisolated enum MoraSchemaV1: VersionedSchema {
 }
 
 nonisolated enum MoraMigrationPlan: SchemaMigrationPlan {
-    static var schemas: [any VersionedSchema.Type] { [MoraSchemaV1.self] }
-    static var stages: [MigrationStage] { [] }
+    static var schemas: [any VersionedSchema.Type] { [MoraSchemaV1.self, MoraSchemaV2.self] }
+    static var stages: [MigrationStage] { [.lightweight(fromVersion: MoraSchemaV1.self, toVersion: MoraSchemaV2.self)] }
 }
 
-/// 앱 전체가 쓰는 현재 모델 (지금은 V1)
-typealias AppTask = MoraSchemaV1.AppTask
+nonisolated enum MoraSchemaV2: VersionedSchema {
+    static var versionIdentifier: Schema.Version { Schema.Version(2, 0, 0) }
+    static var models: [any PersistentModel.Type] { [AppTask.self] }
+}
+
+/// 앱 전체가 쓰는 현재 모델
+typealias AppTask = MoraSchemaV2.AppTask
+
+extension MoraSchemaV2 {
+    // MARK: - SwiftData Persistent Model
+    /// 영구 저장소에 기록되는 실제 데이터 모델.
+    /// ParsedTask(DTO)와 분리하여 Codable 디코딩과의 충돌을 방지합니다.
+    // 버전 enum이 nonisolated라서, 예전처럼 메인 액터에 두려면 명시해야 합니다.
+    @Model @MainActor
+    final class AppTask {
+        var id: UUID
+        var task: String
+        var time: String?
+        var date: Date?
+        var category: String   // "Routine" | "Appointment"
+        var isCompleted: Bool
+
+        // MARK: - 반복 일정 (Lightweight migration: 새 optional 프로퍼티)
+        /// 반복 규칙: "weekly" | "biweekly" | "monthly" | "yearly" | nil (일회성)
+        var recurrenceRule: String?
+        /// 마지막 회차를 포함하는 현지 날짜. nil이면 종료 없이 반복합니다.
+        var recurrenceEndDate: Date?
+
+        /// 알림 강도 (SwiftData @Model은 enum 기본값을 직접 지원하지 않으므로 String으로 저장)
+        var urgencyRaw: String = Urgency.strong.rawValue
+        var urgency: Urgency {
+            get { Urgency(rawValue: urgencyRaw) ?? .strong }
+            set { urgencyRaw = newValue.rawValue }
+        }
+
+        /// 사용자 지정 정렬 순서 (0 = 미지정, 낮을수록 위에 표시)
+        var sortOrder: Int = 0
+
+        /// 이번 주 요일별 완료 여부 (ISO 8601 기준: 0=월, 1=화, 2=수, 3=목, 4=금, 5=토, 6=일)
+        /// Lightweight migration: 기존 레코드는 SwiftData가 기본값([false×7])으로 채움
+        var weeklyCompletions: [Bool] = Array(repeating: false, count: 7)
+
+        /// '이번만 건너뛰기'로 뺀 회차의 날짜 ("yyyy-MM-dd"). 시리즈 자체는 그대로 둡니다.
+        /// Lightweight migration: 기존 레코드는 빈 배열로 채워집니다.
+        var skippedDayKeys: [String] = []
+
+        init(id: UUID = UUID(),
+             task: String,
+             time: String? = nil,
+             date: Date? = nil,
+             category: String,
+             isCompleted: Bool = false,
+             recurrenceRule: String? = nil,
+             recurrenceEndDate: Date? = nil,
+             sortOrder: Int = 0,
+             urgency: Urgency = .strong) {
+            self.id             = id
+            self.task           = task
+            self.time           = time
+            self.date           = date
+            self.category       = category
+            self.isCompleted    = isCompleted
+            self.recurrenceRule = recurrenceRule
+            self.recurrenceEndDate = recurrenceEndDate
+            self.sortOrder      = sortOrder
+            self.urgencyRaw     = urgency.rawValue
+        }
+
+        /// 반복 여부
+        var isRecurring: Bool { recurrenceRule != nil }
+
+        /// 알림이 반복되는 태스크(매일 루틴·반복 일정)인지. 오늘 완료해도 다음 회차 알림은 남겨야 합니다.
+        var hasRepeatingSchedule: Bool { isRecurring || date == nil }
+
+        static let supportedRecurrenceRules: Set<String> = ["weekly", "biweekly", "monthly", "yearly"]
+
+        /// 종류를 바꾼 뒤에도 화면 표시와 알림 예약이 같은 규칙을 따르게 맞춥니다.
+        /// 일정은 날짜가 있어야 플래너에 보이고(없으면 매일 울리기만 함), 루틴은 반복 규칙 없이 매일 나타납니다.
+        func normalizeSchedule(defaultDate: Date = Date()) {
+            if let rule = recurrenceRule, !Self.supportedRecurrenceRules.contains(rule) {
+                recurrenceRule = nil
+            }
+            if category == "Appointment" {
+                if date == nil { date = defaultDate }
+            } else {
+                recurrenceRule = nil
+            }
+        }
+
+        // MARK: - 정렬용 시간 키 (24시간 형식)
+        /// "02:00 PM" → "14:00", "09:00 AM" → "09:00", nil → "99:99" (맨 뒤)
+        var sortableTime: String {
+            guard let time, !time.isEmpty else { return "99:99" }
+            let trimmed = time.trimmingCharacters(in: .whitespaces)
+            for formatter in Self.sortTimeFormatters {
+                if let parsed = formatter.date(from: trimmed) {
+                    let h = Calendar.current.component(.hour, from: parsed)
+                    let m = Calendar.current.component(.minute, from: parsed)
+                    return String(format: "%02d:%02d", h, m)
+                }
+            }
+            return time // 파싱 실패 시 원본 반환
+        }
+
+        private static let sortTimeFormatters: [DateFormatter] = {
+            ["hh:mm a", "h:mm a", "HH:mm"].map { format in
+                let f = DateFormatter()
+                f.locale = Locale(identifier: "en_US_POSIX")
+                f.dateFormat = format
+                return f
+            }
+        }()
+
+        // MARK: - 반복 일정: 특정 날짜에 발생하는지 판단
+        /// 일회성 → date가 targetDate와 같은 날인지 확인
+        /// 반복 → 시작일(date) 이후, 규칙에 따라 해당 날짜에 발생하는지 계산
+        func occursOn(_ targetDate: Date, calendar: Calendar = .current) -> Bool {
+            let cal = calendar
+            if !skippedDayKeys.isEmpty, isSkipped(on: targetDate) { return false }
+
+            if hasRepeatingSchedule, let end = recurrenceEndDate,
+               cal.startOfDay(for: targetDate) > cal.startOfDay(for: end) { return false }
+
+            // Routine은 기존 로직 유지 (date == nil → 매일)
+            guard category == "Appointment" else {
+                return date == nil || cal.isDate(date!, inSameDayAs: targetDate)
+            }
+
+            guard let startDate = date else { return false }
+            // 일회성
+            guard let rule = recurrenceRule else {
+                return cal.isDate(startDate, inSameDayAs: targetDate)
+            }
+            return RecurrenceEngine.occurs(
+                on: targetDate,
+                anchor: startDate,
+                rule: rule,
+                calendar: cal
+            )
+        }
+
+        /// 삭제 확인에 표시할 실제 회차. 오늘 완료했으면 다음 예정 회차를 찾습니다.
+        func deletionOccurrence(from viewedDate: Date, now: Date = Date(), calendar: Calendar = .current) -> Date? {
+            let today = calendar.startOfDay(for: now)
+            var start = max(today, calendar.startOfDay(for: viewedDate))
+            if isCompleted && calendar.isDate(start, inSameDayAs: today) {
+                start = calendar.date(byAdding: .day, value: 1, to: start) ?? start
+            }
+            if let anchor = date, isRecurring { start = max(start, calendar.startOfDay(for: anchor)) }
+            // 연간 반복과 건너뛴 회차를 포함해 다음 후보를 찾되 종료일을 넘기지 않습니다.
+            for offset in 0...3660 {
+                guard let day = calendar.date(byAdding: .day, value: offset, to: start) else { return nil }
+                if let end = recurrenceEndDate, day > calendar.startOfDay(for: end) { return nil }
+                if occursOn(day, calendar: calendar) { return day }
+            }
+            return nil
+        }
+
+        /// 날짜를 건너뛰기 기록용 키로 바꿉니다 (기기 시간대 기준 그날).
+        static func dayKey(_ date: Date) -> String {
+            StoredTaskFormat.date.string(from: date)
+        }
+
+        /// '이번만 건너뛰기'로 뺀 날인지
+        func isSkipped(on date: Date) -> Bool {
+            skippedDayKeys.contains(Self.dayKey(date))
+        }
+
+        /// 지난 건너뛰기 기록을 정리합니다 (기록이 끝없이 쌓이지 않게).
+        func pruneSkippedDayKeys(before date: Date) {
+            let cutoff = Self.dayKey(date)
+            skippedDayKeys.removeAll { $0 < cutoff }   // "yyyy-MM-dd"는 문자열 순서가 날짜 순서와 같음
+        }
+
+        /// 반복 일정의 사람이 읽을 수 있는 라벨
+        var recurrenceLabel: String? {
+            guard let rule = recurrenceRule else { return nil }
+            switch rule {
+            case "weekly":   return L.recurrence.weekly
+            case "biweekly": return L.recurrence.biweekly
+            case "monthly":  return L.recurrence.monthly
+            case "yearly":   return L.recurrence.yearly
+            default:         return nil
+            }
+        }
+
+        // MARK: - Widget Snapshot 변환
+        /// 위젯용 경량 DTO로 변환
+        func toWidgetSnapshot() -> WidgetTaskSnapshot {
+            WidgetTaskSnapshot(
+                id: id,
+                task: task,
+                time: time,
+                category: category,
+                isCompleted: isCompleted,
+                recurrenceLabel: recurrenceLabel
+            )
+        }
+    }
+}
 
 extension MoraSchemaV1 {
     // MARK: - SwiftData Persistent Model
@@ -209,116 +407,6 @@ extension MoraSchemaV1 {
             self.urgencyRaw     = urgency.rawValue
         }
 
-        /// 반복 여부
-        var isRecurring: Bool { recurrenceRule != nil }
-
-        /// 알림이 반복되는 태스크(매일 루틴·반복 일정)인지. 오늘 완료해도 다음 회차 알림은 남겨야 합니다.
-        var hasRepeatingSchedule: Bool { isRecurring || date == nil }
-
-        static let supportedRecurrenceRules: Set<String> = ["weekly", "biweekly", "monthly", "yearly"]
-
-        /// 종류를 바꾼 뒤에도 화면 표시와 알림 예약이 같은 규칙을 따르게 맞춥니다.
-        /// 일정은 날짜가 있어야 플래너에 보이고(없으면 매일 울리기만 함), 루틴은 반복 규칙 없이 매일 나타납니다.
-        func normalizeSchedule(defaultDate: Date = Date()) {
-            if let rule = recurrenceRule, !Self.supportedRecurrenceRules.contains(rule) {
-                recurrenceRule = nil
-            }
-            if category == "Appointment" {
-                if date == nil { date = defaultDate }
-            } else {
-                recurrenceRule = nil
-            }
-        }
-
-        // MARK: - 정렬용 시간 키 (24시간 형식)
-        /// "02:00 PM" → "14:00", "09:00 AM" → "09:00", nil → "99:99" (맨 뒤)
-        var sortableTime: String {
-            guard let time, !time.isEmpty else { return "99:99" }
-            let trimmed = time.trimmingCharacters(in: .whitespaces)
-            for formatter in Self.sortTimeFormatters {
-                if let parsed = formatter.date(from: trimmed) {
-                    let h = Calendar.current.component(.hour, from: parsed)
-                    let m = Calendar.current.component(.minute, from: parsed)
-                    return String(format: "%02d:%02d", h, m)
-                }
-            }
-            return time // 파싱 실패 시 원본 반환
-        }
-
-        private static let sortTimeFormatters: [DateFormatter] = {
-            ["hh:mm a", "h:mm a", "HH:mm"].map { format in
-                let f = DateFormatter()
-                f.locale = Locale(identifier: "en_US_POSIX")
-                f.dateFormat = format
-                return f
-            }
-        }()
-
-        // MARK: - 반복 일정: 특정 날짜에 발생하는지 판단
-        /// 일회성 → date가 targetDate와 같은 날인지 확인
-        /// 반복 → 시작일(date) 이후, 규칙에 따라 해당 날짜에 발생하는지 계산
-        func occursOn(_ targetDate: Date, calendar: Calendar = .current) -> Bool {
-            let cal = calendar
-            if !skippedDayKeys.isEmpty, isSkipped(on: targetDate) { return false }
-
-            // Routine은 기존 로직 유지 (date == nil → 매일)
-            guard category == "Appointment" else {
-                return date == nil || cal.isDate(date!, inSameDayAs: targetDate)
-            }
-
-            guard let startDate = date else { return false }
-            // 일회성
-            guard let rule = recurrenceRule else {
-                return cal.isDate(startDate, inSameDayAs: targetDate)
-            }
-            return RecurrenceEngine.occurs(
-                on: targetDate,
-                anchor: startDate,
-                rule: rule,
-                calendar: cal
-            )
-        }
-
-        /// 날짜를 건너뛰기 기록용 키로 바꿉니다 (기기 시간대 기준 그날).
-        static func dayKey(_ date: Date) -> String {
-            StoredTaskFormat.date.string(from: date)
-        }
-
-        /// '이번만 건너뛰기'로 뺀 날인지
-        func isSkipped(on date: Date) -> Bool {
-            skippedDayKeys.contains(Self.dayKey(date))
-        }
-
-        /// 지난 건너뛰기 기록을 정리합니다 (기록이 끝없이 쌓이지 않게).
-        func pruneSkippedDayKeys(before date: Date) {
-            let cutoff = Self.dayKey(date)
-            skippedDayKeys.removeAll { $0 < cutoff }   // "yyyy-MM-dd"는 문자열 순서가 날짜 순서와 같음
-        }
-
-        /// 반복 일정의 사람이 읽을 수 있는 라벨
-        var recurrenceLabel: String? {
-            guard let rule = recurrenceRule else { return nil }
-            switch rule {
-            case "weekly":   return L.recurrence.weekly
-            case "biweekly": return L.recurrence.biweekly
-            case "monthly":  return L.recurrence.monthly
-            case "yearly":   return L.recurrence.yearly
-            default:         return nil
-            }
-        }
-
-        // MARK: - Widget Snapshot 변환
-        /// 위젯용 경량 DTO로 변환
-        func toWidgetSnapshot() -> WidgetTaskSnapshot {
-            WidgetTaskSnapshot(
-                id: id,
-                task: task,
-                time: time,
-                category: category,
-                isCompleted: isCompleted,
-                recurrenceLabel: recurrenceLabel
-            )
-        }
     }
 }
 

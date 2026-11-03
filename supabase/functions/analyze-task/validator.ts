@@ -126,7 +126,7 @@ function validateAdd(parameters: Record<string, unknown>, index: number): void {
     "urgency",
   ];
   // alert_line is only present when the app sent a reminder tone.
-  assertExactKeys(parameters, [...keys, "alert_line"], keys, index);
+  assertExactKeys(parameters, [...keys, "alert_line", "recurrence_end_date"], keys, index);
   if ("alert_line" in parameters && parameters.alert_line !== null) {
     assertNonEmptyString(parameters.alert_line, "alert_line", index, 80);
   }
@@ -141,6 +141,14 @@ function validateAdd(parameters: Record<string, unknown>, index: number): void {
   }
   assertNullableEnum(parameters.recurrence, recurrenceSet, "recurrence", index);
   assertNullableEnum(parameters.urgency, urgencySet, "urgency", index);
+  if ("recurrence_end_date" in parameters) {
+    assertNullableDate(parameters.recurrence_end_date, "recurrence_end_date", index);
+    if (parameters.recurrence_end_date !== null) {
+      if (parameters.category !== "Routine" && parameters.recurrence === null) fail(index, "end date requires recurrence");
+      if (typeof parameters.date === "string" && (parameters.recurrence_end_date as string) < parameters.date) fail(index, "end date precedes start");
+    }
+  }
+
 }
 
 function validateUpdate(
@@ -156,7 +164,7 @@ function validateUpdate(
   ];
   assertExactKeys(
     parameters,
-    ["target_task_name", ...optional],
+    ["target_task_name", ...optional, "new_recurrence_end_date"],
     ["target_task_name", ...optional],
     index,
   );
@@ -186,7 +194,15 @@ function validateUpdate(
       index,
     );
   }
-  if (!optional.some((key) => key in parameters && parameters[key] !== null)) {
+  if ("new_recurrence_end_date" in parameters && parameters.new_recurrence_end_date !== "none") {
+    assertNullableDate(parameters.new_recurrence_end_date, "new_recurrence_end_date", index);
+  }
+  if (typeof parameters.new_recurrence_end_date === "string" && parameters.new_recurrence_end_date !== "none" &&
+      typeof parameters.new_date === "string" && parameters.new_recurrence_end_date < parameters.new_date) {
+    fail(index, "end date precedes start");
+  }
+  if (![...optional, "new_recurrence_end_date"].some((key) => key in parameters && parameters[key] !== null)) {
+
     fail(index, "update contains no change");
   }
 }

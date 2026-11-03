@@ -567,7 +567,7 @@ struct AuthSessionTransitionTests {
 struct VersionedStoreSchemaTests {
 
     /// 버전 없이 만든 기존 저장소(1.0 이전 빌드)를 버전 붙은 스키마로 열어도 데이터가 그대로 읽혀야 합니다.
-    @Test func versionedContainerOpensStoreWrittenWithoutVersion() throws {
+    @Test(arguments: [false, true]) func versionedContainerOpensLegacyStore(versionedV1: Bool) throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("mora-schema-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -575,16 +575,16 @@ struct VersionedStoreSchemaTests {
         let url = directory.appendingPathComponent("store.sqlite")
 
         do {
-            let plain = Schema([AppTask.self])
+            let plain = versionedV1 ? Schema(versionedSchema: MoraSchemaV1.self) : Schema([MoraSchemaV1.AppTask.self])
             let container = try ModelContainer(
                 for: plain,
                 configurations: [ModelConfiguration("MoraAccount", schema: plain, url: url)]
             )
-            container.mainContext.insert(AppTask(task: "약 먹기", time: "09:00 AM", category: "Routine"))
+            container.mainContext.insert(MoraSchemaV1.AppTask(task: "약 먹기", time: "09:00 AM", category: "Routine"))
             try container.mainContext.save()
         }
 
-        let versioned = Schema(versionedSchema: MoraSchemaV1.self)
+        let versioned = Schema(versionedSchema: MoraSchemaV2.self)
         let reopened = try ModelContainer(
             for: versioned,
             migrationPlan: MoraMigrationPlan.self,
@@ -592,11 +592,13 @@ struct VersionedStoreSchemaTests {
         )
         let tasks = try reopened.mainContext.fetch(FetchDescriptor<AppTask>())
         #expect(tasks.map(\.task) == ["약 먹기"])
+        #expect(tasks.first?.recurrenceEndDate == nil)
     }
 
-    @Test func currentVersionIsOneAndPlanListsIt() {
+    @Test func currentVersionIsTwoAndPlanPreservesV1() {
         #expect(MoraSchemaV1.versionIdentifier == Schema.Version(1, 0, 0))
-        #expect(MoraMigrationPlan.schemas.count == 1)
-        #expect(MoraMigrationPlan.stages.isEmpty)
+        #expect(MoraSchemaV2.versionIdentifier == Schema.Version(2, 0, 0))
+        #expect(MoraMigrationPlan.schemas.count == 2)
+        #expect(MoraMigrationPlan.stages.count == 1)
     }
 }

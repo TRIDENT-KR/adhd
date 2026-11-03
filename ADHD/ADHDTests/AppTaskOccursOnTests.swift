@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+import EventKit
 @testable import ADHD
 
 // MARK: - AppTask.occursOn Tests
@@ -272,5 +273,76 @@ struct PlannerJumpDateTests {
 
         let expected = current.date(byAdding: .day, value: 21, to: anchor)!
         #expect(task.plannerJumpDate(from: now, calendar: current) == expected)
+    }
+}
+
+@MainActor
+struct RecurrenceEndAndDeletionTests {
+    private var calendar: Calendar {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "Asia/Seoul")!
+        return cal
+    }
+    private func day(_ number: Int, hour: Int = 0) -> Date {
+        calendar.date(from: DateComponents(year: 2026, month: 11, day: number, hour: hour))!
+    }
+
+    @Test func endDateIncludesEntireLastDayForDailyAndWeekly() {
+        for rule: String? in [nil, "weekly"] {
+            let task = AppTask(task: "수업", date: rule == nil ? nil : day(3),
+                               category: rule == nil ? "Routine" : "Appointment",
+                               recurrenceRule: rule, recurrenceEndDate: day(10))
+            #expect(task.occursOn(day(10, hour: 23), calendar: calendar))
+            #expect(!task.occursOn(day(17), calendar: calendar))
+            #expect(!task.occursOn(day(11), calendar: calendar))
+        }
+    }
+
+    @Test func completedTodayDeletesNextActualOccurrence() {
+        let daily = AppTask(task: "약", category: "Routine")
+        #expect(daily.deletionOccurrence(from: day(3), now: day(3), calendar: calendar) == day(3))
+        daily.isCompleted = true
+        #expect(daily.deletionOccurrence(from: day(3), now: day(3), calendar: calendar) == day(4))
+        let weekly = AppTask(task: "수업", date: day(3), category: "Appointment", isCompleted: true, recurrenceRule: "weekly")
+        #expect(weekly.deletionOccurrence(from: day(3), now: day(3), calendar: calendar) == day(10))
+        weekly.skippedDayKeys = [AppTask.dayKey(day(10))]
+        #expect(weekly.deletionOccurrence(from: day(3), now: day(3), calendar: calendar) == day(17))
+        weekly.recurrenceEndDate = day(10)
+        #expect(weekly.deletionOccurrence(from: day(3), now: day(3), calendar: calendar) == nil)
+    }
+
+    @Test func futureSelectionDoesNotInheritTodaysCompletion() {
+        let task = AppTask(task: "수업", date: day(3), category: "Appointment", isCompleted: true, recurrenceRule: "weekly")
+        #expect(task.deletionOccurrence(from: day(10), now: day(3), calendar: calendar) == day(10))
+    }
+
+    @Test func boundedNotificationsRespectEndCompletionAndLeadTime() {
+        let task = AppTask(task: "약", category: "Routine", isCompleted: true, recurrenceEndDate: day(5))
+        task.skippedDayKeys = [AppTask.dayKey(day(4))]
+        let fires = NotificationManager.boundedFireDates(for: task, after: day(3), hour: 0, minute: 10,
+                                                          leadMinutes: 30, calendar: calendar)
+        #expect(fires.count == 1)
+        #expect(fires.first == calendar.date(byAdding: .minute, value: -20, to: day(5)))
+        #expect(NotificationManager.boundedFireDates(for: task, after: day(6), hour: 9, minute: 0,
+                                                      leadMinutes: 0, calendar: calendar).isEmpty)
+        #expect(NotificationManager.needsForegroundRearm(task))
+    }
+
+    @Test func snapshotRestoresEndDateAndDetectsChanges() {
+        let task = AppTask(task: "약", category: "Routine", recurrenceEndDate: day(30))
+        let snapshot = AppTaskSnapshot(task)
+        task.recurrenceEndDate = nil
+        #expect(!snapshot.matches(task))
+        snapshot.restore(task)
+        #expect(snapshot.matches(task))
+        #expect(snapshot.makeTask().recurrenceEndDate == day(30))
+    }
+
+    @Test func exportedRecurrenceEndsAfterLastOccurrenceTime() {
+        let rule = DeviceCalendar.recurrenceRule(for: "weekly", endingOn: day(10))
+        #expect(rule?.recurrenceEnd?.endDate != nil)
+        // Export uses the device's local calendar, just like stored dates.
+        let end = rule!.recurrenceEnd!.endDate!
+        #expect(Calendar.current.isDate(end, inSameDayAs: day(10)))
     }
 }

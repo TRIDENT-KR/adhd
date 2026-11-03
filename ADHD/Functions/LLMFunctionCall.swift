@@ -67,6 +67,20 @@ struct PendingLLMCall: Identifiable {
     var uiDate: String? { call.uiDate }
     var uiSmartDateRaw: String { call.uiSmartDateRaw }
     var uiSmartDateTime: String { call.uiSmartDateTime }
+    var uiRecurrenceEnd: String? {
+        let value: String?
+        switch call {
+        case .addSingleTask(let params): value = params.recurrence_end_date
+        case .updateTask(let params): value = params.new_recurrence_end_date
+        default: return nil
+        }
+        guard let value else { return nil }
+        if value == "none" { return L.t("Repeat without an end date", "종료 없이 계속 반복", "終了日なしで繰り返す") }
+        guard let date = StoredTaskFormat.date.date(from: value) else { return nil }
+        let label = date.formatted(.dateTime.year().month().day().locale(Locale(identifier: LocalizationManager.shared.currentLanguage.rawValue)))
+        return L.t("Repeat through \(label)", "\(label)까지 반복", "\(label)まで繰り返す")
+    }
+
 
     /// 수정·완료 카드는 분류를 바꾸지 않으면 실제 대상의 분류로 보여줍니다.
     var uiCategory: String {
@@ -320,6 +334,7 @@ struct AddSingleTaskParams: Codable {
     var date: String?
     var category: String
     var recurrence: String?
+    var recurrence_end_date: String? = nil
     /// LLM이 판단한 알림 강도: "strong" | "weak" | nil (하이브리드 분류 1단계)
     var urgency: String?
     /// AI가 고른 말투로 써 준 첫 알림 문장. 앱이 말투를 보낸 요청에만 옵니다.
@@ -333,6 +348,8 @@ struct UpdateTaskParams: Codable {
     var new_date: String?
     var new_category: String?
     var new_recurrence: String?
+    /// nil은 유지, 날짜는 종료일 지정, "none"은 종료일 해제.
+    var new_recurrence_end_date: String? = nil
 }
 
 struct DeleteTaskParams: Codable {
@@ -390,8 +407,8 @@ enum LLMFunctionCall: Decodable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let functionName = try container.decode(String.self, forKey: .function_name)
         let allowed: [String: Set<String>] = [
-            "add_single_task": ["task_name", "time", "date", "category", "recurrence", "urgency", "alert_line"],
-            "update_task": ["target_task_name", "new_task_name", "new_time", "new_date", "new_category", "new_recurrence"],
+            "add_single_task": ["task_name", "time", "date", "category", "recurrence", "urgency", "alert_line", "recurrence_end_date"],
+            "update_task": ["target_task_name", "new_task_name", "new_time", "new_date", "new_category", "new_recurrence", "new_recurrence_end_date"],
             "delete_specific_task": ["target_task_name", "target_category", "target_date"],
             "clear_all_tasks": ["target_category", "target_date"],
             "postpone_all_tasks": ["from_date", "to_date"],
@@ -520,6 +537,10 @@ enum LLMFunctionCall: Decodable {
     /// 사용자 설정과 무관하게 명시적 확인이 필요한 단일 명령입니다.
     var requiresExplicitConfirmation: Bool {
         switch self {
+        case .addSingleTask(let params):
+            return params.recurrence_end_date != nil
+        case .updateTask(let params):
+            return params.new_recurrence_end_date != nil
         case .deleteSpecificTask, .clearAllTasks, .postponeAllTasks:
             return true
         default:
@@ -556,6 +577,10 @@ enum LLMFunctionCall: Decodable {
                 && Self.isValidDate(params.date, allowsNil: true, allowsAll: false)
                 && Self.isValidTime(params.time)
                 && Self.isValidRecurrence(params.recurrence)
+                && Self.isValidDate(params.recurrence_end_date, allowsNil: true, allowsAll: false)
+                && (params.recurrence_end_date == nil || params.category == "Routine" || params.recurrence != nil)
+                && (params.recurrence_end_date == nil || params.date == nil || params.recurrence_end_date! >= params.date!)
+
                 && (params.urgency == nil || ["strong", "weak"].contains(params.urgency!))
                 && (params.alert_line == nil || (Self.isValidText(params.alert_line!) && params.alert_line!.count <= 80))
         case .updateTask(let params):
@@ -564,12 +589,14 @@ enum LLMFunctionCall: Decodable {
                 // 확인 카드가 만든 빈 문자열은 시간 삭제, nil은 유지입니다.
                 && (params.new_time == "" || Self.isValidTime(params.new_time))
                 && Self.isValidRecurrence(params.new_recurrence)
+                && (params.new_recurrence_end_date == "none" || Self.isValidDate(params.new_recurrence_end_date, allowsNil: true, allowsAll: false))
                 && [
                     params.new_task_name,
                     params.new_time,
                     params.new_date,
                     params.new_category,
                     params.new_recurrence,
+                    params.new_recurrence_end_date,
                 ].contains(where: { $0 != nil })
                 && Self.isValidCategory(params.new_category, allowsAll: false)
                 && Self.isValidDate(params.new_date, allowsNil: true, allowsAll: false)

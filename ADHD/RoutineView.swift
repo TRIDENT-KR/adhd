@@ -555,7 +555,8 @@ extension View {
     /// `task`가 nil이 아니면 뜨고, 고르거나 닫으면 nil로 돌아갑니다.
     func repeatingDeleteDialog(
         for task: Binding<AppTask?>,
-        onSkip: @escaping (AppTask) -> Void,
+        viewedDate: Date = Date(),
+        onSkip: @escaping (AppTask, Date) -> Void,
         onDeleteAll: @escaping (AppTask) -> Void
     ) -> some View {
         confirmationDialog(
@@ -567,11 +568,14 @@ extension View {
             titleVisibility: .visible,
             presenting: task.wrappedValue
         ) { target in
-            Button(L.taskEdit.skipThisOne) { onSkip(target) }
+            if let day = target.deletionOccurrence(from: viewedDate) {
+                Button(occurrenceDeleteLabel(day)) { onSkip(target, day) }
+            }
+
             Button(L.taskEdit.deleteAll, role: .destructive) { onDeleteAll(target) }
             Button(L.cancel, role: .cancel) {}
         } message: { _ in
-            Text(L.taskEdit.repeatingDeleteMessage)
+            Text(L.t("Delete one upcoming occurrence, or the entire series?", "한 회차만 삭제할까요, 전체를 삭제할까요?", "1回分だけ削除しますか、すべて削除しますか？"))
         }
     }
 }
@@ -639,6 +643,8 @@ struct TaskEditSheet: View {
     @State private var time: Date
     @State private var day: Date
     @State private var recurrenceRule: String?
+    @State private var hasEndDate: Bool
+    @State private var endDate: Date
     @State private var urgency: Urgency
     /// 반복 일정 삭제 확인을 띄울 대상
     @State private var deleteTarget: AppTask?
@@ -666,6 +672,8 @@ struct TaskEditSheet: View {
         _time = State(initialValue: storedTime ?? Self.nextWholeHour(calendar: calendar))
         _day = State(initialValue: calendar.startOfDay(for: task.date ?? viewedDate))
         _recurrenceRule = State(initialValue: task.recurrenceRule)
+        _hasEndDate = State(initialValue: task.recurrenceEndDate != nil)
+        _endDate = State(initialValue: task.recurrenceEndDate ?? max(task.date ?? viewedDate, viewedDate))
         _urgency = State(initialValue: task.urgency)
     }
 
@@ -673,7 +681,10 @@ struct TaskEditSheet: View {
         title.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    private var canSave: Bool { !trimmedTitle.isEmpty }
+    private var canSave: Bool {
+        !trimmedTitle.isEmpty && (!hasEndDate || !isAppointment || recurrenceRule == nil
+            || Calendar.current.startOfDay(for: endDate) >= Calendar.current.startOfDay(for: day))
+    }
 
     private var softAnimation: Animation? {
         reduceMotion ? nil : .timingCurve(0.4, 0, 0.2, 1, duration: 0.3)
@@ -708,8 +719,9 @@ struct TaskEditSheet: View {
         .onChange(of: recurrenceRule) { _, _ in Haptic.impact(.light) }
         .repeatingDeleteDialog(
             for: $deleteTarget,
-            onSkip: { target in
-                taskManager.skipOccurrence(of: target, on: viewedDate)
+            viewedDate: viewedDate,
+            onSkip: { target, occurrence in
+                taskManager.skipOccurrence(of: target, on: occurrence)
                 Haptic.impact(.medium)
                 dismiss()
             },
@@ -789,6 +801,11 @@ struct TaskEditSheet: View {
                 TaskEditRow(icon: "repeat", label: L.taskEdit.repeatTitle) {
                     repeatMenu
                 }
+            }
+
+            if !isAppointment || recurrenceRule != nil {
+                RecurrenceEndFields(hasEndDate: $hasEndDate, endDate: $endDate,
+                                    minimumDate: isAppointment ? day : nil)
             }
 
             reminderSection
@@ -941,15 +958,18 @@ struct TaskEditSheet: View {
 
     private func save() {
         let trimmed = trimmedTitle
-        guard !trimmed.isEmpty else { return }   // 버튼 disabled로 먼저 막고, 한 번 더 방어
+        guard canSave else { return }
 
         let newTime = storedTimeValue()
         let newDate = storedDateValue()
         let newRule = isAppointment ? recurrenceRule : task.recurrenceRule
+        let newEnd = hasEndDate && (!isAppointment || newRule != nil)
+            ? Calendar.current.startOfDay(for: endDate) : nil
         let changed = trimmed != task.task
             || newTime != task.time
             || newDate != task.date
             || newRule != task.recurrenceRule
+            || newEnd != task.recurrenceEndDate
             || urgency != task.urgency
         guard changed else { dismiss(); return }
 
@@ -959,6 +979,7 @@ struct TaskEditSheet: View {
         task.time = newTime
         task.date = newDate
         task.recurrenceRule = newRule
+        task.recurrenceEndDate = newEnd
         task.urgency = urgency
         taskManager.update(task: task)
         Haptic.notification(.success)
@@ -1036,5 +1057,47 @@ private struct TaskEditRow<Trailing: View>: View {
             trailing()
         }
         .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
+    }
+}
+
+private func occurrenceDeleteLabel(_ date: Date) -> String {
+    if Calendar.current.isDateInToday(date) { return L.t("Delete today only", "오늘만 삭제", "今日だけ削除") }
+    if Calendar.current.isDateInTomorrow(date) { return L.t("Delete tomorrow only", "내일만 삭제", "明日だけ削除") }
+    let label = date.formatted(.dateTime.month().day().weekday(.wide).locale(Locale(identifier: LocalizationManager.shared.currentLanguage.rawValue)))
+    return L.t("Delete \(label) only", "\(label)만 삭제", "\(label)だけ削除")
+}
+
+/// 생성·수정 화면에서 공유하는 반복 종료 설정. 기본값은 종료 없이 반복입니다.
+struct RecurrenceEndFields: View {
+    @Binding var hasEndDate: Bool
+    @Binding var endDate: Date
+    var minimumDate: Date? = nil
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Toggle(isOn: $hasEndDate) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(L.t("Set end date", "종료일 지정", "終了日を指定"))
+                    if !hasEndDate {
+                        Text(L.t("Repeats without an end date", "종료 없이 계속 반복", "終了日なしで繰り返す"))
+                            .font(.caption).foregroundStyle(DesignSystem.Colors.onSurfaceMeta)
+                    }
+                }
+            }
+            .tint(DesignSystem.Colors.primary)
+            if hasEndDate {
+                DatePicker(L.t("Repeat through", "이 날짜까지 반복", "この日まで繰り返す"), selection: $endDate,
+                           in: (minimumDate.map { Calendar.current.startOfDay(for: $0) } ?? .distantPast)...,
+                           displayedComponents: .date)
+                    .tint(DesignSystem.Colors.primary)
+            }
+        }
+        .padding(.vertical, 12)
+        .onChange(of: minimumDate) { _, value in
+            if let value, endDate < value { endDate = value }
+        }
+        .onChange(of: hasEndDate) { _, enabled in
+            if enabled, let minimumDate, endDate < minimumDate { endDate = minimumDate }
+        }
     }
 }
