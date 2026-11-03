@@ -317,7 +317,7 @@ final class DeviceCalendar: ObservableObject {
             event.startDate = day
             event.endDate = day
         }
-        if let rule = Self.recurrenceRule(for: task.recurrenceRule) {
+        if let rule = Self.recurrenceRule(for: task.recurrenceRule, endingOn: task.recurrenceEndDate) {
             event.recurrenceRules = [rule]
         }
         return event
@@ -355,16 +355,23 @@ final class DeviceCalendar: ObservableObject {
             task.date.map(AppTask.dayKey) ?? "",
             task.time.flatMap(StoredTaskFormat.hourMinute(from:)).map { "\($0.hour):\($0.minute)" } ?? "",
             task.recurrenceRule ?? "",
+            task.recurrenceEndDate.map(AppTask.dayKey) ?? "",
             task.isRecurring ? task.skippedDayKeys.sorted().joined(separator: ",") : "",
         ].joined(separator: "|")
     }
 
-    static func recurrenceRule(for rule: String?) -> EKRecurrenceRule? {
+    static func recurrenceRule(for rule: String?, endingOn endDate: Date? = nil) -> EKRecurrenceRule? {
+        let end = endDate.flatMap { date -> EKRecurrenceEnd? in
+            let cal = Calendar.current
+            guard let nextDay = cal.date(byAdding: .day, value: 1, to: cal.startOfDay(for: date)) else { return nil }
+            return EKRecurrenceEnd(end: nextDay.addingTimeInterval(-1))
+        }
+
         switch rule {
-        case "weekly": return EKRecurrenceRule(recurrenceWith: .weekly, interval: 1, end: nil)
-        case "biweekly": return EKRecurrenceRule(recurrenceWith: .weekly, interval: 2, end: nil)
-        case "monthly": return EKRecurrenceRule(recurrenceWith: .monthly, interval: 1, end: nil)
-        case "yearly": return EKRecurrenceRule(recurrenceWith: .yearly, interval: 1, end: nil)
+        case "weekly": return EKRecurrenceRule(recurrenceWith: .weekly, interval: 1, end: end)
+        case "biweekly": return EKRecurrenceRule(recurrenceWith: .weekly, interval: 2, end: end)
+        case "monthly": return EKRecurrenceRule(recurrenceWith: .monthly, interval: 1, end: end)
+        case "yearly": return EKRecurrenceRule(recurrenceWith: .yearly, interval: 1, end: end)
         default: return nil
         }
     }

@@ -278,6 +278,7 @@ struct ScreenHeader<MenuContent: View>: View {
     let title: String
     let addLabel: String
     let onAdd: () -> Void
+    var onCalendar: (() -> Void)? = nil
     @ViewBuilder let menu: () -> MenuContent
 
     var body: some View {
@@ -289,7 +290,19 @@ struct ScreenHeader<MenuContent: View>: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
             Spacer()
+            if let onCalendar {
+                Button(action: onCalendar) {
+                    Image(systemName: "calendar")
+                        .font(.body.weight(.semibold))
+                        .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
+                        .frame(width: 44, height: 44)
+                        .background(Circle().fill(DesignSystem.Colors.surfaceContainerLow))
+                }
+                .buttonStyle(PressScaleButtonStyle())
+                .accessibilityLabel(L.t("Open calendar", "달력 열기", "カレンダーを開く"))
+            }
             Menu {
+
                 menu()
             } label: {
                 Image(systemName: "ellipsis")

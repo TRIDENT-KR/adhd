@@ -14,6 +14,7 @@ export interface AnalysisInput {
   currentTime?: string;
   language?: string;
   alertTone?: string;
+  recurrenceEndDates?: string;
 }
 
 export interface QuotaReservation {
@@ -76,6 +77,9 @@ function validateInput(input: AnalysisInput): void {
   if (input.language !== undefined && !languages.has(input.language)) {
     throw new AnalysisServiceError("invalid_language", 400);
   }
+  if (input.recurrenceEndDates !== undefined && input.recurrenceEndDates !== "1") {
+    throw new AnalysisServiceError("invalid_recurrence_capability", 400);
+  }
   if (input.alertTone !== undefined && !alertToneSet.has(input.alertTone)) {
     throw new AnalysisServiceError("invalid_alert_tone", 400);
   }
@@ -97,7 +101,20 @@ export function stripAlertLines(raw: unknown): unknown {
   });
 }
 
+/** Never silently turn a bounded series into an endless one on older clients. */
+function compatibleCalls(calls: AnalysisCall[], input: AnalysisInput): AnalysisCall[] {
+  if (input.recurrenceEndDates === "1") return calls;
+  return calls.map((call) => {
+    const { recurrence_end_date, new_recurrence_end_date, ...parameters } = call.parameters;
+    if (recurrence_end_date != null || new_recurrence_end_date != null) {
+      throw new AnalysisValidationError("recurrence end dates require a supporting client");
+    }
+    return { ...call, parameters };
+  });
+}
+
 async function inputHash(input: AnalysisInput): Promise<string> {
+
   const canonical = JSON.stringify({
     aiConsentVersion: input.aiConsentVersion,
     text: input.text,
@@ -105,6 +122,7 @@ async function inputHash(input: AnalysisInput): Promise<string> {
     language: input.language ?? "en",
     // Requests from older builds hash exactly as before.
     ...(input.alertTone !== undefined ? { alertTone: input.alertTone } : {}),
+    ...(input.recurrenceEndDates !== undefined ? { recurrenceEndDates: input.recurrenceEndDates } : {}),
   });
   const digest = await crypto.subtle.digest(
     "SHA-256",
@@ -155,7 +173,7 @@ export async function executeAnalysis(
   if (!reservation.allowed) throw reservationError(reservation.reason);
   if (reservation.alreadyCommitted) {
     try {
-      const calls = validateAnalysisCalls(reservation.cachedCalls);
+      const calls = compatibleCalls(validateAnalysisCalls(reservation.cachedCalls), input);
       return { requestId: input.requestId, calls, quota: reservation.quota };
     } catch {
       throw new AnalysisServiceError("cached_result_invalid", 500);
@@ -164,9 +182,9 @@ export async function executeAnalysis(
 
   try {
     const raw = await dependencies.analyze(input);
-    const calls = validateAnalysisCalls(
+    const calls = compatibleCalls(validateAnalysisCalls(
       input.alertTone === undefined ? stripAlertLines(raw) : raw,
-    );
+    ), input);
     const quota = await dependencies.finalize(input.requestId, calls);
     return { requestId: input.requestId, calls, quota };
   } catch (error) {

@@ -21,6 +21,9 @@ struct QuickAddSheet: View {
     @State private var urgency: Urgency = .strong
     @State private var showTimePicker = false
     @State private var saveFailed = false
+    @State private var recurrenceRule: String?
+    @State private var hasEndDate = false
+    @State private var endDate = Date()
     @FocusState private var isNameFocused: Bool
 
     private var trimmedName: String {
@@ -105,6 +108,22 @@ struct QuickAddSheet: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
+                if case .appointment(let date) = mode {
+                    Picker(L.taskEdit.repeatTitle, selection: $recurrenceRule) {
+                        Text(L.taskEdit.repeatNever).tag(String?.none)
+                        Text(L.recurrence.weekly).tag(String?.some("weekly"))
+                        Text(L.recurrence.biweekly).tag(String?.some("biweekly"))
+                        Text(L.recurrence.monthly).tag(String?.some("monthly"))
+                        Text(L.recurrence.yearly).tag(String?.some("yearly"))
+                    }
+                    .tint(DesignSystem.Colors.primary)
+                    if recurrenceRule != nil {
+                        RecurrenceEndFields(hasEndDate: $hasEndDate, endDate: $endDate, minimumDate: date)
+                    }
+                } else if case .routine = mode {
+                    RecurrenceEndFields(hasEndDate: $hasEndDate, endDate: $endDate, minimumDate: Date())
+                }
+
                 // 저장 실패 안내 — 입력은 남아 있으니 다시 누르기만 하면 된다
                 if saveFailed {
                     Text(L.quickAdd.saveFailed)
@@ -155,7 +174,10 @@ struct QuickAddSheet: View {
         }
 
         let task = AppTask(task: trimmed, time: time.isEmpty ? nil : time,
-                           date: date, category: category, urgency: urgency)
+                           date: date, category: category, recurrenceRule: recurrenceRule,
+                           recurrenceEndDate: hasEndDate && (category == "Routine" || recurrenceRule != nil)
+                               ? Calendar.current.startOfDay(for: max(endDate, date ?? Date())) : nil,
+                           urgency: urgency)
         // 저장이 확정된 뒤에만 알림·Undo·성공 피드백. 실패하면 시트와 입력을 그대로 둡니다.
         guard taskManager.insertAndSave(task) else {
             saveFailed = true

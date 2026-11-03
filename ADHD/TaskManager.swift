@@ -18,6 +18,7 @@ struct AppTaskSnapshot {
     let category: String
     let isCompleted: Bool
     let recurrenceRule: String?
+    let recurrenceEndDate: Date?
     let urgency: Urgency
     let sortOrder: Int
     let weeklyCompletions: [Bool]
@@ -31,6 +32,7 @@ struct AppTaskSnapshot {
         category = task.category
         isCompleted = task.isCompleted
         recurrenceRule = task.recurrenceRule
+        recurrenceEndDate = task.recurrenceEndDate
         urgency = task.urgency
         sortOrder = task.sortOrder
         weeklyCompletions = task.weeklyCompletions
@@ -45,6 +47,7 @@ struct AppTaskSnapshot {
             && candidate.category == category
             && candidate.isCompleted == isCompleted
             && candidate.recurrenceRule == recurrenceRule
+            && candidate.recurrenceEndDate == recurrenceEndDate
             && candidate.urgency == urgency
             && candidate.sortOrder == sortOrder
             && candidate.weeklyCompletions == weeklyCompletions
@@ -60,6 +63,7 @@ struct AppTaskSnapshot {
             category: category,
             isCompleted: isCompleted,
             recurrenceRule: recurrenceRule,
+            recurrenceEndDate: recurrenceEndDate,
             sortOrder: sortOrder,
             urgency: urgency
         )
@@ -75,6 +79,7 @@ struct AppTaskSnapshot {
         target.category = category
         target.isCompleted = isCompleted
         target.recurrenceRule = recurrenceRule
+        target.recurrenceEndDate = recurrenceEndDate
         target.urgency = urgency
         target.sortOrder = sortOrder
         target.weeklyCompletions = weeklyCompletions

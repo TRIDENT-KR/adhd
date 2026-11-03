@@ -142,6 +142,9 @@ Deno.serve(async (req: Request) => {
       language: typeof rawBody.language === "string"
         ? rawBody.language
         : undefined,
+      recurrenceEndDates: typeof rawBody.recurrenceEndDates === "string"
+        ? rawBody.recurrenceEndDates
+        : undefined,
       alertTone: typeof rawBody.alertTone === "string"
         ? rawBody.alertTone
         : undefined,
@@ -155,7 +158,7 @@ Deno.serve(async (req: Request) => {
 
     // validateInput (in executeAnalysis) rejects unknown tones before the model runs.
     const alertTone = alertTones.find((tone) => tone === input.alertTone);
-    const finalPrompt = buildAnalysisPrompt(localTimeStr, userLanguage, alertTone);
+    const finalPrompt = buildAnalysisPrompt(localTimeStr, userLanguage, alertTone, input.recurrenceEndDates === "1");
 
     const recordEvent = async (
       eventName: "analysis_succeeded" | "analysis_failed" | "quota_denied",

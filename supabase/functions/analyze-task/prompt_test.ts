@@ -13,3 +13,14 @@ Deno.test("alert line section is added only when a tone is sent", () => {
     assert(toned.includes(`"${tone}"`) && toned.includes("alert_line"), `missing ${tone} guide`);
   }
 });
+
+Deno.test("prompt separates recurrence start, inclusive end, and existing-series updates", () => {
+  const prompt = buildAnalysisPrompt("2026-11-03 13:00", "ko", undefined, true);
+  for (const expected of ["recurrence_end_date", "new_recurrence_end_date", "2026-12-20", "이번 달까지만", "all other new_* fields null", '"none"']) {
+    assert(prompt.includes(expected), `missing end-date contract: ${expected}`);
+  }
+});
+
+Deno.test("legacy prompts do not advertise unsupported recurrence end fields", () => {
+  assert(!buildAnalysisPrompt("2026-11-03 13:00", "ko").includes("recurrence_end_date"), "old app must not receive new fields");
+});

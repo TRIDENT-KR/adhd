@@ -225,6 +225,7 @@ class CloudLLMManager: ObservableObject {
             "text": text,
             "currentTime": formatter.string(from: now),
             "language": language,
+            "recurrenceEndDates": "1",
             "alertTone": alertTone.rawValue
         ]
     }

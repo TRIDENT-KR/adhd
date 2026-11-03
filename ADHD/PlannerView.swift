@@ -2,6 +2,112 @@ import SwiftUI
 import SwiftData
 import Combine
 
+/// 월간 날짜 선택과 일정 표시. 머리말을 한 행에 배치해 시스템 툴바와 달력이 겹치지 않습니다.
+struct PlannerCalendarSheet: View {
+    @Binding var selectedDate: Date
+    let appointments: [AppTask]
+    @Environment(\.dismiss) private var dismiss
+    @ObservedObject private var deviceCalendar = DeviceCalendar.shared
+    @ObservedObject private var language = LocalizationManager.shared
+    @State private var month: Date
+    @State private var deviceDays: Set<Date> = []
+    private let calendar = Calendar.current
+
+    init(selectedDate: Binding<Date>, appointments: [AppTask]) {
+        _selectedDate = selectedDate
+        self.appointments = appointments
+        _month = State(initialValue: Calendar.current.dateInterval(of: .month, for: selectedDate.wrappedValue)!.start)
+    }
+
+    private var days: [Date] {
+        guard let range = calendar.range(of: .day, in: .month, for: month) else { return [] }
+        return range.compactMap { calendar.date(byAdding: .day, value: $0 - 1, to: month) }
+    }
+
+    private var leadingDays: Int {
+        (calendar.component(.weekday, from: month) - calendar.firstWeekday + 7) % 7
+    }
+
+    private func hasEvents(_ day: Date) -> Bool {
+        appointments.contains { $0.occursOn(day) } || deviceDays.contains(calendar.startOfDay(for: day))
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 20) {
+                HStack {
+                    Button(L.calendarToday) {
+                        selectedDate = calendar.startOfDay(for: Date())
+                        month = calendar.dateInterval(of: .month, for: selectedDate)!.start
+                    }
+                    .frame(minWidth: 60, minHeight: 44)
+                    Spacer()
+                    Text(L.t("Calendar", "캘린더", "カレンダー")).font(.headline)
+                    Spacer()
+                    Button(L.settings.done) { dismiss() }
+                        .frame(minWidth: 60, minHeight: 44)
+                }
+                HStack {
+                    monthButton(-1)
+                    Spacer()
+                    Text(month.formatted(.dateTime.year().month(.wide).locale(Locale(identifier: language.currentLanguage.rawValue))))
+                        .font(.title3.weight(.semibold))
+                    Spacer()
+                    monthButton(1)
+                }
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 0), count: 7), spacing: 8) {
+                    ForEach(0..<7, id: \.self) { index in
+                        Text(calendar.veryShortStandaloneWeekdaySymbols[(calendar.firstWeekday - 1 + index) % 7])
+                            .font(.caption)
+                            .foregroundStyle(DesignSystem.Colors.onSurfaceMeta)
+                    }
+                    ForEach(0..<leadingDays, id: \.self) { _ in Color.clear.frame(height: 44) }
+                    ForEach(days, id: \.self) { day in
+                        let selected = calendar.isDate(day, inSameDayAs: selectedDate)
+                        let marked = hasEvents(day)
+                        Button { selectedDate = day } label: {
+                            VStack(spacing: 4) {
+                                Text("\(calendar.component(.day, from: day))")
+                                    .font(.body.weight(calendar.isDateInToday(day) ? .bold : .regular))
+                                Circle().fill(selected ? DesignSystem.Colors.onPrimary : DesignSystem.Colors.primary)
+                                    .frame(width: 5, height: 5).opacity(marked ? 1 : 0)
+                            }
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                            .foregroundStyle(selected ? DesignSystem.Colors.onPrimary : DesignSystem.Colors.onSurface)
+                            .background(selected ? DesignSystem.Colors.primary : .clear, in: RoundedRectangle(cornerRadius: 14))
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(day.formatted(date: .complete, time: .omitted) + (marked ? L.t(", has events", ", 일정 있음", "、予定あり") : ""))
+                        .accessibilityAddTraits(selected ? .isSelected : [])
+                    }
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 24)
+            .padding(.bottom, 20)
+        }
+        .tint(DesignSystem.Colors.primary)
+        .background(DesignSystem.Colors.background)
+        .presentationDetents([.height(520), .large])
+        .presentationDragIndicator(.visible)
+        .task(id: DeviceEventsQuery(day: month, revision: deviceCalendar.revision)) {
+            if let interval = calendar.dateInterval(of: .month, for: month) {
+                deviceDays = deviceCalendar.eventDays(from: interval.start, to: interval.end)
+            }
+        }
+    }
+
+    private func monthButton(_ offset: Int) -> some View {
+        Button {
+            if let next = calendar.date(byAdding: .month, value: offset, to: month) { month = next }
+        } label: {
+            Image(systemName: offset < 0 ? "chevron.left" : "chevron.right")
+                .frame(width: 44, height: 44)
+        }
+        .accessibilityLabel(offset < 0 ? L.t("Previous month", "이전 달", "前月") : L.t("Next month", "다음 달", "翌月"))
+    }
+}
+
 struct PlannerView: View {
     // MARK: - SwiftData Query
     /// Appointment 전체를 불러와 View에서 날짜 필터링
@@ -84,10 +190,7 @@ struct PlannerView: View {
                 VStack(alignment: .leading, spacing: 24) {
 
                     // 제목 + 더보기(달력·검색·순서 변경) + 추가
-                    ScreenHeader(title: "Planner", addLabel: L.quickAdd.title, onAdd: { showQuickAdd = true }) {
-                        Button(action: { isCalendarPresented.toggle() }) {
-                            Label(L.t("Open calendar", "달력 열기", "カレンダーを開く"), systemImage: "calendar")
-                        }
+                    ScreenHeader(title: "Planner", addLabel: L.quickAdd.title, onAdd: { showQuickAdd = true }, onCalendar: { isCalendarPresented = true }) {
                         Button(action: { showSearch = true }) {
                             Label(L.t("Search tasks", "일정 검색", "タスクを検索"), systemImage: "magnifyingglass")
                         }
@@ -172,45 +275,7 @@ struct PlannerView: View {
             }
         }
         .sheet(isPresented: $isCalendarPresented) {
-            NavigationView {
-                VStack {
-                    VStack {
-                        DatePicker(
-                            "Select Date",
-                            selection: $selectedDate,
-                            displayedComponents: [.date]
-                        )
-                        .datePickerStyle(.graphical)
-                        .tint(DesignSystem.Colors.primary)
-                    }
-                    .padding()
-                    .background(DesignSystem.Colors.surfaceContainerLow)
-                    .cornerRadius(24)
-                    .padding()
-
-                    Spacer()
-                }
-                .navigationTitle(Text(verbatim: "Calendar"))
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .navigationBarLeading) {
-                        Button(L.calendarToday) {
-                            withAnimation(.spring()) {
-                                selectedDate = Calendar.current.startOfDay(for: Date())
-                            }
-                        }
-                        .foregroundColor(DesignSystem.Colors.primary)
-                    }
-                    ToolbarItem(placement: .navigationBarTrailing) {
-                        Button(L.settings.done) { isCalendarPresented = false }
-                            .foregroundColor(DesignSystem.Colors.primary)
-                    }
-                }
-                .background(DesignSystem.Colors.background.ignoresSafeArea())
-            }
-            // colorScheme follows system setting for dark mode support
-            .presentationDetents([.medium, .large])
-            .presentationDragIndicator(.visible)
+            PlannerCalendarSheet(selectedDate: $selectedDate, appointments: appointments)
         }
         .sheet(isPresented: $showQuickAdd) {
             QuickAddSheet(mode: .appointment(selectedDate))
@@ -223,8 +288,9 @@ struct PlannerView: View {
         }
         .repeatingDeleteDialog(
             for: $repeatingDeleteTarget,
-            onSkip: { task in
-                withAnimation { taskManager.skipOccurrence(of: task, on: selectedDate) }
+            viewedDate: selectedDate,
+            onSkip: { task, occurrence in
+                withAnimation { taskManager.skipOccurrence(of: task, on: occurrence) }
                 Haptic.impact(.medium)
             },
             onDeleteAll: { task in

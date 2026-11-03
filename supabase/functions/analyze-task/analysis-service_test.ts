@@ -295,3 +295,29 @@ Deno.test("requests without a tone hash exactly as before", async () => {
   assert(hashes[0] === expected, "legacy hash changed");
   assert(hashes[1] !== expected, "tone must be part of the request hash");
 });
+
+Deno.test("recurrence capability protects old clients and participates in replay identity", async () => {
+  const base = { aiConsentVersion: "2", requestId, text: "매주 화요일 수업", currentTime: "2026-11-03 13:00", language: "ko" };
+  const add = { function_name: "add_single_task", parameters: { task_name: "수업", time: null, date: "2026-11-03", category: "Appointment", recurrence: "weekly", urgency: "weak", recurrence_end_date: "2026-12-20" } };
+  const old = dependencies({ analyze: () => Promise.resolve([add]) });
+  try {
+    await executeAnalysis(base, old.value);
+    throw new Error("old clients must not receive a silently unbounded series");
+  } catch (error) {
+    assert(error instanceof AnalysisServiceError && error.code === "invalid_model_response", "unsupported bounded series must fail");
+  }
+  assert(old.calls.finalize === 0, "failed response must not consume a successful quota");
+  const hashes: string[] = [];
+  const modern = dependencies({
+    reserve: (_id, hash) => { hashes.push(hash); return Promise.resolve({ allowed: true }); },
+    analyze: () => Promise.resolve([{ ...add, parameters: { ...add.parameters, recurrence_end_date: null } }]),
+  });
+  const legacyResult = await executeAnalysis(base, modern.value);
+  const modernResult = await executeAnalysis({ ...base, recurrenceEndDates: "1" }, modern.value);
+  assert(!("recurrence_end_date" in legacyResult.calls[0].parameters), "strip even null unknown keys for old clients");
+  assert("recurrence_end_date" in modernResult.calls[0].parameters, "preserve new keys for new clients");
+  assert(hashes[0] !== hashes[1], "capability must bind cached responses");
+  const bounded = dependencies({ analyze: () => Promise.resolve([add]) });
+  const result = await executeAnalysis({ ...base, recurrenceEndDates: "1" }, bounded.value);
+  assert(result.calls[0].parameters.recurrence_end_date === "2026-12-20", "preserve actual end date");
+});

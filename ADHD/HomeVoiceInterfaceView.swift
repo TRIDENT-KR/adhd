@@ -1557,7 +1557,14 @@ struct VoiceConfirmationSheet: View {
                 .font(.body.weight(.bold))
                 .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
 
+            if let endLabel = task.uiRecurrenceEnd {
+                Label(endLabel, systemImage: "calendar.badge.checkmark")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(DesignSystem.Colors.primary)
+            }
+
             let smartDateTimeStr = task.uiSmartDateTime
+
             if !smartDateTimeStr.isEmpty {
                 HStack(spacing: 6) {
                     Image(systemName: "clock.fill")

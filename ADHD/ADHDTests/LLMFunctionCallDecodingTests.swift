@@ -570,3 +570,30 @@ struct HomeVoiceReliabilityTests {
         #expect(!VoiceError.speechRestricted.canRetryRecording)
     }
 }
+
+@MainActor
+struct RecurrenceEndPayloadTests {
+    private func decode(_ parameters: String, update: Bool = false) throws -> LLMFunctionCall {
+        let name = update ? "update_task" : "add_single_task"
+        return try JSONDecoder().decode(LLMFunctionCall.self, from: Data("{\"function_name\":\"\(name)\",\"parameters\":\(parameters)}".utf8))
+    }
+    @Test func newSeriesDecodesEndDateAndShowsItBeforeSaving() throws {
+        let call = try decode(#"{"task_name":"수업","category":"Appointment","date":"2026-11-03","recurrence":"weekly","recurrence_end_date":"2026-12-20"}"#)
+        #expect(call.isExecutionPayloadValid)
+        #expect(PendingLLMCall(call: call).uiRecurrenceEnd != nil)
+    }
+    @Test func endOnlyUpdateAndExplicitRemovalAreValid() throws {
+        for end in ["2026-11-30", "none"] {
+            let call = try decode("{\"target_task_name\":\"과외\",\"new_recurrence_end_date\":\"\(end)\"}", update: true)
+            #expect(call.isExecutionPayloadValid)
+            #expect(call.requiresExplicitConfirmation)
+            #expect(PendingLLMCall(call: call).uiRecurrenceEnd != nil)
+        }
+    }
+    @Test func rejectsInvalidEndAndEndBeforeStart() throws {
+        for end in ["2026-02-30", "2026-11-02"] {
+            let call = try decode("{\"task_name\":\"수업\",\"category\":\"Appointment\",\"date\":\"2026-11-03\",\"recurrence\":\"weekly\",\"recurrence_end_date\":\"\(end)\"}")
+            #expect(!call.isExecutionPayloadValid)
+        }
+    }
+}

@@ -429,7 +429,13 @@ final class NotificationManager {
             (completedToday && calendar.isDate(day, inSameDayAs: now)) || task.isSkipped(on: day)
         }
         let fireDate: Date
-        if let rule = task.recurrenceRule,
+        if task.hasRepeatingSchedule, task.recurrenceEndDate != nil {
+            let dates = Self.boundedFireDates(for: task, after: now, hour: clock.hour,
+                                             minute: clock.minute, leadMinutes: leadMinutes, calendar: calendar)
+            guard let next = dates.first else { cancelNotification(for: task); return }
+            fireDate = next
+        } else if let rule = task.recurrenceRule,
+
            RecurrenceEngine.requiresOneShotNotification(rule) {
             guard let anchor = task.date,
                   let next = Self.nextIncludedFireDate(
@@ -456,7 +462,10 @@ final class NotificationManager {
             fireDate = adjusted
         }
 
-        let skipPlan = Self.skipPlan(
+        let skipPlan: SkipPlan? = task.hasRepeatingSchedule && task.recurrenceEndDate != nil
+            ? .upcoming(Self.boundedFireDates(for: task, after: now, hour: clock.hour, minute: clock.minute,
+                                            leadMinutes: leadMinutes, calendar: calendar))
+            : Self.skipPlan(
             recurrenceRule: task.recurrenceRule, anchor: task.date,
             hour: clock.hour, minute: clock.minute,
             leadMinutes: leadMinutes, now: now, calendar: calendar,
@@ -504,14 +513,41 @@ final class NotificationManager {
     static func needsForegroundRearm(_ task: AppTask, now: Date = Date(), calendar: Calendar = .current) -> Bool {
         if RecurrenceEngine.requiresOneShotNotification(task.recurrenceRule) { return true }
         guard task.hasRepeatingSchedule else { return false }
-        if !task.skippedDayKeys.isEmpty { return true }
+        if task.recurrenceEndDate != nil || !task.skippedDayKeys.isEmpty { return true }
         if task.recurrenceRule == "weekly", let anchor = task.date {
             return calendar.startOfDay(for: anchor) > calendar.startOfDay(for: now)
         }
         return false
     }
 
+    /// 종료일이 있으면 무한 반복 트리거 대신 포함된 회차만 예약합니다.
+    /// 기존 upcoming 예약과 같은 방식으로 앱 활성화·일일 초기화 시 채웁니다.
+    static func boundedFireDates(
+        for task: AppTask, after now: Date, hour: Int, minute: Int,
+        leadMinutes: Int, calendar: Calendar = .current
+    ) -> [Date] {
+        guard let end = task.recurrenceEndDate else { return [] }
+        let today = calendar.startOfDay(for: now)
+        let lastDay = calendar.startOfDay(for: end)
+        var day = max(today, task.date.map { calendar.startOfDay(for: $0) } ?? today)
+        var result: [Date] = []
+        // 연간 반복에서도 7회차를 찾을 수 있는 탐색 상한.
+        for _ in 0..<(366 * (upcomingSlotCount + 1)) {
+            guard day <= lastDay, result.count < upcomingSlotCount else { break }
+            if task.occursOn(day, calendar: calendar),
+               !(task.isCompleted && calendar.isDate(day, inSameDayAs: today)),
+               let occurrence = RecurrenceEngine.wallClockDate(on: day, hour: hour, minute: minute, calendar: calendar),
+               let fire = calendar.date(byAdding: .minute, value: -leadMinutes, to: occurrence), fire > now {
+                result.append(fire)
+            }
+            guard let next = calendar.date(byAdding: .day, value: 1, to: day) else { break }
+            day = next
+        }
+        return result
+    }
+
     /// 격주·매월·매년 반복에서 뺄 날을 건너뛴 다음 알림 시각입니다.
+
     static func nextIncludedFireDate(
         after now: Date,
         anchor: Date,
