@@ -4,6 +4,7 @@ import {
   type AnalysisInput,
   AnalysisServiceError,
   executeAnalysis,
+  freeDailyLimit,
   type QuotaReservation,
 } from "./analysis-service.ts";
 
@@ -153,6 +154,7 @@ Deno.serve(async (req: Request) => {
       ? input.requestId
       : undefined;
     const text = input.text;
+    const freeLimit = freeDailyLimit(rawBody.freeDailyLimit);
     const localTimeStr = input.currentTime ?? promptTimeInSeoul();
     const userLanguage = input.language ?? "en";
 
@@ -186,6 +188,7 @@ Deno.serve(async (req: Request) => {
           p_user_id: user.id,
           p_request_id: requestId,
           p_input_hash: inputHash,
+          p_free_limit: freeLimit,
         });
         if (error || !isRecord(data) || typeof data.allowed !== "boolean") {
           throw new AnalysisServiceError("quota_backend_failed", 503);
@@ -232,6 +235,7 @@ Deno.serve(async (req: Request) => {
             p_user_id: user.id,
             p_request_id: requestId,
             p_validated_calls: calls,
+            p_free_limit: freeLimit,
           },
         );
         if (error || !isRecord(data)) {

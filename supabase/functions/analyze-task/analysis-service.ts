@@ -17,6 +17,11 @@ export interface AnalysisInput {
   recurrenceEndDates?: string;
 }
 
+/** Only apps that send freeDailyLimit "5" get 5; older apps reject any limit but 3. */
+export function freeDailyLimit(value: unknown): 3 | 5 {
+  return value === "5" ? 5 : 3;
+}
+
 export interface QuotaReservation {
   allowed: boolean;
   reason?: string | null;

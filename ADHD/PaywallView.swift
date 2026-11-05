@@ -347,7 +347,7 @@ struct PaywallView: View {
         return L.paywall.savePercent(percent)
     }
 
-    /// Pro에서만 달라지는 것만 적습니다. AI 분류 자체는 무료(하루 3회)에도 있어서 따로 혜택으로 넣지 않습니다
+    /// Pro에서만 달라지는 것만 적습니다. AI 분류 자체는 무료(하루 5회)에도 있어서 따로 혜택으로 넣지 않습니다
     /// (무료와 Pro의 AI 차이는 첫 항목의 횟수 제한뿐 — 심사 지침 3.1.2).
     private var paywallFeatures: [PaywallFeature] {
         [

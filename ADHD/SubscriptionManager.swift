@@ -342,6 +342,8 @@ nonisolated struct SubscriptionAccountCache {
 
 nonisolated struct CachedAIQuota: Codable, Equatable {
     let used: Int
+    /// 예전 캐시에는 없어서 optional입니다.
+    var limit: Int? = nil
     let remaining: Int?
     let usageDate: String
     let timeZone: String
@@ -720,10 +722,11 @@ final class SubscriptionManager: ObservableObject {
     /// 서버 quota 응답의 표시용 mirror입니다. 로컬에서 증가·날짜 초기화하지 않습니다.
     @Published private(set) var dailyAIUsageCount = 0
     @Published private(set) var serverQuotaRemaining: Int?
+    @Published private(set) var serverQuotaLimit: Int?
     @Published private(set) var serverQuotaUsageDate: String?
     @Published private(set) var serverQuotaTimeZone: String?
 
-    static let freeAILimit = 3
+    static let freeAILimit = 5
 
     /// 알림·알람·위젯 표시용 캐시. 권한 원천은 서버 entitlement입니다.
     static let premiumFlagKey = "isPremiumUser"
@@ -750,9 +753,14 @@ final class SubscriptionManager: ObservableObject {
             remaining: serverQuotaRemaining,
             usageDate: serverQuotaUsageDate,
             timeZone: serverQuotaTimeZone,
-            limit: Self.freeAILimit,
+            limit: displayedAILimit,
             now: now()
         )
+    }
+
+    /// 배지 분모. 서버가 마지막으로 알려준 한도를 따르고, 아직 없으면 앱 기본값입니다.
+    var displayedAILimit: Int {
+        serverQuotaLimit ?? Self.freeAILimit
     }
 
     /// 이 서버 계정의 구독 범위가 열려 있는지. 익명 계정을 막 만든 직후 결제 전에 확인합니다.
@@ -802,6 +810,7 @@ final class SubscriptionManager: ObservableObject {
             return
         }
         dailyAIUsageCount = snapshot.used
+        serverQuotaLimit = snapshot.limit
         serverQuotaRemaining = snapshot.remaining
         serverQuotaUsageDate = snapshot.usageDate
         serverQuotaTimeZone = snapshot.timeZone
@@ -809,6 +818,7 @@ final class SubscriptionManager: ObservableObject {
             accountCache.save(
                 aiQuota: CachedAIQuota(
                     used: snapshot.used,
+                    limit: snapshot.limit,
                     remaining: snapshot.remaining,
                     usageDate: snapshot.usageDate,
                     timeZone: snapshot.timeZone
@@ -822,6 +832,7 @@ final class SubscriptionManager: ObservableObject {
     private func restoreCachedQuota(for userID: UUID) {
         guard let cached = accountCache.aiQuota(for: userID) else { return }
         dailyAIUsageCount = cached.used
+        serverQuotaLimit = cached.limit
         serverQuotaRemaining = cached.remaining
         serverQuotaUsageDate = cached.usageDate
         serverQuotaTimeZone = cached.timeZone
@@ -1090,6 +1101,7 @@ final class SubscriptionManager: ObservableObject {
 
     private func resetQuotaMirror() {
         dailyAIUsageCount = 0
+        serverQuotaLimit = nil
         serverQuotaRemaining = nil
         serverQuotaUsageDate = nil
         serverQuotaTimeZone = nil
