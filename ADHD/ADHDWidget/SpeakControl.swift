@@ -13,7 +13,7 @@ struct SpeakControl: ControlWidget {
     var body: some ControlWidgetConfiguration {
         StaticControlConfiguration(kind: Self.kind) {
             ControlWidgetButton(action: OpenSpeakIntent()) {
-                Label("Speak", systemImage: "mic.fill")
+                Label("Speak", image: "MoraMark")
             }
         }
         .displayName("Speak")
