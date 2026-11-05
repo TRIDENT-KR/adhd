@@ -104,12 +104,25 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
     private var speechRecognizer: SFSpeechRecognizer?
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var recognitionTask: SFSpeechRecognitionTask?
-    private lazy var audioEngine = AVAudioEngine()
+    /// 녹음마다 새로 만듭니다(startListening). 세션을 껐다 켜는 사이 샘플레이트가 바뀌면
+    /// 이전 엔진의 입력 형식이 낡아 소리가 들어오지 않는 채로 녹음되는 일이 있었습니다.
+    private var audioEngine = AVAudioEngine()
     private var isInputTapInstalled = false
     private var didEndRecognitionAudio = false
     private var activeRecognitionSessionID: UUID?
     private var draftFinalizationWorkItem: DispatchWorkItem?
     private static let draftFinalizationDeadline: TimeInterval = 2.0
+    /// 진단 로그 기준 시각(녹음 세션 시작). 받아쓴 내용은 남기지 않고 길이·상태만 남깁니다.
+    private var diagnosticsStartedAt = Date()
+    private var didLogFirstPartial = false
+
+    /// Debug 빌드에서만 Xcode 콘솔에 남깁니다.
+    private func speechLog(_ message: String) {
+        #if DEBUG
+        let elapsed = String(format: "%.2f", Date().timeIntervalSince(diagnosticsStartedAt))
+        print("[speech +\(elapsed)s] \(message)")
+        #endif
+    }
     private var didPrepare = false
 
     /// UserDefaults Keys
@@ -168,17 +181,18 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
 
     /// 입력 장치가 바뀌었거나 엔진이 멈췄으면 지금까지의 받아쓰기를 초안으로 넘깁니다.
     private func handleAudioRouteChange(deviceChanged: Bool) {
+        speechLog("route/config change deviceChanged=\(deviceChanged) engineRunning=\(audioEngine.isRunning) listening=\(isListening) session=\(activeRecognitionSessionID != nil)")
         guard activeRecognitionSessionID != nil, isListening else { return }
         // 엔진 설정 변경 알림은 엔진이 실제로 멈췄을 때만 처리합니다.
         if !deviceChanged && audioEngine.isRunning { return }
-        stopListening()
+        stopListening(reason: deviceChanged ? "inputDeviceChanged" : "engineConfigurationChanged")
     }
 
     private func handleDidEnterBackground() {
         guard didPrepare else { return }
         if activeRecognitionSessionID != nil {
             // 화면이 보이지 않는 즉시 마이크를 끄고 현재 전사문은 편집 초안으로 전달합니다.
-            stopListening()
+            stopListening(reason: "background")
         } else {
             deactivateAudioSession()
         }
@@ -198,15 +212,11 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
         speechRecognizer?.delegate = self
     }
 
-    /// 뷰 등장 시 미리 호출해 첫 탭 렉을 방지합니다.
-    /// SFSpeechRecognizer 초기화 + AVAudioSession 카테고리 사전 설정 (activate는 하지 않음)
+    /// 뷰 등장 시 미리 호출해 첫 탭 렉을 방지합니다. (SFSpeechRecognizer 초기화)
+    /// 오디오 세션 카테고리는 녹음 시작 때만 설정합니다. 다른 스레드에서 미리 바꾸면
+    /// 녹음 시작과 겹쳐 입력이 끊길 수 있습니다.
     func warmUp() {
         prepareIfNeeded()
-        Task.detached(priority: .utility) {
-            try? AVAudioSession.sharedInstance().setCategory(
-                .record, mode: .measurement, options: .duckOthers
-            )
-        }
     }
 
     /// Permission prompts only follow a microphone gesture. Never start recording
@@ -260,7 +270,7 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
     func toggleListening() {
         prepareIfNeeded()
         if activeRecognitionSessionID != nil {
-            stopListening()
+            stopListening(reason: "userTap")
         } else {
             startListening()
         }
@@ -331,11 +341,13 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
         guard activeRecognitionSessionID == nil else {
             // 논리 세션이 남아 있으면 오디오 엔진이 interruption으로 멈췄더라도
             // 새 녹음으로 초안을 덮지 않고 기존 세션을 먼저 확정합니다.
-            stopListening()
+            stopListening(reason: "startWhileSessionActive")
             return
         }
         
         guard let recognizer = speechRecognizer, recognizer.isAvailable else {
+            diagnosticsStartedAt = Date()
+            speechLog("start blocked: recognizer=\(speechRecognizer != nil) available=\(speechRecognizer?.isAvailable ?? false)")
             self.errorMessage = L.voice.errorRecognitionFailed
             self.lastError = .recognitionFailed
             return
@@ -350,6 +362,9 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
 
         let sessionID = UUID()
         activeRecognitionSessionID = sessionID
+        diagnosticsStartedAt = Date()
+        didLogFirstPartial = false
+        speechLog("start locale=\(currentLocaleId) mode=\(micMode.rawValue) route=\(AVAudioSession.sharedInstance().currentRoute.inputs.map(\.portType.rawValue))")
         didEndRecognitionAudio = false
         
         // Reset state
@@ -378,9 +393,11 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
             try audioSession.setCategory(.record, mode: .measurement, options: .duckOthers)
             try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
         } catch {
+            speechLog("audio session activate failed: \(Self.describe(error))")
             abandonRecognitionSession(sessionID, error: .recognitionFailed)
             return
         }
+        speechLog("audio session active category=\(audioSession.category.rawValue) sampleRate=\(audioSession.sampleRate)")
         
         recognitionRequest = SFSpeechAudioBufferRecognitionRequest()
         
@@ -392,6 +409,7 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
         recognitionRequest.shouldReportPartialResults = true // Real-time intermediate results
         recognitionRequest.requiresOnDeviceRecognition = true
         
+        audioEngine = AVAudioEngine()
         let inputNode = audioEngine.inputNode
         
         // Start recognition task
@@ -400,8 +418,19 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
             let isFinal = result?.isFinal ?? false
             let didFail = error != nil
 
+            let errorDescription = error.map(Self.describe)
+
             DispatchQueue.main.async {
-                guard let self, self.activeRecognitionSessionID == sessionID else { return }
+                guard let self else { return }
+                if let errorDescription {
+                    self.speechLog("recognition error \(errorDescription) textLength=\(self.recognizedText.count) current=\(self.activeRecognitionSessionID == sessionID)")
+                } else if isFinal {
+                    self.speechLog("recognition final length=\(transcription?.count ?? 0) current=\(self.activeRecognitionSessionID == sessionID)")
+                } else if !self.didLogFirstPartial, self.activeRecognitionSessionID == sessionID {
+                    self.didLogFirstPartial = true
+                    self.speechLog("first partial length=\(transcription?.count ?? 0)")
+                }
+                guard self.activeRecognitionSessionID == sessionID else { return }
 
                 if let transcription {
                     self.recognizedText = transcription
@@ -426,6 +455,7 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
         let recordingFormat = inputNode.outputFormat(forBus: 0)
         // 입력 장치가 바뀌는 순간에는 샘플레이트·채널 수가 0인 형식이 올 수 있고,
         // 그대로 installTap을 부르면 앱이 종료됩니다. 이때는 녹음 실패로 처리합니다.
+        speechLog("input format sampleRate=\(recordingFormat.sampleRate) channels=\(recordingFormat.channelCount)")
         guard Self.isUsableRecordingFormat(sampleRate: recordingFormat.sampleRate,
                                            channelCount: recordingFormat.channelCount) else {
             abandonRecognitionSession(sessionID, error: .recognitionFailed)
@@ -451,7 +481,9 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
         
         do {
             try audioEngine.start()
+            speechLog("engine started running=\(audioEngine.isRunning)")
         } catch {
+            speechLog("engine start failed: \(Self.describe(error))")
             abandonRecognitionSession(sessionID, error: .recognitionFailed)
         }
     }
@@ -480,8 +512,10 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
         }
     }
     
-    func stopListening() {
+    func stopListening(reason: String = "external") {
         guard let sessionID = activeRecognitionSessionID else { return }
+        let frames = audioFrameLock.withLock { audioFrameCount }
+        speechLog("stop reason=\(reason) processing=\(isProcessing) engineRunning=\(audioEngine.isRunning) frames=\(frames) textLength=\(recognizedText.count)")
 
         // 이미 final/error 또는 deadline을 기다리는 중이면 deadline을 다시 늘리지 않습니다.
         guard !isProcessing else {
@@ -534,6 +568,7 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
         isProcessing = true
 
         let finalizedText = recognizedText
+        speechLog("complete textLength=\(finalizedText.count) error=\(error.map { "\($0)" } ?? "none")")
         if finalizedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             activeRecognitionSessionID = nil
             isProcessing = false
@@ -553,6 +588,7 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
 
     private func abandonRecognitionSession(_ sessionID: UUID, error: VoiceError? = nil) {
         guard activeRecognitionSessionID == sessionID else { return }
+        speechLog("abandon error=\(error.map { "\($0)" } ?? "none")")
 
         draftFinalizationWorkItem?.cancel()
         draftFinalizationWorkItem = nil
@@ -567,6 +603,11 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
             errorMessage = error.message
             lastError = error
         }
+    }
+
+    nonisolated static func describe(_ error: Error) -> String {
+        let nsError = error as NSError
+        return "\(nsError.domain)#\(nsError.code) \(nsError.localizedDescription)"
     }
 
     nonisolated static func isUsableRecordingFormat(sampleRate: Double, channelCount: AVAudioChannelCount) -> Bool {
@@ -587,7 +628,7 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
                 self.recordingDuration += 0.1
                 // 최대 녹음 시간 초과 시 자동 종료
                 if self.recordingDuration >= Self.maxRecordingDuration {
-                    self.stopListening()
+                    self.stopListening(reason: "maxDuration")
                 }
             }
         }
@@ -620,7 +661,7 @@ class VoiceInputManager: NSObject, ObservableObject, SFSpeechRecognizerDelegate 
                     } else {
                         // 카운트다운 완료 → 편집 가능한 초안 확정
                         self.silenceCountdown = 0
-                        self.stopListening()
+                        self.stopListening(reason: "silence")
                     }
                 } else {
                     self.silenceCountdown = 0
