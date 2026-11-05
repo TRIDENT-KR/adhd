@@ -352,25 +352,35 @@ struct VoiceStrings {
     var guideTitle: String { t("Just say it", "이렇게 말해보세요", "こう話してみて") }
     var guideStart: String { t("Got it, let's start", "시작하기", "始めましょう") }
 
-    var guideLockTitle: String { t("Speak from the Lock Screen", "잠금화면에서 바로", "ロック画面からすぐ") }
-    var guideLockBody: String { t("Put Mora in a Lock Screen button and start talking with one tap.", "잠금화면 아래 버튼을 Mora로 바꿔 두면 한 번 눌러 바로 말할 수 있어요.", "ロック画面の下のボタンをMoraにすると、ワンタップで話せます。") }
+    var guideLockTitle: String { t("Right from the Lock Screen", "잠금화면에서 바로", "ロック画面からすぐ") }
     var guideLockSteps: [String] { [
-        t("Touch and hold the Lock Screen", "잠금화면을 길게 누르기", "ロック画面を長押し"),
-        t("Tap Customize, then Lock Screen", "사용자화 → 잠금 화면", "カスタマイズ → ロック画面"),
-        t("Swap the bottom-left button for Mora", "왼쪽 아래 버튼을 Mora로", "左下のボタンをMoraに"),
+        t("Hold Lock Screen", "잠금화면 꾹", "ロック画面を長押し"),
+        t("Customize", "사용자화", "カスタマイズ"),
+        t("Bottom-left: Mora", "왼쪽 아래 Mora", "左下をMoraに"),
     ] }
+    var guideLockTip: String { t("Tap to open Mora", "누르면 Mora가 열려요", "タップでMoraが開きます") }
     var guideWidgetTitle: String { t("Check off without opening", "앱 안 열고 체크", "アプリを開かずにチェック") }
-    var guideWidgetBody: String { t("See what's next and check off routines right from your Home Screen.", "홈 화면 위젯에서 다음 할 일을 보고, 루틴은 그 자리에서 체크해요.", "ホーム画面のウィジェットで次の予定を見て、ルーティンはその場でチェック。") }
     var guideWidgetSteps: [String] { [
-        t("Touch and hold the Home Screen", "홈 화면을 길게 누르기", "ホーム画面を長押し"),
-        t("Tap Edit, then Add Widget", "편집 → 위젯 추가", "編集 → ウィジェットを追加"),
-        t("Search for Mora", "Mora 검색", "Moraを検索"),
+        t("Hold Home Screen", "홈 화면 꾹", "ホーム画面を長押し"),
+        t("Add Widget", "위젯 추가", "ウィジェットを追加"),
+        t("Mora", "Mora", "Mora"),
     ] }
-    var guideWidgetNext: String { t("NEXT", "다음 할 일", "次の予定") }
-    var guideWidgetRoutines: String { t("ROUTINES", "루틴", "ルーティン") }
-    var guideWidgetSampleTask: String { t("Medicine", "약 먹기", "薬を飲む") }
-    var guideWidgetSampleDone: String { t("Water", "물 마시기", "水を飲む") }
-    var guideWidgetSampleTodo: String { t("Walk", "산책", "散歩") }
+    var guideAddWidget: String { t("Add Widget", "위젯 추가", "ウィジェットを追加") }
+    // 위젯 이름·설명은 ADHDWidget/Localizable.xcstrings와 같은 문구를 씁니다.
+    var guideWidgetNextName: String { t("Next Task", "다음 할 일", "次のタスク") }
+    var guideWidgetNextDetail: String { t("See your next task and check it off.", "다음 할 일을 보고 바로 체크해요.", "次のタスクを見て、すぐにチェックできます。") }
+    var guideWidgetRoutinesName: String { t("Routines", "루틴", "ルーティン") }
+    var guideWidgetRoutinesDetail: String { t("Check off today's routines.", "오늘 루틴을 바로 체크해요.", "今日のルーティンをすぐにチェックできます。") }
+    var guideWidgetTodayName: String { t("Today", "오늘", "今日") }
+    var guideWidgetTodayDetail: String { t("Today's routines and plans in one place.", "오늘 루틴과 일정을 한곳에서 봐요.", "今日のルーティンと予定をまとめて見られます。") }
+    var guidePlans: String { t("Plans", "일정", "予定") }
+    func guideTasksLeft(_ count: Int) -> String { t("\(count) left", "\(count)개 남음", "残り\(count)件") }
+    func guideRoutineCount(_ done: Int, of total: Int) -> String { t("\(done)/\(total) routines", "\(done)/\(total) 루틴", "ルーティン \(done)/\(total)") }
+    var guideSampleMeeting: String { t("Team meeting", "팀 회의", "チーム会議") }
+    var guideSampleDentist: String { t("Dentist", "치과", "歯医者") }
+    var guideSampleReading: String { t("Read 20 min", "20분 책 읽기", "20分読書") }
+    var guideSampleWalk: String { t("Morning walk", "아침 산책", "朝の散歩") }
+    var guideSampleMeds: String { t("Take meds", "약 먹기", "薬を飲む") }
 
     var confirmAdd: String { t("Add to", "에 추가", "に追加") }
     var confirmDelete: String { t("Delete", "삭제", "削除") }

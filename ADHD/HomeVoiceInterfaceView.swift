@@ -1751,7 +1751,7 @@ struct VoiceConfirmationSheet: View {
 // MARK: - Voice Guide Sheet (온보딩 + 예시 명령어)
 /// 물음표로 여는 가이드. 말하는 법 → 잠금화면 버튼 → 홈 화면 위젯을 옆으로 넘기며 봅니다.
 /// 온보딩과 같은 모양(왼쪽 위 진행 막대, 큰 굵은 제목, 차분한 하단 버튼)을 씁니다.
-/// 장마다 제목 한 줄과 그림 하나가 시선이 머무는 곳이고, 설정 순서는 작은 칩으로 뒤로 물립니다.
+/// 2·3장은 설정 순서를 제목 밑 한 줄 칩으로 두고, 나머지 자리는 실제 화면을 닮은 큰 그림이 채웁니다.
 struct VoiceGuideSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -1825,33 +1825,43 @@ struct VoiceGuideSheet: View {
             .accessibilityAddTraits(.isHeader)
     }
 
-    private func caption(_ text: String) -> some View {
-        Text(text)
-            .font(.body)
-            .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
-            .lineSpacing(3)
-            .fixedSize(horizontal: false, vertical: true)
-            .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    /// 1 → 2 → 3 순서를 한 줄씩. 번호만 색을 두고 글은 조용하게 둡니다.
+    /// 설정 순서를 한 줄 칩으로. 글자가 커서 한 줄에 안 들어가면 세로로 쌓습니다.
     private func steps(_ items: [String]) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            ForEach(Array(items.enumerated()), id: \.offset) { index, item in
-                HStack(spacing: 12) {
-                    Text("\(index + 1)")
-                        .font(.footnote.weight(.bold).monospacedDigit())
-                        .foregroundColor(DesignSystem.Colors.primary)
-                        .frame(width: 24, height: 24)
-                        .background(Circle().fill(DesignSystem.Colors.primary.opacity(0.1)))
-                    Text(item)
-                        .font(.subheadline.weight(.medium))
-                        .foregroundColor(DesignSystem.Colors.onSurface)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 6) { stepChips(items, arrows: true) }
+            VStack(alignment: .leading, spacing: 6) { stepChips(items, arrows: false) }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private func stepChips(_ items: [String], arrows: Bool) -> some View {
+        ForEach(Array(items.enumerated()), id: \.offset) { index, item in
+            if arrows && index > 0 {
+                Image(systemName: "chevron.right")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundColor(DesignSystem.Colors.onSurfaceMeta.opacity(0.6))
+                    .accessibilityHidden(true)
+            }
+            Text(chipText(item))
+                .font(.subheadline.weight(.semibold))
+                .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
+                .lineLimit(1)
+                .fixedSize()
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(DesignSystem.Colors.surfaceContainerLow))
+        }
+    }
+
+    /// 칩 안의 "Mora"만 테라코타로 짚어 줍니다.
+    private func chipText(_ item: String) -> AttributedString {
+        var text = AttributedString(item)
+        if let range = text.range(of: "Mora") {
+            text[range].foregroundColor = DesignSystem.Colors.primary
+        }
+        return text
     }
 
     private func scrollable<Content: View>(_ content: Content) -> some View {
@@ -1886,138 +1896,440 @@ struct VoiceGuideSheet: View {
         .accessibilityHint(L.onboarding.pageHint(1, total: pageCount))
     }
 
-    /// 2장: 잠금화면 왼쪽 아래 버튼을 Mora로 (SpeakControl)
+    /// 2장: 잠금화면 왼쪽 아래 버튼을 Mora로 (SpeakControl). 누르면 앱이 음성 탭으로 열립니다.
     private var lockScreenPage: some View {
         VStack(alignment: .leading, spacing: 0) {
             title(L.voice.guideLockTitle)
-            caption(L.voice.guideLockBody).padding(.top, 12)
+            steps(L.voice.guideLockSteps).padding(.top, 14)
             GuideLockScreenArt()
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 28)
-            steps(L.voice.guideLockSteps)
-            Spacer(minLength: 24)
+                .padding(.top, 24)
+                .padding(.bottom, 16)
         }
         .accessibilityElement(children: .combine)
         .accessibilityHint(L.onboarding.pageHint(2, total: pageCount))
     }
 
-    /// 3장: 홈 화면 위젯 (다음 할 일 · 루틴 체크는 무료 위젯)
+    /// 3장: 위젯 고르는 화면을 닮은 갤러리. 위젯을 옆으로 넘겨 다 볼 수 있습니다.
     private var widgetPage: some View {
         VStack(alignment: .leading, spacing: 0) {
             title(L.voice.guideWidgetTitle)
-            caption(L.voice.guideWidgetBody).padding(.top, 12)
-            GuideWidgetArt()
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 28)
-            steps(L.voice.guideWidgetSteps)
-            Spacer(minLength: 24)
+            steps(L.voice.guideWidgetSteps).padding(.top, 14)
+            GuideWidgetGallery()
+                .padding(.top, 20)
+                .padding(.bottom, 16)
         }
-        .accessibilityElement(children: .combine)
         .accessibilityHint(L.onboarding.pageHint(3, total: pageCount))
     }
 }
 
-/// 가이드 2장 그림: 잠금화면 아래쪽. 왼쪽 버튼만 Mora 마크와 옅은 테라코타 빛으로 짚어 줍니다.
+/// 가이드 2장 그림: 따뜻한 배경화면의 잠금화면. 왼쪽 아래 Mora 버튼에서 물결이 퍼집니다.
 private struct GuideLockScreenArt: View {
-    var body: some View {
-        ZStack(alignment: .bottom) {
-            RoundedRectangle(cornerRadius: 32, style: .continuous)
-                .fill(LinearGradient(colors: [Color(hex: "#3A302A"), Color(hex: "#211B17")],
-                                     startPoint: .top, endPoint: .bottom))
-            VStack(spacing: 2) {
-                Text(Date.now, format: .dateTime.weekday(.wide).month().day())
-                    .font(.caption.weight(.semibold))
-                Text(Date.now, format: .dateTime.hour(.defaultDigits(amPM: .omitted)).minute())
-                    .font(.system(size: 52, weight: .semibold, design: .rounded))
-            }
-            .foregroundColor(.white.opacity(0.92))
-            .frame(maxHeight: .infinity, alignment: .top)
-            .padding(.top, 26)
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var pulse = false
 
-            HStack {
-                ZStack {
-                    Circle().fill(DesignSystem.Colors.primaryContainer.opacity(0.35)).frame(width: 66, height: 66).blur(radius: 10)
-                    Circle().fill(.white.opacity(0.2)).frame(width: 50, height: 50)
-                    Image("MoraMark")
-                        .font(.system(size: 26, weight: .regular))
-                        .foregroundColor(.white)
-                }
-                Spacer()
-                ZStack {
-                    Circle().fill(.white.opacity(0.14)).frame(width: 50, height: 50)
-                    Image(systemName: "camera.fill").font(.system(size: 18)).foregroundColor(.white.opacity(0.7))
+    var body: some View {
+        ZStack {
+            wallpaper
+
+            VStack(spacing: 0) {
+                Text(Date.now, format: .dateTime.weekday(.wide).month().day())
+                    .font(.subheadline.weight(.semibold))
+                Text(Date.now, format: .dateTime.hour(.defaultDigits(amPM: .omitted)).minute())
+                    .font(.system(size: 84, weight: .bold, design: .rounded))
+                    .tracking(-2)
+                    .minimumScaleFactor(0.6)
+                    .lineLimit(1)
+            }
+            .foregroundColor(.white.opacity(0.94))
+            .frame(maxHeight: .infinity, alignment: .top)
+            .padding(.top, 40)
+
+            VStack(alignment: .leading, spacing: 10) {
+                tip
+                HStack {
+                    ZStack {
+                        if !reduceMotion {
+                            ring(delay: 0)
+                            ring(delay: 1.2)
+                        }
+                        controlButton {
+                            Image("MoraMark")
+                                .font(.system(size: 28, weight: .regular))
+                                .foregroundColor(.white)
+                        }
+                    }
+                    Spacer()
+                    controlButton {
+                        Image(systemName: "camera.fill")
+                            .font(.system(size: 20))
+                            .foregroundColor(.white.opacity(0.85))
+                    }
                 }
             }
-            .padding(.horizontal, 22)
-            .padding(.bottom, 22)
+            .padding(.horizontal, 30)
+            .padding(.bottom, 34)
+            .frame(maxHeight: .infinity, alignment: .bottom)
+
+            Capsule()
+                .fill(.white.opacity(0.85))
+                .frame(width: 110, height: 5)
+                .frame(maxHeight: .infinity, alignment: .bottom)
+                .padding(.bottom, 10)
         }
-        .frame(width: 230, height: 250)
-        .shadow(color: DesignSystem.Colors.onSurfaceVariant.opacity(0.12), radius: 24, y: 12)
+        .frame(width: 300, height: 470)
+        .clipShape(RoundedRectangle(cornerRadius: 44, style: .continuous))
+        .shadow(color: DesignSystem.Colors.onSurfaceVariant.opacity(0.22), radius: 26, y: 14)
+        .onAppear { pulse = true }
         .accessibilityHidden(true)
+    }
+
+    private var wallpaper: some View {
+        ZStack {
+            LinearGradient(colors: [Color(hex: "#E7D9CC"), Color(hex: "#B9917D"), Color(hex: "#5B3B2E")],
+                           startPoint: .top, endPoint: .bottom)
+            RadialGradient(colors: [Color(hex: "#D27C5C"), .clear],
+                           center: UnitPoint(x: 0.85, y: 0.95), startRadius: 0, endRadius: 260)
+            RadialGradient(colors: [Color(hex: "#2F6E67"), .clear],
+                           center: .bottomLeading, startRadius: 0, endRadius: 240)
+        }
+    }
+
+    private var tip: some View {
+        Text(L.voice.guideLockTip)
+            .font(.footnote.weight(.bold))
+            .foregroundColor(DesignSystem.Colors.onSurface)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(Color.white)
+                    .shadow(color: .black.opacity(0.15), radius: 10, y: 6)
+            )
+            .overlay(alignment: .bottomLeading) {
+                Image(systemName: "arrowtriangle.down.fill")
+                    .font(.system(size: 10))
+                    .foregroundColor(.white)
+                    .offset(x: 22, y: 7)
+            }
+    }
+
+    private func controlButton<Icon: View>(@ViewBuilder _ icon: () -> Icon) -> some View {
+        ZStack {
+            Circle().fill(.ultraThinMaterial).environment(\.colorScheme, .dark)
+            Circle().fill(.white.opacity(0.12))
+            icon()
+        }
+        .frame(width: 56, height: 56)
+    }
+
+    private func ring(delay: Double) -> some View {
+        Circle()
+            .stroke(.white.opacity(0.8), lineWidth: 2)
+            .frame(width: 56, height: 56)
+            .scaleEffect(pulse ? 1.9 : 1)
+            .opacity(pulse ? 0 : 0.8)
+            .animation(.easeOut(duration: 2.4).repeatForever(autoreverses: false).delay(delay), value: pulse)
     }
 }
 
-/// 가이드 3장 그림: 홈 화면 작은 위젯 두 개(다음 할 일 · 루틴)
-private struct GuideWidgetArt: View {
+/// 가이드 3장 그림: iOS 위젯 고르는 화면을 닮은 갤러리. 실제 위젯 다섯 가지를 넘겨 봅니다.
+/// 위젯 모양은 ADHDWidget의 실제 위젯을 단순하게 옮긴 것이고, 아래 '위젯 추가' 버튼은 그림입니다.
+private struct GuideWidgetGallery: View {
+    private enum Kind: Int, CaseIterable, Identifiable {
+        case nextSmall, nextMedium, routinesSmall, routinesMedium, today
+        var id: Int { rawValue }
+    }
+
+    @State private var current: Int? = Kind.nextSmall.rawValue
+
+    private var kind: Kind { Kind(rawValue: current ?? 0) ?? .nextSmall }
+
     var body: some View {
-        HStack(spacing: 14) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(L.voice.guideWidgetNext)
-                    .font(.caption2.weight(.bold))
-                    .foregroundColor(DesignSystem.Colors.primary)
-                Spacer(minLength: 0)
-                Text(L.voice.guideWidgetSampleTask)
+        VStack(spacing: 0) {
+            HStack(spacing: 10) {
+                Image("GuideAppIcon")
+                    .resizable()
+                    .frame(width: 30, height: 30)
+                    .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                Text("Mora")
+                    .font(.callout.weight(.semibold))
+                    .foregroundColor(.primary)
+                Spacer()
+            }
+            .padding(.horizontal, 18)
+            .padding(.top, 16)
+
+            VStack(spacing: 4) {
+                HStack(spacing: 6) {
+                    Text(name)
+                        .font(.title3.weight(.heavy))
+                        .foregroundColor(.primary)
+                    if kind == .today {
+                        Text("Pro")
+                            .font(.caption2.weight(.bold))
+                            .foregroundColor(DesignSystem.Colors.primary)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(RoundedRectangle(cornerRadius: 6).fill(DesignSystem.Colors.primary.opacity(0.1)))
+                    }
+                }
+                Text(detail)
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            .padding(.top, 12)
+            .padding(.horizontal, 16)
+            .animation(.easeInOut(duration: 0.2), value: kind)
+
+            ScrollView(.horizontal) {
+                LazyHStack(spacing: 0) {
+                    ForEach(Kind.allCases) { item in
+                        preview(item)
+                            .containerRelativeFrame(.horizontal)
+                            .id(item.rawValue)
+                    }
+                }
+                .scrollTargetLayout()
+            }
+            .scrollTargetBehavior(.paging)
+            .scrollPosition(id: $current)
+            .scrollIndicators(.hidden)
+            .frame(height: 320)
+
+            HStack(spacing: 9) {
+                ForEach(Kind.allCases) { item in
+                    Circle()
+                        .fill(item == kind ? Color.primary : Color.secondary.opacity(0.4))
+                        .frame(width: 7, height: 7)
+                }
+            }
+            .padding(.bottom, 12)
+
+            Label(L.voice.guideAddWidget, systemImage: "plus.circle.fill")
+                .font(.callout.weight(.semibold))
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity, minHeight: 46)
+                .background(Capsule().fill(Color.accentBlue))
+                .padding(.horizontal, 18)
+                .padding(.bottom, 18)
+                .accessibilityHidden(true)
+        }
+        .background(
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                .fill(Color(UIColor.secondarySystemBackground))
+                .shadow(color: DesignSystem.Colors.onSurfaceVariant.opacity(0.1), radius: 20, y: 10)
+        )
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(name). \(detail)")
+    }
+
+    private var name: String {
+        switch kind {
+        case .nextSmall, .nextMedium: return L.voice.guideWidgetNextName
+        case .routinesSmall, .routinesMedium: return L.voice.guideWidgetRoutinesName
+        case .today: return L.voice.guideWidgetTodayName
+        }
+    }
+
+    private var detail: String {
+        switch kind {
+        case .nextSmall, .nextMedium: return L.voice.guideWidgetNextDetail
+        case .routinesSmall, .routinesMedium: return L.voice.guideWidgetRoutinesDetail
+        case .today: return L.voice.guideWidgetTodayDetail
+        }
+    }
+
+    // MARK: Widget previews
+
+    @ViewBuilder
+    private func preview(_ item: Kind) -> some View {
+        switch item {
+        case .nextSmall: nextSmall
+        case .nextMedium: nextMedium
+        case .routinesSmall: routinesSmall
+        case .routinesMedium: routinesMedium
+        case .today: today
+        }
+    }
+
+    private func widget<Content: View>(width: CGFloat, height: CGFloat,
+                                       @ViewBuilder _ content: () -> Content) -> some View {
+        content()
+            .padding(14)
+            .frame(width: width, height: height, alignment: .topLeading)
+            .background(
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .fill(DesignSystem.Colors.surfaceContainerLowest)
+                    .shadow(color: .black.opacity(0.12), radius: 14, y: 8)
+            )
+    }
+
+    private var nextSmall: some View {
+        widget(width: 154, height: 154) {
+            VStack(alignment: .leading, spacing: 0) {
+                header(L.voice.guideWidgetNextName, icon: "calendar", color: DesignSystem.Colors.primary)
+                Spacer()
+                Text(L.voice.guideSampleMeeting)
                     .font(.headline)
                     .foregroundColor(DesignSystem.Colors.onSurface)
-                    .lineLimit(1)
-                Text("9:00")
-                    .font(.caption.weight(.medium))
-                    .foregroundColor(DesignSystem.Colors.onSurfaceMeta)
+                HStack {
+                    Text(clock(14, 0), format: .dateTime.hour().minute())
+                        .font(.subheadline.weight(.bold))
+                        .foregroundColor(DesignSystem.Colors.primary)
+                    Spacer()
+                    check(false, size: 24)
+                }
+                .padding(.top, 4)
             }
-            .padding(14)
-            .frame(width: 128, height: 128, alignment: .leading)
-            .background(widgetShape)
-
-            VStack(alignment: .leading, spacing: 8) {
-                Text(L.voice.guideWidgetRoutines)
-                    .font(.caption2.weight(.bold))
-                    .foregroundColor(DesignSystem.Colors.tertiary)
-                Spacer(minLength: 0)
-                routineRow(L.voice.guideWidgetSampleDone, done: true)
-                routineRow(L.voice.guideWidgetSampleTodo, done: false)
-            }
-            .padding(14)
-            .frame(width: 128, height: 128, alignment: .leading)
-            .background(widgetShape)
         }
-        .padding(18)
-        .background(
-            RoundedRectangle(cornerRadius: 32, style: .continuous)
-                .fill(LinearGradient(colors: [DesignSystem.Colors.primaryContainer.opacity(0.28),
-                                              DesignSystem.Colors.tertiary.opacity(0.12)],
-                                     startPoint: .topLeading, endPoint: .bottomTrailing))
-        )
-        .accessibilityHidden(true)
     }
 
-    private var widgetShape: some View {
-        RoundedRectangle(cornerRadius: 22, style: .continuous)
-            .fill(DesignSystem.Colors.surfaceContainerLowest)
-            .shadow(color: DesignSystem.Colors.onSurfaceVariant.opacity(0.08), radius: 12, y: 6)
+    private var nextMedium: some View {
+        widget(width: 296, height: 154) {
+            VStack(alignment: .leading, spacing: 9) {
+                HStack {
+                    header(L.voice.guideWidgetNextName, icon: "scope", color: DesignSystem.Colors.primary)
+                    Spacer()
+                    Text(L.voice.guideTasksLeft(4)).font(.caption).foregroundColor(DesignSystem.Colors.onSurfaceMeta)
+                }
+                row(L.voice.guideSampleMeeting, at: clock(14, 0), done: false)
+                row(L.voice.guideSampleDentist, at: clock(17, 30), done: false)
+                row(L.voice.guideSampleReading, at: clock(21, 0), done: false)
+            }
+        }
     }
 
-    private func routineRow(_ name: String, done: Bool) -> some View {
+    private var routinesSmall: some View {
+        widget(width: 154, height: 154) {
+            VStack(spacing: 8) {
+                ZStack {
+                    Circle().stroke(DesignSystem.Colors.onSurface.opacity(0.08), lineWidth: 8)
+                    Circle().trim(from: 0, to: 0.5)
+                        .stroke(DesignSystem.Colors.tertiary, style: StrokeStyle(lineWidth: 8, lineCap: .round))
+                        .rotationEffect(.degrees(-90))
+                    Text("50%").font(.headline.weight(.heavy)).foregroundColor(DesignSystem.Colors.onSurface)
+                }
+                .frame(width: 76, height: 76)
+                Text(L.voice.guideRoutineCount(2, of: 4))
+                    .font(.footnote.weight(.semibold))
+                    .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+
+    private var routinesMedium: some View {
+        widget(width: 296, height: 154) {
+            VStack(alignment: .leading, spacing: 9) {
+                HStack {
+                    Text(L.voice.guideWidgetRoutinesName).font(.footnote.weight(.bold)).foregroundColor(DesignSystem.Colors.onSurface)
+                    Spacer()
+                    progress
+                }
+                row(L.voice.guideSampleWalk, at: clock(7, 30), done: true)
+                row(L.voice.guideSampleMeds, at: clock(9, 0), done: true)
+                row(L.voice.guideSampleReading, at: clock(21, 0), done: false)
+            }
+        }
+    }
+
+    private var today: some View {
+        widget(width: 296, height: 284) {
+            VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(L.voice.guideWidgetTodayName)
+                        .font(.caption.weight(.bold))
+                        .foregroundColor(DesignSystem.Colors.primary)
+                    HStack {
+                        Text(Date.now, format: .dateTime.month().day().weekday(.wide))
+                            .font(.headline)
+                            .foregroundColor(DesignSystem.Colors.onSurface)
+                        Spacer()
+                        progress
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(Capsule().fill(DesignSystem.Colors.onSurface.opacity(0.06)))
+                    }
+                }
+                Label(L.voice.guideWidgetRoutinesName, systemImage: "arrow.triangle.2.circlepath")
+                    .font(.caption).foregroundColor(DesignSystem.Colors.onSurfaceMeta)
+                    .padding(.top, 2)
+                row(L.voice.guideSampleWalk, at: clock(7, 30), done: true)
+                row(L.voice.guideSampleMeds, at: clock(9, 0), done: true)
+                row(L.voice.guideSampleReading, at: clock(21, 0), done: false)
+                Label(L.voice.guidePlans, systemImage: "calendar")
+                    .font(.caption).foregroundColor(DesignSystem.Colors.onSurfaceMeta)
+                    .padding(.top, 4)
+                planRow(L.voice.guideSampleMeeting, at: clock(14, 0))
+                planRow(L.voice.guideSampleDentist, at: clock(17, 30))
+            }
+        }
+    }
+
+    private func header(_ text: String, icon: String, color: Color) -> some View {
+        Label(text, systemImage: icon)
+            .font(.caption.weight(.bold))
+            .foregroundColor(color)
+            .lineLimit(1)
+    }
+
+    private var progress: some View {
+        HStack(spacing: 5) {
+            Text("2/4").font(.caption.weight(.bold)).foregroundColor(DesignSystem.Colors.onSurfaceVariant)
+            Circle().trim(from: 0, to: 0.5)
+                .stroke(DesignSystem.Colors.tertiary, style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+                .background(Circle().stroke(DesignSystem.Colors.onSurface.opacity(0.08), lineWidth: 3))
+                .frame(width: 16, height: 16)
+        }
+    }
+
+    private func row(_ name: String, at time: Date, done: Bool) -> some View {
         HStack(spacing: 8) {
-            Image(systemName: done ? "checkmark.circle.fill" : "circle")
-                .font(.system(size: 17))
-                .foregroundColor(done ? DesignSystem.Colors.tertiary : DesignSystem.Colors.onSurfaceMeta)
+            check(done, size: 18)
             Text(name)
-                .font(.subheadline.weight(.medium))
+                .font(.subheadline)
                 .foregroundColor(done ? DesignSystem.Colors.onSurfaceMeta : DesignSystem.Colors.onSurface)
                 .strikethrough(done, color: DesignSystem.Colors.onSurfaceMeta)
                 .lineLimit(1)
+            Spacer(minLength: 4)
+            Text(time, format: .dateTime.hour().minute())
+                .font(.caption)
+                .foregroundColor(DesignSystem.Colors.onSurfaceMeta)
         }
     }
+
+    private func planRow(_ name: String, at time: Date) -> some View {
+        HStack(spacing: 10) {
+            Text(time, format: .dateTime.hour().minute())
+                .font(.caption.weight(.bold))
+                .foregroundColor(DesignSystem.Colors.primary)
+                .frame(width: 64, alignment: .leading)
+            Text(name)
+                .font(.subheadline)
+                .foregroundColor(DesignSystem.Colors.onSurface)
+                .lineLimit(1)
+            Spacer(minLength: 4)
+            check(false, size: 18)
+        }
+    }
+
+    private func check(_ done: Bool, size: CGFloat) -> some View {
+        Image(systemName: done ? "checkmark.circle.fill" : "circle")
+            .font(.system(size: size))
+            .foregroundColor(done ? DesignSystem.Colors.tertiary : DesignSystem.Colors.onSurfaceMeta)
+    }
+
+    private func clock(_ hour: Int, _ minute: Int) -> Date {
+        Calendar.current.date(bySettingHour: hour, minute: minute, second: 0, of: .now) ?? .now
+    }
+}
+
+private extension Color {
+    /// iOS 위젯 갤러리의 '위젯 추가' 버튼 파랑
+    static let accentBlue = Color(UIColor.systemBlue)
 }
 
 // MARK: - Preview
