@@ -348,12 +348,29 @@ struct VoiceStrings {
     func actionComplete(_ name: String) -> String { t("Mark \"\(name)\" as complete", "\"\(name)\" 완료 처리", "\"\(name)\"を完了にする") }
     func actionUnknown(_ cmd: String) -> String { t("Unknown command (\(cmd))", "알 수 없는 명령 (\(cmd))", "不明なコマンド (\(cmd))") }
 
-    var guideTitle: String { t("Try saying...", "이렇게 말해보세요...", "こう言ってみてください...") }
+    var guideHelp: String { t("How to use Mora", "Mora 사용법", "Moraの使い方") }
+    var guideTitle: String { t("Just say it", "이렇게 말해보세요", "こう話してみて") }
     var guideStart: String { t("Got it, let's start", "시작하기", "始めましょう") }
 
-    var exampleAdd: String { t("\"Take medicine at 9 AM\"", "\"오전 9시에 약 먹기\"", "\"午前9時に薬を飲む\"") }
-    var exampleAppointment: String { t("\"Meeting tomorrow at 3 PM\"", "\"내일 오후 3시에 회의\"", "\"明日午後3時に会議\"") }
-    var exampleDelete: String { t("\"Delete exercise\"", "\"운동 삭제\"", "\"運動を削除\"") }
+    var guideLockTitle: String { t("Speak from the Lock Screen", "잠금화면에서 바로", "ロック画面からすぐ") }
+    var guideLockBody: String { t("Put Mora in a Lock Screen button and start talking with one tap.", "잠금화면 아래 버튼을 Mora로 바꿔 두면 한 번 눌러 바로 말할 수 있어요.", "ロック画面の下のボタンをMoraにすると、ワンタップで話せます。") }
+    var guideLockSteps: [String] { [
+        t("Touch and hold the Lock Screen", "잠금화면을 길게 누르기", "ロック画面を長押し"),
+        t("Tap Customize, then Lock Screen", "사용자화 → 잠금 화면", "カスタマイズ → ロック画面"),
+        t("Swap the bottom-left button for Mora", "왼쪽 아래 버튼을 Mora로", "左下のボタンをMoraに"),
+    ] }
+    var guideWidgetTitle: String { t("Check off without opening", "앱 안 열고 체크", "アプリを開かずにチェック") }
+    var guideWidgetBody: String { t("See what's next and check off routines right from your Home Screen.", "홈 화면 위젯에서 다음 할 일을 보고, 루틴은 그 자리에서 체크해요.", "ホーム画面のウィジェットで次の予定を見て、ルーティンはその場でチェック。") }
+    var guideWidgetSteps: [String] { [
+        t("Touch and hold the Home Screen", "홈 화면을 길게 누르기", "ホーム画面を長押し"),
+        t("Tap Edit, then Add Widget", "편집 → 위젯 추가", "編集 → ウィジェットを追加"),
+        t("Search for Mora", "Mora 검색", "Moraを検索"),
+    ] }
+    var guideWidgetNext: String { t("NEXT", "다음 할 일", "次の予定") }
+    var guideWidgetRoutines: String { t("ROUTINES", "루틴", "ルーティン") }
+    var guideWidgetSampleTask: String { t("Medicine", "약 먹기", "薬を飲む") }
+    var guideWidgetSampleDone: String { t("Water", "물 마시기", "水を飲む") }
+    var guideWidgetSampleTodo: String { t("Walk", "산책", "散歩") }
 
     var confirmAdd: String { t("Add to", "에 추가", "に追加") }
     var confirmDelete: String { t("Delete", "삭제", "削除") }

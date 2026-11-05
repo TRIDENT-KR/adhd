@@ -98,7 +98,7 @@ struct HomeVoiceInterfaceView: View {
                             .frame(minWidth: 44, minHeight: 44)
                             .contentShape(Rectangle())
                     }
-                    .accessibilityLabel(L.voice.guideTitle)
+                    .accessibilityLabel(L.voice.guideHelp)
 
                     Spacer()
 
@@ -493,7 +493,7 @@ struct HomeVoiceInterfaceView: View {
             if !hasSeenVoiceOnboarding { hasSeenVoiceOnboarding = true }
         }) {
             VoiceGuideSheet()
-                .presentationDetents([.medium, .large])
+                .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
         }
         .onChange(of: voiceManager.lastError) { _, newError in
@@ -1749,77 +1749,274 @@ struct VoiceConfirmationSheet: View {
 
 
 // MARK: - Voice Guide Sheet (온보딩 + 예시 명령어)
+/// 물음표로 여는 가이드. 말하는 법 → 잠금화면 버튼 → 홈 화면 위젯을 옆으로 넘기며 봅니다.
+/// 온보딩과 같은 모양(왼쪽 위 진행 막대, 큰 굵은 제목, 차분한 하단 버튼)을 씁니다.
+/// 장마다 제목 한 줄과 그림 하나가 시선이 머무는 곳이고, 설정 순서는 작은 칩으로 뒤로 물립니다.
 struct VoiceGuideSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var page = 0
+    @ScaledMetric(relativeTo: .largeTitle) private var titleSize: CGFloat = 34
 
-    private let examples: [(icon: String, text: String, color: Color)] = [
-        ("plus.circle.fill", L.voice.exampleAdd, DesignSystem.Colors.tertiary),
-        ("calendar.circle.fill", L.voice.exampleAppointment, DesignSystem.Colors.primary),
-        ("minus.circle.fill", L.voice.exampleDelete, Color.red.opacity(0.7)),
-    ]
+    private let pageCount = 3
 
     var body: some View {
         VStack(spacing: 0) {
-            // 큰 글씨에서도 예시가 잘리지 않도록 본문만 스크롤하고 버튼은 아래에 고정한다.
-            ScrollView {
-                VStack(spacing: 28) {
-                    VStack(spacing: 8) {
-                        Image(systemName: "mic.circle.fill")
-                            .font(.system(size: 48))
-                            .foregroundColor(DesignSystem.Colors.primary)
-                            .accessibilityHidden(true)
+            topBar
 
-                        Text(L.voice.guideTitle)
-                            .font(.title2.weight(.semibold))
-                            .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
-                    }
-                    .padding(.top, 24)
+            TabView(selection: $page) {
+                scrollable(speakPage).tag(0)
+                scrollable(lockScreenPage).tag(1)
+                scrollable(widgetPage).tag(2)
+            }
+            .tabViewStyle(.page(indexDisplayMode: .never))
 
-                    VStack(spacing: 16) {
-                        ForEach(Array(examples.enumerated()), id: \.offset) { _, example in
-                            HStack(spacing: 16) {
-                                Image(systemName: example.icon)
-                                    .font(.title3)
-                                    .foregroundColor(example.color)
-                                    .frame(width: 36)
-
-                                Text(example.text)
-                                    .font(.body.weight(.medium))
-                                    .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
-                                    .fixedSize(horizontal: false, vertical: true)
-
-                                Spacer()
-                            }
-                            .padding(.horizontal, 20)
-                            .padding(.vertical, 16)
-                            .background(
-                                RoundedRectangle(cornerRadius: 14)
-                                    .fill(DesignSystem.Colors.surfaceContainerLow)
-                            )
+            Group {
+                if page < pageCount - 1 {
+                    Button {
+                        withAnimation(reduceMotion ? .none : .easeInOut(duration: 0.3)) { page += 1 }
+                    } label: {
+                        HStack(spacing: 8) {
+                            Text(L.onboarding.next)
+                            Image(systemName: "arrow.right")
+                                .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
+                                .accessibilityHidden(true)
                         }
                     }
-                    .padding(.horizontal, 24)
+                    .accessibilityLabel(L.onboarding.next)
+                } else {
+                    Button { dismiss() } label: { Text(L.voice.guideStart) }
                 }
-                .padding(.bottom, 16)
             }
-            .scrollBounceBehavior(.basedOnSize)
-
-            // 쓸어내리기 외에도 닫을 수 있게 명시적인 버튼을 둔다.
-            Button { dismiss() } label: {
-                Text(L.voice.guideStart)
-                    .font(.headline)
-                    .frame(maxWidth: .infinity, minHeight: 52)
-                    .foregroundStyle(DesignSystem.Colors.onPrimary)
-                    .background(LinearGradient(
-                        colors: [DesignSystem.Colors.primary, DesignSystem.Colors.primary.opacity(0.78)],
-                        startPoint: .topLeading, endPoint: .bottomTrailing
-                    ), in: Capsule())
-            }
+            .buttonStyle(CalmButtonStyle(fill: DesignSystem.Colors.surfaceContainerLow))
             .padding(.horizontal, 24)
-            .padding(.top, 8)
             .padding(.bottom, 16)
         }
         .background(DesignSystem.Colors.background)
+    }
+
+    // MARK: Chrome
+
+    private var topBar: some View {
+        HStack(spacing: 6) {
+            ForEach(0..<pageCount, id: \.self) { index in
+                Capsule()
+                    .fill(index == page
+                          ? DesignSystem.Colors.onSurface
+                          : DesignSystem.Colors.onSurface.opacity(0.12))
+                    .frame(width: index == page ? 28 : 14, height: 5)
+            }
+            Spacer()
+        }
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.25), value: page)
+        .accessibilityHidden(true)
+        .padding(.horizontal, 28)
+        .padding(.top, 28)
+        .frame(height: 60)
+    }
+
+    private func title(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: titleSize, weight: .heavy))
+            .tracking(-titleSize * 0.035)
+            .foregroundColor(DesignSystem.Colors.onSurface)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityAddTraits(.isHeader)
+    }
+
+    private func caption(_ text: String) -> some View {
+        Text(text)
+            .font(.body)
+            .foregroundColor(DesignSystem.Colors.onSurfaceVariant)
+            .lineSpacing(3)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// 1 → 2 → 3 순서를 한 줄씩. 번호만 색을 두고 글은 조용하게 둡니다.
+    private func steps(_ items: [String]) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            ForEach(Array(items.enumerated()), id: \.offset) { index, item in
+                HStack(spacing: 12) {
+                    Text("\(index + 1)")
+                        .font(.footnote.weight(.bold).monospacedDigit())
+                        .foregroundColor(DesignSystem.Colors.primary)
+                        .frame(width: 24, height: 24)
+                        .background(Circle().fill(DesignSystem.Colors.primary.opacity(0.1)))
+                    Text(item)
+                        .font(.subheadline.weight(.medium))
+                        .foregroundColor(DesignSystem.Colors.onSurface)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func scrollable<Content: View>(_ content: Content) -> some View {
+        GeometryReader { proxy in
+            ScrollView {
+                content
+                    .padding(.horizontal, 28)
+                    .padding(.top, 20)
+                    .frame(maxWidth: .infinity, minHeight: proxy.size.height, alignment: .top)
+            }
+            .scrollBounceBehavior(.basedOnSize)
+        }
+    }
+
+    // MARK: Pages
+
+    /// 1장: 이렇게 말하면 이렇게 정리된다는 대화 예시 (온보딩 2장과 같은 말풍선)
+    private var speakPage: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            title(L.voice.guideTitle)
+
+            VStack(spacing: 8) {
+                ForEach(L.onboarding.examples, id: \.self) { example in
+                    VoiceExampleExchange(example: example)
+                }
+            }
+            .padding(.top, 36)
+
+            Spacer(minLength: 24)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityHint(L.onboarding.pageHint(1, total: pageCount))
+    }
+
+    /// 2장: 잠금화면 왼쪽 아래 버튼을 Mora로 (SpeakControl)
+    private var lockScreenPage: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            title(L.voice.guideLockTitle)
+            caption(L.voice.guideLockBody).padding(.top, 12)
+            GuideLockScreenArt()
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 28)
+            steps(L.voice.guideLockSteps)
+            Spacer(minLength: 24)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityHint(L.onboarding.pageHint(2, total: pageCount))
+    }
+
+    /// 3장: 홈 화면 위젯 (다음 할 일 · 루틴 체크는 무료 위젯)
+    private var widgetPage: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            title(L.voice.guideWidgetTitle)
+            caption(L.voice.guideWidgetBody).padding(.top, 12)
+            GuideWidgetArt()
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 28)
+            steps(L.voice.guideWidgetSteps)
+            Spacer(minLength: 24)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityHint(L.onboarding.pageHint(3, total: pageCount))
+    }
+}
+
+/// 가이드 2장 그림: 잠금화면 아래쪽. 왼쪽 버튼만 Mora 마크와 옅은 테라코타 빛으로 짚어 줍니다.
+private struct GuideLockScreenArt: View {
+    var body: some View {
+        ZStack(alignment: .bottom) {
+            RoundedRectangle(cornerRadius: 32, style: .continuous)
+                .fill(LinearGradient(colors: [Color(hex: "#3A302A"), Color(hex: "#211B17")],
+                                     startPoint: .top, endPoint: .bottom))
+            VStack(spacing: 2) {
+                Text(Date.now, format: .dateTime.weekday(.wide).month().day())
+                    .font(.caption.weight(.semibold))
+                Text(Date.now, format: .dateTime.hour(.defaultDigits(amPM: .omitted)).minute())
+                    .font(.system(size: 52, weight: .semibold, design: .rounded))
+            }
+            .foregroundColor(.white.opacity(0.92))
+            .frame(maxHeight: .infinity, alignment: .top)
+            .padding(.top, 26)
+
+            HStack {
+                ZStack {
+                    Circle().fill(DesignSystem.Colors.primaryContainer.opacity(0.35)).frame(width: 66, height: 66).blur(radius: 10)
+                    Circle().fill(.white.opacity(0.2)).frame(width: 50, height: 50)
+                    Image("MoraMark")
+                        .font(.system(size: 26, weight: .regular))
+                        .foregroundColor(.white)
+                }
+                Spacer()
+                ZStack {
+                    Circle().fill(.white.opacity(0.14)).frame(width: 50, height: 50)
+                    Image(systemName: "camera.fill").font(.system(size: 18)).foregroundColor(.white.opacity(0.7))
+                }
+            }
+            .padding(.horizontal, 22)
+            .padding(.bottom, 22)
+        }
+        .frame(width: 230, height: 250)
+        .shadow(color: DesignSystem.Colors.onSurfaceVariant.opacity(0.12), radius: 24, y: 12)
+        .accessibilityHidden(true)
+    }
+}
+
+/// 가이드 3장 그림: 홈 화면 작은 위젯 두 개(다음 할 일 · 루틴)
+private struct GuideWidgetArt: View {
+    var body: some View {
+        HStack(spacing: 14) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(L.voice.guideWidgetNext)
+                    .font(.caption2.weight(.bold))
+                    .foregroundColor(DesignSystem.Colors.primary)
+                Spacer(minLength: 0)
+                Text(L.voice.guideWidgetSampleTask)
+                    .font(.headline)
+                    .foregroundColor(DesignSystem.Colors.onSurface)
+                    .lineLimit(1)
+                Text("9:00")
+                    .font(.caption.weight(.medium))
+                    .foregroundColor(DesignSystem.Colors.onSurfaceMeta)
+            }
+            .padding(14)
+            .frame(width: 128, height: 128, alignment: .leading)
+            .background(widgetShape)
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text(L.voice.guideWidgetRoutines)
+                    .font(.caption2.weight(.bold))
+                    .foregroundColor(DesignSystem.Colors.tertiary)
+                Spacer(minLength: 0)
+                routineRow(L.voice.guideWidgetSampleDone, done: true)
+                routineRow(L.voice.guideWidgetSampleTodo, done: false)
+            }
+            .padding(14)
+            .frame(width: 128, height: 128, alignment: .leading)
+            .background(widgetShape)
+        }
+        .padding(18)
+        .background(
+            RoundedRectangle(cornerRadius: 32, style: .continuous)
+                .fill(LinearGradient(colors: [DesignSystem.Colors.primaryContainer.opacity(0.28),
+                                              DesignSystem.Colors.tertiary.opacity(0.12)],
+                                     startPoint: .topLeading, endPoint: .bottomTrailing))
+        )
+        .accessibilityHidden(true)
+    }
+
+    private var widgetShape: some View {
+        RoundedRectangle(cornerRadius: 22, style: .continuous)
+            .fill(DesignSystem.Colors.surfaceContainerLowest)
+            .shadow(color: DesignSystem.Colors.onSurfaceVariant.opacity(0.08), radius: 12, y: 6)
+    }
+
+    private func routineRow(_ name: String, done: Bool) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: done ? "checkmark.circle.fill" : "circle")
+                .font(.system(size: 17))
+                .foregroundColor(done ? DesignSystem.Colors.tertiary : DesignSystem.Colors.onSurfaceMeta)
+            Text(name)
+                .font(.subheadline.weight(.medium))
+                .foregroundColor(done ? DesignSystem.Colors.onSurfaceMeta : DesignSystem.Colors.onSurface)
+                .strikethrough(done, color: DesignSystem.Colors.onSurfaceMeta)
+                .lineLimit(1)
+        }
     }
 }
 

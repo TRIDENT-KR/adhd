@@ -155,7 +155,7 @@ struct OnboardingView: View {
 
             VStack(spacing: 8) {
                 ForEach(L.onboarding.examples, id: \.self) { example in
-                    exampleExchange(example)
+                    VoiceExampleExchange(example: example)
                 }
             }
             .padding(.top, 40)
@@ -177,55 +177,6 @@ struct OnboardingView: View {
             }
             .scrollBounceBehavior(.basedOnSize)
         }
-    }
-
-    /// 오른쪽에 내가 한 말, 왼쪽에 Mora가 정리한 결과
-    private func exampleExchange(_ example: OnboardingStrings.Example) -> some View {
-        VStack(spacing: 8) {
-            Text(example.said)
-                .font(.body.weight(.semibold))
-                .foregroundColor(DesignSystem.Colors.onSurface)
-                .padding(.horizontal, 18)
-                .padding(.vertical, 13)
-                .background(
-                    UnevenRoundedRectangle(topLeadingRadius: 20, bottomLeadingRadius: 20,
-                                           bottomTrailingRadius: 6, topTrailingRadius: 20, style: .continuous)
-                        .fill(DesignSystem.Colors.onSurfaceVariant.opacity(0.08))
-                )
-                .frame(maxWidth: .infinity, alignment: .trailing)
-                .padding(.leading, 48)
-
-            HStack(spacing: 10) {
-                Image(systemName: "checkmark")
-                    .font(.footnote.weight(.bold))
-                    .foregroundColor(DesignSystem.Colors.tertiary)
-                    .frame(width: 26, height: 26)
-                    .background(Circle().fill(DesignSystem.Colors.tertiary.opacity(0.12)))
-                Text(resultText(example))
-                    .font(.subheadline)
-            }
-            .padding(.leading, 12)
-            .padding(.trailing, 16)
-            .padding(.vertical, 11)
-            .background(
-                UnevenRoundedRectangle(topLeadingRadius: 18, bottomLeadingRadius: 6,
-                                       bottomTrailingRadius: 18, topTrailingRadius: 18, style: .continuous)
-                    .fill(DesignSystem.Colors.surfaceContainerLowest)
-                    .shadow(color: DesignSystem.Colors.onSurfaceVariant.opacity(0.07), radius: 15, y: 10)
-            )
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.trailing, 48)
-            .padding(.bottom, 12)
-        }
-    }
-
-    private func resultText(_ example: OnboardingStrings.Example) -> AttributedString {
-        var name = AttributedString(example.name)
-        name.font = .subheadline.weight(.bold)
-        name.foregroundColor = DesignSystem.Colors.onSurface
-        var detail = AttributedString(example.detail)
-        detail.foregroundColor = DesignSystem.Colors.onSurfaceVariant
-        return name + detail
     }
 
     // MARK: - Actions
@@ -276,5 +227,59 @@ private struct OnboardingMicOrb: View {
             }
         }
         .accessibilityHidden(true)
+    }
+}
+
+// MARK: - Voice Example Exchange
+/// 오른쪽에 내가 한 말, 왼쪽에 Mora가 정리한 결과. 온보딩 2장과 물음표 가이드 1장이 함께 씁니다.
+struct VoiceExampleExchange: View {
+    let example: OnboardingStrings.Example
+
+    var body: some View {
+        VStack(spacing: 8) {
+            Text(example.said)
+                .font(.body.weight(.semibold))
+                .foregroundColor(DesignSystem.Colors.onSurface)
+                .padding(.horizontal, 18)
+                .padding(.vertical, 13)
+                .background(
+                    UnevenRoundedRectangle(topLeadingRadius: 20, bottomLeadingRadius: 20,
+                                           bottomTrailingRadius: 6, topTrailingRadius: 20, style: .continuous)
+                        .fill(DesignSystem.Colors.onSurfaceVariant.opacity(0.08))
+                )
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                .padding(.leading, 48)
+
+            HStack(spacing: 10) {
+                Image(systemName: "checkmark")
+                    .font(.footnote.weight(.bold))
+                    .foregroundColor(DesignSystem.Colors.tertiary)
+                    .frame(width: 26, height: 26)
+                    .background(Circle().fill(DesignSystem.Colors.tertiary.opacity(0.12)))
+                Text(resultText)
+                    .font(.subheadline)
+            }
+            .padding(.leading, 12)
+            .padding(.trailing, 16)
+            .padding(.vertical, 11)
+            .background(
+                UnevenRoundedRectangle(topLeadingRadius: 18, bottomLeadingRadius: 6,
+                                       bottomTrailingRadius: 18, topTrailingRadius: 18, style: .continuous)
+                    .fill(DesignSystem.Colors.surfaceContainerLowest)
+                    .shadow(color: DesignSystem.Colors.onSurfaceVariant.opacity(0.07), radius: 15, y: 10)
+            )
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.trailing, 48)
+            .padding(.bottom, 12)
+        }
+    }
+
+    private var resultText: AttributedString {
+        var name = AttributedString(example.name)
+        name.font = .subheadline.weight(.bold)
+        name.foregroundColor = DesignSystem.Colors.onSurface
+        var detail = AttributedString(example.detail)
+        detail.foregroundColor = DesignSystem.Colors.onSurfaceVariant
+        return name + detail
     }
 }
