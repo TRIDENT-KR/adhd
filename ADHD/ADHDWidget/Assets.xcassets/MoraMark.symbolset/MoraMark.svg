@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--Generator: Mora custom symbol from design/app-icon/mora-porcelain.svg-->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="3300" height="2200">
+ <g id="Notes">
+  <text x="263" y="292" font-size="13">Template v.3.0</text>
+ </g>
+ <g id="Guides">
+  <line id="Baseline-S" x1="263" x2="3036" y1="696" y2="696" stroke="#27AAE1" stroke-width="0.5"/>
+  <line id="Capline-S" x1="263" x2="3036" y1="625.541" y2="625.541" stroke="#27AAE1" stroke-width="0.5"/>
+  <line id="Baseline-M" x1="263" x2="3036" y1="1126" y2="1126" stroke="#27AAE1" stroke-width="0.5"/>
+  <line id="Capline-M" x1="263" x2="3036" y1="1055.54" y2="1055.54" stroke="#27AAE1" stroke-width="0.5"/>
+  <line id="Baseline-L" x1="263" x2="3036" y1="1556" y2="1556" stroke="#27AAE1" stroke-width="0.5"/>
+  <line id="Capline-L" x1="263" x2="3036" y1="1485.54" y2="1485.54" stroke="#27AAE1" stroke-width="0.5"/>
+  <line id="left-margin-Regular-M" x1="1400.0" x2="1400.0" y1="1030.79" y2="1150.12" stroke="#00AEEF" stroke-width="0.5"/>
+  <line id="right-margin-Regular-M" x1="1547.970" x2="1547.970" y1="1030.79" y2="1150.12" stroke="#00AEEF" stroke-width="0.5"/>
+ </g>
+ <g id="Symbols">
+  <g id="Regular-M" transform="matrix(0.138333 0 0 0.166667 1403.5733 1015.2700)">
+   <path d="M 48,505 C 96,491 128,482 156,447 C 180,417 198,379 231,379 C 265,379 272,413 286,444 C 300,476 320,483 343,471 C 366,459 380,430 396,408 C 402,399 409,398 418,404 C 450,426 461,485 477,523 C 484,539 490,544 498,539 C 515,529 534,484 551,450 C 574,404 594,373 619,370 C 632,368 641,373 648,388 C 670,436 687,477 729,501 C 781,531 828,525 874,515 C 918,505 948,510 975,520 C 986,524 986,533 974,534 C 921,531 889,541 850,560 C 803,583 766,610 725,629 C 696,642 668,645 649,631 C 624,613 627,564 613,521 C 607,502 601,494 592,495 C 574,497 559,531 542,563 C 523,600 509,626 483,625 C 454,624 438,597 418,563 C 401,535 387,527 374,535 C 354,548 342,583 321,607 C 304,627 283,634 261,629 C 225,621 212,587 191,548 C 171,511 153,504 124,511 C 96,517 71,527 49,526 C 32,525 32,511 48,505 Z"/>
+   <path d="M 422,353 C 449,319 484,285 522,274 C 566,261 601,287 619,324 C 623,332 623,338 614,341 C 580,350 557,379 536,413 C 524,434 514,456 506,474 C 501,485 495,489 489,478 C 475,451 468,420 451,395 C 441,380 431,372 422,366 C 417,362 418,358 422,353 Z"/>
+  </g>
+ </g>
+</svg>
