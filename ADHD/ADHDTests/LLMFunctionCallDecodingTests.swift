@@ -177,6 +177,31 @@ struct ServerAIQuotaSnapshotTests {
         #expect(snapshot.isValid)
     }
 
+    /// 새 앱은 서버 배포 전(3)과 후(5) 스냅샷을 모두 받아야 무료 AI가 끊기지 않습니다.
+    @Test func acceptsBothOldAndNewFreeLimits() {
+        let five = ServerAIQuotaSnapshot(isPro: false, limit: 5, used: 2, reserved: 1, remaining: 2,
+                                         usageDate: "2026-11-06", timeZone: "Asia/Seoul")
+        let three = ServerAIQuotaSnapshot(isPro: false, limit: 3, used: 1, reserved: 0, remaining: 2,
+                                          usageDate: "2026-11-06", timeZone: "Asia/Seoul")
+        let tooHigh = ServerAIQuotaSnapshot(isPro: false, limit: 6, used: 1, reserved: 0, remaining: 5,
+                                            usageDate: "2026-11-06", timeZone: "Asia/Seoul")
+        let remainingOverLimit = ServerAIQuotaSnapshot(isPro: false, limit: 3, used: 0, reserved: 0, remaining: 4,
+                                                       usageDate: "2026-11-06", timeZone: "Asia/Seoul")
+
+        #expect(five.isValid)
+        #expect(three.isValid)
+        #expect(!tooHigh.isValid)
+        #expect(!remainingOverLimit.isValid)
+    }
+
+    /// 업데이트 전에 저장된 캐시에는 limit이 없습니다. 그래도 읽혀야 배지가 비지 않습니다.
+    @Test func cachedQuotaWithoutLimitStillDecodes() throws {
+        let json = #"{"used":1,"remaining":2,"usageDate":"2026-11-06","timeZone":"Asia/Seoul"}"#
+        let cached = try JSONDecoder().decode(CachedAIQuota.self, from: Data(json.utf8))
+        #expect(cached.limit == nil)
+        #expect(cached.remaining == 2)
+    }
+
     @Test func rejectsClientAmbiguousOrInconsistentQuota() {
         let wrongZone = ServerAIQuotaSnapshot(
             isPro: false,

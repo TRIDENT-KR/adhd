@@ -107,7 +107,7 @@ struct HomeVoiceInterfaceView: View {
                             HStack(spacing: 4) {
                                 Image(systemName: "sparkles")
                                     .font(.system(size: 12, weight: .semibold))
-                                Text("\(subscriptionManager.remainingAIUsage)/\(SubscriptionManager.freeAILimit)")
+                                Text("\(subscriptionManager.remainingAIUsage)/\(subscriptionManager.displayedAILimit)")
                                     .font(.system(size: 13, weight: .bold, design: .rounded))
                             }
                             .foregroundColor(subscriptionManager.canUseAI ? DesignSystem.Colors.primary : DesignSystem.Colors.error)

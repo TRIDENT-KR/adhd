@@ -2,6 +2,7 @@ import {
   type AnalysisDependencies,
   AnalysisServiceError,
   executeAnalysis,
+  freeDailyLimit,
 } from "./analysis-service.ts";
 
 const requestId = "018f8f6e-4d52-7abc-8def-0123456789ab";
@@ -37,6 +38,13 @@ function dependencies(overrides: Partial<AnalysisDependencies> = {}) {
   };
   return { value, calls };
 }
+
+Deno.test("only apps that ask for it get five free analyses", () => {
+  assert(freeDailyLimit("5") === 5, "new apps send freeDailyLimit 5");
+  for (const value of [undefined, null, "3", 5, "10", ""]) {
+    assert(freeDailyLimit(value) === 3, `older or unknown value ${String(value)} stays 3`);
+  }
+});
 
 Deno.test("old or missing provider consent cannot reserve, replay, or transmit", async () => {
   for (const version of [undefined, "1", "3"]) {

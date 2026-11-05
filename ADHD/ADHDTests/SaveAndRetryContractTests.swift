@@ -52,6 +52,7 @@ struct AnalyzePayloadTests {
         #expect(payload["text"] == "내일 3시 병원")
         #expect(payload["aiConsentVersion"] == "2")
         #expect(payload["recurrenceEndDates"] == "1")
+        #expect(payload["freeDailyLimit"] == "5")
     }
 }
 

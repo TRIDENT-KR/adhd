@@ -661,6 +661,28 @@ def ai_broker_checks():
         sql(finalize.replace(request, rid), role="service_role")
     check("AI: fourth free analysis is rejected",
           json.loads(sql(reserve.replace(request, str(uuid.uuid4())), role="service_role"))["reason"] == "quota_exhausted")
+    # 새 앱은 p_free_limit = 5를 보낸다. 옛 앱(기본값 3)은 한도 3을 그대로 받는다.
+    five_user, _ = new_account()
+    reserve5 = f"SELECT public.mora_reserve_ai_analysis_v2('{five_user}', 'RID', '{digest}', 5);"
+    finalize5 = f"SELECT public.mora_finalize_ai_analysis_v2('{five_user}', 'RID', '{payload}'::jsonb, 5);"
+    first5 = None
+    for _ in range(5):
+        rid = str(uuid.uuid4())
+        reserved = json.loads(sql(reserve5.replace("RID", str(rid)), role="service_role"))
+        first5 = first5 or reserved
+        last5 = json.loads(sql(finalize5.replace("RID", str(rid)), role="service_role"))
+    check("AI: new apps get five free analyses and the sixth is rejected",
+          first5["allowed"] and first5["quota"]["limit"] == 5 and first5["quota"]["remaining"] == 4
+          and last5["limit"] == 5 and last5["used"] == 5 and last5["remaining"] == 0
+          and json.loads(sql(reserve5.replace("RID", str(uuid.uuid4())), role="service_role"))["reason"] == "quota_exhausted")
+    check("AI: old apps on the same account still see a limit of 3",
+          json.loads(sql(reserve.replace(user, five_user).replace(request, str(uuid.uuid4())), role="service_role"))["quota"]["limit"] == 3)
+    check("AI: clients cannot call the five-limit RPCs directly",
+          all("permission denied" in sql_error(query.replace("RID", str(uuid.uuid4())), user=five_user, role=role)
+              for role in ["anon", "authenticated"] for query in [reserve5, finalize5]))
+    check("AI: only 3 or 5 are accepted as the free limit",
+          all("invalid_free_limit" in sql_error(reserve5.replace(", 5);", f", {bad});").replace("RID", str(uuid.uuid4())), role="service_role")
+              for bad in ["0", "100", "null"]))
     failed_user, _ = new_account()
     failed_reserve = reserve.replace(user, failed_user)
     sql(failed_reserve, role="service_role")

@@ -20,12 +20,14 @@ struct ServerAIQuotaSnapshot: Decodable, Equatable {
         if isPro {
             return limit == nil && remaining == nil
         }
-        guard limit == SubscriptionManager.freeAILimit,
+        // 서버가 새 마이그레이션 전이면 3, 후면 5를 줍니다. 둘 다 받습니다.
+        guard let limit,
+              (1...SubscriptionManager.freeAILimit).contains(limit),
               let remaining,
-              (0...SubscriptionManager.freeAILimit).contains(remaining) else {
+              (0...limit).contains(remaining) else {
             return false
         }
-        return used + reserved + remaining == SubscriptionManager.freeAILimit
+        return used + reserved + remaining == limit
     }
 
     private static func isValidDate(_ value: String) -> Bool {
@@ -226,7 +228,9 @@ class CloudLLMManager: ObservableObject {
             "currentTime": formatter.string(from: now),
             "language": language,
             "recurrenceEndDates": "1",
-            "alertTone": alertTone.rawValue
+            "alertTone": alertTone.rawValue,
+            // 이 값을 보내야 서버가 무료 5회를 줍니다. 안 보내는 옛 앱은 계속 3회입니다.
+            "freeDailyLimit": String(SubscriptionManager.freeAILimit)
         ]
     }
 
