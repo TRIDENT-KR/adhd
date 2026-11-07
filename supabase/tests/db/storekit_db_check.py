@@ -168,6 +168,44 @@ def binding(original):
                           f"WHERE apple_environment = 'Production' AND original_transaction_id = '{original}';"))
 
 
+def internal_pro_grant_checks():
+    """팀 내부 Pro 지급: 결제 없이 Pro, StoreKit 재계산에 지워지지 않고, 앱 계정은 직접 만질 수 없다."""
+    user, _ = new_account()
+    is_pro = f"SELECT mora_internal.is_pro('mora_prod_private', '{user}', now());"
+    check("내부 지급: 지급이 없으면 Pro가 아니다", entitlement(user)["isPro"] is False and sql(is_pro) == "f")
+
+    sql(f"SELECT mora_internal.set_internal_pro('{user}', '팀 테스트');")
+    granted = entitlement(user)
+    check("내부 지급: 지급하면 앱이 검증하는 active 형태의 Pro로 보인다",
+          granted["isPro"] is True and granted["status"] == "active"
+          and granted["productId"] == "com.TRIDENT.ADHD.yearly"
+          and granted["verifiedAt"] and granted["expiresAt"] and granted["accessUntil"])
+    check("내부 지급: AI 한도 판정(is_pro)도 Pro로 본다", sql(is_pro) == "t")
+
+    sql(f"SELECT mora_internal.storekit_recompute_entitlement('mora_prod_private', '{user}');")
+    check("내부 지급: 결제 연동이 없어도 StoreKit 재계산이 지급을 지우지 않는다",
+          entitlement(user)["isPro"] is True and sql(is_pro) == "t")
+
+    check("내부 지급: 지난 만료일로는 지급할 수 없다",
+          sql_error(f"SELECT mora_internal.set_internal_pro('{user}', '과거', now() - interval '1 day');") != "")
+
+    check("내부 지급: 앱 계정은 지급 테이블을 읽을 수 없다",
+          "permission denied" in sql_error("SELECT * FROM mora_prod_private.internal_pro_grants;", user=user))
+    check("내부 지급: 앱 계정은 지급 함수를 호출할 수 없다",
+          sql_error(f"SELECT mora_internal.set_internal_pro('{user}', '자가 지급');", user=user) != "")
+
+    check("내부 지급: 회수하면 true를 돌려준다",
+          sql(f"SELECT mora_internal.revoke_internal_pro('{user}');") == "t")
+    check("내부 지급: 회수 뒤에는 Pro가 아니다", entitlement(user)["isPro"] is False and sql(is_pro) == "f")
+    check("내부 지급: 없는 지급을 다시 회수하면 false를 돌려준다",
+          sql(f"SELECT mora_internal.revoke_internal_pro('{user}');") == "f")
+
+    sql(f"SELECT mora_internal.set_internal_pro('{user}', '삭제 확인');")
+    sql(f"DELETE FROM auth.users WHERE id = '{user}';")
+    check("내부 지급: Auth 계정을 지우면 지급 행도 함께 지워진다",
+          sql(f"SELECT count(*) FROM mora_prod_private.internal_pro_grants WHERE user_id = '{user}';") == "0")
+
+
 def adult_eligibility_checks():
     accepted = {"eligible": True, "policyVersion": "adult-v1"}
     absent = {"eligible": False, "policyVersion": "adult-v1"}
@@ -874,6 +912,7 @@ def run():
 
     evidence_and_retention_checks()
     adult_eligibility_checks()
+    internal_pro_grant_checks()
     multi_account_claim_checks()
     ai_broker_checks()
 
